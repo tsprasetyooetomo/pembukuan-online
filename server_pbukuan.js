@@ -8,7 +8,14 @@ const path = require("path");
 const fs = require('fs');
 const app = express();
 
-
+// Ketika seseorang membuka alamat web utama, kirimkan file HTML pembukuan Anda
+app.get('/', (req, res) => {
+    res.headers['content-type'] = 'text/html';
+    
+    // Membaca file HTML dari folder yang sama dengan file server_pbukuan.js
+    const htmlPath = path.join(__dirname, 'telaga_pembukuan.html');
+    res.send(fs.readFileSync(htmlPath, 'utf8'));
+});
 // ================================================================
 // CORS & MIDDLEWARE
 // ================================================================
