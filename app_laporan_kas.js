@@ -1,0 +1,967 @@
+/* ================================================================
+   app_laporan_kas.js — KAS HARIAN & INPUT HARIAN
+   ================================================================ */
+
+/* globals getCabangOpts, lookupCabangLabel, uid, esc, fmtN, num, openModal, closeModal, showConfirm, toast, bulkInit, bulkBarHTML, bulkGetIds, bulkGetKey, crudActions, buildTable, refreshCache, navigate, currentPanel, DBCache, db */
+
+/* ---------- Kas Harian ---------- */
+PANEL_MAP.kasHarian = renderKasHarian;
+AFTER_RENDER.kasHarian = refreshKasHarian;
+// Wadah global untuk menyimpan data kas harian yang sedang aktif di layar
+let DATA_KAS_AKTIF = {
+  saldoAwalMaster: 0,
+  groupedData: [],
+};
+
+function renderKasHarian() {
+  // Set Tanggal Hari Ini untuk Tanggal Akhir
+  var today = new Date().toISOString().slice(0, 10);
+  // Set 1 Bulan ke belakang untuk Tanggal Awal (Default)
+  var lastMonth = new Date();
+  lastMonth.setMonth(lastMonth.getMonth() - 1);
+  var defaultStart = lastMonth.toISOString().slice(0, 10);
+
+  // Render Form Awal
+  return `<div class="flt">
+      <div class="fg"><label>Tgl Awal</label><input type="date" id="fk_tgl_awal" value="${defaultStart}" onchange="refreshKasHarian()"></div>
+      <div class="fg"><label>Tgl Akhir</label><input type="date" id="fk_tgl_akhir" value="${today}" onchange="refreshKasHarian()"></div>
+      <div class="fg"><label>Cabang</label><select id="fk_cabang" onchange="refreshKasHarian()">${getCabangOpts("")}</select></div>
+      <div class="fg"><label>KodeBank/Kas</label><select id="fk_kodebank" onchange="refreshKasHarian()"><option value="">Semua</option></select></div>
+      <!-- TAMBAHAN: TOMBOL EXPORT -->
+      <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
+        <button class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportKasHarian()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> Export XLS</button>
+      </div>
+      <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
+        <button class="btn btn-s" style="background-color:#d93025;color:#fff;" 
+                onclick="tutupBukuHarian()">
+          <i class="fa-solid fa-save"></i> Tutup Buku / Simpan Saldo
+        </button>
+      </div>
+    </div>
+    <div id="kasHarianTbl"></div>`;
+}
+
+async function tutupBukuHarian() {
+  // 1. Ambil parameter dari filter UI
+  var tglAwal = $("fk_tgl_awal").value; // Ambil tanggal awal dari filter
+  var tglAkhir = $("fk_tgl_akhir").value;
+  var cab = $("fk_cabang").value;
+  var selectedChar = $("fk_kodebank").value;
+
+  if (!selectedChar) {
+    alert("Pilih Kode Bank/Kas dulu!");
+    return;
+  }
+
+  // 2. Konfirmasi tindakan pengguna terlebih dahulu
+  var ok = confirm(
+    `Tutup buku dan perbarui saldo harian?\nPeriode: ${tglAwal} s/d ${tglAkhir}`,
+  );
+  if (!ok) return;
+
+  // 3. GENERATE SELURUH TANGGAL & HITUNG SALDO PER HARI (DAILY LOOP)
+  var daftarSaldoHarian = [];
+  var dateStart = new Date(tglAwal);
+  var dateEnd = new Date(tglAkhir);
+
+  // Ambil saldo awal mutlak untuk tanggal awal proses
+  var runningSaldo = await getSaldoAwalClient(cab, selectedChar, tglAwal);
+
+  // Lakukan looping per hari dari tanggal awal sampai tanggal akhir
+  for (var d = new Date(dateStart); d <= dateEnd; d.setDate(d.getDate() + 1)) {
+    var tglLoop = d.toISOString().slice(0, 10);
+
+    // Ambil transaksi khusus untuk tanggal hari berjalan ini
+    var transaksiHariIni = DBCache.transaksi.filter(function (t) {
+      if (t.tanggal !== tglLoop) return false; // Harus pas hari ini
+      var tCab = t.cabang || "Pusat";
+      if (cab && tCab !== cab) return false;
+      var tReff = t.noreff || "";
+      var tChar = tReff.length >= 4 ? tReff.charAt(3) : " ";
+      return tChar === selectedChar;
+    });
+
+    // Hitung mutasi di hari tersebut
+    var mutasiHariIni = 0;
+    transaksiHariIni.forEach(function (t) {
+      var type = (t.noreff || "").substring(0, 2).toLowerCase();
+      var amt = num(t.db) || num(t.cr) || num(t.nominal) || 0;
+      if (type === "kp") mutasiHariIni += amt;
+      else if (type === "kk") mutasiHariIni -= amt;
+      else mutasiHariIni += num(t.db) - num(t.cr);
+    });
+
+    // Akumulasikan saldo akhir untuk hari berjalan ini
+    runningSaldo = runningSaldo + mutasiHariIni;
+
+    // Masukkan ke dalam array daftar saldo harian dengan properti yang pas
+    daftarSaldoHarian.push({
+      tanggal: tglLoop,
+      saldoAkhir: runningSaldo,
+    });
+  }
+
+  // 4. KIRIM DATA KE FUNGSI DATABASE UTAMA
+  // Kirim 5 parameter: cabang, char4, tanggalAwal, tanggalAkhir, array_data
+  var hasil = await simpanSnapshotSaldo(
+    cab,
+    selectedChar,
+    tglAwal,
+    tglAkhir,
+    daftarSaldoHarian,
+  );
+
+  if (hasil) {
+    alert("Seluruh data saldo harian periode tersebut berhasil diperbarui!");
+    refreshKasHarian(); // Refresh tampilan tabel kas
+  } else {
+    alert("Gagal memperbarui saldo. Periksa log konsol server.");
+  }
+}
+
+/* ---------- FUNGSI EXPORT KAS HARIAN ---------- */
+function exportKasHarian() {
+  // 1. Ambil data langsung dari wadah global hasil render layar
+  var groupedData = DATA_KAS_AKTIF.groupedData;
+  var saldoAwalMaster = DATA_KAS_AKTIF.saldoAwalMaster;
+
+  // 2. Validasi jika data di layar masih kosong
+  if (!groupedData || groupedData.length === 0) {
+    alert(
+      "Tidak ada data di layar yang bisa di-export! Silakan refresh atau pilih filter data terlebih dahulu.",
+    );
+    return;
+  }
+
+  // 3. Ambil parameter tanggal dan cabang hanya untuk penamaan file
+  var tglAwal = $("fk_tgl_awal").value;
+  var tglAkhir = $("fk_tgl_akhir").value;
+  var cab = $("fk_cabang").value;
+
+  // --- 4. BANGUN CSV / EXCEL ---
+  var csvContent =
+    "Tanggal;Dari/Kepada;No Ref (Unik);Awal;Debit;Kredit;Akhir\r\n";
+  var runBal = saldoAwalMaster;
+  var totalDb = 0;
+  var totalCr = 0;
+  var lastDate = null;
+
+  groupedData.forEach(function (t) {
+    if (lastDate !== null && lastDate !== t.tanggal) {
+      csvContent += ";;;;;;\r\n"; // Baris pemisah antar tanggal
+    }
+    lastDate = t.tanggal;
+    var saldoAwalRow = runBal;
+    runBal += t.db - t.cr;
+    var cleanDariKe = (t.dariKePada || "").replace(/;/g, ",");
+    var cleanReff = (t.noreff || "").replace(/;/g, ",");
+
+    csvContent +=
+      t.tanggal +
+      ";" +
+      cleanDariKe +
+      ";" +
+      cleanReff +
+      ";" +
+      saldoAwalRow +
+      ";" +
+      t.db +
+      ";" +
+      t.cr +
+      ";" +
+      runBal +
+      "\r\n";
+
+    totalDb += t.db;
+    totalCr += t.cr;
+  });
+
+  // Baris Total Akumulasi
+  csvContent +=
+    ";;TOTAL NYA;" +
+    groupedData.length +
+    " ref;" +
+    totalDb +
+    ";" +
+    totalCr +
+    ";" +
+    (totalDb - totalCr) +
+    "\r\n";
+
+  // --- 5. DOWNLOAD FILE ---
+  var blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  var link = document.createElement("a");
+  var url = URL.createObjectURL(blob);
+  var namaFile =
+    "Laporan_Kas_Harian_" +
+    (cab || "Semua") +
+    "_" +
+    tglAwal +
+    "_to_" +
+    tglAkhir +
+    ".csv";
+
+  link.setAttribute("href", url);
+  link.setAttribute("download", namaFile);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  if (typeof toast === "function") {
+    toast("Laporan kas berhasil diunduh.");
+  } else {
+    alert("Laporan kas berhasil diunduh.");
+  }
+}
+async function refreshKasHarian() {
+  var tglAwal = $("fk_tgl_awal").value;
+  var tglAkhir = $("fk_tgl_akhir").value;
+  var cab = $("fk_cabang").value;
+
+  // --- KODE DROPDOWN KODE BANK ---
+  var filteredBanks = DBCache.kodeBank.filter(function (b) {
+    if (!cab) return true;
+    var bankCabang = b.cabang || "Pusat";
+    return bankCabang === cab;
+  });
+
+  var digitMap = {};
+  filteredBanks.forEach(function (b) {
+    var fullKode = b.kodebank || "";
+    var char4 = fullKode.length >= 4 ? fullKode.charAt(3) : " ";
+    var penj = b.penjelasan || "Bank " + char4;
+    if (!digitMap[char4]) digitMap[char4] = [];
+    if (digitMap[char4].indexOf(penj) === -1) digitMap[char4].push(penj);
+  });
+
+  var uniqueDigits = Object.keys(digitMap).sort();
+  var newOpts = uniqueDigits
+    .map(function (c) {
+      var textPenj = digitMap[c].join(", ");
+      var label =
+        c === " " || c === "" ? "(Spasi) - " + textPenj : c + " - " + textPenj;
+      return `<option value="${esc(c)}">${esc(label)}</option>`;
+    })
+    .join("");
+
+  var ddDigit = $("fk_kodebank");
+  if (ddDigit) {
+    var oldVal = ddDigit.value;
+    ddDigit.innerHTML = '<option value="">Semua</option>' + newOpts;
+    var isValid = false;
+    if (oldVal !== "") {
+      for (var i = 0; i < ddDigit.options.length; i++) {
+        if (ddDigit.options[i].value === oldVal) isValid = true;
+      }
+    }
+    ddDigit.value = isValid ? oldVal : "";
+  }
+
+  var selectedChar = $("fk_kodebank").value;
+
+  // --- 2. FILTER DATA TRANSAKSI ---
+  var filteredData = DBCache.transaksi.filter(function (t) {
+    var isDateOk = true;
+    if (tglAwal && tglAkhir) {
+      isDateOk = t.tanggal && t.tanggal >= tglAwal && t.tanggal <= tglAkhir;
+    } else if (tglAwal) {
+      isDateOk = t.tanggal && t.tanggal >= tglAwal;
+    } else if (tglAkhir) {
+      isDateOk = t.tanggal && t.tanggal <= tglAkhir;
+    }
+    if (!isDateOk) return false;
+    var transCab = t.cabang || "Pusat";
+    if (cab && transCab !== cab) return false;
+    if (selectedChar !== "") {
+      var transReff = t.noreff || "";
+      var transChar4 = transReff.length >= 4 ? transReff.charAt(3) : " ";
+      if (transChar4 !== selectedChar) return false;
+    }
+    return true;
+  });
+
+  // --- 3. GROUPING DATA ---
+  var groupedMap = {};
+  filteredData.forEach(function (t) {
+    var keyRef = t.noreff || "-";
+    var typeIndicator = keyRef.substring(0, 2).toLowerCase();
+    var currentDb = 0,
+      currentCr = 0;
+    var rawAmount =
+      num(t.db || 0) ||
+      num(t.cr || 0) ||
+      num(t.nominal || 0) ||
+      num(t.jumlah || 0);
+
+    if (typeIndicator === "kp") {
+      currentDb = rawAmount;
+      currentCr = 0;
+    } else if (typeIndicator === "kk") {
+      currentDb = 0;
+      currentCr = rawAmount;
+    } else {
+      currentDb = num(t.db || 0);
+      currentCr = num(t.cr || 0);
+    }
+
+    if (!groupedMap[keyRef]) {
+      groupedMap[keyRef] = {
+        tanggal: t.tanggal || "-",
+        dariKePada: t.dariKePada || t.keterangan || "UMUM",
+        noreff: keyRef,
+        db: 0,
+        cr: 0,
+        cabang: t.cabang || "Pusat", // ✅ Simpan info cabang di grup
+      };
+    }
+    groupedMap[keyRef].db += currentDb;
+    groupedMap[keyRef].cr += currentCr;
+  });
+  var groupedData = Object.values(groupedMap);
+  groupedData.sort(function (a, b) {
+    var dateComp = a.tanggal.localeCompare(b.tanggal);
+    if (dateComp !== 0) return dateComp;
+    var suffixA = a.noreff.substring(Math.max(0, a.noreff.length - 8));
+    var suffixB = b.noreff.substring(Math.max(0, b.noreff.length - 8));
+    return suffixA.localeCompare(suffixB);
+  });
+
+  // =========================================================================
+  // ✅ PANGGIL getSaldoAwalClient (READ SALDO_HARIAN)
+  // =========================================================================
+  var saldoAwalMaster = 0;
+  if (selectedChar !== "") {
+    saldoAwalMaster = await getSaldoAwalClient(cab, selectedChar, tglAwal);
+  }
+
+  var rows = [],
+    runBal = saldoAwalMaster,
+    totalDb = 0,
+    totalCr = 0;
+  var lastDate = null;
+
+  // --- 5. LOOPING TABEL ---
+  groupedData.forEach(function (t) {
+    if (lastDate !== null && lastDate !== t.tanggal) {
+      rows.push(["", "", "", "", "", "", "", "", ""]); // Tambah kolom kosong untuk separator tanggal
+    }
+    lastDate = t.tanggal;
+    var saldoAwalRow = runBal;
+    runBal += t.db - t.cr;
+
+    // Cari label cabang yang cantik
+    //var cabangLabel = lookupCabangLabel(t.cabang) || t.cabang || "Pusat";
+    var cabangLabel = t.cabang || "-";
+
+    //var viewBtnHtml = `<button type="button" class="btn btn-s btn-a" style="padding:2px 6px;" onclick="showDetailReff('${esc(t.noreff)}')"><i class="fa-solid fa-eye"></i> View</button>`;
+    var viewBtnHtml = `<button type="button" class="btn btn-s btn-a" style="padding:2px 6px;" onclick="showDetailReff('${esc(t.noreff)}', '${esc(t.cabang)}')"><i class="fa-solid fa-eye"></i> View</button>`;
+    rows.push([
+      t.tanggal,
+      esc(t.dariKePada).substring(0, 25),
+      esc(t.noreff),
+      fmtN(saldoAwalRow),
+      fmtN(t.db),
+      fmtN(t.cr),
+      fmtN(runBal),
+      esc(cabangLabel), // ✅ TAMBAHKAN KOLOM CABANG DI SINI
+      viewBtnHtml,
+    ]);
+    totalDb += t.db;
+    totalCr += t.cr;
+  });
+
+  DATA_KAS_AKTIF.saldoAwalMaster = saldoAwalMaster;
+  DATA_KAS_AKTIF.groupedData = groupedData;
+
+  var foot = [
+    "",
+    "",
+    "",
+    groupedData.length + " ref unik",
+    fmtN(totalDb),
+    fmtN(totalCr),
+    fmtN(totalDb - totalCr),
+    "", // ✅ Footer kolom Cabang kosong
+    "", // Footer kolom Aksi kosong
+  ];
+
+  // ✅ UPDATE HEADER TABEL
+  var headers = [
+    "Tanggal",
+    "Dari/Kepada",
+    "No Ref (Unik)",
+    "Awal",
+    "Debit",
+    "Kredit",
+    "Akhir",
+    "Cabang", // ✅ HEADER CABANG DITAMBAHKAN DI SINI
+    "Aksi",
+  ];
+
+  $("kasHarianTbl").innerHTML = wrapTable(
+    buildTable(headers, rows, {
+      numCols: [3, 4, 5, 6],
+      foot: foot,
+      emptyMsg: "Tidak ada data",
+    }),
+  );
+}
+
+// ====== FILE FRONTEND (Misal: kasharian.js atau app.js) ======
+/* ---------- HELPER: AMBIL SALDO AWAL (READ SALDO_HARIAN) ---------- */
+async function getSaldoAwalClient(cabang, char4, tglAwal) {
+  var cab = cabang || "Pusat";
+  var c4 = char4 || " ";
+
+  // 1. Pastikan data saldo_harian sudah ada di memori (DBCache)
+  // Jika belum, ambil dari server via db.getAll
+  if (!DBCache.saldo_harian) {
+    console.log("Fetching saldo_harian...");
+    DBCache.saldo_harian = await db.getAll("saldo_harian");
+  }
+
+  // 2. CARI SALDO TERAKHIR DI TABEL saldo_harian SEBELUM tglAwal
+  // Kita filter manual di sisi client (mirip query SQL server)
+  var listSaldo = DBCache.saldo_harian.filter(function (s) {
+    var sCab = s.cabang || "Pusat";
+    var sC4 = s.char4 || " ";
+    return sCab === cab && sC4 === c4 && s.tanggal < tglAwal;
+  });
+
+  // Urutkan dari tanggal terbesar ke terkecil (DESC)
+  listSaldo.sort(function (a, b) {
+    return b.tanggal.localeCompare(a.tanggal);
+  });
+
+  // Ambil data paling atas (paling mendekati tglAwal)
+  if (listSaldo.length > 0) {
+    return num(listSaldo[0].saldo_akhir || 0);
+  }
+
+  // 3. FALLBACK: Jika tidak ada riwayat di saldo_harian, ambil dari Master KodeBank
+  var bankMatch = DBCache.kodeBank.find(function (b) {
+    var bankCabang = b.cabang || "Pusat";
+    var fullKode = b.kodebank || "";
+    var bankChar4 = fullKode.length >= 4 ? fullKode.charAt(3) : " ";
+    return bankCabang === cab && bankChar4 === c4;
+  });
+
+  if (bankMatch) {
+    // Cek tanggal cutoff master bank
+    var tglAwalMaster = bankMatch.tgl_awal || "";
+    if (!tglAwal || tglAwal >= tglAwalMaster) {
+      return num(bankMatch.awal || 0);
+    }
+  }
+
+  return 0;
+}
+async function simpanSnapshotSaldo(
+  cabang,
+  char4,
+  tanggalAwal,
+  tanggalAkhir,
+  daftarSaldo,
+) {
+  try {
+    const kodeCabang = cabang || "Pusat";
+    const kodeChar = char4 || " ";
+
+    // ==========================================
+    // RADAR DETEKSI: ISI DATA DI CONSOLE BROWSER
+    // ==========================================
+    console.log("=== MEMULAI ANALISIS PROSES SIMPAN ===");
+    console.log("Tipe data daftarSaldo:", typeof daftarSaldo);
+    console.log(
+      "Apakah daftarSaldo berbentuk Array?",
+      Array.isArray(daftarSaldo),
+    );
+    console.log(
+      "Jumlah baris data terdeteksi:",
+      daftarSaldo ? daftarSaldo.length : 0,
+    );
+    console.log(
+      "Isi data mentah pertama:",
+      daftarSaldo ? daftarSaldo[0] : "KOSONG",
+    );
+    // ==========================================
+
+    await fetch(API_BASE_URL + "/api/saldo-harian/clear-range", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cabang: kodeCabang,
+        char4: kodeChar,
+        tanggalAwal: tanggalAwal,
+        tanggalAkhir: tanggalAkhir,
+      }),
+    });
+
+    const dataSiapSimpan = daftarSaldo.map((item) => {
+      return {
+        id: `${kodeCabang}_${kodeChar}_${item.tanggal}`,
+        cabang: kodeCabang,
+        char4: kodeChar,
+        tanggal: item.tanggal,
+        saldo_akhir: item.saldoAkhir,
+      };
+    });
+
+    console.log(
+      "Jumlah data setelah diformat siap kirim:",
+      dataSiapSimpan.length,
+    );
+
+    var response = await fetch(API_BASE_URL + `/api/batch/saldo_harian`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dataSiapSimpan),
+    });
+
+    return await response.json();
+  } catch (error) {
+    console.error("Gagal total:", error);
+  }
+}
+
+// --- FUNGSI MODAL RINCIAN (UPDATE: TAMBAH KOLOM CABANG & SUPPORT SEMUA CABANG) ---
+// --- FUNGSI MODAL RINCIAN (VERSI SPESIFIK: MENGUNCI SESUAI BARIS YANG DIKLIK) ---
+function showDetailReff(noReff, rowCabang) {
+  // ✅ 1. TARGET CABANG DIAMBIL DARI BARIS YANG DIKLIK
+  // Kita mengabaikan filter global ($("fk_cabang")) dan memakai parameter input fungsi ini.
+  var targetCab = rowCabang || "Pusat";
+
+  // ✅ 2. FILTER TRANSAKSI (STRICT: NO REF + CABANG BARIS)
+  var detailData = DBCache.transaksi.filter(function (t) {
+    // Cek No Ref
+    if (t.noreff !== noReff) return false;
+
+    // Cek Cabang: Harus sama persis dengan cabang di baris tabel yang diklik
+    if (String(t.cabang || "Pusat") !== String(targetCab)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  if (detailData.length === 0) {
+    alert("Detail transaksi tidak ditemukan untuk Cabang: " + targetCab);
+    return;
+  }
+
+  // ✅ 3. BUILD TABEL HTML
+  var subRows = detailData
+    .map(function (t) {
+      var noPerkiraan =
+        t.noperkiraan || t.noPerkiraan || t.kodeAkun || t.akun || "-";
+      var description = t.desc || t.keterangan || t.dariKePada || "-";
+
+      // Ambil Label Cabang untuk tampilan yang lebih rapi di modal
+      var cabangLabel = lookupCabangLabel(t.cabang) || t.cabang || "Pusat";
+
+      return (
+        "<tr>" +
+        '<td style="padding:8px; border:1px solid #ddd;">' +
+        esc(t.tanggal || "-") +
+        "</td>" +
+        '<td style="padding:8px; border:1px solid #ddd;">' +
+        esc(noPerkiraan) +
+        "</td>" +
+        '<td style="padding:8px; border:1px solid #ddd;">' +
+        esc(description) +
+        "</td>" +
+        '<td style="padding:8px; border:1px solid #ddd; text-align:right;">' +
+        fmtN(num(t.db || 0)) +
+        "</td>" +
+        '<td style="padding:8px; border:1px solid #ddd; text-align:right;">' +
+        fmtN(num(t.cr || 0)) +
+        "</td>" +
+        // Kolom Cabang di dalam detail
+        '<td style="padding:8px; border:1px solid #ddd; font-weight:600; color:var(--accent);">' +
+        esc(cabangLabel) +
+        "</td>" +
+        "</tr>"
+      );
+    })
+    .join("");
+
+  var html =
+    '<div style="font-family:sans-serif; width: 100%; overflow-x: auto;">' +
+    '<table style="width:100%; border-collapse:collapse; margin-top:5px; font-size:14px;">' +
+    "<thead>" +
+    '<tr style="background:#f5f5f5; border-bottom:2px solid #ddd;">' +
+    '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:100px;">Tanggal</th>' +
+    '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:100px;">No Perkiraan</th>' +
+    '<th style="padding:8px; text-align:left; border:1px solid #ddd;">Desc</th>' +
+    '<th style="padding:8px; text-align:right; border:1px solid #ddd; width:110px;">Debet</th>' +
+    '<th style="padding:8px; text-align:right; border:1px solid #ddd; width:110px;">Kredit</th>' +
+    '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:120px;">Cabang</th>' +
+    "</tr>" +
+    "</thead>" +
+    "<tbody>" +
+    subRows +
+    "</tbody>" +
+    "</table>" +
+    "</div>";
+
+  var foot =
+    '<button type="button" class="btn btn-g" onclick="closeModal()">Tutup</button>';
+
+  // Tampilkan Kode Cabang di Judul Modal agar jelas
+  openModal("Rincian: " + noReff + " (" + targetCab + ")", html, foot);
+
+  // Atur ukuran modal agar muat kolom cabang
+  var modalFrame =
+    document.querySelector(".modal-box") ||
+    document.querySelector(".modal-content") ||
+    document.querySelector("#modal");
+
+  if (modalFrame) {
+    modalFrame.style.width = "100%";
+    modalFrame.style.maxWidth = "1000px";
+  }
+}
+/* ---------- Input Harian Layout Panel ---------- */
+PANEL_MAP.inputHarian = renderInputHarian;
+AFTER_RENDER.inputHarian = refreshInputHarian;
+
+function renderInputHarian() {
+  var today = new Date().toISOString().slice(0, 7); // Format YYYY-MM untuk input month
+
+  return `<div class="flt">
+      <div class="fg">
+        <label>Periode</label>
+        <select id="fi_periode" onchange="refreshInputHarian()">
+          <option value="bulan">Bulanan</option>
+          <option value="tahun">Tahunan</option>
+        </select>
+      </div>
+      <div class="fg"><label>Bulan/Tahun</label><input type="month" id="fi_bulan" value="${today}" onchange="refreshInputHarian()"></div>
+      <div class="fg"><label>Cabang</label><select id="fi_cabang" onchange="refreshInputHarian()">${getCabangOpts("")}</select></div>
+      <div class="fg"><label>Kode Trans</label><input type="text" id="fi_ktrans" class="in" placeholder="Semua" oninput="refreshInputHarian()"></div>
+      <div class="fg"><label>Min. Nilai</label><input type="number" id="fi_nilai" class="in" value="0" oninput="refreshInputHarian()"></div>
+      <div class="fg">
+        <label>Golongan</label>
+        <select id="fi_gol" onchange="refreshInputHarian()">
+          <option value="">Semua</option>
+          <!-- Opsi golongan bisa diisi dinamis jika ada master datanya -->
+        </select>
+      </div>
+      <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
+        <button class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportInputHarian()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> Export XLS</button>
+      </div>
+    </div>
+    <div id="inputHarianTbl"></div>`;
+}
+
+async function refreshInputHarian() {
+  if (
+    !$("fi_periode") ||
+    !$("fi_bulan") ||
+    !$("fi_cabang") ||
+    !$("fi_ktrans") ||
+    !$("fi_nilai") ||
+    !$("fi_gol")
+  ) {
+    return;
+  }
+
+  var periode = $("fi_periode").value,
+    bln = $("fi_bulan").value,
+    cab = $("fi_cabang").value,
+    ktrans = $("fi_ktrans").value,
+    nilai = num($("fi_nilai").value),
+    gol = $("fi_gol").value;
+
+  var data = DBCache.transaksi.slice();
+
+  // --- 1. FILTER PERIODE WAKTU ---
+  if (periode === "bulan" && bln) {
+    data = data.filter(function (t) {
+      return t.tanggal && t.tanggal.startsWith(bln);
+    });
+  } else if (periode === "tahun" && bln) {
+    var tahunSaja = bln.substring(0, 4);
+    data = data.filter(function (t) {
+      return t.tanggal && t.tanggal.startsWith(tahunSaja);
+    });
+  }
+
+  // --- 2. FILTER KODE TRANSAKSI ---
+  if (ktrans) {
+    data = data.filter(function (t) {
+      return t.kodeTrans === ktrans;
+    });
+  }
+
+  // --- 3. FILTER CABANG ---
+  if (cab) {
+    data = data.filter(function (t) {
+      return (t.cabang || "Pusat") === cab;
+    });
+  }
+
+  // --- 4. FILTER NOMINAL NILAI ---
+  if (nilai > 0) {
+    data = data.filter(function (t) {
+      var nilaiAktif =
+        num(t.total) || num(t.db || 0) || num(t.cr || 0) || num(t.nominal || 0);
+      return nilaiAktif >= nilai;
+    });
+  }
+
+  // --- 5. FILTER GOLONGAN PERKIRAAN ---
+  if (gol) {
+    var gp = DBCache.perkiraan
+      .filter(function (p) {
+        return p.gol === gol;
+      })
+      .map(function (p) {
+        return p.noPerk || p.noperkiraan || p.kode_akun;
+      });
+
+    if (gp.length) {
+      data = data.filter(function (t) {
+        var akunTransaksi = t.noperkiraan || t.noPerkiraan || t.kodeTrans || "";
+        return gp.indexOf(akunTransaksi) !== -1;
+      });
+    } else {
+      data = [];
+    }
+  }
+
+  // --- 6. URUTKAN DATA KRONOLOGIS BERDASARKAN TANGGAL ---
+  data.sort(function (a, b) {
+    var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+    if (dateComp !== 0) return dateComp;
+    return (a.id || "").localeCompare(b.id || "");
+  });
+
+  // Kolom akumulasi untuk hitung total di footer
+  var sumTotal = 0,
+    sumDb = 0,
+    sumCr = 0;
+
+  // --- 7. PETAKAN DATA KE BARIS TABEL (7 KOLOM DENGAN LOGIKA DEBET/KREDIT BARU) ---
+  var rows = data.map(function (r) {
+    var keyRef = r.noreff || "";
+    var indicator = keyRef.charAt(1).toLowerCase(); // Ambil digit ke-2 dari No Ref
+
+    var currentDb = 0;
+    var currentCr = 0;
+
+    // Ambil nominal asli transaksi
+    var rawAmount =
+      num(r.total) || num(r.db || 0) || num(r.cr || 0) || num(r.nominal || 0);
+
+    // 🛠️ ATURAN BARU SINKRONISASI AKUNTANSI INPUTAN
+    if (indicator === "p") {
+      currentCr = rawAmount; // Digit ke-2 'p' masuk Kredit
+      currentDb = 0;
+    } else if (indicator === "k") {
+      currentDb = rawAmount; // Digit ke-2 'k' masuk Debet
+      currentCr = 0;
+    } else {
+      // Fallback jika tidak mengandung p atau k
+      currentDb = num(r.db || 0);
+      currentCr = num(r.cr || 0);
+    }
+
+    // Akumulasi nilai untuk baris footer
+    sumTotal += rawAmount;
+    sumDb += currentDb;
+    sumCr += currentCr;
+
+    var isiDesc = r.desc || r.keterangan || "-";
+    var acct = r.noperkiraan || "-";
+    return [
+      esc(r.tanggal || "-"),
+      esc(keyRef || "-"),
+      esc(acct || "-"),
+      esc(isiDesc).substring(0, 25),
+      fmtN(rawAmount),
+      fmtN(currentDb),
+      fmtN(currentCr),
+      esc(lookupCabangLabel(r.cabang) || "Pusat"),
+    ];
+  });
+
+  // --- 8. SUSUN TOTAL FOOTER (8 KOLOM) ---
+  var foot = [
+    "",
+    "",
+    "",
+    "",
+    fmtN(sumTotal), // Total Nominal (Indeks 3)
+    fmtN(sumDb), // Total Debet (Indeks 4)
+    fmtN(sumCr), // Total Kredit (Indeks 5)
+    "",
+  ];
+
+  // --- 9. RENDER KE ELEMEN DOM (7 KOLOM UTUH) ---
+  var tblContainer = $("inputHarianTbl");
+  if (tblContainer) {
+    tblContainer.innerHTML = wrapTable(
+      buildTable(
+        ["Tanggal", "No Ref", "No Acct", "Desc", "Total", "DB", "CR", "Cabang"],
+        rows,
+        { numCols: [4, 5, 6], foot: foot, emptyMsg: "Tidak ada data" },
+      ),
+    );
+  }
+}
+function exportInputHarian() {
+  if (
+    !$("fi_periode") ||
+    !$("fi_bulan") ||
+    !$("fi_cabang") ||
+    !$("fi_ktrans") ||
+    !$("fi_nilai") ||
+    !$("fi_gol")
+  ) {
+    return;
+  }
+
+  var periode = $("fi_periode").value,
+    bln = $("fi_bulan").value,
+    cab = $("fi_cabang").value,
+    ktrans = $("fi_ktrans").value,
+    nilai = num($("fi_nilai").value),
+    gol = $("fi_gol").value;
+
+  var data = DBCache.transaksi.slice();
+
+  // --- 1. FILTER DATA (Sama persis dengan filter refresh tabel) ---
+  if (periode === "bulan" && bln) {
+    data = data.filter(function (t) {
+      return t.tanggal && t.tanggal.startsWith(bln);
+    });
+  } else if (periode === "tahun" && bln) {
+    var tahunSaja = bln.substring(0, 4);
+    data = data.filter(function (t) {
+      return t.tanggal && t.tanggal.startsWith(tahunSaja);
+    });
+  }
+
+  if (ktrans) {
+    data = data.filter(function (t) {
+      return t.kodeTrans === ktrans;
+    });
+  }
+  if (cab) {
+    data = data.filter(function (t) {
+      return (t.cabang || "Pusat") === cab;
+    });
+  }
+
+  if (nilai > 0) {
+    data = data.filter(function (t) {
+      var nilaiAktif =
+        num(t.total) || num(t.db || 0) || num(t.cr || 0) || num(t.nominal || 0);
+      return nilaiAktif >= nilai;
+    });
+  }
+
+  if (gol) {
+    var gp = DBCache.perkiraan
+      .filter(function (p) {
+        return p.gol === gol;
+      })
+      .map(function (p) {
+        return p.noPerk || p.noperkiraan || p.kode_akun;
+      });
+    if (gp.length) {
+      data = data.filter(function (t) {
+        var akunTransaksi = t.noperkiraan || t.noPerkiraan || t.kodeTrans || "";
+        return gp.indexOf(akunTransaksi) !== -1;
+      });
+    } else {
+      data = [];
+    }
+  }
+
+  // --- 2. SORT DATA BERDASARKAN TANGGAL KRONOLOGIS ---
+  data.sort(function (a, b) {
+    var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+    if (dateComp !== 0) return dateComp;
+    return (a.id || "").localeCompare(b.id || "");
+  });
+
+  // --- 3. STRUKTURISASI DATA CSV EXCEL (7 KOLOM) ---
+  var csvContent = "Tanggal;No Ref;Desc;Total;DB;CR;Cabang\r\n";
+
+  var sumTotal = 0,
+    sumDb = 0,
+    sumCr = 0;
+
+  data.forEach(function (r) {
+    var keyRef = r.noreff || "";
+    var indicator = keyRef.charAt(1).toLowerCase();
+
+    var currentDb = 0;
+    var currentCr = 0;
+    var rawAmount =
+      num(r.total) || num(r.db || 0) || r.cr || 0 || num(r.nominal || 0);
+
+    // ATURAN AKUNTANSI TERBARU: p ke CR, k ke DB
+    if (indicator === "p") {
+      currentCr = rawAmount;
+      currentDb = 0;
+    } else if (indicator === "k") {
+      currentDb = rawAmount;
+      currentCr = 0;
+    } else {
+      currentDb = num(r.db || 0);
+      currentCr = num(r.cr || 0);
+    }
+
+    sumTotal += rawAmount;
+    sumDb += currentDb;
+    sumCr += currentCr;
+
+    var cleanDesc = (r.desc || r.keterangan || "-").replace(/;/g, ",");
+    var labelCabang = (lookupCabangLabel(r.cabang) || "Pusat").replace(
+      /;/g,
+      ",",
+    );
+
+    csvContent +=
+      (r.tanggal || "-") +
+      ";" +
+      keyRef +
+      ";" +
+      cleanDesc +
+      ";" +
+      rawAmount +
+      ";" +
+      currentDb +
+      ";" +
+      currentCr +
+      ";" +
+      labelCabang +
+      "\r\n";
+  });
+
+  // Baris Total / Footer Spreadsheet
+  csvContent +=
+    ";;TOTAL NOMINAL;" + sumTotal + ";" + sumDb + ";" + sumCr + ";\r\n";
+
+  // --- 4. PROSES UNDUH FILE ---
+  var blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  var link = document.createElement("a");
+  var url = URL.createObjectURL(blob);
+
+  var namaFile =
+    "Laporan_Input_Harian_" + (cab || "Semua") + "_" + bln + ".csv";
+
+  link.setAttribute("href", url);
+  link.setAttribute("download", namaFile);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  if (typeof toast === "function")
+    toast("Laporan input harian berhasil diunduh.");
+}
