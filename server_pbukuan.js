@@ -76,8 +76,9 @@ function ensureTableExists(tableName) {
 // ================================================================
 // CONTOH ROUTE
 // ================================================================
+// jadi gini
 app.get("/", (req, res) => {
-  res.send("API Pembukuan Online Aktif");
+  res.sendFile(path.join(__dirname, "public", "pembukuan_telaga.html"));
 });
 
 // ================================================================
