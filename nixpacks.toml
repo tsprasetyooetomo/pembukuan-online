@@ -1,0 +1,5 @@
+[providers]
+node = {}
+
+[start]
+cmd = "node server_pbukuan.js"
