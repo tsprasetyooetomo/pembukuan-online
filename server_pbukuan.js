@@ -544,6 +544,14 @@ app.post("/api/save-batch", (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+// ================================================================
+// START SERVER
+// ================================================================
+app.listen(PORT, () => {
+  console.log(`✅ API Pembukuan Online Aktif di port ${PORT}`);
+  console.log(`📁 Database siap di ${dbPath}`);
+});
+
 
 // ================================================================
 // START SERVER
