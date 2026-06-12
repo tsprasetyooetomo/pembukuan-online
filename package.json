@@ -5,8 +5,7 @@
   "main": "server_pbukuan.js",
   "scripts": {
     "start": "node server_pbukuan.js"
-
-  "heroku-postbuild": "npm rebuild sqlite3 --build-from-source"
+    "heroku-postbuild": "npm rebuild sqlite3 --build-from-source"
 }
 
     
