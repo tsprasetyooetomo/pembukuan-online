@@ -557,6 +557,7 @@ app.listen(PORT, () => {
 // ================================================================
 // START SERVER
 // ================================================================
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Server running di http://localhost:${PORT}`);
+app.use(express.static('public'));
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'pembukuan_telaga.html'));
 });
