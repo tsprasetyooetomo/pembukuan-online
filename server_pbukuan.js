@@ -545,19 +545,12 @@ app.post("/api/save-batch", (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 });
+
+
 // ================================================================
 // START SERVER
 // ================================================================
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ API Pembukuan Online Aktif di port ${PORT}`);
   console.log(`📁 Database siap di ${dbPath}`);
-});
-
-
-// ================================================================
-// START SERVER
-// ================================================================
-app.use(express.static('public'));
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'pembukuan_telaga.html'));
 });
