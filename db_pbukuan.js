@@ -83,20 +83,29 @@ class PembukuanDB {
   // ================================================== //
   // LOGIKA SERVER (NODE.JS - SQLITE)
   // ================================================== //
-  _openServer() {
+   _openServer() {
     var sqlite3 = require("sqlite3").verbose();
+    var path = require("path"); // 1. Pastikan modul path di-require agar path.join tidak error
     var self = this;
-  
-  // Ambil path yang sudah mendukung Railway Volume
-  const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
-    ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "pembukuan.db")
-    : path.join(__dirname, "pembukuan.db");
 
+    // 2. Ambil path yang sudah mendukung Railway Volume, atau gunakan properti class yang sudah ada
+    const targetDbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
+      ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "pembukuan.db")
+      : (self.dbFilePath || path.join(__dirname, "pembukuan.db"));
+
+    console.log("⏳ Membuka koneksi berkas SQLite di:", targetDbPath);
       
     return new Promise(function (resolve, reject) {
-      self.db = new sqlite3.Database(self.dbFilePath, function (err) {
-        if (err) return reject(err);
+      // 3. Gunakan targetDbPath di bawah ini (Bukan self.dbFilePath lama)
+      self.db = new sqlite3.Database(targetDbPath, function (err) {
+        if (err) {
+          console.error("❌ Gagal membuka database:", err);
+          return reject(err);
+        }
+        
+        console.log("🔗 Koneksi database berhasil dibuka. Mengatur WAL Mode...");
         self.db.run("PRAGMA journal_mode = WAL;");
+        
         self.db.serialize(function () {
           self.stores.forEach(function (store) {
             // 1. Buat Tabel
@@ -151,11 +160,14 @@ class PembukuanDB {
               );
             }
           });
+          
+          console.log("🚀 Semua skema selesai diproses. Database Siap!");
           resolve(self.db);
         });
       });
     });
   }
+
 
   _extractCols(storeName, dataObj) {
     var s = this.stores.find(function (x) {
