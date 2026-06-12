@@ -812,20 +812,41 @@ app.post("/api/saldo-harian", async function (req, res) {
 // ================================================================
 // START SERVER
 // ================================================================
+const volumePath = process.env.RAILWAY_VOLUME_MOUNT_PATH;
 
-// --- KODE BARU ---
-const PORT = process.env.PORT || 3000; // Gunakan env Railway, fallback ke 3000 jika lokal
+// Jika berjalan di Railway, pastikan folder /data otomatis terbuat
+if (volumePath && !fs.existsSync(volumePath)) {
+    try {
+        fs.mkdirSync(volumePath, { recursive: true });
+        console.log("Folder volume Railway berhasil dibuat:", volumePath);
+    } catch (err) {
+        console.error("Gagal membuat folder volume:", err);
+    }
+}
+
+// Definisikan letak database pembukuan
+const dbPath = volumePath
+  ? path.join(volumePath, "pembukuan.db")
+  : path.join(__dirname, "pembukuan.db");
+
+// Pasang dbPath ke variabel global atau instance Anda
+// Ganti 'namaInstansiasi' dengan objek class database Anda (misal: const appServer = new MyServer())
+db_pbukuan.dbFilePath = dbPath; 
+
+// ==========================================
+// 2. JALANKAN DATABASE SEBELUM LISTEN PORT
+// ==========================================
 db_pbukuan._openServer()
   .then((db) => {
-    console.log("Database SQLite Berhasil Terhubung!");
+    console.log("Database SQLite Berhasil Terhubung & Diinisialisasi!");
     
-    // Server Express BARU DINYALAKAN setelah database dipastikan siap
+    // 3. JALANKAN SERVER EXPRESS (Gunakan '0.0.0.0' wajib untuk Cloud)
     app.listen(PORT, '0.0.0.0', () => {
-      console.log(`Server aktif dan berjalan di port ${PORT}`);
+      console.log(`Server Express aktif dan mendengarkan di port ${PORT}`);
     });
   })
   .catch((error) => {
-    console.error("Gagal membuka database, server tidak dapat dinyalakan:", error);
-    process.exit(1); // Matikan aplikasi dengan aman jika database error
+    console.error("CRITICAL ERROR: Gagal memuat SQLite database, server batal dinyalakan.");
+    console.error(error);
+    process.exit(1); 
   });
-
