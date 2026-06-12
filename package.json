@@ -2,7 +2,7 @@
   "name": "pbukuan",
   "version": "1.0.0",
   "description": "",
-  "main": "server.js",
+  "main": "server_pbukuan.js",
   "scripts": {
     "start": "node server_pbukuan.js"
   },
