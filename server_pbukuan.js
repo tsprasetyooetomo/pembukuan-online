@@ -815,7 +815,17 @@ app.post("/api/saldo-harian", async function (req, res) {
 
 // --- KODE BARU ---
 const PORT = process.env.PORT || 3000; // Gunakan env Railway, fallback ke 3000 jika lokal
+db_pbukuan._openServer()
+  .then((db) => {
+    console.log("Database SQLite Berhasil Terhubung!");
+    
+    // Server Express BARU DINYALAKAN setelah database dipastikan siap
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server aktif dan berjalan di port ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error("Gagal membuka database, server tidak dapat dinyalakan:", error);
+    process.exit(1); // Matikan aplikasi dengan aman jika database error
+  });
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Server running di port ${PORT}`);
-});
