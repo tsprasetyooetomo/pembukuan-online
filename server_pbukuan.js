@@ -12,19 +12,22 @@ const app = express();
 / ================================================================
 // START SERVER
 // ================================================================
-const serverPort = process.env.PORT || 3000;
-const serverHost = "0.0.0.0"; 
+
 
 // HyperExpress mengembalikan objek error (err) jika gagal bind port
-app.listen(Number(serverPort), serverHost)
-  .then(() => {
+
+// Use PORT provided in environment or default to 3000
+const port = process.env.PORT || 3000;
+
+// Listen on `port` and 0.0.0.0
+app.listen(port, "0.0.0.0", function () {
+
     console.log(`🚀 Server HyperExpress aktif di host ${serverHost} port ${serverPort}`);
   })
   .catch((error) => {
-    console.error(`❌ Gagal mengikat port ${serverPort}:`, error);
-  });
-
-
+    console.error(`❌ Gagal mengikat port ${serverPort}:`, error)
+  // ...
+});
 app.get('/', (req, res) => {
     try {
         const htmlPath = path.join(__dirname, 'telaga_pembukuan.html');
