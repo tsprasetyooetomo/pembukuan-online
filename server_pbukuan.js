@@ -13,20 +13,16 @@ const app = express();
 // START SERVER
 // ================================================================
 const serverPort = process.env.PORT || 3000;
-// PAKSA selalu menggunakan 0.0.0.0 agar bisa dijangkau oleh proxy Railway
 const serverHost = "0.0.0.0"; 
 
-app.listen(Number(serverPort), serverHost, (socket) => {
-  if (socket) {
-    console.log(
-      `🚀 Server HyperExpress aktif! Silakan buka http://${serverHost}:${serverPort}`,
-    );
-  } else {
-    console.error(
-      `❌ Gagal mengikat port ${serverPort} pada host ${serverHost}.`,
-    );
-  }
-});
+// HyperExpress mengembalikan objek error (err) jika gagal bind port
+app.listen(Number(serverPort), serverHost)
+  .then(() => {
+    console.log(`🚀 Server HyperExpress aktif di host ${serverHost} port ${serverPort}`);
+  })
+  .catch((error) => {
+    console.error(`❌ Gagal mengikat port ${serverPort}:`, error);
+  });
 
 
 app.get('/', (req, res) => {
