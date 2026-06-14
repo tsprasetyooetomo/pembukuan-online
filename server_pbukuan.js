@@ -8,14 +8,22 @@ const path = require("path");
 const fs = require('fs');
 const app = express();
 
-// Ketika seseorang membuka alamat web utama, kirimkan file HTML pembukuan Anda
+const fs = require('fs');
+const path = require('path');
+
 app.get('/', (req, res) => {
-    res.headers['content-type'] = 'text/html';
-    
-    // Membaca file HTML dari folder yang sama dengan file server_pbukuan.js
-    const htmlPath = path.join(__dirname, 'telaga_pembukuan.html');
-    res.send(fs.readFileSync(htmlPath, 'utf8'));
+    try {
+        const htmlPath = path.join(__dirname, 'telaga_pembukuan.html');
+        const htmlContent = fs.readFileSync(htmlPath, 'utf8');
+        
+        // .html() otomatis menyetel header ke 'text/html' dan menutup koneksi dengan aman
+        res.html(htmlContent); 
+    } catch (error) {
+        console.error("❌ Gagal membaca file HTML:", error);
+        res.status(500).json({ error: "Gagal memuat halaman pembukuan" });
+    }
 });
+
 // ================================================================
 // CORS & MIDDLEWARE
 // ================================================================
