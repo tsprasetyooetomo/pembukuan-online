@@ -8,8 +8,7 @@ const path = require("path");
 const fs = require('fs');
 const app = express();
 
-const fs = require('fs');
-const path = require('path');
+
 / ================================================================
 // START SERVER
 // ================================================================
