@@ -10,6 +10,25 @@ const app = express();
 
 const fs = require('fs');
 const path = require('path');
+/ ================================================================
+// START SERVER
+// ================================================================
+const serverPort = process.env.PORT || 3000;
+// PAKSA selalu menggunakan 0.0.0.0 agar bisa dijangkau oleh proxy Railway
+const serverHost = "0.0.0.0"; 
+
+app.listen(Number(serverPort), serverHost, (socket) => {
+  if (socket) {
+    console.log(
+      `🚀 Server HyperExpress aktif! Silakan buka http://${serverHost}:${serverPort}`,
+    );
+  } else {
+    console.error(
+      `❌ Gagal mengikat port ${serverPort} pada host ${serverHost}.`,
+    );
+  }
+});
+
 
 app.get('/', (req, res) => {
     try {
@@ -824,22 +843,4 @@ app.post("/api/saldo-harian", async function (req, res) {
   }
 });
 
-// ================================================================
-// START SERVER
-// ================================================================
-const serverPort = process.env.PORT || 3000;
-// PAKSA selalu menggunakan 0.0.0.0 agar bisa dijangkau oleh proxy Railway
-const serverHost = "0.0.0.0"; 
-
-app.listen(Number(serverPort), serverHost, (socket) => {
-  if (socket) {
-    console.log(
-      `🚀 Server HyperExpress aktif! Silakan buka http://${serverHost}:${serverPort}`,
-    );
-  } else {
-    console.error(
-      `❌ Gagal mengikat port ${serverPort} pada host ${serverHost}.`,
-    );
-  }
-});
-
+/
