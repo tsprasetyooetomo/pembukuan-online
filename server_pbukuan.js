@@ -820,12 +820,13 @@ app.post("/api/saldo-harian", async function (req, res) {
 // START SERVER
 // ================================================================
 const serverPort = process.env.PORT || 3000;
-
+// PAKSA selalu menggunakan 0.0.0.0 agar bisa dijangkau oleh proxy Railway
 const serverHost = "0.0.0.0"; 
+
 app.listen(Number(serverPort), serverHost, (socket) => {
   if (socket) {
     console.log(
-      `🚀 Server HyperExpress aktif! Silakan buka http://localhost:${serverPort}`,
+      `🚀 Server HyperExpress aktif! Silakan buka http://${serverHost}:${serverPort}`,
     );
   } else {
     console.error(
