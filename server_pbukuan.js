@@ -820,10 +820,8 @@ app.post("/api/saldo-harian", async function (req, res) {
 // START SERVER
 // ================================================================
 const serverPort = process.env.PORT || 3000;
-const serverHost = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? "0.0.0.0"
-  : "127.0.0.1";
 
+const serverHost = "0.0.0.0"; 
 app.listen(Number(serverPort), serverHost, (socket) => {
   if (socket) {
     console.log(
