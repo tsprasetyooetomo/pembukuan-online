@@ -870,3 +870,20 @@ button,
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
 }
+/* 1. Atur semua gambar di dalam area konten utama */
+.content img,
+.dashboard img {
+  max-width: 100%; /* Lebar gambar tidak boleh lebih besar dari wadahnya */
+  height: auto; /* Tinggi menyesuaikan proporsi agar tidak gepeng */
+  display: block; /* Hilangkan spasi putih di bawah gambar */
+  margin: 0 auto; /* Pusatkan gambar jika wadahnya lebih lebar */
+}
+
+/* 2. Jika gambar ada di dalam Kartu/Card (opsional) */
+.card-img,
+.card img {
+  width: 100%; /* Paksa isi lebar kartu */
+  height: 200px; /* Tetapkan tinggi tetap agar rapi (opsional) */
+  object-fit: cover; /* Potong gambar agar pas di kotak tanpa gepeng */
+  border-radius: 8px; /* Sudut melengkung (opsional) */
+}
