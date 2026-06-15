@@ -2,6 +2,9 @@
   "name": "pbukuan",
   "version": "1.0.0",
   "description": "",
+  "engines": {
+    "node": "18.x"
+  },
   "main": "server_pbukuan.js",
   "scripts": {
     "start": "node server_pbukuan.js"
