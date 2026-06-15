@@ -1,24 +1,14 @@
 // ================================================================
-// SERVER.JS - BACKEND PEMBUKUAN (SQLITE)
+// SERVER.JS - BACKEND PEMBUKUAN (SQLITE) - OPTIMIZED FOR RAILWAY
 // ================================================================
 const express = require("express");
 const cors = require("cors");
-
 const path = require("path");
-
+const fs = require("fs"); // <-- SUDAH DITAMBAHKAN AGAR TIDAK ERROR
 const app = express();
 
-// Pastikan kode ini diletakkan di atas kode 'db_pbukuan._openServer()'
-app.get("/", (req, res) => {
-  // Gunakan res.type() untuk menentukan jenis file HTML di HyperExpress
-  res.type("html");
-
-  // Membaca file HTML dari folder yang sama dengan file server_pbukuan.js
-  const htmlPath = path.join(__dirname, "telaga_pembukuan.html");
-  res.send(fs.readFileSync(htmlPath, "utf8"));
-});
 // ================================================================
-// CORS & MIDDLEWARE
+// CORS & MIDDLEWARE (Harus diletakkan di atas sebelum Route)
 // ================================================================
 app.use(
   cors({
@@ -30,6 +20,32 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(express.static(path.join(__dirname, "public")));
+
+// ==========================================================
+// JALANKAN SERVER NYA
+// ==========================================================
+const serverPort = process.env.PORT || 3000;
+const serverHost = "0.0.0.0";
+
+app.listen(Number(serverPort), serverHost, () => {
+  console.log(
+    `🚀 Server Express aktif di host ${serverHost} port ${serverPort}!`,
+  );
+});
+
+// ==========================================================
+// ROUTE UTAMA (MENGGUNAKAN STANDAR EXPRESS YANG AMAN)
+// ==========================================================
+app.get("/", (req, res) => {
+  try {
+    const htmlPath = path.join(__dirname, "telaga_pembukuan.html");
+    // Menggunakan res.sendFile adalah cara terbaik Express untuk memuat HTML
+    res.sendFile(htmlPath);
+  } catch (error) {
+    console.error("❌ Gagal memuat halaman HTML:", error);
+    res.status(500).send("Gagal memuat halaman pembukuan");
+  }
+});
 
 // ================================================================
 // WHITELIST TABEL (Keamanan)
@@ -53,11 +69,10 @@ function isValidTable(name) {
 }
 
 // ================================================================
-// INISIALISASI DATABASE (SUDAH DIPERBAIKI UNTUK RAILWAY)
+// INISIALISASI DATABASE (BETTER-SQLITE3)
 // ================================================================
-const Database = require("better-sqlite3"); // Menggunakan better-sqlite3
+const Database = require("better-sqlite3");
 
-// Menentukan jalur file database sesuai lingkungan (Railway Volume vs Local Laptop)
 const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "pembukuan.db")
   : path.join(__dirname, "pembukuan.db");
@@ -65,11 +80,9 @@ const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
 let db;
 
 try {
-  // Buka atau buat database baru
   db = new Database(dbPath, { verbose: console.log });
   console.log("✅ Database Pembukuan SQLite terkoneksi di:", dbPath);
 
-  // Membuat tabel-tabel secara otomatis jika belum ada (Tanpa perlu db.serialize)
   ALLOWED_TABLES.forEach((tableName) => {
     db.prepare(
       `
@@ -855,26 +868,5 @@ app.get("/:filename", (req, res) => {
     res.send(fs.readFileSync(filePath));
   } else {
     res.status(404).send("File tidak ditemukan");
-  }
-});
-
-// 3. JALANKAN SERVER NYA
-// ==========================================================
-// 3. JALANKAN SERVER NYA (FORMAT CALLBACK HYPEREXPRESS)
-// ==========================================================
-const serverPort = process.env.PORT || 3000;
-const serverHost = process.env.RAILWAY_VOLUME_MOUNT_PATH
-  ? "0.0.0.0"
-  : "127.0.0.1";
-
-app.listen(Number(serverPort), serverHost, (socket) => {
-  if (socket) {
-    console.log(
-      `🚀 Server HyperExpress aktif! Silakan buka http://localhost:${serverPort}`,
-    );
-  } else {
-    console.error(
-      `❌ Gagal mengikat port ${serverPort} pada host ${serverHost}.`,
-    );
   }
 });
