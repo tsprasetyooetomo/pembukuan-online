@@ -41,11 +41,10 @@
       <div class="top-bar">
         <div style="display: flex; align-items: center; gap: 0.6rem">
           <!-- Tombol Toggle Mobile (Saya tambahkan type="button" sebagai perbaikan bug refresh) -->
-          <button type="button" class="mob-toggle" id="mobToggle">
-            <i class="fas fa-bars"></i>
-          </button>
-          <button class="btn btn-g btn-sm" onclick="location.reload()">
-            <i class="fas fa-sync-alt"></i>
+         <button class="mob-toggle" onclick="document.querySelector('.sb').classList.toggle('open')">
+    <i class="fas fa-bars"></i>
+</button>
+            <i class="fa-solid fa-bars"></i>
           </button>
           <div class="tb-title" id="tbTitle">
             <i class="fa-solid fa-database"></i> Memuat...
@@ -210,20 +209,5 @@
 
     <!-- 4. Init (WAJIB TERAKHIR) -->
     <script src="app_init.js"></script>
-    <script>
-      // Nyalakan debug terminal bawaan CSS kamu
-      document.getElementById("debugTerminal").classList.add("show");
-    </script>
-    <script>
-      // Ambil elemen tombol dan sidebar
-      const toggleBtn = document.getElementById("mobToggle");
-      const sidebar = document.querySelector(".sb");
-
-      // Tambahkan event saat tombol diklik
-      toggleBtn.addEventListener("click", function () {
-        // Tambah atau hapus class 'open' pada sidebar
-        sidebar.classList.toggle("open");
-      });
-    </script>
   </body>
 </html>
