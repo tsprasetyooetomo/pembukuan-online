@@ -2252,21 +2252,27 @@ function renderImport() {
   );
 }
 PANEL_MAP.importD = renderImport;
-// Inisialisasi Pull to Refresh
-PullToRefresh.init({
-  mainElement: "body", // Elemen utama yang discroll
-  onRefresh: function () {
-    // Fungsi yang dijalankan saat user melepaskan tarikan
-    return new Promise(function (resolve) {
-      // Timeout sedikit agar user melihat animasi loading
-      setTimeout(function () {
-        window.location.reload(); // Refresh Halaman
-        resolve();
-      }, 500);
-    });
-  },
-  // Icon loading (Bisa diubah teksnya)
-  instructionsPullToRefresh: "Tarik ke bawah untuk refresh",
-  instructionsReleaseToRefresh: "Lepaskan untuk refresh",
-  instructionsRefreshing: "Memuat...",
-});
+// SEBELUM:
+// PullToRefresh.init({ ... });
+
+// SESUDAH (Gunakan ini):
+if (typeof PullToRefresh !== "undefined") {
+  PullToRefresh.init({
+    mainElement: "body",
+    onRefresh: function () {
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          window.location.reload();
+          resolve();
+        }, 500);
+      });
+    },
+    instructionsPullToRefresh: "Tarik ke bawah untuk refresh",
+    instructionsReleaseToRefresh: "Lepaskan untuk refresh",
+    instructionsRefreshing: "Memuat...",
+  });
+} else {
+  console.warn(
+    "⚠️ Library PullToRefresh belum termuat. Pastikan script ada di HTML.",
+  );
+}
