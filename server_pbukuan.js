@@ -768,16 +768,6 @@ app.post("/api/saldo-harian", (req, res) => {
 // START SERVER
 // ================================================================
 
-// --- KODE BARU ---
-const PORT = process.env.PORT || 3000; // Gunakan env Railway, fallback ke 3000 jika lokal
-// 1. Amankan rute utama untuk membaca file HTML pembukuan Anda
-app.get("/", (req, res) => {
-  res.type("html");
-  res.send(
-    fs.readFileSync(path.join(__dirname, "telaga_pembukuan.html"), "utf8"),
-  );
-});
-
 // 2. Beri izin browser untuk mengunduh file skrip pendukung (db_pbukuan.js, app_core.js, dll.)
 // Jika file-file JS Anda berada di folder yang sama dengan server_pbukuan.js, gunakan kode ini:
 app.get("/:filename", (req, res) => {
