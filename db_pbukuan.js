@@ -2,8 +2,10 @@
    db.js — DATABASE WRAPPER (FIXED VERSION)
    ================================================================ */
 
+// Konfigurasi URL Backend (Hanya dipakai di Browser)
+//const API_BASE_URL = "http://127.0.0.1:3000";
 // YANG BENAR (Otomatis mengikuti domain tempat web dibuka):
-const API_URL = window.location.origin;
+const API_BASE_URL = window.location.origin;
 let _importSukses = 0;
 
 class PembukuanDB {
