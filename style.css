@@ -924,3 +924,7 @@ button,
 .sb.open {
   z-index: 9999 !important; /* Paksa naik ke paling atas */
 }
+/* Matikan efek tarik-refresh di browser HP (Chrome/Safari) */
+body {
+  overscroll-behavior-y: contain;
+}
