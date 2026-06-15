@@ -2254,25 +2254,3 @@ function renderImport() {
 PANEL_MAP.importD = renderImport;
 // SEBELUM:
 // PullToRefresh.init({ ... });
-
-// SESUDAH (Gunakan ini):
-if (typeof PullToRefresh !== "undefined") {
-  PullToRefresh.init({
-    mainElement: "body",
-    onRefresh: function () {
-      return new Promise(function (resolve) {
-        setTimeout(function () {
-          window.location.reload();
-          resolve();
-        }, 500);
-      });
-    },
-    instructionsPullToRefresh: "Tarik ke bawah untuk refresh",
-    instructionsReleaseToRefresh: "Lepaskan untuk refresh",
-    instructionsRefreshing: "Memuat...",
-  });
-} else {
-  console.warn(
-    "⚠️ Library PullToRefresh belum termuat. Pastikan script ada di HTML.",
-  );
-}
