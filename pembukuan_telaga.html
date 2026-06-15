@@ -41,7 +41,9 @@
       <div class="top-bar">
         <div style="display: flex; align-items: center; gap: 0.6rem">
           <!-- Tombol Toggle Mobile (Saya tambahkan type="button" sebagai perbaikan bug refresh) -->
-          <button type="button" class="mob-toggle" id="mobToggle">
+        <button type="button" class="mob-toggle" id="mobToggle">
+    <i class="fas fa-bars"></i>
+</button>
             <i class="fa-solid fa-bars"></i>
           </button>
           <div class="tb-title" id="tbTitle">
@@ -187,7 +189,17 @@
         });
       });
     </script>
+<script>
+    // Ambil elemen tombol dan sidebar
+    const toggleBtn = document.getElementById('mobToggle');
+    const sidebar = document.querySelector('.sb');
 
+    // Tambahkan event saat tombol diklik
+    toggleBtn.addEventListener('click', function() {
+        // Tambah atau hapus class 'open' pada sidebar
+        sidebar.classList.toggle('open');
+    });
+</script>
     <!-- 1. Database (WAJIB PERTAMA) -->
     <script src="db_pbukuan.js"></script>
 
