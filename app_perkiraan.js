@@ -1068,17 +1068,27 @@ async function saveCabang(id) {
   try {
     var kode = $("fCabKode").value.trim();
     var nama = $("fCabNama").value.trim();
-
+    if (kode.length === 1 && !isNaN(kode)) {
+      kode = "0" + kode;
+    }
+    // Pastikan input terisi
     if (!kode || !nama) return toast("Kode dan Nama wajib diisi", "err");
 
     if (id) {
+      // MODE EDIT (UPDATE)
       var r = await db.get("cabang", id);
-      if (r)
+      if (r) {
+        // PERBAIKAN DISINI:
+        // Selalu sertakan 'id' secara eksplisit agar tidak hilang
         await db.put(
           "cabang",
-          Object.assign({}, r, { kode: kode, nama: nama }),
+          Object.assign({}, r, { id: id, kode: kode, nama: nama }),
+          // Perhatikan saya tambahkan: { id: id, ... }
         );
+      }
     } else {
+      // MODE TAMBAH BARU
+      // Pastikan 'id' yang dibuat unik
       await db.add("cabang", { id: uid(), kode: kode, nama: nama });
     }
 
@@ -1088,6 +1098,7 @@ async function saveCabang(id) {
     safeRenderCurrentPanel();
   } catch (err) {
     toast("Gagal simpan: " + err.message, "err");
+    console.error(err); // Tambahkan ini untuk debug di console browser
   }
 }
 /* ---------- Tambahan Filter Cabang ---------- */
