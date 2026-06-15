@@ -209,17 +209,31 @@
 
     <!-- 4. Init (WAJIB TERAKHIR) -->
     <script src="app_init.js"></script>
+<script>
+    // Pastikan script ini dijalankan setelah halaman selesai dimuat
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // 1. Cari tombolnya
+        const tombol = document.getElementById('mobToggle');
+        // 2. Cari sidebarnya
+        const sidebar = document.querySelector('.sb');
 
-    <script>
-    // Ambil elemen tombol dan sidebar
-    const toggleBtn = document.getElementById('mobToggle');
-    const sidebar = document.querySelector('.sb');
-
-    // Tambahkan event saat tombol diklik
-    toggleBtn.addEventListener('click', function() {
-        // Tambah atau hapus class 'open' pada sidebar
-        sidebar.classList.toggle('open');
+        // 3. Cek apakah keduanya ditemukan
+        if (tombol && sidebar) {
+            // Jika ditemukan, pasang fungsi klik
+            tombol.onclick = function() {
+                sidebar.classList.toggle('open');
+                
+                // Tes visual: Ganti warna tombol saat diklik
+                // Jika warna tombol berubah, berarti scriptnya jalan, tapi CSSnya yang salah
+                this.style.backgroundColor = "red"; 
+            };
+        } else {
+            // Jika elemen tidak ditemukan
+            alert("Tidak bisa menemukan tombol atau sidebar!");
+        }
     });
 </script>
+    
   </body>
 </html>
