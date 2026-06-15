@@ -790,18 +790,59 @@ tfoot td.num {
     padding: 0.8rem;
   }
 }
+/* --- Default (Desktop) --- */
 .mob-toggle {
-  display: none;
-  width: 36px;
-  height: 36px;
+  display: none; /* Sembunyi di Desktop */
+  width: 44px; /* Tambah lebar jadi 44px (standar nyaman dijepret jari) */
+  height: 44px; /* Tambah tinggi */
   border-radius: 8px;
   border: 1px solid var(--brd);
   background: var(--card);
   color: var(--fg);
   cursor: pointer;
+
+  /* PENTING: Pusatkan isi (ikon) */
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.9rem;
+  font-size: 1.1rem; /* Ikon sedikit lebih besar */
+
+  /* PENTING: Supaya bisa diklik di HP */
+  z-index: 9999; /* Naikkan posisi ke paling atas */
+  position: relative; /* Wajib agar z-index bekerja */
+  padding: 0; /* Hilangkan padding default */
+  box-sizing: border-box;
+}
+
+/* Agar klik ikon tembus ke tombol */
+.mob-toggle i {
+  pointer-events: none;
+}
+
+/* --- Mode HP (Max 768px) --- */
+@media (max-width: 768px) {
+  :root {
+    --sb: 0px;
+  }
+
+  .sb {
+    transform: translateX(-100%);
+    position: fixed;
+    z-index: 50;
+  }
+
+  .sb.open {
+    transform: translateX(0);
+  }
+
+  /* Tampilkan tombol hamburger di HP */
+  .mob-toggle {
+    display: flex !important;
+  }
+
+  .content {
+    padding: 0.8rem;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   *,
