@@ -119,14 +119,8 @@ const dbRun = (sql, params = []) =>
     });
   });
 
-// Helper Promise untuk db.all
-const dbAll = (sql, params = []) =>
-  new Promise((resolve, reject) => {
-    db.all(sql, params, (err, rows) => {
-      if (err) reject(err);
-      else resolve(rows);
-    });
-  });
+// PASANG INI SEBAGAI GANTINYA:
+const dbAll = (sql, params = []) => db.prepare(sql).all(params);
 
 // =========================================================================
 // API ROUTE: KOSONGKAN DATA TAHUNAN DI SQLITE (SESUAI STRUKTUR KEY-VALUE)
@@ -215,7 +209,6 @@ app.post("/api/reset-posting", async (req, res) => {
     });
   }
 });
-
 app.post("/api/clear-all-data", (req, res) => {
   try {
     const { storeName, masa, cabang } = req.body;
@@ -243,76 +236,72 @@ app.post("/api/clear-all-data", (req, res) => {
     if (mengandungTahun) {
       const sqlCheckColumns = `PRAGMA table_info(${storeName})`;
 
-      db.all(sqlCheckColumns, [], function (pragmaErr, rows) {
-        if (pragmaErr) {
-          console.error(
-            `🚨 Gagal membaca struktur tabel [${storeName}]:`,
-            pragmaErr.message,
-          );
-          return res
-            .status(500)
-            .json({ success: false, message: pragmaErr.message });
-        }
+      // FORMAT BARU BETTER-SQLITE3 (Langsung ambil baris data tanpa callback)
+      const rows = db.prepare(sqlCheckColumns).all();
 
-        // Jika tabel belum ada di database, anggap sukses/bersih dan lewati
-        if (!rows || rows.length === 0) {
-          console.warn(`⚠️ Tabel '${storeName}' belum ada, dianggap bersih.`);
+      // Jika tabel belum ada di database, anggap sukses/bersih dan lewati
+      if (!rows || rows.length === 0) {
+        console.warn(`⚠️ Tabel '${storeName}' belum ada, dianggap bersih.`);
+        return res.json({
+          success: true,
+          message: "Bersih (Tabel belum ada).",
+          changes: 0,
+        });
+      }
+
+      // Ambil daftar nama kolom asli dari tabel
+      const daftarKolom = rows.map((row) => row.name.toLowerCase());
+      const punyaKolomMasa = daftarKolom.includes("masa");
+      const punyaKolomCabang = daftarKolom.includes("cabang");
+
+      // 🌟 LOGIKA PENCEGATAN: Jika query butuh filter tapi kolomnya tidak ada di tabel, LEWATI
+      if (
+        tabelInduk.includes("transaksi") ||
+        tabelInduk.includes("perkiraan") ||
+        tabelInduk.includes("golongan")
+      ) {
+        if (!punyaKolomMasa || !punyaKolomCabang) {
+          console.log(
+            `ℹ️ [SKIP] Tabel '${storeName}' dilewati karena tidak memiliki kolom 'masa' atau 'cabang' di SQLite.`,
+          );
           return res.json({
             success: true,
-            message: "Bersih (Tabel belum ada).",
+            message: `Tabel '${storeName}' dilewati otomatis (struktur kolom tidak sesuai filter).`,
             changes: 0,
           });
         }
 
-        // Ambil daftar nama kolom asli dari tabel
-        const daftarKolom = rows.map((row) => row.name.toLowerCase());
-        const punyaKolomMasa = daftarKolom.includes("masa");
-        const punyaKolomCabang = daftarKolom.includes("cabang");
-
-        // 🌟 LOGIKA PENCEGATAN BARU: Jika query butuh filter tapi kolomnya tidak ada di tabel, LEWATI
-        if (
-          tabelInduk.includes("transaksi") ||
-          tabelInduk.includes("perkiraan") ||
-          tabelInduk.includes("golongan")
-        ) {
-          if (!punyaKolomMasa || !punyaKolomCabang) {
-            console.log(
-              `ℹ️ [SKIP] Tabel '${storeName}' dilewati karena tidak memiliki kolom 'masa' atau 'cabang' di SQLite.`,
-            );
-            return res.json({
-              success: true,
-              message: `Tabel '${storeName}' dilewati otomatis (struktur kolom tidak sesuai filter).`,
-              changes: 0,
-            });
-          }
-
-          // Lanjutkan jika kolom lengkap, pastikan juga parameter input dari frontend tidak kosong
-          if (masa && cabang) {
-            sqlDelete = `DELETE FROM ${storeName} WHERE masa = ? AND cabang = ?`;
-            params = [masa, cabang];
-            console.log(
-              `🗑️ Menjalankan SQL Spesifik: ${sqlDelete} dengan params: [${masa}, ${cabang}]`,
-            );
-          } else {
-            console.log(
-              `ℹ️ [SKIP] Tabel '${storeName}' dilewati karena parameter input 'masa' atau 'cabang' kosong.`,
-            );
-            return res.json({
-              success: true,
-              message: "Dilewati (Parameter kosong).",
-              changes: 0,
-            });
-          }
+        // Lanjutkan jika kolom lengkap, pastikan juga parameter input dari frontend tidak kosong
+        if (masa && cabang) {
+          sqlDelete = `DELETE FROM ${storeName} WHERE masa = ? AND cabang = ?`;
+          params = [masa, cabang];
+          console.log(
+            `🗑️ Menjalankan SQL Spesifik: ${sqlDelete} dengan params: [${masa}, ${cabang}]`,
+          );
+        } else {
+          console.log(
+            `ℹ️ [SKIP] Tabel '${storeName}' dilewati karena parameter input 'masa' atau 'cabang' kosong.`,
+          );
+          return res.json({
+            success: true,
+            message: "Dilewati (Parameter kosong).",
+            changes: 0,
+          });
         }
-
-        // Eksekusi Hapus setelah pengecekan kolom aman (di dalam callback pragma)
-        jalankanEksekusiDelete(sqlDelete, params, storeName, res);
-      });
+      }
     } else {
       // Jika tidak mengandung tahun (Tabel Master biasa), langsung hapus total tanpa cek kolom
       console.log(`🗑️ Menjalankan SQL Total: ${sqlDelete}`);
-      jalankanEksekusiDelete(sqlDelete, params, storeName, res);
     }
+
+    // Eksekusi Hapus secara langsung (Menggantikan fungsi jalankanEksekusiDelete lama Anda jika diperlukan)
+    // Jika Anda masih ingin memakai fungsi jalankanEksekusiDelete bawaan Anda, pastikan fungsinya juga sudah diubah ke format better-sqlite3
+    const info = db.prepare(sqlDelete).run(params);
+    return res.json({
+      success: true,
+      message: `Data pada tabel '${storeName}' berhasil dibersihkan.`,
+      changes: info.changes,
+    });
   } catch (fatalError) {
     console.error("🚨 Fatal Error di API Clear Data:", fatalError.message);
     return res
