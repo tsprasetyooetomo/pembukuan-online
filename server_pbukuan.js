@@ -3,7 +3,9 @@
 // ================================================================
 const express = require("express");
 const cors = require("cors");
-const sqlite3 = require("sqlite3").verbose();
+
+const Database = require("better-sqlite3");
+
 const path = require("path");
 
 const app = express();
@@ -51,10 +53,6 @@ const ALLOWED_TABLES = [
 function isValidTable(name) {
   return ALLOWED_TABLES.includes(name);
 }
-
-// ================================================================
-// SETUP DATABASE SQLITE
-// ================================================================
 
 // ================================================================
 // INISIALISASI DATABASE (SUDAH DIPERBAIKI UNTUK RAILWAY)
