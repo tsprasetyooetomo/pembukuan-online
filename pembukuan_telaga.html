@@ -40,22 +40,15 @@
     <div class="main">
       <div class="top-bar">
         <div style="display: flex; align-items: center; gap: 0.6rem">
-          <!-- 1. Tombol Hamburger (WAJIB ADA ID="mobToggle") -->
+          <!-- Tombol Toggle Mobile (Saya tambahkan type="button" sebagai perbaikan bug refresh) -->
           <button type="button" class="mob-toggle" id="mobToggle">
             <i class="fas fa-bars"></i>
           </button>
 
-          <!-- 2. Tombol Refresh (Tombol Barumu) -->
-          <button class="btn btn-g btn-sm" onclick="location.reload()">
-            <i class="fas fa-sync-alt"></i>
-          </button>
-
-          <!-- 3. Judul Halaman -->
           <div class="tb-title" id="tbTitle">
             <i class="fa-solid fa-database"></i> Memuat...
           </div>
         </div>
-
         <div class="tb-actions">
           <span
             style="
@@ -215,28 +208,16 @@
 
     <!-- 4. Init (WAJIB TERAKHIR) -->
     <script src="app_init.js"></script>
+
     <script>
-      // Pastikan script ini dijalankan setelah halaman selesai dimuat
-      document.addEventListener("DOMContentLoaded", function () {
-        // 1. Cari tombolnya
-        const tombol = document.getElementById("mobToggle");
-        // 2. Cari sidebarnya
-        const sidebar = document.querySelector(".sb");
+      // Ambil elemen tombol dan sidebar
+      const toggleBtn = document.getElementById("mobToggle");
+      const sidebar = document.querySelector(".sb");
 
-        // 3. Cek apakah keduanya ditemukan
-        if (tombol && sidebar) {
-          // Jika ditemukan, pasang fungsi klik
-          tombol.onclick = function () {
-            sidebar.classList.toggle("open");
-
-            // Tes visual: Ganti warna tombol saat diklik
-            // Jika warna tombol berubah, berarti scriptnya jalan, tapi CSSnya yang salah
-            this.style.backgroundColor = "red";
-          };
-        } else {
-          // Jika elemen tidak ditemukan
-          alert("Tidak bisa menemukan tombol atau sidebar!");
-        }
+      // Tambahkan event saat tombol diklik
+      toggleBtn.addEventListener("click", function () {
+        // Tambah atau hapus class 'open' pada sidebar
+        sidebar.classList.toggle("open");
       });
     </script>
   </body>
