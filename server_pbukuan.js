@@ -7,8 +7,16 @@ const sqlite3 = require("sqlite3").verbose();
 const path = require("path");
 
 const app = express();
-const PORT = 3000;
 
+// Pastikan kode ini diletakkan di atas kode 'db_pbukuan._openServer()'
+app.get("/", (req, res) => {
+  // Gunakan res.type() untuk menentukan jenis file HTML di HyperExpress
+  res.type("html");
+
+  // Membaca file HTML dari folder yang sama dengan file server_pbukuan.js
+  const htmlPath = path.join(__dirname, "telaga_pembukuan.html");
+  res.send(fs.readFileSync(htmlPath, "utf8"));
+});
 // ================================================================
 // CORS & MIDDLEWARE
 // ================================================================
@@ -48,24 +56,38 @@ function isValidTable(name) {
 // SETUP DATABASE SQLITE
 // ================================================================
 
-//const database = new PembukuanDB("D:/karyawan-backend/db_pbukuan/pembukuan.db");
+// ================================================================
+// INISIALISASI DATABASE (SUDAH DIPERBAIKI UNTUK RAILWAY)
+// ================================================================
+const Database = require("better-sqlite3"); // Menggunakan better-sqlite3
+
+// Menentukan jalur file database sesuai lingkungan (Railway Volume vs Local Laptop)
 const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "pembukuan.db")
-  : path.join(__dirname, "pembukuan.db"); // Fallback untuk local
+  : path.join(__dirname, "pembukuan.db");
 
-const db = new sqlite3.Database(dbPath, (err) => {
-  if (err) return console.error("Error DB:", err.message);
+let db;
+
+try {
+  // Buka atau buat database baru
+  db = new Database(dbPath, { verbose: console.log });
   console.log("✅ Database Pembukuan SQLite terkoneksi di:", dbPath);
 
-  db.serialize(() => {
-    ALLOWED_TABLES.forEach((tableName) => {
-      db.run(`CREATE TABLE IF NOT EXISTS ${tableName} (
+  // Membuat tabel-tabel secara otomatis jika belum ada (Tanpa perlu db.serialize)
+  ALLOWED_TABLES.forEach((tableName) => {
+    db.prepare(
+      `
+      CREATE TABLE IF NOT EXISTS ${tableName} (
         id TEXT PRIMARY KEY,
         data TEXT NOT NULL
-      )`);
-    });
+      )
+    `,
+    ).run();
   });
-});
+  console.log("✅ Seluruh tabel database berhasil diperiksa/dibuat.");
+} catch (err) {
+  console.error("❌ Gagal menginisialisasi Database:", err.message);
+}
 
 // Helper Promise untuk db.run
 const dbRun = (sql, params = []) =>
@@ -815,7 +837,48 @@ app.post("/api/saldo-harian", async function (req, res) {
 
 // --- KODE BARU ---
 const PORT = process.env.PORT || 3000; // Gunakan env Railway, fallback ke 3000 jika lokal
+// 1. Amankan rute utama untuk membaca file HTML pembukuan Anda
+app.get("/", (req, res) => {
+  res.type("html");
+  res.send(
+    fs.readFileSync(path.join(__dirname, "telaga_pembukuan.html"), "utf8"),
+  );
+});
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Server running di port ${PORT}`);
+// 2. Beri izin browser untuk mengunduh file skrip pendukung (db_pbukuan.js, app_core.js, dll.)
+// Jika file-file JS Anda berada di folder yang sama dengan server_pbukuan.js, gunakan kode ini:
+app.get("/:filename", (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(__dirname, filename);
+
+  if (fs.existsSync(filePath)) {
+    // Otomatis deteksi tipe file (.js atau .css) agar browser tidak memblokir
+    if (filename.endsWith(".js")) res.type("js");
+    if (filename.endsWith(".css")) res.type("css");
+
+    res.send(fs.readFileSync(filePath));
+  } else {
+    res.status(404).send("File tidak ditemukan");
+  }
+});
+
+// 3. JALANKAN SERVER NYA
+// ==========================================================
+// 3. JALANKAN SERVER NYA (FORMAT CALLBACK HYPEREXPRESS)
+// ==========================================================
+const serverPort = process.env.PORT || 3000;
+const serverHost = process.env.RAILWAY_VOLUME_MOUNT_PATH
+  ? "0.0.0.0"
+  : "127.0.0.1";
+
+app.listen(Number(serverPort), serverHost, (socket) => {
+  if (socket) {
+    console.log(
+      `🚀 Server HyperExpress aktif! Silakan buka http://localhost:${serverPort}`,
+    );
+  } else {
+    console.error(
+      `❌ Gagal mengikat port ${serverPort} pada host ${serverHost}.`,
+    );
+  }
 });

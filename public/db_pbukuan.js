@@ -86,6 +86,12 @@ class PembukuanDB {
   _openServer() {
     var sqlite3 = require("sqlite3").verbose();
     var self = this;
+
+    // Ambil path yang sudah mendukung Railway Volume
+    const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
+      ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "pembukuan.db")
+      : path.join(__dirname, "pembukuan.db");
+
     return new Promise(function (resolve, reject) {
       self.db = new sqlite3.Database(self.dbFilePath, function (err) {
         if (err) return reject(err);
