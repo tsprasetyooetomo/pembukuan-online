@@ -1,6 +1,6 @@
-// ================================================================
-// JARING PENGANGKAP ERROR GLOBAL (PASTE DI BARIS PALING ATAS NO 1)
-// ================================================================
+// ============================================================================
+// 1. JARING PENGANGKAP ERROR GLOBAL (PASTE DI BARIS PALING ATAS NO 1)
+// ============================================================================
 process.on("uncaughtException", (err) => {
   console.error("🔥 CRITICAL ERROR TERDETEKSI:", err.stack || err.message);
   process.exit(1);
@@ -10,18 +10,19 @@ process.on("unhandledRejection", (reason, promise) => {
   console.error("🔥 JANJI ERROR TERDETEKSI di:", promise, "alasan:", reason);
 });
 
-// ================================================================
-// SERVER.JS - BACKEND PEMBUKUAN (SQLITE) - OPTIMIZED FOR RAILWAY
-// ================================================================
+// ============================================================================
+// 2. IMPORT LIBRARY UTAMA (TIDAK BOLEH DOUBLE DI BAWAH)
+// ============================================================================
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const fs = require("fs");
 const Database = require("better-sqlite3");
 const app = express();
 
-// ================================================================
-// CORS & MIDDLEWARE
-// ================================================================
+// ============================================================================
+// 3. CORS & MIDDLEWARE
+// ============================================================================
 app.use(
   cors({
     origin: "*",
@@ -32,12 +33,54 @@ app.use(
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
-// Menyajikan file statis (JS, CSS, Gambar) dari folder root
+// Menyajikan file statis (.js, .css, gambar) langsung dari folder root utama
 app.use(express.static(path.join(__dirname)));
 
-// ================================================================
-// KONFIGURASI DATABASE & TABEL
-// ================================================================
+// ============================================================================
+// 4. WHITELIST TABEL & FUNGSI VALIDASI
+// ============================================================================
+const ALLOWED_TABLES = [
+  "golongan",
+  "perkiraan",
+  "transaksi",
+  "users",
+  "formatRL",
+  "formatNeraca",
+  "postedMonths",
+  "kodeBank",
+  "cabang",
+  "detiltransaksi",
+  "saldo_harian",
+];
+
+function isValidTable(name) {
+  if (!name) return false;
+  if (ALLOWED_TABLES.includes(name)) return true;
+  if (/\d{4}$/.test(name)) {
+    const baseName = name.replace(/\d{4}$/, "");
+    if (ALLOWED_TABLES.includes(baseName)) return true;
+  }
+  if (name.startsWith("backup_")) return true;
+  return false;
+}
+
+// ============================================================================
+// 5. ROUTE UTAMA (MENGGUNAKAN STANDAR EXPRESS YANG AMAN)
+// ============================================================================
+app.get("/", (req, res) => {
+  try {
+    // Sesuai konfirmasi: membaca pembukuan_telaga.html di folder root
+    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
+    res.sendFile(htmlPath);
+  } catch (error) {
+    console.error("❌ Gagal memuat halaman HTML:", error);
+    res.status(500).send("Gagal memuat halaman pembukuan");
+  }
+});
+
+// ============================================================================
+// 6. INISIALISASI DATABASE & PENGHIDUPAN SERVER (URUTAN TERKUNCI AMAN)
+// ============================================================================
 const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "pembukuan.db")
   : path.join(__dirname, "pembukuan.db");
@@ -45,293 +88,184 @@ const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
 let db;
 
 try {
-  // 1. Hubungkan Database
-  db = new Database(dbPath);
+  // Hubungkan Database terlebih dahulu
+  db = new Database(dbPath, { verbose: console.log });
   console.log("✅ Database Pembukuan SQLite terkoneksi di:", dbPath);
 
-  // 2. Fungsi Helper untuk Inisialisasi Tabel (Auto-Schema)
+  // Fungsi Helper Auto-Schema Dinamis
   const initTable = (tableName) => {
-    // Cek apakah tabel sudah ada
     const check = db
       .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?")
       .get(tableName);
-
     if (!check) {
       if (tableName.match(/\d{4}$/)) {
-        // Tabel Tahunan (misal: transaksi2024): Butuh kolom masa & cabang
         console.log(`🛠️ Membuat tabel tahunan: ${tableName}`);
         db.prepare(
-          `CREATE TABLE ${tableName} (
-            id TEXT PRIMARY KEY,
-            masa TEXT,
-            cabang TEXT,
-            data TEXT NOT NULL
-          )`,
+          `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
         ).run();
       } else {
-        // Tabel Master (misal: users, golongan): Cukup id & data
         console.log(`🛠️ Membuat tabel master: ${tableName}`);
         db.prepare(
-          `CREATE TABLE ${tableName} (
-            id TEXT PRIMARY KEY,
-            data TEXT NOT NULL
-          )`,
+          `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
         ).run();
       }
-    } else {
-      // Opsional: Validasi kolom jika tabel sudah ada untuk memastikan kompatibilitas
-      // (Disini kita skip agar tidak merusak DB lama user)
     }
   };
 
-  // 3. Inisialisasi Tabel Master dari Whitelist
-  const ALLOWED_TABLES = [
-    "golongan",
-    "perkiraan",
-    "transaksi",
-    "users",
-    "formatRL",
-    "formatNeraca",
-    "postedMonths",
-    "kodeBank",
-    "cabang",
-    "detiltransaksi",
-    "saldo_harian",
-  ];
-
+  // Jalankan pemeriksaan tabel master
   ALLOWED_TABLES.forEach(initTable);
   console.log("✅ Seluruh tabel master berhasil diperiksa.");
+
+  // TENTUKAN PORT DAN JALANKAN SERVER SEBAGAI PROSES TERAKHIR DI BLOK INI
+  const serverPort = process.env.PORT || 3000;
+  const serverHost = "0.0.0.0";
+
+  app.listen(Number(serverPort), serverHost, () => {
+    console.log(
+      `🚀 Server Express aktif di host ${serverHost} port ${serverPort}!`,
+    );
+  });
 } catch (err) {
   console.error("❌ Gagal menginisialisasi Sistem Aplikasi:", err.message);
   process.exit(1);
 }
 
-// ================================================================
-// FUNGSI VALIDASI KEAMANAN
-// ================================================================
-function isValidTable(name) {
-  if (!name) return false;
-  // Izinkan tabel master
-  const ALLOWED_TABLES = [
-    "golongan",
-    "perkiraan",
-    "transaksi",
-    "users",
-    "formatRL",
-    "formatNeraca",
-    "postedMonths",
-    "kodeBank",
-    "cabang",
-    "detiltransaksi",
-    "saldo_harian",
-  ];
+// ============================================================================
+// 7. HELPER SINKRONUS PENGGANTI PROMISE LAMA (ANTI-CRASH)
+// ============================================================================
+const dbRun = (sql, params = []) => db.prepare(sql).run(params);
+const dbAll = (sql, params = []) => db.prepare(sql).all(params);
 
-  if (ALLOWED_TABLES.includes(name)) return true;
+// ============================================================================
+// 8. DATA CRUD API ROUTES (SEMUANYA SINKRONUS BETTER-SQLITE3)
+// ============================================================================
 
-  // Izinkan tabel tahunan (berakhiran 4 digit angka)
-  if (/\d{4}$/.test(name)) {
-    const baseName = name.replace(/\d{4}$/, "");
-    if (ALLOWED_TABLES.includes(baseName)) return true;
-  }
-
-  // Izinkan tabel backup (diawali backup_)
-  if (name.startsWith("backup_")) return true;
-
-  return false;
-}
-
-// ================================================================
-// START SERVER
-// ================================================================
-const serverPort = process.env.PORT || 3000;
-const serverHost = "0.0.0.0";
-
-app.listen(Number(serverPort), serverHost, () => {
-  console.log(
-    `🚀 Server Express aktif di host ${serverHost} port ${serverPort}!`,
-  );
-});
-
-// ==========================================================
-// ROUTE UTAMA
-// ==========================================================
-app.get("/", (req, res) => {
-  try {
-    // Pastikan nama file HTML sesuai dengan yang Anda miliki
-    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
-    res.sendFile(htmlPath);
-  } catch (error) {
-    res.status(500).send("Gagal memuat halaman pembukuan");
-  }
-});
-
-// =========================================================================
-// API ROUTE: RESET DATA POSTING
-// =========================================================================
+// RESET POSTING
 app.post("/api/reset-posting", (req, res) => {
   try {
     const { masa, cabang } = req.body;
+    if (!masa || !cabang)
+      return res
+        .status(400)
+        .json({ success: false, message: "Parameter wajib dikirim." });
 
-    if (!masa || !cabang) {
-      return res.status(400).json({
-        success: false,
-        message: "Parameter masa dan cabang wajib dikirim.",
-      });
-    }
-
-    // Ambil tahun dari masa (Format MMYY -> YYYY)
     const duaDigitTahun = masa.toString().slice(-2);
     const tahun = "20" + duaDigitTahun;
 
-    const tabelPerkiraan = `perkiraan${tahun}`;
-    const tabelGolongan = `golongan${tahun}`;
-    const tabelTransaksi = `transaksi${tahun}`;
+    const queries = [
+      {
+        table: `perkiraan${tahun}`,
+        sql: `DELETE FROM perkiraan${tahun} WHERE "masa" = ? AND "cabang" = ?`,
+      },
+      {
+        table: `golongan${tahun}`,
+        sql: `DELETE FROM golongan${tahun} WHERE "masa" = ? AND "cabang" = ?`,
+      },
+      {
+        table: `transaksi${tahun}`,
+        sql: `DELETE FROM transaksi${tahun} WHERE "masa" = ? AND "cabang" = ?`,
+      },
+    ];
 
-    const tablesToReset = [tabelPerkiraan, tabelGolongan, tabelTransaksi];
-    const results = [];
-
-    tablesToReset.forEach((table) => {
-      try {
-        // Gunakan transaksi untuk kecepatan dan keamanan
-        const stmt = db.prepare(
-          `DELETE FROM ${table} WHERE masa = ? AND cabang = ?`,
-        );
-        const info = stmt.run(masa, cabang);
-        results.push({ table, deleted: info.changes });
-        console.log(`✅ Reset ${table}: ${info.changes} baris dihapus.`);
-      } catch (err) {
-        console.error(`⚠️ Gagal reset ${table}:`, err.message);
-        // Lanjutkan proses tabel lain meski ada yang gagal
+    db.transaction(() => {
+      for (let q of queries) {
+        db.prepare(q.sql).run(masa, cabang);
       }
-    });
+    })();
 
     res.json({
       success: true,
-      message: `Proses reset selesai untuk periode ${masa} cabang ${cabang}.`,
-      details: results,
+      message: `Data periode ${masa} cabang ${cabang} berhasil direset.`,
     });
   } catch (error) {
-    console.error("🚨 Error reset posting:", error);
-    res.status(500).json({
-      success: false,
-      message: "Terjadi kesalahan server saat mereset data.",
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 });
 
-// =========================================================================
-// API ROUTE: CLEAR ALL DATA
-// =========================================================================
+// CLEAR ALL DATA
 app.post("/api/clear-all-data", (req, res) => {
   try {
     const { storeName, masa, cabang } = req.body;
-
-    if (!storeName) {
+    if (!storeName)
       return res
         .status(400)
         .json({ success: false, message: "Nama data tidak dikirim!" });
-    }
 
-    if (!isValidTable(storeName)) {
-      return res.status(403).json({
-        success: false,
-        message: `Akses ditolak! Tabel '${storeName}' tidak dikenal.`,
-      });
-    }
+    const tabelInduk = storeName.replace(/[0-9]/g, "").trim().toLowerCase();
+    if (!isValidTable(tabelInduk))
+      return res
+        .status(403)
+        .json({ success: false, message: `Akses ditolak!` });
 
-    const isYearly = /\d+/.test(storeName);
-    let sql = `DELETE FROM ${storeName}`;
+    let sqlDelete = `DELETE FROM ${storeName}`;
     let params = [];
 
-    if (isYearly) {
-      // Cek keberadaan kolom 'masa' dan 'cabang' di tabel tahunan
-      const cols = db.prepare(`PRAGMA table_info(${storeName})`).all();
-      const colNames = cols.map((c) => c.name);
+    if (/\d+/.test(storeName)) {
+      const rows = db.prepare(`PRAGMA table_info(${storeName})`).all();
+      if (!rows || rows.length === 0)
+        return res.json({ success: true, changes: 0 });
 
-      // Jika tabel transaksi/perkiraan tahunan dan memiliki kolom filter
-      if (colNames.includes("masa") && colNames.includes("cabang")) {
+      const daftarKolom = rows.map((row) => row.name.toLowerCase());
+      if (
+        tabelInduk.includes("transaksi") ||
+        tabelInduk.includes("perkiraan") ||
+        tabelInduk.includes("golongan")
+      ) {
+        if (!daftarKolom.includes("masa") || !daftarKolom.includes("cabang"))
+          return res.json({ success: true, changes: 0 });
         if (masa && cabang) {
-          sql += ` WHERE masa = ? AND cabang = ?`;
+          sqlDelete = `DELETE FROM ${storeName} WHERE masa = ? AND cabang = ?`;
           params = [masa, cabang];
-          console.log(`🗑️ Filtered Delete: ${storeName} (${masa}, ${cabang})`);
         } else {
-          console.log(
-            `⚠️ Clear ${storeName}: Filter kosong, membatalkan hapus total.`,
-          );
-          return res.json({
-            success: true,
-            message: "Dibatalkan (Parameter filter kosong)",
-            changes: 0,
-          });
+          return res.json({ success: true, changes: 0 });
         }
-      } else {
-        console.log(`🗑️ Total Delete (No Cols): ${storeName}`);
       }
-    } else {
-      console.log(`🗑️ Total Delete (Master): ${storeName}`);
     }
 
-    const info = db.prepare(sql).run(params);
+    const info = db.prepare(sqlDelete).run(params);
     return res.json({
       success: true,
-      message: `Data tabel '${storeName}' berhasil dibersihkan.`,
+      message: "Data dibersihkan.",
       changes: info.changes,
     });
   } catch (fatalError) {
-    console.error("🚨 Fatal Error di API Clear Data:", fatalError.message);
     return res
       .status(500)
-      .json({ success: false, message: "Server Crash: " + fatalError.message });
+      .json({ success: false, message: fatalError.message });
   }
 });
 
-// ================================================================
-// ROUTE CRUD DATA (GET, POST, PUT, DELETE)
-// ================================================================
-
-// GET: Semua data
+// GET ALL DATA
 app.get("/api/data/:storeName", (req, res) => {
   const { storeName } = req.params;
-
-  if (!isValidTable(storeName)) {
+  if (!isValidTable(storeName))
     return res.status(400).json({ error: "Tabel tidak valid" });
-  }
-
   try {
     const rows = db.prepare(`SELECT data FROM ${storeName}`).all();
     res.json(rows.map((row) => JSON.parse(row.data)));
   } catch (error) {
-    if (error.message.includes("no such table")) {
-      return res.json([]);
-    }
-    console.error(`🚨 Gagal ambil data ${storeName}:`, error.message);
+    if (error.message.includes("no such table")) return res.json([]);
     res.status(500).json({ error: error.message });
   }
 });
 
-// GET: Data by ID
+// GET DATA BY ID
 app.get("/api/data/:storeName/:id", (req, res) => {
   const { storeName, id } = req.params;
-
-  if (!isValidTable(storeName)) {
+  if (!isValidTable(storeName))
     return res.status(400).json({ error: "Tabel tidak valid" });
-  }
-
   try {
     const row = db
       .prepare(`SELECT data FROM ${storeName} WHERE id = ?`)
       .get(id);
-    if (row) {
-      res.json(JSON.parse(row.data));
-    } else {
-      res.status(404).json({ error: "Data tidak ditemukan" });
-    }
+    if (row) res.json(JSON.parse(row.data));
+    else res.status(404).json({ error: "Data tidak ditemukan" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// POST: Tambah Data Baru
+// POST DATA BARU
 app.post("/api/data/:storeName", (req, res) => {
   const { storeName } = req.params;
   if (!isValidTable(storeName))
@@ -340,88 +274,64 @@ app.post("/api/data/:storeName", (req, res) => {
     const data = req.body;
     if (!data.id)
       return res.status(400).json({ error: "Properti 'id' wajib ada" });
-
-    const stmt = db.prepare(
+    db.prepare(
       `INSERT OR REPLACE INTO ${storeName} (id, data) VALUES (?, ?)`,
-    );
-    stmt.run(data.id, JSON.stringify(data));
-
+    ).run(data.id, JSON.stringify(data));
     res.status(201).json({ message: "Berhasil ditambahkan" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// PUT: Update Data (Merge)
+// PUT DATA BY ID
 app.put("/api/data/:storeName/:id", (req, res) => {
   const { storeName, id } = req.params;
   if (!isValidTable(storeName))
     return res.status(400).json({ error: "Tabel tidak valid" });
-
   try {
     const newData = req.body;
     const row = db
       .prepare(`SELECT data FROM ${storeName} WHERE id = ?`)
       .get(id);
-
-    let mergedData = {};
-    if (row) {
-      const oldData = JSON.parse(row.data);
-      mergedData = { ...oldData, ...newData };
-    } else {
-      mergedData = newData;
-    }
+    let mergedData = row ? { ...JSON.parse(row.data), ...newData } : newData;
     mergedData.id = id;
-
-    const stmt = db.prepare(`UPDATE ${storeName} SET data = ? WHERE id = ?`);
-    stmt.run(JSON.stringify(mergedData), id);
-
+    db.prepare(`UPDATE ${storeName} SET data = ? WHERE id = ?`).run(
+      JSON.stringify(mergedData),
+      id,
+    );
     res.json({ message: "Berhasil diupdate" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// PUT: Upsert (Tanpa ID di URL)
+// PUT UPSERT
 app.put("/api/data/:storeName", (req, res) => {
   const { storeName } = req.params;
   if (!isValidTable(storeName))
     return res.status(400).json({ error: "Tabel tidak valid" });
-
   try {
     const newData = req.body;
     if (!newData.id)
       return res.status(400).json({ error: "Properti 'id' wajib ada" });
-
     const row = db
       .prepare(`SELECT data FROM ${storeName} WHERE id = ?`)
       .get(newData.id);
-    let mergedData = {};
-
-    if (row) {
-      const oldData = JSON.parse(row.data);
-      mergedData = { ...oldData, ...newData };
-    } else {
-      mergedData = newData;
-    }
-
-    const stmt = db.prepare(
+    let mergedData = row ? { ...JSON.parse(row.data), ...newData } : newData;
+    db.prepare(
       `INSERT OR REPLACE INTO ${storeName} (id, data) VALUES (?, ?)`,
-    );
-    stmt.run(newData.id, JSON.stringify(mergedData));
-
+    ).run(newData.id, JSON.stringify(mergedData));
     res.json({ message: "Berhasil disimpan" });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// DELETE: Hapus 1 Data
+// DELETE 1 DATA
 app.delete("/api/data/:storeName/:id", (req, res) => {
   const { storeName, id } = req.params;
   if (!isValidTable(storeName))
     return res.status(400).json({ error: "Tabel tidak valid" });
-
   try {
     db.prepare(`DELETE FROM ${storeName} WHERE id = ?`).run(id);
     res.json({ message: "Berhasil dihapus" });
@@ -430,12 +340,11 @@ app.delete("/api/data/:storeName/:id", (req, res) => {
   }
 });
 
-// DELETE: Kosongkan Tabel
+// DELETE KOSONGKAN TABEL
 app.delete("/api/data/:storeName", (req, res) => {
   const { storeName } = req.params;
   if (!isValidTable(storeName))
     return res.status(400).json({ error: "Tabel tidak valid" });
-
   try {
     db.prepare(`DELETE FROM ${storeName}`).run();
     res.json({ message: "Tabel berhasil dikosongkan" });
@@ -444,12 +353,11 @@ app.delete("/api/data/:storeName", (req, res) => {
   }
 });
 
-// GET: Hitung Jumlah Data
+// COUNT DATA
 app.get("/api/count/:storeName", (req, res) => {
   const { storeName } = req.params;
   if (!isValidTable(storeName))
     return res.status(400).json({ error: "Tabel tidak valid" });
-
   try {
     const row = db.prepare(`SELECT COUNT(id) as total FROM ${storeName}`).get();
     res.json(row ? row.total : 0);
@@ -458,29 +366,14 @@ app.get("/api/count/:storeName", (req, res) => {
   }
 });
 
-// GET: Backup Database
+// BACKUP DATABASE JSON
 app.get("/api/backup", (req, res) => {
   try {
     let backupData = {};
-    const ALLOWED_TABLES = [
-      "golongan",
-      "perkiraan",
-      "transaksi",
-      "users",
-      "formatRL",
-      "formatNeraca",
-      "postedMonths",
-      "kodeBank",
-      "cabang",
-      "detiltransaksi",
-      "saldo_harian",
-    ];
-
-    ALLOWED_TABLES.forEach((table) => {
+    for (const table of ALLOWED_TABLES) {
       const rows = db.prepare(`SELECT data FROM ${table}`).all();
       backupData[table] = rows.map((row) => JSON.parse(row.data));
-    });
-
+    }
     res.setHeader(
       "Content-Disposition",
       "attachment; filename=backup_pembukuan.json",
@@ -491,148 +384,106 @@ app.get("/api/backup", (req, res) => {
   }
 });
 
-// POST: Clear Range Saldo Harian
+// CLEAR RANGE SALDO HARIAN
 app.post("/api/saldo-harian/clear-range", (req, res) => {
   try {
     const { cabang, char4, tanggalAwal, tanggalAkhir } = req.body;
-
-    if (!tanggalAwal || !tanggalAkhir) {
-      return res
-        .status(400)
-        .json({ error: "Tanggal awal dan akhir wajib diisi" });
-    }
-
-    const kodeCabang = cabang || "Pusat";
-    const kodeChar = char4 || " ";
-
-    const sql = `
-      DELETE FROM saldo_harian 
-      WHERE json_extract(data, '$.cabang') = ? 
-        AND json_extract(data, '$.char4') = ?
-        AND json_extract(data, '$.tanggal') BETWEEN ? AND ?
-    `;
-
-    db.prepare(sql).run(kodeCabang, kodeChar, tanggalAwal, tanggalAkhir);
-    res.json({
-      message: `Data rentang ${tanggalAwal} s/d ${tanggalAkhir} berhasil dibersihkan.`,
-    });
+    if (!tanggalAwal || !tanggalAkhir)
+      return res.status(400).json({ error: "Tanggal wajib diisi" });
+    const sql = `DELETE FROM saldo_harian WHERE json_extract(data, '$.cabang') = ? AND json_extract(data, '$.char4') = ? AND json_extract(data, '$.tanggal') BETWEEN ? AND ?;`;
+    db.prepare(sql).run(
+      cabang || "Pusat",
+      char4 || " ",
+      tanggalAwal,
+      tanggalAkhir,
+    );
+    res.json({ message: "Data lama dibersihkan." });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 });
 
-// ================================================================
-// BATCH PROCESSING
-// ================================================================
-
-// Batch 1: Via URL Params
+// BATCH DATA PARAMS URL
 app.post("/api/batch/:storeName", (req, res) => {
-  const storeName = req.params.storeName;
+  const { storeName } = req.params;
   const data = req.body;
-
-  if (!storeName) {
-    return res
-      .status(400)
-      .json({ success: false, message: "Nama tabel wajib diisi." });
-  }
-
-  if (!Array.isArray(data) || data.length === 0) {
-    return res.json({ success: true, message: "Data kosong.", changes: 0 });
-  }
-
-  console.log(`📝 Batch Process: ${storeName} (${data.length} items)`);
-
+  if (!Array.isArray(data) || data.length === 0)
+    return res.json({ success: true, message: "Data kosong." });
   try {
-    // Pastikan tabel ada sebelum batch (Auto-create jika tahunan)
-    const check = db
-      .prepare("SELECT name FROM sqlite_master WHERE type='table' AND name=?")
-      .get(storeName);
-    if (!check) {
-      if (storeName.match(/\d{4}$/)) {
-        db.prepare(
-          `CREATE TABLE ${storeName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
-        ).run();
-      } else {
-        return res.status(400).json({
-          success: false,
-          message: "Tabel tidak dikenal dan belum dibuat.",
-        });
+    const stmt = db.prepare(
+      `INSERT OR REPLACE INTO ${storeName} (id, data) VALUES (?, ?)`,
+    );
+    const jumlahError = db.transaction((items) => {
+      let errorCounter = 0;
+      for (let i = 0; i < items.length; i++) {
+        try {
+          const item = items[i];
+          const idUnik =
+            item.id ||
+            item.noPerk ||
+            item.gol ||
+            item.nomor ||
+            `${storeName}_${i}`;
+          stmt.run(idUnik, JSON.stringify(item));
+        } catch (e) {
+          errorCounter++;
+        }
       }
-    }
-
-    const insertMany = db.transaction((items) => {
-      const stmt = db.prepare(
-        `INSERT OR REPLACE INTO ${storeName} (id, data) VALUES (?, ?)`,
-      );
-      for (const item of items) {
-        const id =
-          item.id ||
-          item.noPerk ||
-          item.gol ||
-          item.nomor ||
-          `${storeName}_${Math.random().toString(36).substr(2, 9)}`;
-        stmt.run(id, JSON.stringify(item));
-      }
-    });
-
-    insertMany(data);
+      return errorCounter;
+    })(data);
     return res.json({
       success: true,
-      message: `Berhasil menyimpan ${data.length} data.`,
+      total: data.length,
+      errorCount: jumlahError,
     });
   } catch (err) {
-    console.error("Batch Error:", err.message);
     return res.status(500).json({ success: false, message: err.message });
   }
 });
 
-// Batch 2: Via Body JSON
+// SAVE BATCH BODY
 app.post("/api/save-batch", (req, res) => {
   const { storeName, data } = req.body;
-
-  if (!storeName || !Array.isArray(data) || data.length === 0) {
-    return res.json({ success: true, message: "Data kosong.", changes: 0 });
-  }
-
+  if (!storeName || !Array.isArray(data) || data.length === 0)
+    return res.json({ success: true, changes: 0 });
   try {
-    const insertMany = db.transaction((items) => {
-      const stmt = db.prepare(
-        `INSERT OR REPLACE INTO ${storeName} (id, data) VALUES (?, ?)`,
-      );
-      for (const item of items) {
-        const id =
-          item.id ||
-          item.noPerk ||
-          item.gol ||
-          item.nomor ||
-          `${storeName}_${Math.random().toString(36).substr(2, 9)}`;
-        stmt.run(id, JSON.stringify(item));
+    const stmt = db.prepare(
+      `INSERT OR REPLACE INTO ${storeName} (id, data) VALUES (?, ?)`,
+    );
+    const jumlahError = db.transaction((items) => {
+      let errorCounter = 0;
+      for (let i = 0; i < items.length; i++) {
+        try {
+          const item = items[i];
+          const idUnik =
+            item.id ||
+            item.noPerk ||
+            item.gol ||
+            item.nomor ||
+            `${storeName}_${i}`;
+          stmt.run(idUnik, JSON.stringify(item));
+        } catch (e) {
+          errorCounter++;
+        }
       }
-    });
-
-    insertMany(data);
-    return res.json({
-      success: true,
-      message: `Berhasil menyimpan ${data.length} data.`,
-    });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+      return errorCounter;
+    })(data);
+    return res.json({ success: true, errorCount: jumlahError });
+  } catch (loopErr) {
+    return res.status(500).json({ success: false, message: loopErr.message });
   }
 });
 
-// POST: Simpan Saldo Harian
+// SNAPSHOT SALDO HARIAN
 app.post("/api/saldo-harian", (req, res) => {
   try {
     const { cabang, char4, tanggal, saldo_akhir } = req.body;
     if (!tanggal) return res.status(400).json({ error: "Tanggal wajib diisi" });
-
     const id = `${cabang}_${char4}_${tanggal}`;
-    const dataJson = JSON.stringify({ cabang, char4, tanggal, saldo_akhir });
-
     db.prepare(
       `INSERT OR REPLACE INTO saldo_harian (id, data) VALUES (?, ?)`,
-    ).run(id, dataJson);
-    res.json({ success: true, message: "Snapshot saldo berhasil disimpan" });
+    ).run(id, JSON.stringify({ cabang, char4, tanggal, saldo_akhir }));
+    res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
