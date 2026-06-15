@@ -140,6 +140,18 @@ function isValidTable(name) {
   return false;
 }
 
+// ================================================================
+// START SERVER
+// ================================================================
+const serverPort = process.env.PORT || 3000;
+const serverHost = "0.0.0.0";
+
+app.listen(Number(serverPort), serverHost, () => {
+  console.log(
+    `🚀 Server Express aktif di host ${serverHost} port ${serverPort}!`,
+  );
+});
+
 // ==========================================================
 // ROUTE UTAMA
 // ==========================================================
@@ -541,12 +553,10 @@ app.post("/api/batch/:storeName", (req, res) => {
           `CREATE TABLE ${storeName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
         ).run();
       } else {
-        return res
-          .status(400)
-          .json({
-            success: false,
-            message: "Tabel tidak dikenal dan belum dibuat.",
-          });
+        return res.status(400).json({
+          success: false,
+          message: "Tabel tidak dikenal dan belum dibuat.",
+        });
       }
     }
 
@@ -626,16 +636,4 @@ app.post("/api/saldo-harian", (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
-});
-
-// ================================================================
-// START SERVER
-// ================================================================
-const serverPort = process.env.PORT || 3000;
-const serverHost = "0.0.0.0";
-
-app.listen(Number(serverPort), serverHost, () => {
-  console.log(
-    `🚀 Server Express aktif di host ${serverHost} port ${serverPort}!`,
-  );
 });
