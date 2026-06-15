@@ -928,3 +928,7 @@ button,
   object-fit: cover; /* Potong gambar agar pas di kotak tanpa gepeng */
   border-radius: 8px; /* Sudut melengkung (opsional) */
 }
+/* Pastikan sidebar benar-benar di atas saat terbuka */
+.sb.open {
+  z-index: 9999 !important; /* Paksa naik ke paling atas */
+}
