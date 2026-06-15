@@ -1,0 +1,6 @@
+# Database SQLite
+*.db
+*.sqlite
+*.sqlite3
+pembukuan.db
+node_modules
