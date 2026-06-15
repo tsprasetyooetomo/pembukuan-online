@@ -16,7 +16,8 @@ process.on("unhandledRejection", (reason, promise) => {
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
-const fs = require("fs"); // <-- SUDAH DITAMBAHKAN AGAR TIDAK ERROR
+const fs = require("fs");
+const Database = require("better-sqlite3"); // Pindahkan deklarasi ke atas
 const app = express();
 
 // ================================================================
@@ -31,33 +32,9 @@ app.use(
 );
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
-app.use(express.static(path.join(__dirname, "public")));
 
-// ==========================================================
-// JALANKAN SERVER NYA
-// ==========================================================
-const serverPort = process.env.PORT || 3000;
-const serverHost = "0.0.0.0";
-
-app.listen(Number(serverPort), serverHost, () => {
-  console.log(
-    `🚀 Server Express aktif di host ${serverHost} port ${serverPort}!`,
-  );
-});
-
-// ==========================================================
-// ROUTE UTAMA (MENGGUNAKAN STANDAR EXPRESS YANG AMAN)
-// ==========================================================
-app.get("/", (req, res) => {
-  try {
-    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
-    // Menggunakan res.sendFile adalah cara terbaik Express untuk memuat HTML
-    res.sendFile(htmlPath);
-  } catch (error) {
-    console.error("❌ Gagal memuat halaman HTML:", error);
-    res.status(500).send("Gagal memuat halaman pembukuan");
-  }
-});
+// Membuka akses file statis langsung dari folder utama (root) tempat file js/css berada
+app.use(express.static(path.join(__dirname)));
 
 // ================================================================
 // WHITELIST TABEL (Keamanan)
@@ -80,11 +57,23 @@ function isValidTable(name) {
   return ALLOWED_TABLES.includes(name);
 }
 
-// ================================================================
-// INISIALISASI DATABASE (BETTER-SQLITE3)
-// ================================================================
-const Database = require("better-sqlite3");
+// ==========================================================
+// ROUTE UTAMA (MENGGUNAKAN STANDAR EXPRESS YANG AMAN)
+// ==========================================================
+app.get("/", (req, res) => {
+  try {
+    // DISESUAIKAN: Menggunakan telaga_pembukuan.html sesuai nama file asli Anda
+    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
+    res.sendFile(htmlPath);
+  } catch (error) {
+    console.error("❌ Gagal memuat halaman HTML:", error);
+    res.status(500).send("Gagal memuat halaman pembukuan");
+  }
+});
 
+// ================================================================
+// INISIALISASI DATABASE & PENGHIDUPAN SERVER (URUTAN AMAN)
+// ================================================================
 const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
   ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "pembukuan.db")
   : path.join(__dirname, "pembukuan.db");
@@ -92,9 +81,11 @@ const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
 let db;
 
 try {
+  // 1. Hubungkan Database terlebih dahulu
   db = new Database(dbPath, { verbose: console.log });
   console.log("✅ Database Pembukuan SQLite terkoneksi di:", dbPath);
 
+  // 2. Buat tabel-tabel sampai selesai seluruhnya
   ALLOWED_TABLES.forEach((tableName) => {
     db.prepare(
       `
@@ -106,8 +97,19 @@ try {
     ).run();
   });
   console.log("✅ Seluruh tabel database berhasil diperiksa/dibuat.");
+
+  // 3. JALANKAN SERVER HANYA JIKA DATABASE SUDAH SIAP TOTAL
+  const serverPort = process.env.PORT || 3000;
+  const serverHost = "0.0.0.0";
+
+  app.listen(Number(serverPort), serverHost, () => {
+    console.log(
+      `🚀 Server Express aktif di host ${serverHost} port ${serverPort}!`,
+    );
+  });
 } catch (err) {
-  console.error("❌ Gagal menginisialisasi Database:", err.message);
+  console.error("❌ Gagal menginisialisasi Sistem Aplikasi:", err.message);
+  process.exit(1);
 }
 
 // Helper Promise untuk db.run
