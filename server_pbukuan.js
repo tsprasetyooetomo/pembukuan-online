@@ -44,7 +44,8 @@ app.use(express.static(path.join(__dirname)));
 // ============================================================================
 // 4. KONFIGURASI SERVER & START (PALING PENTING: DAHULUKAN)
 // ============================================================================
-const serverPort = process.env.PORT || 3000;
+
+const serverPort = 3000;
 const serverHost = "0.0.0.0";
 
 try {
