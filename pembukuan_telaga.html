@@ -189,17 +189,7 @@
         });
       });
     </script>
-<script>
-    // Ambil elemen tombol dan sidebar
-    const toggleBtn = document.getElementById('mobToggle');
-    const sidebar = document.querySelector('.sb');
 
-    // Tambahkan event saat tombol diklik
-    toggleBtn.addEventListener('click', function() {
-        // Tambah atau hapus class 'open' pada sidebar
-        sidebar.classList.toggle('open');
-    });
-</script>
     <!-- 1. Database (WAJIB PERTAMA) -->
     <script src="db_pbukuan.js"></script>
 
@@ -219,5 +209,17 @@
 
     <!-- 4. Init (WAJIB TERAKHIR) -->
     <script src="app_init.js"></script>
+
+    <script>
+    // Ambil elemen tombol dan sidebar
+    const toggleBtn = document.getElementById('mobToggle');
+    const sidebar = document.querySelector('.sb');
+
+    // Tambahkan event saat tombol diklik
+    toggleBtn.addEventListener('click', function() {
+        // Tambah atau hapus class 'open' pada sidebar
+        sidebar.classList.toggle('open');
+    });
+</script>
   </body>
 </html>
