@@ -38,7 +38,7 @@ app.listen(Number(serverPort), serverHost, () => {
 // ==========================================================
 app.get("/", (req, res) => {
   try {
-    const htmlPath = path.join(__dirname, "telaga_pembukuan.html");
+    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
     // Menggunakan res.sendFile adalah cara terbaik Express untuk memuat HTML
     res.sendFile(htmlPath);
   } catch (error) {
