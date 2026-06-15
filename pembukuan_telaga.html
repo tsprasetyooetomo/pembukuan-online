@@ -94,38 +94,45 @@
       <div id="debugLogs"></div>
     </div>
     <!-- TAMBAHKAN INI: Library Pull to Refresh -->
-    <!-- Pastikan library load sebelum script inisialisasi -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pulltorefreshjs/0.1.14/pulltorefresh.umd.min.js"></script>
+    <!-- Gunakan versi 0.1.13 (Lebih Stabil) -->
+    <script src="https://unpkg.com/pulltorefreshjs@0.1.13/dist/index.umd.js"></script>
 
-    <!-- SCRIPTS -->
-    <!-- INISIALISASI PULL TO REFRESH -->
-    <!-- HAPUS kata "type" dan tulis langsung script biasa agar bisa membaca global var -->
     <script>
-      document.addEventListener("DOMContentLoaded", function () {
-        // Cek apakah library sudah ada di window
+      function initPullToRefresh() {
+        // Cek variabel global (library ini biasanya menanamkan ke window.PullToRefresh)
         if (window.PullToRefresh) {
-          PullToRefresh.init({
-            mainElement: "body",
-            onRefresh: function () {
-              return new Promise(function (resolve) {
-                setTimeout(function () {
-                  window.location.reload();
-                  resolve();
-                }, 500);
-              });
-            },
-            instructionsPullToRefresh: "Tarik ke bawah untuk refresh",
-            instructionsReleaseToRefresh: "Lepaskan untuk refresh",
-            instructionsRefreshing: "Memuat...",
-          });
-          console.log("✅ Pull To Refresh Aktif");
+          console.log("✅ Library Ditemukan! Mengaktifkan...");
+          try {
+            PullToRefresh.init({
+              mainElement: "body",
+              onRefresh: function () {
+                return new Promise(function (resolve) {
+                  setTimeout(function () {
+                    window.location.reload();
+                    resolve();
+                  }, 500);
+                });
+              },
+              instructionsPullToRefresh: "Tarik ke bawah",
+              instructionsReleaseToRefresh: "Lepaskan",
+              instructionsRefreshing: "Refresh...",
+            });
+          } catch (e) {
+            console.error("Error init:", e);
+          }
         } else {
-          console.warn("⚠️ Library PullToRefresh tidak ditemukan");
+          // Retry jika belum termuat
+          if (!window.ptrWait) window.ptrWait = 0;
+          if (window.ptrWait < 20) {
+            window.ptrWait++;
+            setTimeout(initPullToRefresh, 200);
+          } else {
+            console.warn("⚠️ Gagal memuat library setelah beberapa kali coba.");
+          }
         }
+      }
 
-        // Kode inisialisasi map (jika ada)
-        // if (typeof PANEL_MAP !== 'undefined') { ... }
-      });
+      document.addEventListener("DOMContentLoaded", initPullToRefresh);
     </script>
     <!-- 1. Database (WAJIB PERTAMA) -->
     <script src="db_pbukuan.js"></script>
