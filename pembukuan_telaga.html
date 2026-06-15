@@ -94,33 +94,38 @@
       <div id="debugLogs"></div>
     </div>
     <!-- TAMBAHKAN INI: Library Pull to Refresh -->
+    <!-- Pastikan library load sebelum script inisialisasi -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pulltorefreshjs/0.1.14/pulltorefresh.umd.min.js"></script>
 
     <!-- SCRIPTS -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pulltorefreshjs/0.1.14/pulltorefresh.umd.min.js"></script>
+    <!-- INISIALISASI PULL TO REFRESH -->
+    <!-- HAPUS kata "type" dan tulis langsung script biasa agar bisa membaca global var -->
     <script>
-      // --- INISIALISASI PULL TO REFRESH ---
-      if (typeof PullToRefresh !== "undefined") {
-        PullToRefresh.init({
-          mainElement: "body",
-          onRefresh: function () {
-            return new Promise(function (resolve) {
-              setTimeout(function () {
-                window.location.reload();
-                resolve();
-              }, 500);
-            });
-          },
-          instructionsPullToRefresh: "Tarik ke bawah untuk refresh",
-          instructionsReleaseToRefresh: "Lepaskan untuk refresh",
-          instructionsRefreshing: "Memuat...",
-        });
-        console.log("✅ Pull To Refresh Aktif");
-      } else {
-        console.warn("⚠️ Library PullToRefresh tidak ditemukan");
-      }
+      document.addEventListener("DOMContentLoaded", function () {
+        // Cek apakah library sudah ada di window
+        if (window.PullToRefresh) {
+          PullToRefresh.init({
+            mainElement: "body",
+            onRefresh: function () {
+              return new Promise(function (resolve) {
+                setTimeout(function () {
+                  window.location.reload();
+                  resolve();
+                }, 500);
+              });
+            },
+            instructionsPullToRefresh: "Tarik ke bawah untuk refresh",
+            instructionsReleaseToRefresh: "Lepaskan untuk refresh",
+            instructionsRefreshing: "Memuat...",
+          });
+          console.log("✅ Pull To Refresh Aktif");
+        } else {
+          console.warn("⚠️ Library PullToRefresh tidak ditemukan");
+        }
 
-      // --- INISIALISASI PANEL MAP (Contoh kode Anda) ---
-      // PANEL_MAP.importD = renderImport;
+        // Kode inisialisasi map (jika ada)
+        // if (typeof PANEL_MAP !== 'undefined') { ... }
+      });
     </script>
     <!-- 1. Database (WAJIB PERTAMA) -->
     <script src="db_pbukuan.js"></script>
