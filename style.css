@@ -859,16 +859,14 @@ tfoot td.num {
 [onclick],
 a,
 button,
+/* Tambahkan nama class tombol spesifik Anda di sini */
 .menu-item,
-.nav-btn {
-  cursor: pointer; /* Wajib ada */
-  -webkit-tap-highlight-color: transparent; /* Hilangkan warna biru klik android */
-  touch-action: manipulation; /* Percepat reaksi klik */
-}
-
-/* Pastikan tombol hamburger menu tidak tertutup */
-.hamburger-btn,
-.menu-toggle {
-  z-index: 9999; /* Taruh paling atas */
+.nav-btn,
+.hamburger,    
+.btn-menu {
   position: relative;
+  z-index: 9999;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
 }
