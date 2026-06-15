@@ -140,18 +140,6 @@ function isValidTable(name) {
   return false;
 }
 
-// ================================================================
-// START SERVER
-// ================================================================
-const serverPort = process.env.PORT || 3000;
-const serverHost = "0.0.0.0";
-
-app.listen(Number(serverPort), serverHost, () => {
-  console.log(
-    `🚀 Server Express aktif di host ${serverHost} port ${serverPort}!`,
-  );
-});
-
 // ==========================================================
 // ROUTE UTAMA
 // ==========================================================
@@ -636,4 +624,16 @@ app.post("/api/saldo-harian", (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// ================================================================
+// START SERVER
+// ================================================================
+const serverPort = process.env.PORT || 3000;
+const serverHost = "0.0.0.0";
+
+app.listen(Number(serverPort), serverHost, () => {
+  console.log(
+    `🚀 Server Express aktif di host ${serverHost} port ${serverPort}!`,
+  );
 });
