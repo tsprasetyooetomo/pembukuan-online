@@ -2252,5 +2252,3 @@ function renderImport() {
   );
 }
 PANEL_MAP.importD = renderImport;
-// SEBELUM:
-// PullToRefresh.init({ ... });
