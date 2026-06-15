@@ -1064,7 +1064,7 @@ function formCabang(id) {
   openModal(isEdit ? "Edit Cabang" : "Tambah Cabang", html, foot);
 }
 
-async function saveCabang(id) {
+async function saveCabang(e, id) {
   try {
     var kode = $("fCabKode").value.trim();
     var nama = $("fCabNama").value.trim();
