@@ -1,4 +1,16 @@
 // ================================================================
+// JARING PENGANGKAP ERROR GLOBAL (PASTE DI BARIS PALING ATAS NO 1)
+// ================================================================
+process.on("uncaughtException", (err) => {
+  console.error("🔥 CRITICAL ERROR TERDETEKSI:", err.stack || err.message);
+  process.exit(1);
+});
+
+process.on("unhandledRejection", (reason, promise) => {
+  console.error("🔥 JANJI ERROR TERDETEKSI di:", promise, "alasan:", reason);
+});
+
+// ================================================================
 // SERVER.JS - BACKEND PEMBUKUAN (SQLITE) - OPTIMIZED FOR RAILWAY
 // ================================================================
 const express = require("express");
