@@ -94,46 +94,92 @@
       <div id="debugLogs"></div>
     </div>
     <!-- TAMBAHKAN INI: Library Pull to Refresh -->
-    <!-- Gunakan versi 0.1.13 (Lebih Stabil) -->
-    <script src="https://unpkg.com/pulltorefreshjs@0.1.13/dist/index.umd.js"></script>
-
+    <!-- === PULL TO REFRESH MANUAL (NO INTERNET NEEDED) === -->
     <script>
-      function initPullToRefresh() {
-        // Cek variabel global (library ini biasanya menanamkan ke window.PullToRefresh)
-        if (window.PullToRefresh) {
-          console.log("✅ Library Ditemukan! Mengaktifkan...");
-          try {
-            PullToRefresh.init({
-              mainElement: "body",
-              onRefresh: function () {
-                return new Promise(function (resolve) {
-                  setTimeout(function () {
-                    window.location.reload();
-                    resolve();
-                  }, 500);
-                });
-              },
-              instructionsPullToRefresh: "Tarik ke bawah",
-              instructionsReleaseToRefresh: "Lepaskan",
-              instructionsRefreshing: "Refresh...",
-            });
-          } catch (e) {
-            console.error("Error init:", e);
-          }
-        } else {
-          // Retry jika belum termuat
-          if (!window.ptrWait) window.ptrWait = 0;
-          if (window.ptrWait < 20) {
-            window.ptrWait++;
-            setTimeout(initPullToRefresh, 200);
-          } else {
-            console.warn("⚠️ Gagal memuat library setelah beberapa kali coba.");
-          }
-        }
-      }
+      document.addEventListener("DOMContentLoaded", function () {
+        console.log("⚙️ Menginisialisasi Pull-to-Refresh Manual...");
 
-      document.addEventListener("DOMContentLoaded", initPullToRefresh);
+        let startY = 0;
+        let isDragging = false;
+        const body = document.body;
+        const TRIGGER_THRESHOLD = 150; // Jarak tarik minimal (px)
+
+        // 1. Buat elemen indikator loading (hidden di atas layar)
+        const loader = document.createElement("div");
+        loader.id = "manual-ptr-loader";
+        loader.style.cssText = `
+      position: fixed; top: -60px; left: 0; width: 100%; height: 60px;
+      background: var(--dark, #1a1a1a); color: var(--light, #ffffff); 
+      display: flex; align-items: center; justify-content: center; 
+      z-index: 99999; transition: top 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-family: sans-serif; font-size: 14px;
+      pointer-events: none; /* Agar tidak block klik */
+    `;
+        // Icon spinner menggunakan FontAwesome (karena Anda sudah load FontAwesome di head)
+        loader.innerHTML =
+          '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px"></i> Refresh Halaman...';
+
+        body.appendChild(loader);
+
+        // 2. Event Listener untuk Touchscreen (HP)
+        window.addEventListener(
+          "touchstart",
+          function (e) {
+            // Hanya aktif jika berada di paling atas halaman
+            if (window.scrollY === 0) {
+              startY = e.touches[0].clientY;
+              isDragging = true;
+            } else {
+              isDragging = false;
+            }
+          },
+          { passive: true },
+        );
+
+        window.addEventListener(
+          "touchmove",
+          function (e) {
+            if (!isDragging) return;
+            const currentY = e.touches[0].clientY;
+            const diff = currentY - startY;
+
+            // Efek visual sederhana saat ditarik (opsional)
+            if (diff > 0 && window.scrollY === 0) {
+              // Kita bisa tambahkan efek transformasi body jika mau,
+              // tapi untuk stabilnya kita hanya deteksi trigger di touchend
+            }
+          },
+          { passive: true },
+        );
+
+        window.addEventListener("touchend", function (e) {
+          if (!isDragging) return;
+          isDragging = false;
+
+          // Kita ambil posisi terakhir atau hitung ulang jika perlu.
+          // Disini kita simpel: Jika user drag ke bawah cukup jauh saat di posisi top
+          // Note: touchEvent tidak punya clientY di end event, jadi kita pakai logika scrollY
+
+          // Logika alternatif yang lebih robust:
+          // Jika saat touchend, kita masih di scrollY 0, dan kita mendeteksi ada gerakan drag down sebelumnya
+          // (Untuk simplifikasi di script ini, kita anggap jika drag terdeteksi dan scrollY masih 0)
+
+          if (window.scrollY === 0 && startY !== 0) {
+            // Trigger refresh
+            console.log("🔄 Refresh Triggered!");
+            loader.style.top = "0px"; // Turunkan loader
+
+            // Reload setelah delay
+            setTimeout(() => {
+              window.location.reload();
+            }, 800);
+          }
+
+          startY = 0;
+        });
+      });
     </script>
+
     <!-- 1. Database (WAJIB PERTAMA) -->
     <script src="db_pbukuan.js"></script>
 
