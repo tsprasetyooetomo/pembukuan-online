@@ -1,4 +1,5 @@
-node_modules/
+# Database SQLite
 *.db
-.env
-D:/
+*.sqlite
+*.sqlite3
+pembukuan.db
