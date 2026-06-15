@@ -12,34 +12,35 @@ const app = express();
 / ================================================================
 // START SERVER
 // ================================================================
+// ================================================================
+// START SERVER & ROUTE (SUDAH DIPERBAIKI UNTUK RAILWAY)
+// ================================================================
 
-
-// HyperExpress mengembalikan objek error (err) jika gagal bind port
-
-// Use PORT provided in environment or default to 3000
+// 1. Membaca PORT dinamis dari Railway atau default 3000 jika di laptop
 const port = process.env.PORT || 3000;
 
-// Listen on `port` and 0.0.0.0
-app.listen(port, "0.0.0.0", function () {
-
-    console.log(`🚀 Server HyperExpress aktif di host ${serverHost} port ${serverPort}`);
-  })
-  .catch((error) => {
-    console.error(`❌ Gagal mengikat port ${serverPort}:`, error)
-  // ...
+// 2. Menjalankan server Express (Menggunakan 0.0.0.0 agar bisa diakses internet)
+app.listen(port, "0.0.0.0", () => {
+    console.log(`🚀 Server aktif dan berjalan di port ${port}`);
 });
+
+// 3. Route Utama untuk memuat halaman HTML pembukuan Anda
 app.get('/', (req, res) => {
     try {
         const htmlPath = path.join(__dirname, 'telaga_pembukuan.html');
         const htmlContent = fs.readFileSync(htmlPath, 'utf8');
         
-        // .html() otomatis menyetel header ke 'text/html' dan menutup koneksi dengan aman
-        res.html(htmlContent); 
+        // Menggunakan res.send() karena ini adalah standar Express JS
+        res.send(htmlContent); 
     } catch (error) {
         console.error("❌ Gagal membaca file HTML:", error);
         res.status(500).json({ error: "Gagal memuat halaman pembukuan" });
     }
 });
+
+
+// HyperExpress mengembalikan objek error (err) jika gagal bind port
+
 
 // ================================================================
 // CORS & MIDDLEWARE
