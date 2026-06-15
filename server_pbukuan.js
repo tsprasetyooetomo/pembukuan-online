@@ -109,7 +109,9 @@ let db;
 
 try {
   console.log("📂 Menghubungkan Database:", dbPath);
-  db = new Database(dbPath, { verbose: console.log }); // Verbose untuk debug
+  const isDebug = process.env.DEBUG === "1"; // Aktifkan jika ada Variable DEBUG=1
+  db = new Database(dbPath, { verbose: isDebug ? console.log : undefined });
+  // db = new Database(dbPath, { verbose: console.log }); // Verbose untuk debug
 
   const initTable = (tableName) => {
     try {

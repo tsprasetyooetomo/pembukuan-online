@@ -2252,3 +2252,21 @@ function renderImport() {
   );
 }
 PANEL_MAP.importD = renderImport;
+// Inisialisasi Pull to Refresh
+PullToRefresh.init({
+  mainElement: "body", // Elemen utama yang discroll
+  onRefresh: function () {
+    // Fungsi yang dijalankan saat user melepaskan tarikan
+    return new Promise(function (resolve) {
+      // Timeout sedikit agar user melihat animasi loading
+      setTimeout(function () {
+        window.location.reload(); // Refresh Halaman
+        resolve();
+      }, 500);
+    });
+  },
+  // Icon loading (Bisa diubah teksnya)
+  instructionsPullToRefresh: "Tarik ke bawah untuk refresh",
+  instructionsReleaseToRefresh: "Lepaskan untuk refresh",
+  instructionsRefreshing: "Memuat...",
+});
