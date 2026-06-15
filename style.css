@@ -771,25 +771,7 @@ tfoot td.num {
   align-items: center;
   gap: 0.4rem;
 }
-@media (max-width: 768px) {
-  :root {
-    --sb: 0px;
-  }
-  .sb {
-    transform: translateX(-100%);
-    position: fixed;
-    z-index: 50;
-  }
-  .sb.open {
-    transform: translateX(0);
-  }
-  .mob-toggle {
-    display: flex !important;
-  }
-  .content {
-    padding: 0.8rem;
-  }
-}
+
 /* --- Default (Desktop) --- */
 .mob-toggle {
   display: none; /* Sembunyi di Desktop */
@@ -820,22 +802,32 @@ tfoot td.num {
 }
 
 /* --- Mode HP (Max 768px) --- */
+
 @media (max-width: 768px) {
+  /* 1. Matikan lebar sidebar */
   :root {
     --sb: 0px;
   }
 
+  /* 2. Atur Sidebar agar tersembunyi di kiri */
   .sb {
     transform: translateX(-100%);
-    position: fixed;
-    z-index: 50;
+    position: fixed !important; /* Paksa Fixed agar lepas dari posisi normal */
+    top: 0;
+    left: 0;
+    height: 100vh;
+    z-index: 50 !important; /* Naikin z-index biar menimpa background */
+    background: var(--bg2); /* Pastikan background ada */
+    box-shadow: 5px 0 15px rgba(0, 0, 0, 0.5); /* Tambah bayangan biar kelihatan timbul */
   }
 
+  /* 3. INI YANG PALING PENTING: Saat class 'open' aktif */
   .sb.open {
-    transform: translateX(0);
+    transform: translateX(0) !important; /* Geser balik ke posisi 0 (muncul) */
+    width: 240px !important; /* Paksa lebarnya 240px */
   }
 
-  /* Tampilkan tombol hamburger di HP */
+  /* Tampilkan tombol hamburger */
   .mob-toggle {
     display: flex !important;
   }
