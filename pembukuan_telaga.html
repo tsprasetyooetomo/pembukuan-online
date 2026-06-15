@@ -97,7 +97,31 @@
 
     <!-- SCRIPTS -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pulltorefreshjs/0.1.14/pulltorefresh.umd.min.js"></script>
+    <script>
+      // --- INISIALISASI PULL TO REFRESH ---
+      if (typeof PullToRefresh !== "undefined") {
+        PullToRefresh.init({
+          mainElement: "body",
+          onRefresh: function () {
+            return new Promise(function (resolve) {
+              setTimeout(function () {
+                window.location.reload();
+                resolve();
+              }, 500);
+            });
+          },
+          instructionsPullToRefresh: "Tarik ke bawah untuk refresh",
+          instructionsReleaseToRefresh: "Lepaskan untuk refresh",
+          instructionsRefreshing: "Memuat...",
+        });
+        console.log("✅ Pull To Refresh Aktif");
+      } else {
+        console.warn("⚠️ Library PullToRefresh tidak ditemukan");
+      }
 
+      // --- INISIALISASI PANEL MAP (Contoh kode Anda) ---
+      // PANEL_MAP.importD = renderImport;
+    </script>
     <!-- 1. Database (WAJIB PERTAMA) -->
     <script src="db_pbukuan.js"></script>
 
