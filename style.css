@@ -855,3 +855,20 @@ tfoot td.num {
 #debugTerminal .dbg-err {
   color: #f55;
 }
+/* Buat semua elemen yang punya onclick bisa diklik di HP */
+[onclick],
+a,
+button,
+.menu-item,
+.nav-btn {
+  cursor: pointer; /* Wajib ada */
+  -webkit-tap-highlight-color: transparent; /* Hilangkan warna biru klik android */
+  touch-action: manipulation; /* Percepat reaksi klik */
+}
+
+/* Pastikan tombol hamburger menu tidak tertutup */
+.hamburger-btn,
+.menu-toggle {
+  z-index: 9999; /* Taruh paling atas */
+  position: relative;
+}
