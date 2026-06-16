@@ -194,6 +194,10 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
 /* ================================================================
    RENDER MUTASI
    ================================================================ */
+
+/* ================================================================
+   RENDER MUTASI
+   ================================================================ */
 function renderMutasi() {
   var today = new Date().toISOString().split("T")[0];
 
@@ -227,15 +231,16 @@ function renderMutasi() {
         '<option value="' + esc(kode) + '">' + esc(label) + "</option>";
     });
   }
-  
+
   return (
+    // ✅ FIX SCROLL: Paksa semua elemen pembatas (pembungkus utama) untuk bisa scroll
     "<style>" +
-    // ✅ FIX SCROLL: Memaksa panel induk dan kontainer utama agar bisa scroll bebas
-    ".pnl.active { height: auto !important; min-height: 100% !important; max-height: none !important; overflow: visible !important; }" +
-    "#contentArea { height: auto !important; min-height: 100% !important; max-height: none !important; overflow-y: auto !important; }" +
-    "body, html { overflow-y: auto !important; height: auto !important; }" +
+    "html, body { overflow-y: auto !important; height: auto !important; max-height: none !important; }" +
+    "#contentArea { overflow-y: auto !important; height: auto !important; max-height: none !important; }" +
+    ".pnl, .pnl.active { overflow: visible !important; height: auto !important; max-height: none !important; min-height: 100% !important; }" +
+    ".main-content, .app-body, .card, .container-fluid { height: auto !important; max-height: none !important; overflow: visible !important; }" +
     "</style>" +
-    // ❌ DIBERSIHKAN: Ada dua tag div pembuka yang sama di kode lama. Cukup 1 saja.
+    // Hapus 1 tag div pembuka yang doble di kode sebelumnya
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
     /* BARIS JUDUL UTAMA */
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
@@ -337,7 +342,6 @@ function renderMutasi() {
     '<div id="mutDetilTbl" class="tw"></div>'
   );
 }
-
 /* ================================================================
    INIT STATE
    ================================================================ */
@@ -449,9 +453,15 @@ function onFilterChange() {
    ================================================================ */
 function _mutUnlockHeader() {
   _mutSession.isLocked = false;
-  try { if ($("m_cab")) $("m_cab").disabled = false; } catch (e) {}
-  try { if ($("m_kb")) $("m_kb").disabled = false; } catch (e) {}
-  try { if ($("m_tgl")) $("m_tgl").disabled = false; } catch (e) {}
+  try {
+    if ($("m_cab")) $("m_cab").disabled = false;
+  } catch (e) {}
+  try {
+    if ($("m_kb")) $("m_kb").disabled = false;
+  } catch (e) {}
+  try {
+    if ($("m_tgl")) $("m_tgl").disabled = false;
+  } catch (e) {}
 }
 
 async function SafeaddDetil() {
@@ -769,7 +779,7 @@ function renderNoreffList() {
   var arrNoreff = Object.keys(uniqueNoreff).map(function (noreff) {
     return Object.assign({ noreff: noreff }, uniqueNoreff[noreff]);
   });
-  
+
   arrNoreff.sort(function (a, b) {
     var suffixA = String(a.noreff || "").slice(-8);
     var suffixB = String(b.noreff || "").slice(-8);
