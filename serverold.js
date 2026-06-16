@@ -241,11 +241,6 @@ const server = http.createServer((req, res) => {
   }
 });
 
-// Jalankan server di port yang ditentukan Railway (8080)
-server.listen(process.env.PORT || 8080, "0.0.0.0", () => {
-  console.log(`Server is Ready on Railway!`);
-});
-
 // === EXPORT db AGAR BISA DIPAKAI FILE LAIN ===
 module.exports = db;
 
