@@ -928,20 +928,13 @@ button,
 body {
   overscroll-behavior-y: contain;
 }
-/* Efek Sembunyi untuk Sidebar */
+/* === EFEK HIDE SIDEBAR (FLOATING) === */
 .sb.hidden-menu {
-  width: 50px; /* Kecilkan sidebar sampai tinggal tombol */
-  min-width: 50px;
-  overflow: hidden; /* Sembunyikan teks menu yang kepotong */
+  margin-left: -260px !important; /* Dorong sidebar keluar dari layar (sesuaikan -260px dengan lebar sidebar Anda) */
+  transition: margin-left 0.3s ease-in-out;
 }
 
-.sb.hidden-menu .sb-hd-title span,
-.sb.hidden-menu .sb-body,
-.sb.hidden-menu .sb-ft {
-  display: none; /* Hilangkan teks "Pembukuan", list menu, dan status koneksi */
-}
-
-/* Saat menu di-hide, lebarkan area utama (opsional, tergantung layout Anda) */
-.main {
-  flex: 1; /* Pastikan area main mengisi sisa ruang */
+/* Saat sidebar hidden, pastikan area main memenuhi layar */
+.sb {
+  transition: margin-left 0.3s ease-in-out;
 }
