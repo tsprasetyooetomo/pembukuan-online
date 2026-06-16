@@ -2093,28 +2093,60 @@ async function executeDBFImport(storeName) {
 
     console.log("Hasil akhir data bersih:", cleanData);
 
-    // Eksekusi Import Massal ke Database
-    var result = await db.batch(storeName, cleanData);
-
-    // 🌟 PERBAIKAN STRATEGIS: Jika result berupa Array, hitung jumlah itemnya sebagai data sukses
-    // 🌟 SOLUSI PERBAIKAN: Tambahkan pengecekan properti .Total atau .total
+    // =========================================================================
+    // 🌟 PERBAIKAN STRATEGIS: CHUNKING DATA (MENCEGAH ERROR 502 / TIMEOUT)
+    // =========================================================================
     var sukses = 0;
+    var gagal = 0;
+    var errors = [];
 
-    if (result && typeof result.Total === "number") {
-      sukses = result.Total; // ✅ Menangkap "Total: 387" dari respons database Anda
-    } else if (result && typeof result.total === "number") {
-      sukses = result.total; // ✅ Antispasi jika huruf kecil
-    } else if (result && typeof result.success === "number") {
-      sukses = result.success;
-    } else if (result && Array.isArray(result)) {
-      sukses = result.length;
-    } else if (result && result.inserted) {
-      sukses = result.inserted;
+    // Tentukan ukuran maksimal pengiriman (500 data per request sangat ideal)
+    var chunkSize = 500;
+
+    for (var chunkIdx = 0; chunkIdx < cleanData.length; chunkIdx += chunkSize) {
+      // Potong data dari index saat ini sampai batas chunkSize
+      var chunk = cleanData.slice(chunkIdx, chunkIdx + chunkSize);
+
+      // Update UI spinner agar user tahu prosesnya sedang berjalan bertahap
+      if (C) {
+        var progressKe = Math.min(chunkIdx + chunkSize, cleanData.length);
+        C.innerHTML =
+          '<div class="pnl active" style="padding:2rem;text-align:center">' +
+          '<span class="spinner"></span><br><br>' +
+          "Mengirim data ke server... (" +
+          progressKe +
+          "/" +
+          cleanData.length +
+          ")</div>";
+      }
+
+      // Eksekusi Import Massal secara bertahap ke Database
+      var result = await db.batch(storeName, chunk);
+
+      // Akumulasikan hasil sukses response dari tiap batch
+      if (result && typeof result.Total === "number") {
+        sukses += result.Total;
+      } else if (result && typeof result.total === "number") {
+        sukses += result.total;
+      } else if (result && typeof result.success === "number") {
+        sukses += result.success;
+      } else if (result && Array.isArray(result)) {
+        sukses += result.length;
+      } else if (result && result.inserted) {
+        sukses += result.inserted;
+      }
+
+      // Akumulasikan hasil gagal dari tiap batch
+      if (result && typeof result.error === "number") {
+        gagal += result.error;
+      }
+
+      // Gabungkan pesan error jika ada
+      if (result && Array.isArray(result.errorMsg)) {
+        errors = errors.concat(result.errorMsg);
+      }
     }
-
-    var gagal = result && typeof result.error === "number" ? result.error : 0;
-    var errors =
-      result && Array.isArray(result.errorMsg) ? result.errorMsg : [];
+    // =========================================================================
 
     var icon = gagal > 0 ? "fa-triangle-exclamation" : "fa-circle-check";
     var color = gagal > 0 ? "var(--warn)" : "var(--success)";
