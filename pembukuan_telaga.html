@@ -62,18 +62,19 @@
     <div class="toast-box" id="toasts"></div>
 
     <aside class="sb" id="sidebar">
-      <!-- AREA HEADER SIDEBAR (DENGAN TOMBOL HIDE) -->
+      <!-- AREA HEADER SIDEBAR -->
       <div class="sb-hd">
         <div class="sb-hd-title">
           <i class="fa-solid fa-book-open"></i><span>Pembukuan</span>
         </div>
+        <!-- Tombol Hide (Panek Kanan) -->
         <button
           type="button"
           class="sb-toggle-btn"
           id="btnToggleMenu"
           title="Sembunyikan Menu"
         >
-          <i class="fa-solid fa-angles-left"></i>
+          <i class="fa-solid fa-angles-right"></i>
         </button>
       </div>
 
@@ -85,10 +86,7 @@
       <div class="top-bar">
         <div style="display: flex; align-items: center; gap: 0.6rem">
           <!-- Tombol Toggle Mobile (Saya tambahkan type="button" sebagai perbaikan bug refresh) -->
-          <button
-            class="mob-toggle"
-            onclick="document.querySelector('.sb').classList.toggle('open')"
-          >
+          <button class="mob-toggle" id="btnHamburger">
             <i class="fas fa-bars"></i>
           </button>
           <!-- === TOMBOL REFRESH BARU === -->
@@ -181,25 +179,46 @@
 
     <!-- 4. Init (WAJIB TERAKHIR) -->
     <script src="app_init.js"></script>
-
     <!-- SCRIPT UNTUK FUNGSI HIDE MENU -->
     <script>
       document.addEventListener("DOMContentLoaded", function () {
         var btnToggle = document.getElementById("btnToggleMenu");
+        var btnHamburger = document.getElementById("btnHamburger");
         var sidebar = document.getElementById("sidebar");
         var iconToggle = btnToggle.querySelector("i");
 
-        btnToggle.addEventListener("click", function () {
-          // Toggle kelas 'hidden-menu' ke sidebar
-          sidebar.classList.toggle("hidden-menu");
+        // Fungsi untuk menyembunyikan menu
+        function hideMenu() {
+          sidebar.classList.add("hidden-menu");
+          sidebar.classList.remove("open"); // Hapus kelas open mobile
+          iconToggle.classList.remove("fa-angles-left");
+          iconToggle.classList.add("fa-angles-right"); // Ikon jadi panah kanan (untuk buka)
+        }
 
-          // Ganti ikon panah (kiri <-> kanan)
+        // Fungsi untuk menampilkan menu
+        function showMenu() {
+          sidebar.classList.remove("hidden-menu");
+          sidebar.classList.remove("open"); // Hapus kelas open mobile agar tidak menutupi konten di desktop
+          iconToggle.classList.remove("fa-angles-right");
+          iconToggle.classList.add("fa-angles-left"); // Ikon jadi panah kiri (untuk hide)
+        }
+
+        // Event saat tombol panah di sidebar diklik
+        btnToggle.addEventListener("click", function () {
           if (sidebar.classList.contains("hidden-menu")) {
-            iconToggle.classList.remove("fa-angles-left");
-            iconToggle.classList.add("fa-angles-right");
+            showMenu();
           } else {
-            iconToggle.classList.remove("fa-angles-right");
-            iconToggle.classList.add("fa-angles-left");
+            hideMenu();
+          }
+        });
+
+        // Event saat tombol hamburger di top-bar diklik
+        btnHamburger.addEventListener("click", function () {
+          if (sidebar.classList.contains("hidden-menu")) {
+            showMenu(); // Jika sedang di-hide, buka kembali
+          } else {
+            // Jika normal, gunakan perilaku mobile biasa (toggle kelas 'open')
+            sidebar.classList.toggle("open");
           }
         });
       });
