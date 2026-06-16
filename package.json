@@ -5,9 +5,9 @@
   "engines": {
     "node": "18.x"
   },
-  "main": "server_pbukuan.js",
+  "main": "serverold.js",
   "scripts": {
-    "start": "node server_pbukuan.js"
+    "start": "node serverold.js"
   },
   "keywords": [],
   "author": "",
