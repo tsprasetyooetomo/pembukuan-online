@@ -62,9 +62,21 @@
     <div class="toast-box" id="toasts"></div>
 
     <aside class="sb" id="sidebar">
+      <!-- AREA HEADER SIDEBAR (DENGAN TOMBOL HIDE) -->
       <div class="sb-hd">
-        <i class="fa-solid fa-book-open"></i><span>Pembukuan</span>
+        <div class="sb-hd-title">
+          <i class="fa-solid fa-book-open"></i><span>Pembukuan</span>
+        </div>
+        <button
+          type="button"
+          class="sb-toggle-btn"
+          id="btnToggleMenu"
+          title="Sembunyikan Menu"
+        >
+          <i class="fa-solid fa-angles-left"></i>
+        </button>
       </div>
+
       <div class="sb-body" id="sbBody"></div>
       <div class="sb-ft"><span class="db-dot"></span> Sqlite Connected</div>
     </aside>
