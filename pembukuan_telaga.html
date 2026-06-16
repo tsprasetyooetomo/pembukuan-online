@@ -181,5 +181,28 @@
 
     <!-- 4. Init (WAJIB TERAKHIR) -->
     <script src="app_init.js"></script>
+
+    <!-- SCRIPT UNTUK FUNGSI HIDE MENU -->
+    <script>
+      document.addEventListener("DOMContentLoaded", function () {
+        var btnToggle = document.getElementById("btnToggleMenu");
+        var sidebar = document.getElementById("sidebar");
+        var iconToggle = btnToggle.querySelector("i");
+
+        btnToggle.addEventListener("click", function () {
+          // Toggle kelas 'hidden-menu' ke sidebar
+          sidebar.classList.toggle("hidden-menu");
+
+          // Ganti ikon panah (kiri <-> kanan)
+          if (sidebar.classList.contains("hidden-menu")) {
+            iconToggle.classList.remove("fa-angles-left");
+            iconToggle.classList.add("fa-angles-right");
+          } else {
+            iconToggle.classList.remove("fa-angles-right");
+            iconToggle.classList.add("fa-angles-left");
+          }
+        });
+      });
+    </script>
   </body>
 </html>
