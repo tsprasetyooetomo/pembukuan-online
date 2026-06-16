@@ -217,7 +217,34 @@ try {
   // Jika ingin server berhenti total jika DB gagal, uncomment baris bawah ini:
   // process.exit(1);
 }
+// === HEALTH CHECK UNTUK RAILWAY ===
+const http = require("http");
 
+// Membuat server HTTP sederhana untuk menjawab ping Railway
+const server = http.createServer((req, res) => {
+  // Jika ada yang akses root (klik link domain)
+  if (req.url === "/") {
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+    res.end(`
+      <h1>✅ Sistem Pembukuan Online</h1>
+      <p>Server berjalan dan Database Terhubung.</p>
+      <p>Silakan buka aplikasi dari menu utama.</p>
+    `);
+  }
+  // Jika Railway melakukan health check
+  else if (req.url === "/health") {
+    res.writeHead(200, { "Content-Type": "text/plain" });
+    res.end("OK");
+  } else {
+    res.writeHead(404);
+    res.end("Not Found");
+  }
+});
+
+// Jalankan server di port yang ditentukan Railway (8080)
+server.listen(process.env.PORT || 8080, () => {
+  console.log(`🚀 HTTP Server berjalan di port ${process.env.PORT || 8080}`);
+});
 // === EXPORT db AGAR BISA DIPAKAI FILE LAIN ===
 module.exports = db;
 
