@@ -928,3 +928,20 @@ button,
 body {
   overscroll-behavior-y: contain;
 }
+/* Efek Sembunyi untuk Sidebar */
+.sb.hidden-menu {
+  width: 50px; /* Kecilkan sidebar sampai tinggal tombol */
+  min-width: 50px;
+  overflow: hidden; /* Sembunyikan teks menu yang kepotong */
+}
+
+.sb.hidden-menu .sb-hd-title span,
+.sb.hidden-menu .sb-body,
+.sb.hidden-menu .sb-ft {
+  display: none; /* Hilangkan teks "Pembukuan", list menu, dan status koneksi */
+}
+
+/* Saat menu di-hide, lebarkan area utama (opsional, tergantung layout Anda) */
+.main {
+  flex: 1; /* Pastikan area main mengisi sisa ruang */
+}
