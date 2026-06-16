@@ -18,6 +18,7 @@ var _mutHandlers = {
   tgl: null,
   bulan: null,
   tahun: null,
+  filterCabList: null, // ✅ DARI FILE BARU
 };
 
 /* ================================================================
@@ -141,17 +142,21 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
 
   var cab = cabangKode || "Pusat";
 
+  // ✅ DARI FILE BARU: 1. Standarisasi format Kode Bank (harus tepat 4 karakter)
   var kb = kodeBank.padEnd(4, " ").substring(0, 4);
 
+  // ✅ DARI FILE BARU: 2. Olah data Tanggal untuk mendapatkan Bulan dan Tahun (Format: MMTT)
   var dt = new Date(tanggal);
   var bln = String(dt.getMonth() + 1).padStart(2, "0");
   var thn = String(dt.getFullYear()).substring(2);
   var blnThnTarget = bln + thn;
 
+  // ✅ DARI FILE BARU: 3. Bangun Prefix untuk Transaksi Baru
   var currentPrefix = kb + blnThnTarget;
 
   var nextUrut = 1;
 
+  // ✅ DARI FILE BARU: 4. AMBIL DATA TRANSAKSI DI BULAN DAN CABANG YANG SAMA
   var dataRaw = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
   var activeList = dataRaw.filter(function (t) {
@@ -166,6 +171,7 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
     return true;
   });
 
+  // ✅ DARI FILE BARU: 5. FIX SORTING: URUTKAN MURNI BERDASARKAN 4 DIGIT ANGKA PALING KANAN
   activeList.sort(function (a, b) {
     var numA =
       parseInt((a.noreff || "").substring((a.noreff || "").length - 4), 10) ||
@@ -176,6 +182,7 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
     return numA - numB;
   });
 
+  // ✅ DARI FILE BARU: 6. AMBIL BARIS PALING AKHIR (ANGKA TERBESAR DI LIST)
   if (activeList.length > 0) {
     var notaTerakhir = activeList[activeList.length - 1];
     var lastNoreff = notaTerakhir.noreff || "";
@@ -188,12 +195,9 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
     }
   }
 
+  // ✅ DARI FILE BARU: 7. Kembalikan Nomor Referensi Baru
   return currentPrefix + String(nextUrut).padStart(4, "0");
 }
-
-/* ================================================================
-   RENDER MUTASI
-   ================================================================ */
 
 /* ================================================================
    RENDER MUTASI
@@ -211,6 +215,7 @@ function renderMutasi() {
   var bulanOpts = generateBulanOpts("");
   var tahunOpts = generateTahunOpts("");
 
+  // ✅ DARI FILE BARU: Generate Opsi Cabang (Sort by Kode + Tampil Nama)
   var cabFilterOpts = '<option value="">-- Semua Cabang --</option>';
 
   if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
@@ -233,16 +238,15 @@ function renderMutasi() {
   }
 
   return (
-    // ✅ FIX SCROLL: Paksa semua elemen pembatas (pembungkus utama) untuk bisa scroll
+    // ✅ DARI FILE BARU: CSS Scroll lebih bersih
     "<style>" +
-    "html, body { overflow-y: auto !important; height: auto !important; max-height: none !important; }" +
-    "#contentArea { overflow-y: auto !important; height: auto !important; max-height: none !important; }" +
-    ".pnl, .pnl.active { overflow: visible !important; height: auto !important; max-height: none !important; min-height: 100% !important; }" +
-    ".main-content, .app-body, .card, .container-fluid { height: auto !important; max-height: none !important; overflow: visible !important; }" +
+    ".pnl.active { height: auto !important; max-height: none !important; overflow: visible !important; }" +
+    "#contentArea { height: auto !important; max-height: none !important; overflow: visible !important; }" +
+    "body, html { overflow-y: auto !important; height: auto !important; }" +
     "</style>" +
-    // Hapus 1 tag div pembuka yang doble di kode sebelumnya
+    // Bug duplikasi div di file baru sudah diperbaiki di sini (hanya 1 pembuka)
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
-    /* BARIS JUDUL UTAMA */
+    /* ✅ DARI FILE BARU: BARIS JUDUL UTAMA SEJAJAR (JUDUL + RIWAYAT & BARU) */
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)">' +
     '<i class="fa-solid fa-file-circle-plus"></i> Header Transaksi' +
@@ -306,6 +310,7 @@ function renderMutasi() {
     "</div>" +
     /* KOLOM KANAN */
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column">' +
+    // ✅ DARI FILE BARU: POSISI BARU Filter Cabang List Pindah ke Puncak Kolom Kanan
     '<div style="margin-bottom:.4rem">' +
     '<div class="fg" style="margin-bottom:0">' +
     '<label style="font-size:.65rem">Filter Cabang List</label>' +
@@ -342,6 +347,7 @@ function renderMutasi() {
     '<div id="mutDetilTbl" class="tw"></div>'
   );
 }
+
 /* ================================================================
    INIT STATE
    ================================================================ */
@@ -354,7 +360,7 @@ function initMutasiState() {
   var tglEl = $("m_tgl");
   var bulanEl = $("filter_bulan");
   var tahunEl = $("filter_tahun");
-  var filterCabListEl = $("filter_cabang_list");
+  var filterCabListEl = $("filter_cabang_list"); // ✅ DARI FILE BARU
 
   if (!cabEl) return;
 
@@ -365,6 +371,7 @@ function initMutasiState() {
     bulanEl.removeEventListener("change", _mutHandlers.bulan);
   if (_mutHandlers.tahun)
     tahunEl.removeEventListener("change", _mutHandlers.tahun);
+  // ✅ DARI FILE BARU: Cleanup event listener filter cabang
   if (_mutHandlers.filterCabList && filterCabListEl)
     filterCabListEl.removeEventListener("change", _mutHandlers.filterCabList);
 
@@ -373,7 +380,7 @@ function initMutasiState() {
   _mutHandlers.tgl = onHeaderChange;
   _mutHandlers.bulan = onFilterChange;
   _mutHandlers.tahun = onFilterChange;
-  _mutHandlers.filterCabList = renderNoreffList;
+  _mutHandlers.filterCabList = renderNoreffList; // ✅ DARI FILE BARU
 
   cabEl.addEventListener("change", _mutHandlers.cab);
   kbEl.addEventListener("change", _mutHandlers.kb);
@@ -381,6 +388,7 @@ function initMutasiState() {
   bulanEl.addEventListener("change", _mutHandlers.bulan);
   tahunEl.addEventListener("change", _mutHandlers.tahun);
 
+  // ✅ DARI FILE BARU: Pasang event listener baru
   if (filterCabListEl)
     filterCabListEl.addEventListener("change", _mutHandlers.filterCabList);
 
@@ -611,6 +619,9 @@ async function hapusDetil(id) {
     if (typeof refreshKasHarian === "function") refreshKasHarian();
 
     toast("Detil transaksi berhasil dihapus.");
+
+    // ✅ DARI FILE BARU: PAKSA BROWSER BERHENTI MELAKUKAN RELOAD SENSITIF
+    window.stop();
     return false;
   } catch (error) {
     console.error("Gagal saat mencoba menghapus detil:", error);
@@ -643,6 +654,7 @@ function renderDetilTable() {
   var activeCab = $("m_cab") ? $("m_cab").value : "";
   var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
+  // ✅ DARI FILE BARU: FILTER KETAT: Harus Sama Noreff DAN Sama Cabang
   var detilData = [];
   if (noreff && activeCab) {
     detilData = transaksi.filter(function (t) {
@@ -679,6 +691,7 @@ function renderDetilTable() {
       '<span style="font-size:.75rem;color:var(--muted)">' +
         esc(r.noreff) +
         "</span>",
+      // ✅ DARI FILE BARU: DATA KOLOM CABANG
       '<span style="font-weight:600; color:var(--accent)">' +
         esc(r.cabang || "-") +
         "</span>",
@@ -693,6 +706,7 @@ function renderDetilTable() {
     ];
   });
 
+  // ✅ DARI FILE BARU: HEADER TABEL "Cabang" ditambahkan di urutan ke-6
   var headers = [
     "Tanggal",
     "No Acct",
@@ -722,6 +736,7 @@ function renderNoreffList() {
 
   var data = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
+  // ✅ DARI FILE BARU: BACA NILAI FILTER DARI DROPDOWN
   var filterCabang = $("filter_cabang_list")
     ? $("filter_cabang_list").value
     : "";
@@ -780,6 +795,7 @@ function renderNoreffList() {
     return Object.assign({ noreff: noreff }, uniqueNoreff[noreff]);
   });
 
+  // ✅ DARI FILE BARU: URUTAN DIGIT BELAKANG MENGGUNAKAN localeCompare numeric
   arrNoreff.sort(function (a, b) {
     var suffixA = String(a.noreff || "").slice(-8);
     var suffixB = String(b.noreff || "").slice(-8);
@@ -974,12 +990,14 @@ function printMutasi() {
     "@media print { body { padding: 0; } }" +
     "</style>" +
     "</head><body>" +
+    // ✅ DARI FILE BARU: KOP SURAT CABANG DI ATAS
     '<div class="header">' +
     "<h2>MUTASI TRANSAKSI</h2>" +
     "<p>Cabang: " +
     esc(cabangLabel) +
     "</p>" +
     "</div>" +
+    // ✅ DARI FILE BARU: NO REF DI BARIS PERTAMA
     '<div class="info-grid">' +
     '<div class="label">No Referensi</div><div>: ' +
     esc(noreff) +
@@ -1155,6 +1173,7 @@ function showConfirm1(message, onYes) {
   }, 50);
 }
 
+// ✅ DARI FILE BARU: FUNGSI LENGKAP clearAllDataMutasi (DENGAN FILTER MODAL & BATCH)
 async function clearAllDataMutasi(storeName) {
   var labelMap = {
     transaksi: "Transaksi",
