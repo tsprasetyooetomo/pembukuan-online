@@ -102,28 +102,58 @@ app.get("/", (req, res) => {
 // ============================================================================
 // 6. INISIALISASI DATABASE SUPABASE POSTGRESQL
 // ============================================================================
+
+// === 2. INISIALISASI KONEKSI DATABASE ===
 const connectionString = process.env.DATABASE_URL;
 let db;
 
 try {
+  // Cek apakah variabel DATABASE_URL ada
   if (!connectionString) {
+    // Log Debug: Melihat apa saja yang tersedia di environment (Jaga-jaga)
+    console.log(
+      "🔍 DEBUG: Variabel Environment yang tersedia:",
+      Object.keys(process.env),
+    );
+
     throw new Error(
-      "Variabel DATABASE_URL tidak ditemukan di lingkungan server!",
+      "❌ FATAL DATABASE ERROR: Variabel DATABASE_URL tidak ditemukan di lingkungan server!",
     );
   }
 
   console.log("📂 Menghubungkan ke Cloud Database Supabase...");
+  console.log(
+    "🔗 Connection String:",
+    connectionString.replace(/:[^:@]+@/, ":****@"),
+  ); // Sembunyikan password di log
+
+  // Membuat Koneksi Pool (Lebih stabil untuk Railway/Supabase)
   db = new Pool({
     connectionString: connectionString,
-    ssl: { rejectUnauthorized: false }, // Wajib aktif agar koneksi cloud aman
+    ssl: {
+      rejectUnauthorized: false, // Wajib aktif untuk Supabase
+    },
+    // Konfigurasi tambahan untuk mencegah putus koneksi di Railway
+    max: 20, // Maksimal koneksi
+    idleTimeoutMillis: 30000, // Waktu tunggu sebelum putus jika idle
+    connectionTimeoutMillis: 2000, // Waktu timeout saat mencoba connect
   });
 
-  // Fungsi pembuat tabel otomatis standar PostgreSQL (Menggunakan Async)
+  // Test koneksi singkat
+  db.query("SELECT NOW()", (err, res) => {
+    if (err) {
+      console.error("❌ Gagal koneksi awal ke DB:", err.message);
+    } else {
+      console.log("✅ Database Supabase Berhasil Terhubung!");
+    }
+  });
+
+  // === 3. FUNGSI PEMBUAT TABEL OTOMATIS (AUTO-MIGRATION) ===
   const initTable = async (tableName) => {
     try {
       const lowerTableName = tableName.toLowerCase();
 
-      // Jalankan query cek tabel di PostgreSQL
+      // Cek apakah tabel sudah ada
       const checkQuery = `
         SELECT EXISTS (
           SELECT FROM information_schema.tables 
@@ -135,40 +165,49 @@ try {
 
       if (!tableExists) {
         console.log(`🛠️ Membuat tabel baru di Supabase: ${lowerTableName}`);
+
+        // Logika pembuatan tabel sesuai kode lama Anda
         if (tableName.match(/\d{4}$/)) {
+          // Jika nama tabel ada angka tahun (misal: transaksi2024)
           await db.query(
             `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
           );
         } else {
+          // Tabel standar
           await db.query(
             `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
           );
         }
+        console.log(`✅ Tabel ${lowerTableName} berhasil dibuat.`);
+      } else {
+        console.log(`ℹ️ Tabel ${lowerTableName} sudah ada. Melewatkan.`);
       }
     } catch (e) {
       console.error(`⚠️ Gagal init tabel ${tableName}:`, e.message);
     }
   };
 
-  // Menjalankan loop inisialisasi tabel secara asinkronus teratur
+  // === 4. JALANKAN INISIALISASI TABEL ===
   (async () => {
     try {
       for (const table of ALLOWED_TABLES) {
         await initTable(table);
       }
-      console.log("✅ Inisialisasi Database Supabase Selesai.");
+      console.log("🚀 Sistem Siap! Semua tabel telah dicek.");
     } catch (loopErr) {
       console.error("❌ Gagal menjalankan loop tabel:", loopErr.message);
     }
   })();
 } catch (err) {
-  console.error("❌ FATAL DATABASE ERROR:", err.message);
-  console.error("Aplikasi akan tetap berjalan tanpa database (Mode Error).");
+  console.error(err.message);
+  console.error("⚠️ Aplikasi akan tetap berjalan tanpa database (Mode Error).");
+
+  // Jika ingin server berhenti total jika DB gagal, uncomment baris bawah ini:
+  // process.exit(1);
 }
 
-// ============================================================================
-// 6. API ROUTES (WRAPPER TRY-CATCH)
-// ============================================================================
+// === EXPORT db AGAR BISA DIPAKAI FILE LAIN ===
+module.exports = db;
 
 // 1. RESET POSTING
 app.post("/api/reset-posting", async (req, res) => {
