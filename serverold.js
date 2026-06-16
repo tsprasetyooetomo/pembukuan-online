@@ -103,8 +103,20 @@ app.get("/", (req, res) => {
 // 6. INISIALISASI DATABASE SUPABASE POSTGRESQL
 // ============================================================================
 
-// === 2. INISIALISASI KONEKSI DATABASE ===
-const connectionString = process.env.DATABASE_URL;
+// === KONEKSI PAKSA (OVERRIDE) ===
+// Kita ambil langsung dari process.env dulu, jika kosong kita pakai URL Supabase manual
+let connectionString = process.env.DATABASE_URL;
+
+// PASTE URL SUPABASE ANDA DI DALAM TANDA KUTIP DI BAWAH INI:
+const manualSupabaseUrl =
+  "postgresql://postgres.ortjujcvgjtfikeygbxi:supabase252118@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+
+// Logika: Jika Railway gagal kirim variabel, gunakan URL manual ini.
+if (!connectionString) {
+  console.log("⚠️ Railway Gagal kirim Variabel. Menggunakan URL Manual...");
+  connectionString = manualSupabaseUrl;
+}
+
 let db;
 
 try {
