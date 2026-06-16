@@ -1055,6 +1055,62 @@ function isDuplicateInDB(storeName, obj, compositeKey) {
   }
 }
 
+/* ================================================================
+   MAPPER: Mengubah Key DBF (noacct, rest, dll) ke Key Aplikasi (noperkiraan, cabang, dll)
+   ================================================================ */
+function mapTransaksiKeys(obj) {
+  // 1. Mapping No Perkiraan
+  if (obj.noacct !== undefined) {
+    obj.noperkiraan = String(obj.noacct).trim();
+    delete obj.noacct; // Hapus key lama agar tidak duplikat
+  }
+
+  // 2. Mapping Kode Cabang
+  if (obj.rest !== undefined) {
+    obj.cabang = String(obj.rest).trim();
+    delete obj.rest;
+  }
+
+  // 3. Mapping No Reff / Kode Gabungan
+  if (obj.kodegab !== undefined) {
+    obj.noreff = String(obj.kodegab).trim();
+    delete obj.kodegab;
+  }
+
+  // 4. Mapping Dari / Kepada
+  if (obj.darike !== undefined) {
+    obj.dariKePada = String(obj.darike).trim();
+    delete obj.darike;
+  }
+
+  // 5. Mapping Kode Transaksi
+  if (obj.nopinj !== undefined) {
+    obj.kodeTrans = String(obj.nopinj).trim();
+    delete obj.nopinj;
+  }
+
+  // 6. Mapping Debit & Kredit (Menyesuaikan dengan field di app_mutasi)
+  if (obj.qty !== undefined) {
+    obj.db = num(obj.qty); // qty di DBF = Debit
+    delete obj.qty;
+  }
+  if (obj.harga !== undefined) {
+    obj.cr = num(obj.harga); // harga di DBF = Kredit
+    delete obj.harga;
+  }
+
+  // Pastikan nilai default jika kosong
+  obj.noperkiraan = obj.noperkiraan || "";
+  obj.cabang = obj.cabang || "Pusat";
+  obj.noreff = obj.noreff || "";
+  obj.dariKePada = obj.dariKePada || "";
+  obj.desc = obj.desc || "";
+  obj.db = obj.db || 0;
+  obj.cr = obj.cr || 0;
+
+  return obj;
+}
+
 function openDBFImportModal(storeName) {
   var encOpts = DBF_ENCODINGS.map(function (e) {
     return (
@@ -1838,10 +1894,14 @@ function previewMappedData(storeName) {
       }
     });
 
+    // ✅ SOLUSI: Ubah nama key dari DBF (noacct, rest, dll) ke Key Aplikasi (noperkiraan, cabang, dll)
+    obj = mapTransaksiKeys(obj);
+
     // 🌟 UTAMA: Isi data kosong ke selectedCabang SEBELUM filter berjalan
-    var cabangData = String(obj.cabang || obj.rest || "").trim();
+    // (Karena sudah di-map, obj.rest sudah menjadi obj.cabang)
+    var cabangData = String(obj.cabang || "").trim();
     if ((cabangData === "" || cabangData === "Pusat") && filterCabang) {
-      obj.cabang = filterCabang; // 46 data kosong diselamatkan di sini
+      obj.cabang = filterCabang;
     } else {
       obj.cabang = cabangData === "" ? "Pusat" : cabangData;
     }
