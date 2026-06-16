@@ -141,30 +141,24 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
 
   var cab = cabangKode || "Pusat";
 
-  // 1. Standarisasi format Kode Bank (harus tepat 4 karakter, misal "bp-c" atau "kk- ")
   var kb = kodeBank.padEnd(4, " ").substring(0, 4);
 
-  // 2. Olah data Tanggal untuk mendapatkan Bulan dan Tahun (Format: MMTT, misal "0426")
   var dt = new Date(tanggal);
   var bln = String(dt.getMonth() + 1).padStart(2, "0");
   var thn = String(dt.getFullYear()).substring(2);
-  var blnThnTarget = bln + thn; // Hasil: "0426"
+  var blnThnTarget = bln + thn;
 
-  // 3. Bangun Prefix untuk Transaksi Baru Anda (Contoh: "kk- 0426")
   var currentPrefix = kb + blnThnTarget;
 
-  var nextUrut = 1; // Default jika belum ada transaksi di bulan tersebut
+  var nextUrut = 1;
 
-  // 4. AMBIL DATA TRANSAKSI DI BULAN DAN CABANG YANG SAMA
   var dataRaw = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
   var activeList = dataRaw.filter(function (t) {
     if (!t.noreff || !t.tanggal) return false;
 
-    // Validasi Cabang
     if (String(t.cabang || "Pusat") !== String(cab)) return false;
 
-    // Validasi Bulan dan Tahun (Mencari yang sama-sama bulan April 2026)
     var dataBln = t.tanggal.substring(5, 7);
     var dataThn = t.tanggal.substring(0, 4);
     if (dataBln !== bln || dataThn !== String(dt.getFullYear())) return false;
@@ -172,8 +166,6 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
     return true;
   });
 
-  // 5. 🛠️ FIX SORTING: URUTKAN MURNI BERDASARKAN 4 DIGIT ANGKA PALING KANAN
-  // Mengabaikan kode bank di depan agar "bp-n" dan "kk- " menyatu urutan angkanya
   activeList.sort(function (a, b) {
     var numA =
       parseInt((a.noreff || "").substring((a.noreff || "").length - 4), 10) ||
@@ -181,26 +173,21 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
     var numB =
       parseInt((b.noreff || "").substring((b.noreff || "").length - 4), 10) ||
       0;
-    return numA - numB; // Urut dari angka terkecil ke angka terbesar (Ascending)
+    return numA - numB;
   });
 
-  // 6. AMBIL BARIS PALING AKHIR (ANGKA TERBESAR DI LIST) UNTUK DITAMBAH 1
   if (activeList.length > 0) {
-    var notaTerakhir = activeList[activeList.length - 1]; // Mengambil baris terbawah hasil sort angka
+    var notaTerakhir = activeList[activeList.length - 1];
     var lastNoreff = notaTerakhir.noreff || "";
 
     if (lastNoreff.length >= 4) {
-      // Potong 4 digit angka paling kanan (Mencegah angka tahun '26' ikut terambil)
       var lastUrutStr = lastNoreff.substring(lastNoreff.length - 4);
       var lastUrutByte = parseInt(lastUrutStr, 10) || 0;
 
-      // Nomor urut baru adalah angka terakhir + 1
       nextUrut = lastUrutByte + 1;
     }
   }
 
-  // 7. Kembalikan Nomor Referensi Baru dengan format 4 Digit Nomor Urut
-  // Hasil gabungan: "kk- 0426" + "0211" = "kk- 04260211"
   return currentPrefix + String(nextUrut).padStart(4, "0");
 }
 
@@ -220,46 +207,41 @@ function renderMutasi() {
   var bulanOpts = generateBulanOpts("");
   var tahunOpts = generateTahunOpts("");
 
-  // --- Opsi Cabang untuk Filter List (Default Semua) ---
-  // --- PERBAIKAN: Generate Opsi Cabang (Sort by Kode + Tampil Nama) ---
   var cabFilterOpts = '<option value="">-- Semua Cabang --</option>';
 
   if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
-    // 1. Clone array agar tidak merusak urutan asli di cache
     var sortedList = [...DBCache.cabang];
 
-    // 2. Sorting ASCENDING berdasarkan KODE CABANG
     sortedList.sort(function (a, b) {
       var ka = String(a.kode || "");
       var kb = String(b.kode || "");
-      return ka.localeCompare(kb); // Mengurutkan A-Z
+      return ka.localeCompare(kb);
     });
 
-    // 3. Loop dan buat HTML Option
     sortedList.forEach(function (c) {
       var kode = c.kode || "";
       var nama = c.nama || "";
-      // Tampilan di dropdown: "001 — Jakarta"
       var label = kode + (nama ? " — " + nama : "");
 
       cabFilterOpts +=
         '<option value="' + esc(kode) + '">' + esc(label) + "</option>";
     });
   }
+  
   return (
     "<style>" +
-    ".pnl.active { height: auto !important; max-height: none !important; overflow: visible !important; }" +
-    "#contentArea { height: auto !important; max-height: none !important; overflow: visible !important; }" +
+    // ✅ FIX SCROLL: Memaksa panel induk dan kontainer utama agar bisa scroll bebas
+    ".pnl.active { height: auto !important; min-height: 100% !important; max-height: none !important; overflow: visible !important; }" +
+    "#contentArea { height: auto !important; min-height: 100% !important; max-height: none !important; overflow-y: auto !important; }" +
     "body, html { overflow-y: auto !important; height: auto !important; }" +
     "</style>" +
+    // ❌ DIBERSIHKAN: Ada dua tag div pembuka yang sama di kode lama. Cukup 1 saja.
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
-    '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
-    /* ✅ BARIS JUDUL UTAMA (SEKARANG SEJAJAR: JUDUL + RIWAYAT & BARU) */
+    /* BARIS JUDUL UTAMA */
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)">' +
     '<i class="fa-solid fa-file-circle-plus"></i> Header Transaksi' +
     "</div>" +
-    /* Riwayat & Baru diletakkan di ujung kanan baris judul utama */
     '<div style="display:flex;align-items:center;gap:.5rem">' +
     '<div style="font-size:.75rem;font-weight:700;color:var(--accent)">' +
     '<i class="fa-solid fa-clock-rotate-left"></i> Riwayat' +
@@ -283,7 +265,6 @@ function renderMutasi() {
     '<div class="fg" style="flex:1"><label>Tanggal</label><input id="m_tgl" type="date" class="in" value="' +
     esc(today) +
     '"></div>' +
-    /* No Ref kembali normal menggunakan label standar di atasnya */
     '<div class="fg" style="flex:1"><label>No Ref</label><input id="m_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
     "</div>" +
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
@@ -320,7 +301,6 @@ function renderMutasi() {
     "</div>" +
     /* KOLOM KANAN */
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column">' +
-    /* ✅ POSISI BARU: Filter Cabang List Pindah ke Puncak Kolom Kanan */
     '<div style="margin-bottom:.4rem">' +
     '<div class="fg" style="margin-bottom:0">' +
     '<label style="font-size:.65rem">Filter Cabang List</label>' +
@@ -328,7 +308,6 @@ function renderMutasi() {
     cabFilterOpts +
     "</select></div>" +
     "</div>" +
-    /* FILTER BULAN & TAHUN */
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
     '<div class="fg" style="flex:1;margin-bottom:0">' +
     '<label style="font-size:.65rem">Bulan</label>' +
@@ -341,7 +320,6 @@ function renderMutasi() {
     tahunOpts +
     "</select></div>" +
     "</div>" +
-    /* LIST NO REFF BLOCK */
     '<div id="mutNoreffList" style="flex:1;overflow-y:auto;max-height:180px;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px">' +
     '<div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div>' +
     "</div>" +
@@ -372,7 +350,7 @@ function initMutasiState() {
   var tglEl = $("m_tgl");
   var bulanEl = $("filter_bulan");
   var tahunEl = $("filter_tahun");
-  var filterCabListEl = $("filter_cabang_list"); // ✅ Ambil elemen baru
+  var filterCabListEl = $("filter_cabang_list");
 
   if (!cabEl) return;
 
@@ -383,7 +361,6 @@ function initMutasiState() {
     bulanEl.removeEventListener("change", _mutHandlers.bulan);
   if (_mutHandlers.tahun)
     tahunEl.removeEventListener("change", _mutHandlers.tahun);
-  // ✅ Cleanup event listener filter cabang jika ada
   if (_mutHandlers.filterCabList && filterCabListEl)
     filterCabListEl.removeEventListener("change", _mutHandlers.filterCabList);
 
@@ -392,7 +369,7 @@ function initMutasiState() {
   _mutHandlers.tgl = onHeaderChange;
   _mutHandlers.bulan = onFilterChange;
   _mutHandlers.tahun = onFilterChange;
-  _mutHandlers.filterCabList = renderNoreffList; // ✅ Handler baru
+  _mutHandlers.filterCabList = renderNoreffList;
 
   cabEl.addEventListener("change", _mutHandlers.cab);
   kbEl.addEventListener("change", _mutHandlers.kb);
@@ -400,12 +377,10 @@ function initMutasiState() {
   bulanEl.addEventListener("change", _mutHandlers.bulan);
   tahunEl.addEventListener("change", _mutHandlers.tahun);
 
-  // ✅ Pasang event listener baru
   if (filterCabListEl)
     filterCabListEl.addEventListener("change", _mutHandlers.filterCabList);
 
-  // Cegah Enter di input detil
-  ["d_penjelasan", "d_rp"].forEach((id) => {
+  ["d_penjelasan", "d_rp"].forEach(function (id) {
     var el = $(id);
     if (el)
       el.addEventListener("keydown", function (e) {
@@ -418,7 +393,7 @@ function initMutasiState() {
 
   onHeaderChange();
   renderDetilTable();
-  renderNoreffList(); // Akan membaca nilai default dari filter_cabang_list
+  renderNoreffList();
   updateMutasiSummary();
 }
 
@@ -474,16 +449,11 @@ function onFilterChange() {
    ================================================================ */
 function _mutUnlockHeader() {
   _mutSession.isLocked = false;
-  try {
-    if ($("m_cab")) $("m_cab").disabled = false;
-  } catch (e) {}
-  try {
-    if ($("m_kb")) $("m_kb").disabled = false;
-  } catch (e) {}
-  try {
-    if ($("m_tgl")) $("m_tgl").disabled = false;
-  } catch (e) {}
+  try { if ($("m_cab")) $("m_cab").disabled = false; } catch (e) {}
+  try { if ($("m_kb")) $("m_kb").disabled = false; } catch (e) {}
+  try { if ($("m_tgl")) $("m_tgl").disabled = false; } catch (e) {}
 }
+
 async function SafeaddDetil() {
   var noreff = _mutSession.noreff || $("m_noref").value;
   if (!noreff)
@@ -593,13 +563,14 @@ async function saveEditDetil(id) {
   );
 
   closeModal();
-  await refreshCache("transaksi"); // di app_core
-  renderDetilTable(); //app_mutasi
-  updateHeaderNominal(); //app_mutasi
-  renderNoreffList(); //app_mutasi
-  updateMutasiSummary(); //app_mutasi
+  await refreshCache("transaksi");
+  renderDetilTable();
+  updateHeaderNominal();
+  renderNoreffList();
+  updateMutasiSummary();
   toast("Detil diperbarui", "ok");
 }
+
 async function hapusDetil(id) {
   var isYes = confirm("Yakin hapus detil ini?");
   if (!isYes) return;
@@ -607,7 +578,6 @@ async function hapusDetil(id) {
   try {
     await db.del("transaksi", id);
 
-    // Update memori cache internal secara manual
     if (Array.isArray(DBCache.transaksi)) {
       DBCache.transaksi = DBCache.transaksi.filter(function (t) {
         return t.id !== id;
@@ -627,16 +597,10 @@ async function hapusDetil(id) {
       if ($("m_nominal")) $("m_nominal").value = "0";
     }
 
-    // Pemicu gambar ulang layar yang menghancurkan elemen via innerHTML
     if (typeof renderDetilTable === "function") renderDetilTable();
     if (typeof refreshKasHarian === "function") refreshKasHarian();
 
     toast("Detil transaksi berhasil dihapus.");
-
-    // =========================================================================
-    // ✅ KUNCI PAMUNGKAS: PAKSA BROWSER BERHENTI MELAKUKAN RELOAD SENSITIF
-    // =========================================================================
-    window.stop(); // 🔒 Mengunci browser agar tidak melompat ke dashboard/reload penuh!
     return false;
   } catch (error) {
     console.error("Gagal saat mencoba menghapus detil:", error);
@@ -664,16 +628,11 @@ function updateHeaderNominal() {
    RENDER TABEL DETIL
    ================================================================ */
 
-/* ================================================================
-   RENDER TABEL DETIL (FIXED: ADA KOLOM CABANG & FILTER KETAT)
-   ================================================================ */
-
 function renderDetilTable() {
   var noreff = _mutSession.noreff;
-  var activeCab = $("m_cab") ? $("m_cab").value : ""; // Ambil cabang aktif dari header
+  var activeCab = $("m_cab") ? $("m_cab").value : "";
   var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
-  // FILTER KETAT: Harus Sama Noreff DAN Sama Cabang
   var detilData = [];
   if (noreff && activeCab) {
     detilData = transaksi.filter(function (t) {
@@ -710,7 +669,6 @@ function renderDetilTable() {
       '<span style="font-size:.75rem;color:var(--muted)">' +
         esc(r.noreff) +
         "</span>",
-      // 🎯 DATA KOLOM CABANG
       '<span style="font-weight:600; color:var(--accent)">' +
         esc(r.cabang || "-") +
         "</span>",
@@ -725,33 +683,26 @@ function renderDetilTable() {
     ];
   });
 
-  // 🎯 HEADER TABEL: Saya tambahkan "Cabang" di urutan ke-6 (sebelum Aksi)
   var headers = [
     "Tanggal",
     "No Acct",
     "Penjelasan",
     "Rp",
     "No Referensi",
-    "Cabang", // <--- Header Cabang ditambahkan di sini
+    "Cabang",
     "Aksi",
   ];
 
   tblEl.innerHTML =
     '<div class="ts"><table>' +
     buildTable(headers, rows, {
-      numCols: [3], // Kolom Rp (index 3) rata kanan
+      numCols: [3],
     }) +
     "</table></div>";
 }
-/* ================================================================
-   RENDER RIWAYAT NO REF
-   ================================================================ */
-/* ================================================================
-   RENDER RIWAYAT NO REF (FIXED: FILTER CABANG & URUTAN)
-   ================================================================ */
 
 /* ================================================================
-   RENDER RIWAYAT NO REF (FIXED: FILTER CABANG & URUTAN DIGIT BELAKANG)
+   RENDER RIWAYAT NO REF
    ================================================================ */
 
 function renderNoreffList() {
@@ -761,29 +712,24 @@ function renderNoreffList() {
 
   var data = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
-  // ✅ BACA NILAI FILTER DARI DROPDOWN
   var filterCabang = $("filter_cabang_list")
     ? $("filter_cabang_list").value
     : "";
   var filterBulan = $("filter_bulan") ? $("filter_bulan").value : "";
   var filterTahun = $("filter_tahun") ? $("filter_tahun").value : "";
 
-  // ✅ LOGIKA FILTER LEBIH KETAT
   var filtered = data.filter(function (t) {
     if (!t.noreff || !t.tanggal) return false;
 
-    // 1. Filter Cabang (Jika dropdown dipilih)
     if (filterCabang && String(t.cabang || "") !== String(filterCabang))
       return false;
 
-    // 2. Filter Bulan
     if (filterBulan) {
       var dataBulan = t.tanggal.substring(5, 7);
       var userBulan = filterBulan.padStart(2, "0");
       if (dataBulan !== userBulan) return false;
     }
 
-    // 3. Filter Tahun
     if (filterTahun && t.tanggal.substring(0, 4) !== filterTahun) return false;
 
     return true;
@@ -804,7 +750,6 @@ function renderNoreffList() {
     return;
   }
 
-  // Grouping data berdasarkan Noreff untuk ditampilkan di list
   var uniqueNoreff = {};
   filtered.forEach(function (t) {
     if (t.noreff && !uniqueNoreff[t.noreff]) {
@@ -812,7 +757,7 @@ function renderNoreffList() {
         tanggal: t.tanggal || "-",
         jumlahDetil: 0,
         totalRp: 0,
-        cabang: t.cabang || "-", // Simpan info cabang di grup
+        cabang: t.cabang || "-",
       };
     }
     if (uniqueNoreff[t.noreff]) {
@@ -824,16 +769,13 @@ function renderNoreffList() {
   var arrNoreff = Object.keys(uniqueNoreff).map(function (noreff) {
     return Object.assign({ noreff: noreff }, uniqueNoreff[noreff]);
   });
+  
   arrNoreff.sort(function (a, b) {
-    // Ambil 8 digit terakhir dari nomor referensi
     var suffixA = String(a.noreff || "").slice(-8);
     var suffixB = String(b.noreff || "").slice(-8);
-
-    // TUKAR POSISI: suffixA di depan, suffixB di dalam kurung agar urut dari kecil ke besar 🎯
     return suffixA.localeCompare(suffixB, undefined, { numeric: true });
   });
 
-  // Bangun HTML List
   var html = '<table style="width:100%;border-collapse:collapse">';
   html +=
     '<thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1">';
@@ -956,10 +898,7 @@ function resetToNewTransaction() {
 }
 
 /* ================================================================
-   ✅ PRINT MUTASI
-   ================================================================ */
-/* ================================================================
-   ✅ PRINT MUTASI (KOREKSI LAYOUT)
+   PRINT MUTASI
    ================================================================ */
 
 function printMutasi() {
@@ -981,27 +920,23 @@ function printMutasi() {
     return toast("Tidak ada detil untuk No Ref ini", "wrn");
   }
 
-  // Ambil data header dari detil pertama
   var header = detilData[0];
   var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
   var tanggal = header.tanggal || "-";
   var kodeBank = header.kodeBank || "-";
   var dariKePada = header.dariKePada || "-";
 
-  // Hitung total
   var totalRp = 0;
   detilData.forEach(function (t) {
     totalRp += num(t.total);
   });
 
-  // Cari penjelasan kode bank
   var kbList = Array.isArray(DBCache.kodeBank) ? DBCache.kodeBank : [];
   var kbData = kbList.find(function (k) {
     return k.kodebank === kodeBank;
   });
   var kbPenjelasan = kbData ? kbData.penjelasan : "";
 
-  // ✅ Bangun HTML untuk print
   var printHtml =
     "<!DOCTYPE html>" +
     "<html><head>" +
@@ -1029,14 +964,12 @@ function printMutasi() {
     "@media print { body { padding: 0; } }" +
     "</style>" +
     "</head><body>" +
-    /* ✅ === KOP SURAT: CABANG DI ATAS === */
     '<div class="header">' +
     "<h2>MUTASI TRANSAKSI</h2>" +
     "<p>Cabang: " +
     esc(cabangLabel) +
     "</p>" +
     "</div>" +
-    /* ✅ === INFO HEADER: NO REF DI BARIS PERTAMA === */
     '<div class="info-grid">' +
     '<div class="label">No Referensi</div><div>: ' +
     esc(noreff) +
@@ -1052,7 +985,6 @@ function printMutasi() {
     esc(dariKePada) +
     "</div>" +
     "</div>" +
-    /* === TABEL DETIL === */
     "<table>" +
     "<thead>" +
     "<tr>" +
@@ -1064,7 +996,6 @@ function printMutasi() {
     "</thead>" +
     "<tbody>";
 
-  // Isi baris detil
   detilData.forEach(function (d, idx) {
     printHtml +=
       "<tr>" +
@@ -1083,7 +1014,6 @@ function printMutasi() {
       "</tr>";
   });
 
-  // Baris total
   printHtml +=
     '<tr class="total-row">' +
     '<td colspan="3" style="text-align:right">TOTAL</td>' +
@@ -1093,13 +1023,11 @@ function printMutasi() {
     "</tr>" +
     "</tbody>" +
     "</table>" +
-    /* === TERBILANG === */
     '<div style="margin-bottom:15px;font-size:11px">' +
     "<strong>Terbilang:</strong> " +
     terbilang(totalRp) +
     " Rupiah" +
     "</div>" +
-    /* === TANDA TANGAN === */
     '<div class="footer">' +
     '<div class="sign">' +
     "Dibuat oleh,<br><br><br>" +
@@ -1116,7 +1044,6 @@ function printMutasi() {
     "</div>" +
     "</body></html>";
 
-  // Buka window print
   var printWindow = window.open("", "_blank", "width=800,height=600");
   if (!printWindow) {
     return toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
@@ -1133,7 +1060,7 @@ function printMutasi() {
 }
 
 /* ================================================================
-   FUNGSI TERBILANG (SUPPORT SAMPAI MILIAR)
+   FUNGSI TERBILANG
    ================================================================ */
 
 function terbilang(n) {
@@ -1193,39 +1120,37 @@ function terbilang(n) {
 
   return n < 0 ? "Minus " + hasil : hasil;
 }
+
 function showConfirm1(message, onYes) {
-  // Buat tombol footer: Batal dan Ya
   var footerHtml =
     '<button class="btn btn-g" onclick="closeModal()">Batal</button>' +
     '<button class="btn btn-r" id="btnConfirmAction">Ya, Lanjutkan</button>';
 
-  // Buka modal standard
   openModal(
     "Konfirmasi",
     '<div style="font-size:0.9rem">' + esc(message) + "</div>",
     footerHtml,
   );
 
-  // Tunggu sebentar agar DOM ter-render, lalu pasang event klik ke tombol "Ya"
   setTimeout(function () {
     var btnYes = document.getElementById("btnConfirmAction");
     if (btnYes) {
       btnYes.onclick = function () {
-        closeModal(); // Tutup modal
+        closeModal();
         if (typeof onYes === "function") {
-          onYes(); // Jalankan aksi hapus
+          onYes();
         }
       };
     }
   }, 50);
 }
+
 async function clearAllDataMutasi(storeName) {
   var labelMap = {
     transaksi: "Transaksi",
   };
   var label = labelMap[storeName] || storeName;
 
-  // 1. GENERATE DAFTAR TAHUN SECARA DINAMIS (3 tahun terakhir)
   var tahunSekarang = new Date().getFullYear();
   var opsiTahunHtml = "";
   for (var i = 0; i < 3; i++) {
@@ -1233,7 +1158,6 @@ async function clearAllDataMutasi(storeName) {
     opsiTahunHtml += `<option value="${thn}">${thn}</option>`;
   }
 
-  // 2. DAFTAR BULAN
   var daftarBulan = [
     { v: "01", n: "Januari" },
     { v: "02", n: "Februari" },
@@ -1254,7 +1178,6 @@ async function clearAllDataMutasi(storeName) {
     })
     .join("");
 
-  // 3. DAFTAR CABANG (DARI KODE ANDA)
   var cabFilterOpts = '<option value="">-- Semua Cabang --</option>';
   if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
     var sortedList = [...DBCache.cabang];
@@ -1269,7 +1192,6 @@ async function clearAllDataMutasi(storeName) {
       .join("");
   }
 
-  // 4. TAMPILKAN MODAL FORMULIR FILTER
   openModal(
     "Filter Hapus Data " + label,
     `<div class="confirm-box" style="padding: .5rem">
@@ -1309,7 +1231,6 @@ async function clearAllDataMutasi(storeName) {
     </div>`,
   );
 
-  // 5. EVENT HANDLER SAAT TOMBOL HAPUS DI KLIK (MENGGUNAKAN TRIK DB.BATCH / PUT)
   document.getElementById("btnKonfirmasiHapus").onclick = async function () {
     var bln = document.getElementById("del_bulan").value;
     var thn = document.getElementById("del_tahun").value;
@@ -1332,29 +1253,25 @@ async function clearAllDataMutasi(storeName) {
     closeModal();
 
     try {
-      // Ambil seluruh data dari database
       var allData = await db.getAll(storeName);
 
       var dataDipertahankan = [];
       var dataDihapusCount = 0;
 
-      // Filter data di dalam memori JavaScript
       for (var item of allData) {
         var cocokBulan = !bln || item.bulan == bln;
         var cocokTahun = !thn || item.tahun == thn;
         var cocokCabang = !cbg || item.kodeCabang == cbg;
 
         if (cocokBulan && cocokTahun && cocokCabang) {
-          dataDihapusCount++; // Hitung jumlah data yang dibuang
+          dataDihapusCount++;
         } else {
-          dataDipertahankan.push(item); // Amankan data yang tidak memenuhi kriteria hapus
+          dataDipertahankan.push(item);
         }
       }
 
-      // LANGKAH AMAN: Bersihkan seluruh tabel menggunakan fungsi bawaan asli Anda
       await db.clear(storeName);
 
-      // Masukkan kembali data yang selamat ke database menggunakan fungsi batch bawaan impor Anda
       if (dataDipertahankan.length > 0) {
         if (typeof db.batch === "function") {
           await db.batch(storeName, dataDipertahankan);
@@ -1364,14 +1281,12 @@ async function clearAllDataMutasi(storeName) {
         ) {
           await db[storeName].bulkPut(dataDipertahankan);
         } else {
-          // Fallback satu per satu jika tidak ada fungsi bulk/batch
           for (var dataAman of dataDipertahankan) {
             await db.put(storeName, dataAman);
           }
         }
       }
 
-      // Sinkronisasi data cache internal agar layar langsung terupdate bersih
       if (DBCache[storeName]) {
         DBCache[storeName] = dataDipertahankan;
       }
@@ -1402,11 +1317,9 @@ async function clearAllDataMutasi2(storeName) {
     return;
   try {
     await db.clear(storeName);
-    // MANUAL CACHE UPDATE
     if (DBCache[storeName]) {
       DBCache[storeName] = [];
     }
-    // await refreshCache(storeName); // DIHAPUS
     toast("Semua data " + label + " berhasil dikosongkan", "ok");
     safeRenderCurrentPanel();
   } catch (err) {
