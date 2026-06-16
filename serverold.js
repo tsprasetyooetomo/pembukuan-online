@@ -89,14 +89,23 @@ function isValidTable(name) {
 }
 
 // Route Utama (Health Check) -> SEKARANG MENGGUNAKAN EXPRESS
+//app.get("/", (req, res) => {
+// res.send(`
+//  <h1>✅ Sistem Pembukuan Online</h1>
+// <p>Server Express berjalan dan Database Terhubung.</p>
+// <p>Status: OK</p>
+//`);
+//});
+// Route Utama (Otomatis buka HTML)
 app.get("/", (req, res) => {
-  res.send(`
-    <h1>✅ Sistem Pembukuan Online</h1>
-    <p>Server Express berjalan dan Database Terhubung.</p>
-    <p>Status: OK</p>
-  `);
+  try {
+    // Arahkan langsung ke file HTML utama
+    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
+    res.sendFile(htmlPath);
+  } catch (error) {
+    res.status(500).send("Gagal memuat halaman: " + error.message);
+  }
 });
-
 app.get("/health", (req, res) => {
   res.send("OK");
 });
