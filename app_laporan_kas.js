@@ -674,7 +674,9 @@ async function refreshInputHarian() {
     nilai = num($("fi_nilai").value),
     gol = $("fi_gol").value;
 
-  var data = DBCache.transaksi.slice();
+  // 🛠️ PERBAIKAN: Ambil data langsung dari db karena DBCache.transaksi sudah kosong/dihapus
+  var rawData = await db.getAll("transaksi");
+  var data = (rawData || []).slice();
 
   // --- 1. FILTER PERIODE WAKTU ---
   if (periode === "bulan" && bln) {
@@ -802,6 +804,7 @@ async function refreshInputHarian() {
   // --- 9. RENDER KE ELEMEN DOM (7 KOLOM UTUH) ---
   var tblContainer = $("inputHarianTbl");
   if (tblContainer) {
+    // ✅ PERBAIKAN PADA BARIS 811 (Isi kembali nilai array untuk numCols)
     tblContainer.innerHTML = wrapTable(
       buildTable(
         ["Tanggal", "No Ref", "No Acct", "Desc", "Total", "DB", "CR", "Cabang"],
@@ -811,6 +814,7 @@ async function refreshInputHarian() {
     );
   }
 }
+
 function exportInputHarian() {
   if (
     !$("fi_periode") ||
