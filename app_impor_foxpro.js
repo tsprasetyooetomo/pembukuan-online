@@ -2,19 +2,12 @@
  * ============================================================================
  * MODUL: IMPOR DATA FOXPRO (DBF) KE POSTGRESQL ONLINE (SUPABASE)
  * ============================================================================
- * File ini menangani render UI, kalkulasi otomatis masa, dropdown cabang,
- * dan mengirim data biner DBF langsung ke cloud server Supabase.
  */
 
 const AppImporFoxpro = {
-  // Menggunakan origin host saat ini sebagai basis endpoint API Server
   API_URL: window.location.origin + "/api/impor-foxpro-online",
 
-  /**
-   * Mengembalikan string struktur HTML untuk di-render oleh fungsi navigate()
-   */
   getHTML() {
-    // Generasi opsi pilihan untuk dropdown Cabang berdasarkan cache master aplikasi
     let opsiCabang = `<option value="" disabled selected>-- Pilih Cabang --</option>`;
     if (
       typeof DBCache !== "undefined" &&
@@ -22,7 +15,6 @@ const AppImporFoxpro = {
       DBCache.cabang.length > 0
     ) {
       DBCache.cabang.forEach((c) => {
-        // Menyesuaikan penamaan properti objek cabang Anda (misal: kode_cabang dan nama_cabang)
         let kode = c.kode_cabang || c.kode || c.rest || "";
         let nama = c.nama_cabang || c.nama || "";
         if (kode) {
@@ -33,7 +25,6 @@ const AppImporFoxpro = {
       opsiCabang += `<option value="" disabled>Data cabang kosong / belum dimuat</option>`;
     }
 
-    // Generasi opsi pilihan untuk Bulan (01 - 12)
     let opsiBulan = `<option value="" disabled selected>-- Pilih Bulan --</option>`;
     for (let i = 1; i <= 12; i++) {
       let blnString = String(i).padStart(2, "0");
@@ -50,7 +41,6 @@ const AppImporFoxpro = {
         </p>
 
         <form id="formImporFoxpro">
-          <!-- Input Parameter Periode & Bulan -->
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
             <div>
               <label style="display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Tahun Periode (4 Digit)</label>
@@ -65,14 +55,12 @@ const AppImporFoxpro = {
             </div>
           </div>
 
-          <!-- Preview Kode Masa Otomatis Sistem -->
           <div style="margin-bottom: 1.5rem;">
             <label style="display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Masa (Otomatis Sistem)</label>
             <input type="text" id="impMasa" placeholder="Akan terisi otomatis (contoh: 0126)" readonly
               style="width: 100%; padding: 0.75rem; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.05); border-radius: 4px; color: #60a5fa; font-family: 'JetBrains Mono', monospace; font-weight: bold; cursor: not-allowed;">
           </div>
 
-          <!-- Dropdown Kode Cabang Berbasis Database Master -->
           <div style="margin-bottom: 2rem;">
             <label style="display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Cabang (Rest)</label>
             <select id="impCabang" required style="width: 100%; padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #fff; font-family: 'JetBrains Mono', monospace; cursor: pointer;">
@@ -80,7 +68,6 @@ const AppImporFoxpro = {
             </select>
           </div>
 
-          <!-- Upload Area 1: File CDG (Golongan) -->
           <div style="margin-bottom: 1.5rem;">
             <label style="display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">
               File Golongan (<span style="color: #60a5fa; font-family: monospace;">cdg*.dbf</span>)
@@ -94,7 +81,6 @@ const AppImporFoxpro = {
             </div>
           </div>
 
-          <!-- Upload Area 2: File CDD (Perkiraan) -->
           <div style="margin-bottom: 2.5rem;">
             <label style="display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">
               File Perkiraan (<span style="color: #60a5fa; font-family: monospace;">cdd*.dbf</span>)
@@ -108,7 +94,6 @@ const AppImporFoxpro = {
             </div>
           </div>
 
-          <!-- Tombol Submit -->
           <button type="submit" id="btnSubmitImpor" style="width: 100%; padding: 0.9rem; background: #3b82f6; border: none; border-radius: 4px; color: #fff; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; font-size: 1rem; transition: opacity 0.2s;">
             <i class="fa-solid fa-cloud-arrow-up"></i> Kirim & Sinkronisasikan Data
           </button>
@@ -117,9 +102,6 @@ const AppImporFoxpro = {
     `;
   },
 
-  /**
-   * Menginisialisasi event listeners setelah komponen masuk ke dalam DOM pohon HTML
-   */
   initEvents() {
     const form = document.getElementById("formImporFoxpro");
     const fileCdg = document.getElementById("fileCdg");
@@ -140,35 +122,25 @@ const AppImporFoxpro = {
     if (form) {
       form.addEventListener("submit", (e) => this.handleFormSubmit(e));
     }
-
-    // Pasang listener perubahan kalkulasi otomatis Kode Masa
     if (impPeriode && impBulan) {
       impPeriode.addEventListener("input", () => this.hitungMasaOtomatis());
       impBulan.addEventListener("change", () => this.hitungMasaOtomatis());
     }
   },
 
-  /**
-   * Fungsi untuk menghitung kode masa berdasarkan kombinasi Bulan dan 2 digit belakang Tahun
-   */
   hitungMasaOtomatis() {
     const txtPeriode = document.getElementById("impPeriode").value.trim();
     const txtBulan = document.getElementById("impBulan").value;
     const txtMasa = document.getElementById("impMasa");
 
     if (txtPeriode.length === 4 && txtBulan) {
-      // Ambil 2 angka terakhir dari string tahun (Contoh: "2026" menjadi "26")
       const duaDigitTahun = txtPeriode.slice(-2);
-      // Format hasil: Bulan + 2 Digit Tahun (Contoh: "01" + "26" = "0126")
       txtMasa.value = txtBulan + duaDigitTahun;
     } else {
-      txtMasa.value = ""; // Bersihkan jika data belum valid atau tidak lengkap
+      txtMasa.value = "";
     }
   },
 
-  /**
-   * Mengubah teks label box dropzone saat file berhasil dipilih oleh user
-   */
   updateFileName(inputEl, labelId) {
     const labelEl = document.getElementById(labelId);
     if (inputEl.files && inputEl.files[0]) {
@@ -181,9 +153,6 @@ const AppImporFoxpro = {
     }
   },
 
-  /**
-   * Handler Ajax request pengiriman data multi-part form data
-   */
   async handleFormSubmit(event) {
     event.preventDefault();
 
@@ -192,13 +161,14 @@ const AppImporFoxpro = {
     const fileCdgInput = document.getElementById("fileCdg");
     const fileCddInput = document.getElementById("fileCdd");
     const txtMasa = document.getElementById("impMasa").value;
+
     if (!txtMasa) {
       alert(
         "Gagal: Kode masa belum terbentuk secara utuh. Periksa kembali input Tahun dan Bulan.",
       );
       return;
     }
-    // Bungkus data parameter form & biner file kedalam FormData object
+
     const formData = new FormData();
     formData.append(
       "periode",
@@ -208,28 +178,29 @@ const AppImporFoxpro = {
     formData.append("kode_cabang", document.getElementById("impCabang").value);
     formData.append("file_cdg", fileCdgInput.files[0]);
     formData.append("file_cdd", fileCddInput.files[0]);
+
     try {
-      // Aktifkan animasi loading spinner core
       if (loadingOv) {
-        loadingOv.querySelector("span").innerHTML = (
-          <span class="spinner"></span>
-        );
-        // Mengirim berkas & memproses ke Supabase Cloud...;
+        // FIX: dibungkus string, bukan JSX
+        loadingOv.querySelector("span").innerHTML =
+          `<span class="spinner"></span> Mengirim berkas & memproses ke Supabase Cloud...`;
         loadingOv.classList.add("show");
       }
+
       btnSubmit.disabled = true;
       btnSubmit.style.opacity = "0.5";
-      // Eksekusi HTTP Request POST ke Server
+
       const response = await fetch(this.API_URL, {
         method: "POST",
         body: formData,
       });
+
       const result = await response.json();
+
       if (response.ok && result.success) {
         alert(
           "Sukses! Data FoxPro berhasil tersinkronisasi ke Cloud PostgreSQL Supabase.",
         );
-        // Memanggil ulang fungsi routing navigasi core untuk mereset komponen form kembali bersih
         if (typeof navigate === "function") {
           navigate("importFoxpro");
         }
@@ -244,7 +215,6 @@ const AppImporFoxpro = {
       console.error("Proses sinkronisasi terhenti:", err);
       alert("Gagal Sinkronisasi:\n" + err.message);
     } finally {
-      // Kembalikan keadaan tombol dan hilangkan overlay spinner loading
       if (loadingOv) loadingOv.classList.remove("show");
       if (btnSubmit) {
         btnSubmit.disabled = false;
@@ -253,7 +223,7 @@ const AppImporFoxpro = {
     }
   },
 };
-// ============================================================================// REGISTRASI OTOMATIS KE ROUTER CORE (PANEL MAP & AFTER RENDER)// ============================================================================
+
 if (typeof PANEL_MAP !== "undefined") {
   PANEL_MAP["importFoxpro"] = async function () {
     return AppImporFoxpro.getHTML();
