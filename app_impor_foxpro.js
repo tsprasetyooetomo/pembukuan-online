@@ -13,9 +13,14 @@ const AppImporFoxpro = {
       });
     }
 
+    let opsiTahun = `<option value="" disabled selected>-- Pilih Tahun --</option>`;
+    for (let y = 2024; y <= 2030; y++) {
+      opsiTahun += `<option value="${y}">${y}</option>`;
+    }
+
     return `
       <div style="max-width: 700px; margin: 1rem auto; padding: 2rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); max-height: 90vh; overflow-y: auto;">
-        
+
         <h2 style="margin-bottom: 1rem; font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; color: #fff; display: flex; align-items: center; gap: 0.75rem; position: sticky; top: 0; background: rgba(20,20,30,0.95); padding: 1rem 0; z-index: 10;">
           <i class="fa-solid fa-folder-open" style="color: #3b82f6;"></i> Impor DBF 1 Tahun
         </h2>
@@ -30,6 +35,13 @@ const AppImporFoxpro = {
             <label style="display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem;">Kode Cabang</label>
             <select id="impCabang" required style="width: 100%; padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #fff;">
               ${opsiCabang}
+            </select>
+          </div>
+
+          <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem;">Tahun</label>
+            <select id="impTahun" required style="width: 100%; padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #fff; cursor: pointer;">
+              ${opsiTahun}
             </select>
           </div>
 
@@ -64,6 +76,9 @@ const AppImporFoxpro = {
       .addEventListener("change", (e) => this.scanFolder(e));
     document
       .getElementById("impCabang")
+      .addEventListener("change", () => this.validate());
+    document
+      .getElementById("impTahun")
       .addEventListener("change", () => this.validate());
     document
       .getElementById("formImporFoxpro")
@@ -108,6 +123,7 @@ const AppImporFoxpro = {
 
   validate() {
     const kode = document.getElementById("impCabang").value;
+    const tahun = document.getElementById("impTahun").value;
     const boxCdg = document.getElementById("statusCdg");
     const boxCdd = document.getElementById("statusCdd");
     const infoMasa = document.getElementById("infoMasa");
@@ -116,18 +132,24 @@ const AppImporFoxpro = {
     let ok = true;
 
     if (this.files.cdg) {
-      const match = this.files.cdg.info.kode === kode;
-      boxCdg.innerHTML = `<i class="fa-solid fa-${match ? "check" : "triangle-exclamation"}" style="color: ${match ? "#10b981" : "#fbbf24"}"></i> ${this.files.cdg.file.name} → Cabang ${this.files.cdg.info.kode}, Bulan ${this.files.cdg.info.bulan}, Tahun ${this.files.cdg.info.tahun}`;
-      ok = ok && match;
+      const matchKode = this.files.cdg.info.kode === kode;
+      const matchTahun = this.files.cdg.info.tahun === tahun;
+      boxCdg.innerHTML = `<i class="fa-solid fa-${matchKode && matchTahun ? "check" : "triangle-exclamation"}" style="color: ${matchKode && matchTahun ? "#10b981" : "#fbbf24"}"></i> ${this.files.cdg.file.name} → Cabang ${this.files.cdg.info.kode}, Bulan ${this.files.cdg.info.bulan}, Tahun ${this.files.cdg.info.tahun}`;
+      if (!matchTahun)
+        boxCdg.innerHTML += `<br><small style="color: #fbbf24;">⚠️ Tahun file ${this.files.cdg.info.tahun} ≠ dropdown ${tahun}</small>`;
+      ok = ok && matchKode && matchTahun;
     } else {
       boxCdg.innerHTML = `<i class="fa-solid fa-xmark"></i> CDG*.dbf tidak ditemukan`;
       ok = false;
     }
 
     if (this.files.cdd) {
-      const match = this.files.cdd.info.kode === kode;
-      boxCdd.innerHTML = `<i class="fa-solid fa-${match ? "check" : "triangle-exclamation"}" style="color: ${match ? "#10b981" : "#fbbf24"}"></i> ${this.files.cdd.file.name} → Cabang ${this.files.cdd.info.kode}, Bulan ${this.files.cdd.info.bulan}, Tahun ${this.files.cdd.info.tahun}`;
-      ok = ok && match;
+      const matchKode = this.files.cdd.info.kode === kode;
+      const matchTahun = this.files.cdd.info.tahun === tahun;
+      boxCdd.innerHTML = `<i class="fa-solid fa-${matchKode && matchTahun ? "check" : "triangle-exclamation"}" style="color: ${matchKode && matchTahun ? "#10b981" : "#fbbf24"}"></i> ${this.files.cdd.file.name} → Cabang ${this.files.cdd.info.kode}, Bulan ${this.files.cdd.info.bulan}, Tahun ${this.files.cdd.info.tahun}`;
+      if (!matchTahun)
+        boxCdd.innerHTML += `<br><small style="color: #fbbf24;">⚠️ Tahun file ${this.files.cdd.info.tahun} ≠ dropdown ${tahun}</small>`;
+      ok = ok && matchKode && matchTahun;
     } else {
       boxCdd.innerHTML = `<i class="fa-solid fa-xmark"></i> CDD*.dbf tidak ditemukan`;
       ok = false;
@@ -136,7 +158,7 @@ const AppImporFoxpro = {
     if (this.files.cdg || this.files.cdd) {
       const info = this.files.cdg?.info || this.files.cdd?.info;
       infoMasa.style.display = "block";
-      infoMasa.innerHTML = `<i class="fa-solid fa-info-circle"></i> Masa: ${info.bulan}/${info.tahun}`;
+      infoMasa.innerHTML = `<i class="fa-solid fa-info-circle"></i> File masa: ${info.bulan}/${info.tahun} | Dropdown: ${tahun}`;
     }
 
     btn.disabled = !ok;
@@ -149,11 +171,12 @@ const AppImporFoxpro = {
     const btn = document.getElementById("btnSubmit");
     const loading = document.getElementById("loadingOv");
     const kode = document.getElementById("impCabang").value;
+    const tahun = document.getElementById("impTahun").value;
     const info = this.files.cdg.info;
 
     const fd = new FormData();
     fd.append("kode_cabang", kode);
-    fd.append("tahun", info.tahun);
+    fd.append("tahun", tahun);
     fd.append("bulan", info.bulan);
     fd.append("masa", info.masa);
     fd.append("file_cdg", this.files.cdg.file);
@@ -167,9 +190,7 @@ const AppImporFoxpro = {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        alert(
-          `Sukses! Masa ${info.bulan}/${info.tahun} cabang ${kode} terupload`,
-        );
+        alert(`Sukses! Masa ${info.bulan}/${tahun} cabang ${kode} terupload`);
         navigate?.("importFoxpro");
       } else {
         throw new Error(data.message || "Gagal upload");
