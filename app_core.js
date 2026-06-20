@@ -631,6 +631,11 @@ var MENUS = [
       { id: "fmtRL", label: "Format RL", icon: "fa-file-contract" },
       { id: "fmtNeraca", label: "Format Neraca", icon: "fa-file-contract" },
       { id: "dbInfo", label: "Database", icon: "fa-database" },
+      {
+        id: "importFoxpro",
+        label: "Import FoxPro Online",
+        icon: "fa-cloud-arrow-up",
+      },
     ],
   },
   {
