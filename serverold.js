@@ -1,5 +1,5 @@
 // ============================================================================
-// 1. ERROR HANDLING GLOBAL
+// 1. ERROR HANDLING GLOBAL (PALING ATAS)
 // ============================================================================
 process.on("uncaughtException", (err) => {
   console.error("🔥 CRITICAL SYSTEM ERROR:", err.message);
@@ -14,20 +14,19 @@ process.on("unhandledRejection", (reason) => {
 // ============================================================================
 // 2. IMPORT LIBRARY
 // ============================================================================
-let express, cors, path, Pool, multer, DBFFile, fs;
+let express, cors, path, Pool;
 
 try {
   express = require("express");
   cors = require("cors");
   path = require("path");
-  fs = require("fs");
   const { Pool: PgPool } = require("pg");
   Pool = PgPool;
-  multer = require("multer");
-  DBFFile = require("dbffile").DBFFile;
   console.log("✅ Semua library berhasil dimuat.");
 } catch (e) {
-  console.error("❌ FATAL: npm install pg multer dbffile");
+  console.error(
+    "❌ FATAL: Gagal memuat library. Pastikan 'npm install pg' sudah dijalankan.",
+  );
   console.error("Error:", e.message);
   process.exit(1);
 }
@@ -43,176 +42,27 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(express.static(path.join(__dirname)));
 
 // ============================================================================
-// 4. KONFIGURASI SERVER
+// 4. KONFIGURASI SERVER & START (PAKAI EXPRESS)
 // ============================================================================
-const serverPort = process.env.PORT || 8080;
+
+const serverPort = process.env.PORT || 8080; // Default 8080 untuk Railway
 const serverHost = "0.0.0.0";
 
-const upload = multer({ dest: "uploads/" });
-if (!fs.existsSync("uploads")) fs.mkdirSync("uploads");
-
-// Koneksi Postgres - ambil dari ENV Railway
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl:
-    process.env.NODE_ENV === "production"
-      ? { rejectUnauthorized: false }
-      : false,
-});
-
-app.listen(Number(serverPort), serverHost, () => {
-  console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
-  console.log("⏳ Database siap...");
-});
-
-// ============================================================================
-// 5. HELPER: BIKIN TABEL DINAMIS
-// ============================================================================
-async function createTableIfNotExists(tableName, fields) {
-  const cols = fields
-    .map((f) => {
-      let type = "TEXT";
-      if (f.type === "N") type = "NUMERIC";
-      if (f.type === "D") type = "DATE";
-      if (f.type === "L") type = "BOOLEAN";
-      return `"${f.name}" ${type}`;
-    })
-    .join(", ");
-
-  const sql = `
-    CREATE TABLE IF NOT EXISTS "${tableName}" (
-      id SERIAL PRIMARY KEY,
-      kode_cabang TEXT,
-      bulan TEXT,
-      masa TEXT,
-      tahun TEXT,
-      ${cols}
-    )
-  `;
-  await pool.query(sql);
+try {
+  app.listen(Number(serverPort), serverHost, () => {
+    console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
+    console.log("⏳ Menunggu inisialisasi database...");
+  });
+} catch (err) {
+  console.error("❌ Gagal menjalankan server:", err.message);
+  process.exit(1);
 }
 
 // ============================================================================
-// 6. ROUTE IMPOR FOXPRO
+// 5. LOGIC APLIKASI (ROUTES & DATABASE)
 // ============================================================================
-app.post(
-  "/api/impor-foxpro-online",
-  upload.fields([
-    { name: "file_cdg", maxCount: 1 },
-    { name: "file_cdd", maxCount: 1 },
-  ]),
-  async (req, res) => {
-    const client = await pool.connect();
-    try {
-      const { kode_cabang, tahun, bulan, masa } = req.body;
-      if (!req.files.file_cdg || !req.files.file_cdd) {
-        return res
-          .status(400)
-          .json({ success: false, message: "File CDG/CDD wajib ada" });
-      }
 
-      const fileCdg = req.files.file_cdg[0];
-      const fileCdd = req.files.file_cdd[0];
-
-      console.log(
-        `📥 Proses: Cabang ${kode_cabang}, Bulan ${bulan}, Tahun ${tahun}`,
-      );
-
-      // 1. Baca DBF
-      const dbfCdg = await DBFFile.open(fileCdg.path);
-      const recordsCdg = await dbfCdg.readRecords();
-
-      const dbfCdd = await DBFFile.open(fileCdd.path);
-      const recordsCdd = await dbfCdd.readRecords();
-
-      // 2. Bikin tabel golongan2026 & perkiraan2026
-      const tableGolongan = `golongan${tahun}`;
-      const tablePerkiraan = `perkiraan${tahun}`;
-
-      await createTableIfNotExists(tableGolongan, dbfCdg.fields);
-      await createTableIfNotExists(tablePerkiraan, dbfCdd.fields);
-
-      // 3. Insert CDG
-      if (recordsCdg.length > 0) {
-        const cols = [
-          "kode_cabang",
-          "bulan",
-          "masa",
-          "tahun",
-          ...dbfCdg.fields.map((f) => `"${f.name}"`),
-        ];
-        const placeholders = cols.map((_, i) => `$${i + 1}`).join(",");
-
-        await client.query("BEGIN");
-        for (const row of recordsCdg) {
-          const values = [
-            kode_cabang,
-            bulan,
-            masa,
-            tahun,
-            ...dbfCdg.fields.map((f) => row[f.name]),
-          ];
-          await client.query(
-            `INSERT INTO "${tableGolongan}" (${cols.join(",")}) VALUES (${placeholders})`,
-            values,
-          );
-        }
-        await client.query("COMMIT");
-      }
-
-      // 4. Insert CDD
-      if (recordsCdd.length > 0) {
-        const cols = [
-          "kode_cabang",
-          "bulan",
-          "masa",
-          "tahun",
-          ...dbfCdd.fields.map((f) => `"${f.name}"`),
-        ];
-        const placeholders = cols.map((_, i) => `$${i + 1}`).join(",");
-
-        await client.query("BEGIN");
-        for (const row of recordsCdd) {
-          const values = [
-            kode_cabang,
-            bulan,
-            masa,
-            tahun,
-            ...dbfCdd.fields.map((f) => row[f.name]),
-          ];
-          await client.query(
-            `INSERT INTO "${tablePerkiraan}" (${cols.join(",")}) VALUES (${placeholders})`,
-            values,
-          );
-        }
-        await client.query("COMMIT");
-      }
-
-      // 5. Hapus file temp
-      fs.unlinkSync(fileCdg.path);
-      fs.unlinkSync(fileCdd.path);
-
-      res.json({
-        success: true,
-        message: `Bulan ${bulan} berhasil diimpor ke Postgres`,
-        tabel_golongan: tableGolongan,
-        tabel_perkiraan: tablePerkiraan,
-        total_golongan: recordsCdg.length,
-        total_perkiraan: recordsCdd.length,
-      });
-    } catch (err) {
-      await client.query("ROLLBACK");
-      console.error("🔥 Error impor:", err);
-      res.status(500).json({ success: false, message: err.message });
-    } finally {
-      client.release();
-    }
-  },
-);
-
-// ============================================================================
-// 6. DEFINISI TABEL LAIN
-// ============================================================================
+// Definisi Tabel
 const ALLOWED_TABLES = [
   "golongan",
   "perkiraan",
