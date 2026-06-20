@@ -250,10 +250,8 @@ function renderMutasi() {
     "#mutNoreffList { max-height: 300px !important; overflow-y: auto !important; }" +
     "</style>" +
     // ...sisa HTML kamu
-    +(
-      // Bug duplikasi div di file baru sudah diperbaiki di sini (hanya 1 pembuka)
-      '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">'
-    ) +
+    // Bug duplikasi div di file baru sudah diperbaiki di sini (hanya 1 pembuka)
+    '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
     /* ✅ DARI FILE BARU: BARIS JUDUL UTAMA SEJAJAR (JUDUL + RIWAYAT & BARU) */
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)">' +
