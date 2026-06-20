@@ -99,8 +99,7 @@ const AppImporFoxpro = {
       type: m[1],
       kode: m[2],
       bulan: m[3],
-      tahun: "20" + m[4],
-      masa: m[3] + m[4],
+      tahun2digit: m[4], // cukup simpan '26', jangan jadi '2026'
     };
   },
 
@@ -129,11 +128,23 @@ const AppImporFoxpro = {
 
   validate() {
     const kode = document.getElementById("impCabang").value;
-    const tahun = document.getElementById("impTahun").value;
-    const boxCdg = document.getElementById("statusCdg");
-    const boxCdd = document.getElementById("statusCdd");
-    const infoMasa = document.getElementById("infoMasa");
-    const btn = document.getElementById("btnSubmit");
+    const tahun4 = document.getElementById("impTahun").value; // 2026
+    const tahun2 = tahun4.slice(-2); // ambil '26'
+
+    // Cari file yang cocok
+    this.files.cdg = null;
+    this.files.cdd = null;
+
+    Array.from(document.getElementById("folderInput").files).forEach((f) => {
+      const p = this.parseName(f.name);
+      if (!p) return;
+      if (p.type === "CDG" && p.kode === kode && p.tahun2digit === tahun2) {
+        this.files.cdg = { file: f, info: p };
+      }
+      if (p.type === "CDD" && p.kode === kode && p.tahun2digit === tahun2) {
+        this.files.cdd = { file: f, info: p };
+      }
+    });
 
     let ok = true;
 
