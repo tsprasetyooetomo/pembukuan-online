@@ -45,8 +45,9 @@ const AppImporFoxpro = {
 
 
           <div style="margin-bottom: 1.5rem;">
-            <label style="display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem;">Tahun</label>
-            <select id="impTahun" required style="width: 100%; padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #fff; cursor: pointer;">
+         <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Tahun</label>
+  
+             <select id="impTahun" required style="width: 100%; padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #fff; cursor: pointer;">
               ${opsiTahun}
             </select>
           </div>
