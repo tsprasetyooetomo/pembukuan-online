@@ -14,7 +14,7 @@ const AppImporFoxpro = {
     }
 
     let opsiTahun = `<option value="" disabled selected>-- Pilih Tahun --</option>`;
-    for (let y = 2024; y <= 2030; y++) {
+    for (let y = 2020; y <= 2030; y++) {
       opsiTahun += `<option value="${y}">${y}</option>`;
     }
 
