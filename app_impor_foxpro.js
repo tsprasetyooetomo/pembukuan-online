@@ -1,6 +1,6 @@
 const AppImporFoxpro = {
   API_URL: window.location.origin + "/api/impor-foxpro-online",
-  files: { cdg: null, cdd: null },
+  files: { cdg: [], cdd: [] }, // ganti jadi array
 
   getHTML() {
     let opsiCabang = `<option value="" disabled selected>-- Pilih Cabang --</option>`;
@@ -21,25 +21,25 @@ const AppImporFoxpro = {
     return `
       <div style="max-width: 700px; margin: 1rem auto; padding: 2rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); max-height: 90vh; overflow-y: auto;">
         <h2 style="margin-bottom: 1rem; font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; color: #fff; display: flex; align-items: center; gap: 0.75rem; position: sticky; top: 0; background: rgba(20,20,30,0.95); padding: 1rem 0; z-index: 10;">
-          <i class="fa-solid fa-folder-open" style="color: #3b82f6;"></i> Impor DBF 1 Tahun
+          <i class="fa-solid fa-folder-open" style="color: #3b82f6;"></i> Impor DBF Per Bulan
         </h2>
 
         <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 2rem;">
-          Format file: <b style="color:#60a5fa">CDG/KDD + KODE + BULAN + TAHUN.dbf</b><br>
+          Format: <b style="color:#60a5fa">CDG/KDD + KODE + BULAN + TAHUN.dbf</b><br>
           Contoh: <b style="color:#10b981">CDG000126.dbf</b> = Cabang 00, Bulan 01, Tahun 2026
         </p>
 
         <form id="formImporFoxpro">
           <div style="margin-bottom: 2rem;">
             <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Cabang</label>
-            <select id="impCabang" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace; cursor: pointer;">
+            <select id="impCabang" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace;">
               ${opsiCabang}
             </select>
           </div>
 
           <div style="margin-bottom: 1.5rem;">
             <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Tahun</label>
-            <select id="impTahun" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace; cursor: pointer;">
+            <select id="impTahun" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace;">
               ${opsiTahun}
             </select>
           </div>
@@ -55,10 +55,9 @@ const AppImporFoxpro = {
             </div>
           </div>
 
-          <div id="statusBox" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 0.8rem;">
-            <div id="statusCdg" style="margin-bottom: 0.5rem; color: #ef4444;"></div>
-            <div id="statusCdd" style="color: #ef4444;"></div>
-            <div id="infoMasa" style="margin-top: 0.75rem; color: #60a5fa; display: none;"></div>
+          <div id="statusBox" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 0.8rem; max-height: 200px; overflow-y: auto;">
+            <div id="listFile"></div>
+            <div id="infoMasa" style="margin-top: 0.75rem; color: #60a5fa;"></div>
           </div>
 
           <button type="submit" id="btnSubmit" disabled style="width: 100%; padding: 0.9rem; background: #3b82f6; border: none; border-radius: 4px; color: #fff; font-weight: 600; opacity: 0.5; cursor: not-allowed;">
@@ -88,32 +87,30 @@ const AppImporFoxpro = {
     const n = fileName.toUpperCase().replace(".DBF", "");
     const m = n.match(/^(CDG|CDD)(\d{2})(\d{2})(\d{2})$/);
     if (!m) return null;
-    return {
-      type: m[1],
-      kode: m[2],
-      bulan: m[3],
-      tahun2digit: m[4],
-    };
+    return { type: m[1], kode: m[2], bulan: m[3], tahun2digit: m[4] };
   },
 
   scanFolder(e) {
     const files = Array.from(e.target.files);
-    this.files = { cdg: null, cdd: null };
+    this.files = { cdg: [], cdd: [] };
+
+    const kode = document.getElementById("impCabang").value;
+    const tahun2 = document.getElementById("impTahun").value.slice(-2);
 
     files.forEach((f) => {
       const p = this.parseName(f.name);
       if (!p) return;
-      if (p.type === "CDG" && !this.files.cdg)
-        this.files.cdg = { file: f, info: p };
-      if (p.type === "CDD" && !this.files.cdd)
-        this.files.cdd = { file: f, info: p };
+      if (p.kode === kode && p.tahun2digit === tahun2) {
+        if (p.type === "CDG") this.files.cdg.push({ file: f, info: p });
+        if (p.type === "CDD") this.files.cdd.push({ file: f, info: p });
+      }
     });
 
     document.getElementById("statusBox").style.display = "block";
     document.getElementById("labelFolder").innerHTML = `
       <i class="fa-solid fa-folder-check" style="font-size: 2.5rem; margin-bottom: 0.5rem; display: block; color: #10b981;"></i>
       ${files[0]?.webkitRelativePath.split("/")[0] || "Folder"}<br>
-      <small>${files.length} file</small>
+      <small>${files.length} file total</small>
     `;
 
     this.validate();
@@ -123,54 +120,43 @@ const AppImporFoxpro = {
     const kode = document.getElementById("impCabang").value;
     const tahun4 = document.getElementById("impTahun").value;
     const tahun2 = tahun4.slice(-2);
-
-    const boxCdg = document.getElementById("statusCdg");
-    const boxCdd = document.getElementById("statusCdd");
+    const listFile = document.getElementById("listFile");
     const infoMasa = document.getElementById("infoMasa");
     const btn = document.getElementById("btnSubmit");
 
-    // Cari file yang cocok
-    this.files.cdg = null;
-    this.files.cdd = null;
+    // Urutkan by bulan
+    this.files.cdg.sort((a, b) => a.info.bulan - b.info.bulan);
+    this.files.cdd.sort((a, b) => a.info.bulan - b.info.bulan);
 
-    const inputFiles = document.getElementById("folderInput").files;
-    if (inputFiles) {
-      Array.from(inputFiles).forEach((f) => {
-        const p = this.parseName(f.name);
-        if (!p) return;
-        if (p.type === "CDG" && p.kode === kode && p.tahun2digit === tahun2) {
-          this.files.cdg = { file: f, info: p };
-        }
-        if (p.type === "CDD" && p.kode === kode && p.tahun2digit === tahun2) {
-          this.files.cdd = { file: f, info: p };
-        }
-      });
+    let html = "";
+    let bulanValid = [];
+
+    for (let i = 1; i <= 12; i++) {
+      const bln = String(i).padStart(2, "0");
+      const cdg = this.files.cdg.find((f) => f.info.bulan === bln);
+      const cdd = this.files.cdd.find((f) => f.info.bulan === bln);
+
+      if (cdg && cdd) {
+        html += `<div style="color: #10b981; margin-bottom: 0.3rem;">
+          <i class="fa-solid fa-check"></i> Bulan ${bln}: ${cdg.file.name} + ${cdd.file.name}
+        </div>`;
+        bulanValid.push(bln);
+      } else if (cdg || cdd) {
+        html += `<div style="color: #fbbf24; margin-bottom: 0.3rem;">
+          <i class="fa-solid fa-triangle-exclamation"></i> Bulan ${bln}: File tidak lengkap
+        </div>`;
+      } else {
+        html += `<div style="color: #64748b; margin-bottom: 0.3rem;">
+          <i class="fa-solid fa-minus"></i> Bulan ${bln}: File tidak ditemukan
+        </div>`;
+      }
     }
 
-    let ok = true;
+    listFile.innerHTML = html;
+    infoMasa.innerHTML = `<i class="fa-solid fa-info-circle"></i> Siap upload: ${bulanValid.length} bulan | Cabang ${kode} | Tahun ${tahun4}`;
 
-    if (this.files.cdg) {
-      boxCdg.innerHTML = `<i class="fa-solid fa-check" style="color: #10b981"></i> ${this.files.cdg.file.name} → Cabang ${this.files.cdg.info.kode}, Bulan ${this.files.cdg.info.bulan}, Tahun 20${this.files.cdg.info.tahun2digit}`;
-      ok = true;
-    } else {
-      boxCdg.innerHTML = `<i class="fa-solid fa-xmark"></i> CDG${kode}**${tahun2}.dbf tidak ditemukan`;
-      ok = false;
-    }
-
-    if (this.files.cdd) {
-      boxCdd.innerHTML = `<i class="fa-solid fa-check" style="color: #10b981"></i> ${this.files.cdd.file.name} → Cabang ${this.files.cdd.info.kode}, Bulan ${this.files.cdd.info.bulan}, Tahun 20${this.files.cdd.info.tahun2digit}`;
-      ok = ok && true;
-    } else {
-      boxCdd.innerHTML = `<i class="fa-solid fa-xmark"></i> CDD${kode}**${tahun2}.dbf tidak ditemukan`;
-      ok = false;
-    }
-
-    if (this.files.cdg || this.files.cdd) {
-      const info = this.files.cdg?.info || this.files.cdd?.info;
-      infoMasa.style.display = "block";
-      infoMasa.innerHTML = `<i class="fa-solid fa-info-circle"></i> Filter: Cabang ${kode} | Tahun ${tahun4} | File dicari: **${tahun2}.dbf`;
-    }
-
+    // Aktif selama ada minimal 1 bulan lengkap
+    const ok = bulanValid.length > 0;
     btn.disabled = !ok;
     btn.style.opacity = ok ? "1" : "0.5";
     btn.style.cursor = ok ? "pointer" : "not-allowed";
@@ -182,29 +168,39 @@ const AppImporFoxpro = {
     const loading = document.getElementById("loadingOv");
     const kode = document.getElementById("impCabang").value;
     const tahun4 = document.getElementById("impTahun").value;
-    const info = this.files.cdg.info;
-
-    const fd = new FormData();
-    fd.append("kode_cabang", kode);
-    fd.append("tahun", tahun4);
-    fd.append("bulan", info.bulan);
-    fd.append("masa", info.bulan + info.tahun2digit);
-    fd.append("file_cdg", this.files.cdg.file);
-    fd.append("file_cdd", this.files.cdd.file);
 
     try {
       loading?.classList.add("show");
       btn.disabled = true;
 
-      const res = await fetch(this.API_URL, { method: "POST", body: fd });
-      const data = await res.json();
+      // Loop per bulan yang lengkap
+      for (let i = 1; i <= 12; i++) {
+        const bln = String(i).padStart(2, "0");
+        const cdg = this.files.cdg.find((f) => f.info.bulan === bln);
+        const cdd = this.files.cdd.find((f) => f.info.bulan === bln);
 
-      if (res.ok && data.success) {
-        alert(`Sukses! Masa ${info.bulan}/${tahun4} cabang ${kode} terupload`);
-        navigate?.("importFoxpro");
-      } else {
-        throw new Error(data.message || "Gagal upload");
+        if (cdg && cdd) {
+          const fd = new FormData();
+          fd.append("kode_cabang", kode);
+          fd.append("tahun", tahun4);
+          fd.append("bulan", bln);
+          fd.append("masa", bln + cdg.info.tahun2digit);
+          fd.append("file_cdg", cdg.file);
+          fd.append("file_cdd", cdd.file);
+
+          const res = await fetch(this.API_URL, { method: "POST", body: fd });
+          const data = await res.json();
+
+          if (!res.ok || !data.success) {
+            throw new Error(`Gagal upload bulan ${bln}: ${data.message}`);
+          }
+        }
       }
+
+      alert(
+        `Sukses! ${this.files.cdg.length} bulan data cabang ${kode} tahun ${tahun4} terupload`,
+      );
+      navigate?.("importFoxpro");
     } catch (err) {
       alert("Error: " + err.message);
     } finally {
