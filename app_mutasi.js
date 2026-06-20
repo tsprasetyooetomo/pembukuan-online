@@ -238,18 +238,13 @@ function renderMutasi() {
   }
   return (
     "<style>" +
-    // Biar panel nggak dipaksa tinggi fix
-    ".pnl.active { height: auto !important; max-height: none !important; overflow: visible !important; }" +
-    "#contentArea { height: auto !important; max-height: none !important; overflow: visible !important; }" +
-    "body, html { overflow-y: auto !important; height: auto !important; }" +
-    // Scroll khusus tabel detil biar nggak dorong halaman
-    "#mutDetilTbl { display: block !important; max-height: 400px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
-    "#mutDetilTbl table { width: 100% !important; border-collapse: collapse !important; }" +
-    "#mutDetilTbl th { position: sticky !important; top: 0 !important; background: var(--bg2) !important; z-index: 2; }" +
-    // Scroll riwayat no ref juga
+    ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
+    "#mutDetilTbl { max-height: 500px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
+    "#mutDetilTbl thead th { position: sticky; top: 0; background: var(--bg2); z-index: 5; }" +
     "#mutNoreffList { max-height: 300px !important; overflow-y: auto !important; }" +
     "</style>" +
-    // ...sisa HTML kamu
+    // ...HTML kamu
+    // ...HTML kamu
     // Bug duplikasi div di file baru sudah diperbaiki di sini (hanya 1 pembuka)
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
     /* ✅ DARI FILE BARU: BARIS JUDUL UTAMA SEJAJAR (JUDUL + RIWAYAT & BARU) */
@@ -413,6 +408,13 @@ function initMutasiState() {
   renderDetilTable();
   renderNoreffList();
   updateMutasiSummary();
+  // ✅ Tambahin ini biar bisa scroll
+  setTimeout(() => {
+    document.body.style.overflowY = "auto";
+    document.documentElement.style.overflowY = "auto";
+    const pnl = document.querySelector(".pnl.active");
+    if (pnl) pnl.style.overflowY = "auto";
+  }, 100);
 }
 
 /* ================================================================
