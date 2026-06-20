@@ -188,12 +188,12 @@ const AppImporFoxpro = {
     const btn = document.getElementById("btnSubmit");
     const loading = document.getElementById("loadingOv");
     const kode = document.getElementById("impCabang").value;
-    const tahun = document.getElementById("impTahun").value;
+    const tahun4 = document.getElementById("impTahun").value;
     const info = this.files.cdg.info;
 
     const fd = new FormData();
     fd.append("kode_cabang", kode);
-    fd.append("tahun", tahun);
+    fd.append("tahun", tahun4);
     fd.append("bulan", info.bulan);
     fd.append("masa", info.masa);
     fd.append("file_cdg", this.files.cdg.file);
