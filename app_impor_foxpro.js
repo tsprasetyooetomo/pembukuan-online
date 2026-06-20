@@ -20,7 +20,6 @@ const AppImporFoxpro = {
 
     return `
       <div style="max-width: 700px; margin: 1rem auto; padding: 2rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); max-height: 90vh; overflow-y: auto;">
-
         <h2 style="margin-bottom: 1rem; font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; color: #fff; display: flex; align-items: center; gap: 0.75rem; position: sticky; top: 0; background: rgba(20,20,30,0.95); padding: 1rem 0; z-index: 10;">
           <i class="fa-solid fa-folder-open" style="color: #3b82f6;"></i> Impor DBF 1 Tahun
         </h2>
@@ -31,23 +30,17 @@ const AppImporFoxpro = {
         </p>
 
         <form id="formImporFoxpro">
-        
-
-
-<!-- Cabang -->
-<div style="margin-bottom: 2rem;">
-  <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Cabang</label>
-  <select id="impCabang" required style="width: 100%; padding: 0.75rem; background: #000000; border: 1px solid #333333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace; cursor: pointer;">
-    ${opsiCabang}
-  </select>
-</div>
-
-
+          <div style="margin-bottom: 2rem;">
+            <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Cabang</label>
+            <select id="impCabang" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace; cursor: pointer;">
+              ${opsiCabang}
+            </select>
+          </div>
 
           <div style="margin-bottom: 1.5rem;">
-         <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Tahun</label>
-    <select id="impTahun" required style="width: 100%; padding: 0.75rem; background: #000000; border: 1px solid #333333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace; cursor: pointer;">
-             ${opsiTahun}
+            <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Tahun</label>
+            <select id="impTahun" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace; cursor: pointer;">
+              ${opsiTahun}
             </select>
           </div>
 
@@ -99,7 +92,7 @@ const AppImporFoxpro = {
       type: m[1],
       kode: m[2],
       bulan: m[3],
-      tahun2digit: m[4], // cukup simpan '26', jangan jadi '2026'
+      tahun2digit: m[4],
     };
   },
 
@@ -128,54 +121,54 @@ const AppImporFoxpro = {
 
   validate() {
     const kode = document.getElementById("impCabang").value;
-    const tahun4 = document.getElementById("impTahun").value; // 2026
-    const tahun2 = tahun4.slice(-2); // ambil '26'
+    const tahun4 = document.getElementById("impTahun").value;
+    const tahun2 = tahun4.slice(-2);
+
+    const boxCdg = document.getElementById("statusCdg");
+    const boxCdd = document.getElementById("statusCdd");
+    const infoMasa = document.getElementById("infoMasa");
+    const btn = document.getElementById("btnSubmit");
 
     // Cari file yang cocok
     this.files.cdg = null;
     this.files.cdd = null;
 
-    Array.from(document.getElementById("folderInput").files).forEach((f) => {
-      const p = this.parseName(f.name);
-      if (!p) return;
-      if (p.type === "CDG" && p.kode === kode && p.tahun2digit === tahun2) {
-        this.files.cdg = { file: f, info: p };
-      }
-      if (p.type === "CDD" && p.kode === kode && p.tahun2digit === tahun2) {
-        this.files.cdd = { file: f, info: p };
-      }
-    });
+    const inputFiles = document.getElementById("folderInput").files;
+    if (inputFiles) {
+      Array.from(inputFiles).forEach((f) => {
+        const p = this.parseName(f.name);
+        if (!p) return;
+        if (p.type === "CDG" && p.kode === kode && p.tahun2digit === tahun2) {
+          this.files.cdg = { file: f, info: p };
+        }
+        if (p.type === "CDD" && p.kode === kode && p.tahun2digit === tahun2) {
+          this.files.cdd = { file: f, info: p };
+        }
+      });
+    }
 
     let ok = true;
 
     if (this.files.cdg) {
-      const matchKode = this.files.cdg.info.kode === kode;
-      const matchTahun = this.files.cdg.info.tahun === tahun;
-      boxCdg.innerHTML = `<i class="fa-solid fa-${matchKode && matchTahun ? "check" : "triangle-exclamation"}" style="color: ${matchKode && matchTahun ? "#10b981" : "#fbbf24"}"></i> ${this.files.cdg.file.name} → Cabang ${this.files.cdg.info.kode}, Bulan ${this.files.cdg.info.bulan}, Tahun ${this.files.cdg.info.tahun}`;
-      if (!matchTahun)
-        boxCdg.innerHTML += `<br><small style="color: #fbbf24;">⚠️ Tahun file ${this.files.cdg.info.tahun} ≠ dropdown ${tahun}</small>`;
-      ok = ok && matchKode && matchTahun;
+      boxCdg.innerHTML = `<i class="fa-solid fa-check" style="color: #10b981"></i> ${this.files.cdg.file.name} → Cabang ${this.files.cdg.info.kode}, Bulan ${this.files.cdg.info.bulan}, Tahun 20${this.files.cdg.info.tahun2digit}`;
+      ok = true;
     } else {
-      boxCdg.innerHTML = `<i class="fa-solid fa-xmark"></i> CDG*.dbf tidak ditemukan`;
+      boxCdg.innerHTML = `<i class="fa-solid fa-xmark"></i> CDG${kode}**${tahun2}.dbf tidak ditemukan`;
       ok = false;
     }
 
     if (this.files.cdd) {
-      const matchKode = this.files.cdd.info.kode === kode;
-      const matchTahun = this.files.cdd.info.tahun === tahun;
-      boxCdd.innerHTML = `<i class="fa-solid fa-${matchKode && matchTahun ? "check" : "triangle-exclamation"}" style="color: ${matchKode && matchTahun ? "#10b981" : "#fbbf24"}"></i> ${this.files.cdd.file.name} → Cabang ${this.files.cdd.info.kode}, Bulan ${this.files.cdd.info.bulan}, Tahun ${this.files.cdd.info.tahun}`;
-      if (!matchTahun)
-        boxCdd.innerHTML += `<br><small style="color: #fbbf24;">⚠️ Tahun file ${this.files.cdd.info.tahun} ≠ dropdown ${tahun}</small>`;
-      ok = ok && matchKode && matchTahun;
+      boxCdd.innerHTML = `<i class="fa-solid fa-check" style="color: #10b981"></i> ${this.files.cdd.file.name} → Cabang ${this.files.cdd.info.kode}, Bulan ${this.files.cdd.info.bulan}, Tahun 20${this.files.cdd.info.tahun2digit}`;
+      ok = ok && true;
     } else {
-      boxCdd.innerHTML = `<i class="fa-solid fa-xmark"></i> CDD*.dbf tidak ditemukan`;
+      boxCdd.innerHTML = `<i class="fa-solid fa-xmark"></i> CDD${kode}**${tahun2}.dbf tidak ditemukan`;
       ok = false;
     }
 
     if (this.files.cdg || this.files.cdd) {
       const info = this.files.cdg?.info || this.files.cdd?.info;
       infoMasa.style.display = "block";
-      infoMasa.innerHTML = `<i class="fa-solid fa-info-circle"></i> File masa: ${info.bulan}/${info.tahun} | Dropdown: ${tahun}`;
+      infoMasa.innerHTML = `<i class="fa-solid fa-info-circle"></i> Filter: Cabang ${kode} | Tahun ${tahun4} | File dicari: **${tahun2}.dbf`;
     }
 
     btn.disabled = !ok;
@@ -195,7 +188,7 @@ const AppImporFoxpro = {
     fd.append("kode_cabang", kode);
     fd.append("tahun", tahun4);
     fd.append("bulan", info.bulan);
-    fd.append("masa", info.masa);
+    fd.append("masa", info.bulan + info.tahun2digit);
     fd.append("file_cdg", this.files.cdg.file);
     fd.append("file_cdd", this.files.cdd.file);
 
@@ -207,7 +200,7 @@ const AppImporFoxpro = {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        alert(`Sukses! Masa ${info.bulan}/${tahun} cabang ${kode} terupload`);
+        alert(`Sukses! Masa ${info.bulan}/${tahun4} cabang ${kode} terupload`);
         navigate?.("importFoxpro");
       } else {
         throw new Error(data.message || "Gagal upload");
