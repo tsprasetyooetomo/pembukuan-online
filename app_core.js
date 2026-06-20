@@ -627,9 +627,9 @@ var MENUS = [
     group: "UTILITY",
     icon: "fa-wrench",
     items: [
-      { id: "importD", label: "Import Data", icon: "fa-file-import" },
-      { id: "fmtRL", label: "Format RL", icon: "fa-file-contract" },
-      { id: "fmtNeraca", label: "Format Neraca", icon: "fa-file-contract" },
+      // { id: "importD", label: "Import Data", icon: "fa-file-import" },
+      //  { id: "fmtRL", label: "Format RL", icon: "fa-file-contract" },
+      //  { id: "fmtNeraca", label: "Format Neraca", icon: "fa-file-contract" },
       { id: "dbInfo", label: "Database", icon: "fa-database" },
       {
         id: "importFoxpro",
