@@ -215,38 +215,39 @@ function renderMutasi() {
   var bulanOpts = generateBulanOpts("");
   var tahunOpts = generateTahunOpts("");
 
+  // ✅ DARI FILE BARU: Generate Opsi Cabang (Sort by Kode + Tampil Nama)
   var cabFilterOpts = '<option value="">-- Semua Cabang --</option>';
+
   if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
     var sortedList = [...DBCache.cabang];
+
     sortedList.sort(function (a, b) {
       var ka = String(a.kode || "");
       var kb = String(b.kode || "");
       return ka.localeCompare(kb);
     });
+
     sortedList.forEach(function (c) {
       var kode = c.kode || "";
       var nama = c.nama || "";
       var label = kode + (nama ? " — " + nama : "");
+
       cabFilterOpts +=
         '<option value="' + esc(kode) + '">' + esc(label) + "</option>";
     });
   }
-
   return (
-    // CSS Scroll - SATU KALI SAJA
     "<style>" +
-    "html, body { height: auto!important; min-height: 100%!important; overflow-y: auto!important; }" +
-    ".pnl.active, #contentArea, #mainContent { height: auto!important; max-height: none!important; overflow: visible!important; min-height: 100vh!important; }" +
-    // Tabel detil scroll sendiri
-    "#mutDetilTbl { max-height: 60vh!important; overflow-y: auto!important; border: 1px solid var(--brd); border-radius: 6px; display: block; margin-top: 0.5rem; }" +
-    "#mutDetilTbl table { width: 100%!important; border-collapse: collapse!important; }" +
-    "#mutDetilTbl thead th { position: sticky!important; top: 0!important; background: var(--bg2)!important; z-index: 5; }" +
-    // Riwayat no ref scroll sendiri
-    "#mutNoreffList { max-height: 40vh!important; overflow-y: auto!important; font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px }" +
+    ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
+    "#mutDetilTbl { max-height: 500px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
+    "#mutDetilTbl thead th { position: sticky; top: 0; background: var(--bg2); z-index: 5; }" +
+    "#mutNoreffList { max-height: 300px !important; overflow-y: auto !important; }" +
     "</style>" +
-    // HTML UTAMA
+    // ...HTML kamu
+
+    // Bug duplikasi div di file baru sudah diperbaiki di sini (hanya 1 pembuka)
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
-    // BARIS JUDUL
+    /* ✅ DARI FILE BARU: BARIS JUDUL UTAMA SEJAJAR (JUDUL + RIWAYAT & BARU) */
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)">' +
     '<i class="fa-solid fa-file-circle-plus"></i> Header Transaksi' +
@@ -260,68 +261,90 @@ function renderMutasi() {
     "</button>" +
     "</div>" +
     "</div>" +
-    // BARIS ISI
-    '<div style="display:flex;gap:1rem;flex-wrap:wrap">' +
-    // KOLOM KIRI
-    '<div style="flex:3;min-width:400px">' +
-    '<div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">' +
-    '<div class="fg" style="flex:1;min-width:120px"><label>Cabang</label><select id="m_cab" class="in">' +
+    /* BARIS ISI */
+    '<div style="display:flex;gap:1rem">' +
+    /* KOLOM KIRI */
+    '<div style="flex:3">' +
+    '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
+    '<div class="fg" style="flex:1"><label>Cabang</label><select id="m_cab" class="in">' +
     getCabangOpts(firstCab) +
     "</select></div>" +
-    '<div class="fg" style="flex:1;min-width:120px"><label>Kode Bank</label><select id="m_kb" class="in">' +
+    '<div class="fg" style="flex:1"><label>Kode Bank</label><select id="m_kb" class="in">' +
     kbOpts +
     "</select></div>" +
-    '<div class="fg" style="flex:1;min-width:120px"><label>Tanggal</label><input id="m_tgl" type="date" class="in" value="' +
+    '<div class="fg" style="flex:1"><label>Tanggal</label><input id="m_tgl" type="date" class="in" value="' +
     esc(today) +
     '"></div>' +
-    '<div class="fg" style="flex:1;min-width:120px"><label>No Ref</label><input id="m_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
+    '<div class="fg" style="flex:1"><label>No Ref</label><input id="m_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
     "</div>" +
-    '<div style="display:flex;gap:.5rem;margin-bottom:.5rem;flex-wrap:wrap">' +
-    '<div class="fg" style="flex:2;min-width:200px"><label>Dari / Kepada <span class="req">*</span></label><input id="m_dkp" class="in" placeholder="Nama pihak terkait"></div>' +
-    '<div class="fg" style="flex:1;min-width:120px"><label>Nominal / Rp</label><input id="m_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
+    '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
+    '<div class="fg" style="flex:2"><label>Dari / Kepada <span class="req">*</span></label>' +
+    '<input id="m_dkp" class="in" placeholder="Nama pihak terkait"></div>' +
+    '<div class="fg" style="flex:1"><label>Nominal / Rp</label>' +
+    '<input id="m_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
     "</div>" +
-    '<div style="display:flex;gap:.5rem;margin-bottom:.8rem;flex-wrap:wrap">' +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'transaksi\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllDataMutasi(\'transaksi\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
-    "</div>" +
-    // FORM DETIL
+    /* FORM DETIL */
     '<div style="margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--brd)">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;flex-wrap:wrap">' +
-    '<div style="font-size:.8rem;font-weight:700;color:var(--info)"><i class="fa-solid fa-list-ol"></i> Tambah Detil Jurnal</div>' +
-    '<button type="button" class="btn btn-sm" style="background:var(--info);color:#fff;font-size:.7rem;padding:3px 10px" onclick="printMutasi()"><i class="fa-solid fa-print"></i> Print</button>' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
+    '<div style="font-size:.8rem;font-weight:700;color:var(--info)">' +
+    '<i class="fa-solid fa-list-ol"></i> Tambah Detil Jurnal' +
     "</div>" +
-    '<div style="display:flex;gap:.5rem;align-items:flex-end;flex-wrap:wrap">' +
-    '<div class="fg" style="flex:2;min-width:150px;margin-bottom:0"><label>No Perkiraan <span class="req">*</span></label><select id="d_perk" class="in">' +
+    '<button type="button" class="btn btn-sm" style="background:var(--info);color:#fff;font-size:.7rem;padding:3px 10px" onclick="printMutasi()">' +
+    '<i class="fa-solid fa-print"></i> Print' +
+    "</button>" +
+    "</div>" +
+    '<div style="display:flex;gap:.5rem;align-items:flex-end">' +
+    '<div class="fg" style="flex:2;margin-bottom:0"><label>No Perkiraan <span class="req">*</span></label>' +
+    '<select id="d_perk" class="in">' +
     perkOpts +
     "</select></div>" +
-    '<div class="fg" style="flex:3;min-width:200px;margin-bottom:0"><label>Penjelasan <span class="req">*</span></label><input id="d_penjelasan" class="in" placeholder="Keterangan transaksi"></div>' +
-    '<div class="fg" style="flex:1;min-width:100px;margin-bottom:0"><label>Rp <span class="req">*</span></label><input type="number" id="d_rp" class="in" placeholder="0"></div>' +
-    '<button class="btn btn-a" onclick="SafeaddDetil()" style="margin-bottom:2px"><i class="fa-solid fa-plus"></i> Tambah</button>' +
+    '<div class="fg" style="flex:3;margin-bottom:0"><label>Penjelasan <span class="req">*</span></label>' +
+    '<input id="d_penjelasan" class="in" placeholder="Keterangan transaksi"></div>' +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label>Rp <span class="req">*</span></label>' +
+    '<input type="number" id="d_rp" class="in" placeholder="0"></div>' +
+    '<button class="btn btn-a" onclick="SafeaddDetil()" style="margin-bottom:2px">' +
+    '<i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div>" +
     "</div>" +
     "</div>" +
-    // KOLOM KAN
-    '<div style="flex:1;min-width:250px;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column">' +
+    /* KOLOM KANAN */
+    '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column">' +
+    // ✅ DARI FILE BARU: POSISI BARU Filter Cabang List Pindah ke Puncak Kolom Kanan
     '<div style="margin-bottom:.4rem">' +
-    '<div class="fg" style="margin-bottom:0"><label style="font-size:.65rem">Filter Cabang List</label><select id="filter_cabang_list" class="in" style="font-size:.75rem">' +
+    '<div class="fg" style="margin-bottom:0">' +
+    '<label style="font-size:.65rem">Filter Cabang List</label>' +
+    '<select id="filter_cabang_list" class="in" style="font-size:.75rem">' +
     cabFilterOpts +
     "</select></div>" +
     "</div>" +
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
-    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    '<div class="fg" style="flex:1;margin-bottom:0">' +
+    '<label style="font-size:.65rem">Bulan</label>' +
+    '<select id="filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
     bulanOpts +
     "</select></div>" +
-    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Tahun</label><select id="filter_tahun" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    '<div class="fg" style="flex:1;margin-bottom:0">' +
+    '<label style="font-size:.65rem">Tahun</label>' +
+    '<select id="filter_tahun" class="in" style="font-size:.75rem;padding:3px 5px">' +
     tahunOpts +
     "</select></div>" +
     "</div>" +
-    '<div id="mutNoreffList"><div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div></div>' +
+    '<div id="mutNoreffList" style="flex:1;overflow-y:auto;max-height:180px;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px">' +
+    '<div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div>' +
+    "</div>" +
     '<div id="mutNoreffCount" style="font-size:.65rem;color:var(--muted);margin-top:.3rem;text-align:right"></div>' +
     "</div>" +
     "</div>" +
     "</div>" +
-    // TABEL DETIL
-    '<div style="font-size:.85rem;font-weight:700;margin-bottom:.4rem;margin-top:1rem">Riwayat Detil Transaksi</div>' +
+    /* TABEL DETIL */
+    "<style>" +
+    "#mutDetilTbl { display: block !important; max-height: 450px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
+    "#mutDetilTbl table { width: 100% !important; border-collapse: collapse !important; }" +
+    "#mutDetilTbl th { position: sticky !important; top: 0 !important; background: var(--bg2) !important; z-index: 2; }" +
+    "</style>" +
+    '<div style="font-size:.85rem;font-weight:700;margin-bottom:.4rem">Riwayat Detil Transaksi</div>' +
     '<div id="mutDetilTbl" class="tw"></div>'
   );
 }
