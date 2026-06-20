@@ -26,7 +26,7 @@ body {
   color: var(--fg);
   min-height: 100vh;
   display: flex;
-  overflow: hidden;
+  overflow: auto;
 }
 .bg-g {
   position: fixed;
@@ -199,7 +199,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: auto;
   position: relative;
   z-index: 1;
 }
@@ -225,8 +225,9 @@ body {
 }
 .content {
   flex: 1;
-  overflow-y: auto;
+  overflow-y: visible;
   padding: 1rem 1.2rem;
+  min-height: calc(100vh - 60px);
 }
 .content::-webkit-scrollbar {
   width: 5px;
