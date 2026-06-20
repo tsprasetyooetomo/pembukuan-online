@@ -939,3 +939,14 @@ body {
 .sb {
   transition: margin-left 0.3s ease-in-out;
 }
+body {
+  overflow-y: auto !important;
+}
+
+.main {
+  overflow-y: auto !important;
+}
+
+.content {
+  overflow-y: visible !important;
+}
