@@ -41,7 +41,7 @@ const AppImporFoxpro = {
 
           <!-- Cabang -->
           <div style="margin-bottom: 2rem;">
-            <label style="display: block; color: #fff; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Cabang</label>
+            <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Cabang</label>
             <select id="impCabang" required style="width: 100%; padding: 0.75rem; background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1); border-radius: 4px; color: #fff; font-family: 'JetBrains Mono', monospace; cursor: pointer;">
               ${opsiCabang}
             </select>
