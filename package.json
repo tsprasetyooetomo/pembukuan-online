@@ -16,10 +16,10 @@
   "type": "commonjs",
   "dependencies": {
     "better-sqlite3": "^12.10.1",
+    "busboy": "^1.6.0",
     "cors": "^2.8.6",
     "dbf-reader": "^1.0.3",
     "express": "^5.2.1",
-    "multer": "^2.2.0",
     "pg": "^8.21.0"
   }
 }
