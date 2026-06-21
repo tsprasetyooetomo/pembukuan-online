@@ -594,13 +594,13 @@ app.post("/api/saldo-harian", async (req, res) => {
 // ============================================================================
 // 16. ENDPOINT IMPOR FOXPRO (.DBF)
 // ============================================================================
-const { DBFFile } = require("dbf-reader");
+// 16. ENDPOINT IMPOR FOXPRO (.DBF)
+// Kita pindahkan require ke DALAM fungsi agar server tidak crash saat start
 const multer = require("multer");
 
-// Inisialisasi Multer untuk menangani upload file di memory (tidak disimpan permanen di disk)
 const uploadImpor = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 }, // Limit 50MB per file
+  limits: { fileSize: 50 * 1024 * 1024 },
 });
 
 app.post(
@@ -610,16 +610,21 @@ app.post(
     { name: "file_cdd", maxCount: 1 },
   ]),
   async (req, res) => {
-    if (!db) {
+    if (!db)
       return res
         .status(500)
         .json({ success: false, message: "Database tidak terkoneksi" });
-    }
 
     try {
+      // === LAKUKAN REQUIRE DI SINI (Lazy Loading) ===
+      const { DBFFile } = require("dbf-reader");
+      // =============================================
+
       const { kode_cabang, tahun, bulan, masa } = req.body;
       const fileCdg = req.files?.file_cdg?.[0];
       const fileCdd = req.files?.file_cdd?.[0];
+
+      // ... (lanjutkan sisa kode logika parsing DBF Anda seperti biasa) ...
 
       if (!fileCdg || !fileCdd) {
         return res.status(400).json({
