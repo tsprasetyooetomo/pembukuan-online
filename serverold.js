@@ -594,21 +594,38 @@ app.post("/api/saldo-harian", async (req, res) => {
 // ============================================================================
 // 16. ENDPOINT IMPOR FOXPRO (.DBF)
 // ============================================================================
+// ============================================================================
 // 16. ENDPOINT IMPOR FOXPRO (.DBF)
-// Kita pindahkan require ke DALAM fungsi agar server tidak crash saat start
-const multer = require("multer");
+// ============================================================================
 
-const uploadImpor = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 50 * 1024 * 1024 },
-});
+// Kita definisikan uploadImpor tanpa require multer di atas,
+// tapi kita bungkus di dalam blok agar tidak crash saat start
+let uploadImpor;
+try {
+  const multer = require("multer");
+  uploadImpor = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 50 * 1024 * 1024 },
+  });
+} catch (e) {
+  console.error("Library multer tidak ditemukan saat inisialisasi awal.");
+}
 
 app.post(
   "/api/impor-foxpro-online",
-  uploadImpor.fields([
-    { name: "file_cdg", maxCount: 1 },
-    { name: "file_cdd", maxCount: 1 },
-  ]),
+  (req, res, next) => {
+    if (!uploadImpor)
+      return res
+        .status(500)
+        .json({
+          success: false,
+          message: "Server tidak memiliki modul upload.",
+        });
+    uploadImpor.fields([
+      { name: "file_cdg", maxCount: 1 },
+      { name: "file_cdd", maxCount: 1 },
+    ])(req, res, next);
+  },
   async (req, res) => {
     if (!db)
       return res
@@ -616,21 +633,21 @@ app.post(
         .json({ success: false, message: "Database tidak terkoneksi" });
 
     try {
-      // === LAKUKAN REQUIRE DI SINI (Lazy Loading) ===
+      // === LAKUKAN REQUIRE DBF-READER DI SINI ===
       const { DBFFile } = require("dbf-reader");
-      // =============================================
+      // =========================================
 
       const { kode_cabang, tahun, bulan, masa } = req.body;
       const fileCdg = req.files?.file_cdg?.[0];
       const fileCdd = req.files?.file_cdd?.[0];
 
-      // ... (lanjutkan sisa kode logika parsing DBF Anda seperti biasa) ...
-
       if (!fileCdg || !fileCdd) {
-        return res.status(400).json({
-          success: false,
-          message: "File CDG atau CDD tidak ditemukan",
-        });
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "File CDG atau CDD tidak ditemukan",
+          });
       }
 
       console.log(
@@ -639,14 +656,6 @@ app.post(
 
       // Fungsi helper untuk membaca file DBF dari buffer memory
       const parseDbf = async (fileBuffer) => {
-        // dbf-reader membutuhkan path file, jadi kita buat buffer jadi string dulu
-        // atau gunakan fungsi internalnya jika support buffer.
-        // Cara paling aman & stabil di memory:
-        const { DBFFile } = require("dbf-reader");
-
-        // Karena dbf-reader butuh file fisik, kita perlu simpan sementara di memory stream
-        // Untuk menghindari disk I/O, kita bisa gunakan trik Buffer ke ReadableStream
-        // Namun cara paling stabil di server Node adalah menyimpan sementara ke tmp
         const fs = require("fs");
         const os = require("os");
         const path = require("path");
@@ -698,7 +707,6 @@ app.post(
         const queryText = `INSERT INTO ${tableName} (id, masa, cabang, data) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
 
         for (const row of dataCdg) {
-          // Buat ID unik: CDG_cabang_masa_index (atau sesuaikan dengan field ID di DBF Anda)
           const id = `CDG_${kode_cabang}_${masa}_${row.NO_BUKTI || row.ID || Math.random().toString(36).substr(2, 5)}`;
           await client.query(queryText, [
             id,
@@ -730,10 +738,12 @@ app.post(
       } catch (txError) {
         await client.query("ROLLBACK");
         console.error("❌ Error transaksi DB:", txError);
-        res.status(500).json({
-          success: false,
-          message: "Gagal simpan DB: " + txError.message,
-        });
+        res
+          .status(500)
+          .json({
+            success: false,
+            message: "Gagal simpan DB: " + txError.message,
+          });
       } finally {
         client.release();
       }
