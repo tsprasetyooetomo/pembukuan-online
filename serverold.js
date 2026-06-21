@@ -591,3 +591,154 @@ app.post("/api/saldo-harian", async (req, res) => {
     res.status(500).json({ error: e.message }); // DIPERBAIKI: Kurung tutup yang benar
   }
 });
+// ============================================================================
+// 16. ENDPOINT IMPOR FOXPRO (.DBF)
+// ============================================================================
+const { DBFFile } = require("dbf-reader");
+const multer = require("multer");
+
+// Inisialisasi Multer untuk menangani upload file di memory (tidak disimpan permanen di disk)
+const uploadImpor = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 50 * 1024 * 1024 }, // Limit 50MB per file
+});
+
+app.post(
+  "/api/impor-foxpro-online",
+  uploadImpor.fields([
+    { name: "file_cdg", maxCount: 1 },
+    { name: "file_cdd", maxCount: 1 },
+  ]),
+  async (req, res) => {
+    if (!db) {
+      return res
+        .status(500)
+        .json({ success: false, message: "Database tidak terkoneksi" });
+    }
+
+    try {
+      const { kode_cabang, tahun, bulan, masa } = req.body;
+      const fileCdg = req.files?.file_cdg?.[0];
+      const fileCdd = req.files?.file_cdd?.[0];
+
+      if (!fileCdg || !fileCdd) {
+        return res
+          .status(400)
+          .json({
+            success: false,
+            message: "File CDG atau CDD tidak ditemukan",
+          });
+      }
+
+      console.log(
+        `📂 Memproses Impor Foxpro: Cabang ${kode_cabang}, Masa ${masa}`,
+      );
+
+      // Fungsi helper untuk membaca file DBF dari buffer memory
+      const parseDbf = async (fileBuffer) => {
+        // dbf-reader membutuhkan path file, jadi kita buat buffer jadi string dulu
+        // atau gunakan fungsi internalnya jika support buffer.
+        // Cara paling aman & stabil di memory:
+        const { DBFFile } = require("dbf-reader");
+
+        // Karena dbf-reader butuh file fisik, kita perlu simpan sementara di memory stream
+        // Untuk menghindari disk I/O, kita bisa gunakan trik Buffer ke ReadableStream
+        // Namun cara paling stabil di server Node adalah menyimpan sementara ke tmp
+        const fs = require("fs");
+        const os = require("os");
+        const path = require("path");
+
+        const tmpPath = path.join(os.tmpdir(), `dbf_${Date.now()}.dbf`);
+        fs.writeFileSync(tmpPath, fileBuffer);
+
+        const dbf = await DBFFile.open(tmpPath);
+        const records = await dbf.readRecords();
+
+        // Hapus file temporary
+        fs.unlinkSync(tmpPath);
+
+        return records;
+      };
+
+      console.log("⏳ Membaca file CDG...");
+      const dataCdg = await parseDbf(fileCdg.buffer);
+      console.log(`✅ Ditemukan ${dataCdg.length} record di CDG.`);
+
+      console.log("⏳ Membaca file CDD...");
+      const dataCdd = await parseDbf(fileCdd.buffer);
+      console.log(`✅ Ditemukan ${dataCdd.length} record di CDD.`);
+
+      // Tentukan nama tabel tujuan berdasarkan tahun (misal: transaksi2026)
+      const tableName = `transaksi${tahun}`.toLowerCase();
+
+      // Pastikan tabel ada (Auto-create jika belum)
+      const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
+      const resCheck = await db.query(checkQuery, [tableName]);
+      if (!resCheck.rows[0].exists) {
+        console.log(`🛠️ Membuat tabel tahunan: ${tableName}`);
+        await db.query(
+          `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
+        );
+      }
+
+      const client = await db.connect();
+      try {
+        await client.query("BEGIN");
+
+        // 1. Hapus data lama untuk masa & cabang ini (mencegah duplikat jika re-import)
+        await client.query(
+          `DELETE FROM ${tableName} WHERE masa = $1 AND cabang = $2`,
+          [masa, kode_cabang],
+        );
+
+        // 2. Insert Data CDG
+        const queryText = `INSERT INTO ${tableName} (id, masa, cabang, data) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+
+        for (const row of dataCdg) {
+          // Buat ID unik: CDG_cabang_masa_index (atau sesuaikan dengan field ID di DBF Anda)
+          const id = `CDG_${kode_cabang}_${masa}_${row.NO_BUKTI || row.ID || Math.random().toString(36).substr(2, 5)}`;
+          await client.query(queryText, [
+            id,
+            masa,
+            kode_cabang,
+            JSON.stringify(row),
+          ]);
+        }
+
+        // 3. Insert Data CDD
+        for (const row of dataCdd) {
+          const id = `CDD_${kode_cabang}_${masa}_${row.NO_BUKTI || row.ID || Math.random().toString(36).substr(2, 5)}`;
+          await client.query(queryText, [
+            id,
+            masa,
+            kode_cabang,
+            JSON.stringify(row),
+          ]);
+        }
+
+        await client.query("COMMIT");
+        console.log(`✅ Impor sukses untuk masa ${masa} cabang ${kode_cabang}`);
+
+        res.json({
+          success: true,
+          message: `Berhasil impor ${dataCdg.length} CDG & ${dataCdd.length} CDD`,
+          table: tableName,
+        });
+      } catch (txError) {
+        await client.query("ROLLBACK");
+        console.error("❌ Error transaksi DB:", txError);
+        res
+          .status(500)
+          .json({
+            success: false,
+            message: "Gagal simpan DB: " + txError.message,
+          });
+      } finally {
+        client.release();
+      }
+    } catch (error) {
+      console.error("❌ Error proses Impor Foxpro:", error);
+      res.status(500).json({ success: false, message: error.message });
+    }
+  },
+);
