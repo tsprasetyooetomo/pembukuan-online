@@ -3648,28 +3648,33 @@ function renderRLLebar() {
     var sel = y == window._rlLebarFilterTahun ? "selected" : "";
     opsiTahunHtml += '<option value="' + y + '" ' + sel + ">" + y + "</option>";
   }
-
   var htmlLaporan =
-    '<div id="area_cetak_rllebar" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; overflow:hidden;">' +
-    '<div style="text-align:center;">' +
-    '<h3 style="margin:0 0.8rem 0; color:var(--fg);">Laporan RL Lebar Bulanan - Tahun ' +
+    '<div id="area_cetak_rllebar" style="background:#000; padding:1rem; border-radius:var(--r); border:1px solid #333; height:550px; max-height:550px; width:100%; overflow:hidden;">' +
+    '<div style="text-align:center; color:#fff;">' +
+    '<h3 style="margin:0 0.8rem 0; color:#fff;">Laporan RL Lebar Bulanan - Tahun ' +
     window._rlLebarFilterTahun +
     "</h3>" +
-    '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">' +
-    '<label style="font-size:.75rem;">Tahun:</label>' +
-    '<select id="filter_rllebar_tahun" style="padding:4px 8px; border:1px solid var(--brd); background:var(--card); color:var(--fg);">' +
+    '<div class="no-print" style="background:#111; border:1px solid #333; padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:1rem; color:#fff;">' +
+    '<label style="font-size:.75rem; color:#ccc;">Tahun:</label>' +
+    '<select id="filter_rllebar_tahun" style="padding:4px 8px; border:1px solid #555; background:#000; color:#fff;">' +
     opsiTahunHtml +
     "</select>" +
-    '<label style="font-size:.75rem;">Cabang:</label>' +
-    '<select id="filter_rllebar_cabang" style="padding:4px 8px; border:1px solid var(--brd); background:var(--card); color:var(--fg); min-width:120px;">' +
+    '<label style="font-size:.75rem; color:#ccc;">Cabang:</label>' +
+    '<select id="filter_rllebar_cabang" style="padding:4px 8px; border:1px solid #555; background:#000; color:#fff; min-width:120px;">' +
     opsiCabangHtml +
     "</select>" +
-    '<button class="btn btn-g" onclick="terapkanOpsiRLLebar()">Terapkan</button>' +
-    '<button class="btn btn-b" style="background:#217346;" onclick="downloadRLLebarExcel()"><i class="fa-solid fa-file-excel"></i> Excel</button>' +
+    '<button class="btn btn-g" style="background:#333; color:#fff; border:1px solid #555;" onclick="terapkanOpsiRLLebar()">Terapkan</button>' +
+    '<button class="btn btn-b" style="background:#0a3d0a; color:#fff; border:1px solid #1a5c1a;" onclick="downloadRLLebarExcel()"><i class="fa-solid fa-file-excel"></i> Excel</button>' +
     "</div>" +
-    '<div class="table-responsive-container" style="width:100%; height:380px; overflow:auto; border:1px solid var(--brd); background:var(--card);">' +
-    "<style>#tempat_tabel_rllebar table{width:100%!important;min-width:1400px!important;border-collapse:collapse!important;}#tempat_tabel_rllebar th{padding:6px 8px!important;background:var(--bg2);white-space:nowrap!important;border:1px solid var(--brd);position:sticky!important;top:0;z-index:10;font-size:.75rem;}#tempat_tabel_rllebar td{padding:6px 8px!important;white-space:nowrap!important;border:1px solid var(--brd);font-size:.75rem;}</style>" +
-    '<div id="tempat_tabel_rllebar"></div>' +
+    '<div class="table-responsive-container" style="width:100%; height:380px; overflow:auto; border:1px solid #333; background:#000;">' +
+    "<style>" +
+    "#tempat_tabel_rllebar table{width:100%!important;min-width:1400px!important;border-collapse:collapse!important;background:#000;color:#fff;}" +
+    "#tempat_tabel_rllebar th{padding:6px 8px!important;background:#1a1a1a!important;color:#fff!important;white-space:nowrap!important;border:1px solid #444!important;position:sticky!important;top:0;z-index:10;font-size:.75rem;}" +
+    "#tempat_tabel_rllebar td{padding:6px 8px!important;white-space:nowrap!important;border:1px solid #333!important;font-size:.75rem;color:#fff!important;}" +
+    "#tempat_tabel_rllebar tr:hover td{background:#1a1a1a!important;}" +
+    "#tempat_tabel_rllebar td a{color:#4da3ff!important;}" +
+    "</style>" +
+    '<div id="tempat_tabel_rllebar" style="color:#fff;"></div>' +
     "</div></div></div>";
   return htmlLaporan;
 }
@@ -3760,29 +3765,31 @@ async function terapkanOpsiRLLebar() {
     }
 
     var html =
-      '<div style="margin-bottom:.5rem;font-size:.78rem;color:var(--muted);">3xx=Penjualan | 4xx=HPP | 5xx=By Adm | 6xx=Beban Lain | Tahun: ' +
+      '<div style="margin-bottom:.5rem;font-size:.78rem;color:#aaa;">3xx=Penjualan | 4xx=HPP | 5xx=By Adm | 6xx=Beban Lain | Tahun: ' +
       valTahun +
       "</div>";
     html +=
-      '<div style="overflow-x:auto;border:1px solid #ddd;"><table border="1" style="width:100%;border-collapse:collapse;color:#000;border:1px solid #000;">';
+      '<div style="overflow-x:auto;border:1px solid #333;"><table border="1" style="width:100%;border-collapse:collapse;color:#fff;border:1px solid #444;background:#000;">';
 
-    // HEADER 2 BARIS
-    html += '<thead><tr style="background:#f4f4f4;font-weight:bold;">';
     html +=
-      '<th rowspan="2" style="padding:8px;border:1px solid #000;">GOL</th>';
+      '<thead><tr style="background:#1a1a1a;font-weight:bold;color:#fff;">';
     html +=
-      '<th rowspan="2" style="padding:8px;border:1px solid #000;">NAMA GOLONGAN</th>';
+      '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">GOL</th>';
     html +=
-      '<th colspan="12" style="padding:8px;border:1px solid #000;text-align:center;">BULAN</th>';
+      '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">NAMA GOLONGAN</th>';
     html +=
-      '<th rowspan="2" style="padding:8px;border:1px solid #000;text-align:right;">TOTAL YTD</th>';
+      '<th colspan="12" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:center;">BULAN</th>';
     html +=
-      '<th rowspan="2" style="padding:8px;border:1px solid #000;">CABANG</th>';
-    html += '</tr><tr style="background:#f4f4f4;font-weight:bold;">';
+      '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:right;">TOTAL YTD</th>';
+    html +=
+      '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">CABANG</th>';
+    html += '</tr><tr style="background:#1a1a1a;font-weight:bold;color:#fff;">';
     namaBulan.forEach(
       (nb) =>
         (html +=
-          '<th style="padding:6px;border:1px solid #000;">' + nb + "</th>"),
+          '<th style="padding:6px;border:1px solid #444;background:#1a1a1a;color:#fff;">' +
+          nb +
+          "</th>"),
     );
     html += "</tr></thead><tbody>";
 
@@ -3793,7 +3800,7 @@ async function terapkanOpsiRLLebar() {
 
     function buatBarisKeterangan(teks) {
       html +=
-        '<tr><td colspan="16" style="padding:8px;border:1px solid #000;font-weight:bold;background:#e9ecef;color:#000;">' +
+        '<tr><td colspan="16" style="padding:8px;border:1px solid #444;font-weight:bold;background:#222;color:#fff;">' +
         teks +
         "</td></tr>";
     }
