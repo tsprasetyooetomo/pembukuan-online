@@ -597,15 +597,33 @@ app.post("/api/saldo-harian", async (req, res) => {
 // ============================================================================
 app.post("/api/impor-foxpro-online", async (req, res) => {
   if (!db) {
-    return res
-      .status(500)
-      .json({ success: false, message: "Database tidak terkoneksi" });
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+    res.write(
+      `data: ${JSON.stringify({ percent: 100, message: "Database tidak terkoneksi", success: false })}\n\n`,
+    );
+    return res.end();
   }
+
+  // WAJIB HEADER SSE
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // matiin buffer nginx Railway
+  res.flushHeaders();
+
+  const send = (percent, msg, extra = {}) => {
+    res.write(
+      `data: ${JSON.stringify({ percent, message: msg, ...extra })}\n\n`,
+    );
+    res.flush(); // WAJIB biar langsung push ke browser
+  };
 
   try {
     const busboy = require("busboy");
     const bb = busboy({ headers: req.headers });
-
     const files = {};
     const fields = {};
 
@@ -629,41 +647,27 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         const fileDet = files["file_det"];
 
         if (!fileCdg || !fileCdd) {
-          return res.status(400).json({
-            success: false,
-            message: "File CDG atau CDD tidak ditemukan",
-          });
+          send(100, "File CDG atau CDD tidak ditemukan", { success: false });
+          return res.end();
         }
 
-        console.log(`\n==================================================`);
-        console.log(
-          `🚀 [START] Memproses Impor Foxpro Online (Mapping Format)`,
-        );
-        console.log(
-          `📍 Cabang Form: ${kode_cabang} | Masa: ${masa} | Tahun: ${tahun}`,
-        );
-        console.log(`==================================================`);
+        send(5, `Mulai impor masa ${masa} cabang ${kode_cabang}`);
 
-        // === FUNGSI PARSE DBF ===
-        const parseDbf = (fileBuffer) => {
-          const { Dbf } = require("dbf-reader");
-          const datatable = Dbf.read(fileBuffer);
-          return datatable ? datatable.rows : [];
-        };
+        const { Dbf } = require("dbf-reader");
 
-        console.log("⏳ [1/4] Membaca file CDG...");
-        const dataCdg = parseDbf(fileCdg);
-        console.log(`✅ [OK] Terbaca ${dataCdg.length} record di CDG.`);
+        send(10, "Baca file CDG...");
+        const dataCdg = Dbf.read(fileCdg)?.rows || [];
+        send(20, `CDG terbaca: ${dataCdg.length} record`);
 
-        console.log("⏳ [2/4] Membaca file CDD...");
-        const dataCdd = parseDbf(fileCdd);
-        console.log(`✅ [OK] Terbaca ${dataCdd.length} record di CDD.`);
+        send(25, "Baca file CDD...");
+        const dataCdd = Dbf.read(fileCdd)?.rows || [];
+        send(40, `CDD terbaca: ${dataCdd.length} record`);
 
         let dataDet = [];
         if (fileDet) {
-          console.log("⏳ Membaca file DET...");
-          dataDet = parseDbf(fileDet);
-          console.log(`✅ [OK] Terbaca ${dataDet.length} record di DET.`);
+          send(45, "Baca file DET...");
+          dataDet = Dbf.read(fileDet)?.rows || [];
+          send(55, `DET terbaca: ${dataDet.length} record`);
         }
 
         const tableGolongan = `golongan${tahun}`.toLowerCase();
@@ -678,9 +682,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
             const resCheck = await client.query(checkQuery, [tableName]);
             if (!resCheck.rows[0].exists) {
-              console.log(
-                `🛠️ [SETUP] Membuat tabel tahunan baru: ${tableName}`,
-              );
+              send(58, `Buat tabel ${tableName}...`);
               await client.query(
                 `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
               );
@@ -691,20 +693,24 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           await ensureTableExists(tablePerkiraan);
           await ensureTableExists(tableTransaksi);
 
-          // === FUNGSI BATCH INSERT DENGAN PEMETAAN KUSTOM ===
-          const batchInsert = async (tableName, dataArray, typePrefix) => {
+          // Batch insert + kirim progress tiap batch
+          const batchInsert = async (
+            tableName,
+            dataArray,
+            typePrefix,
+            startPct,
+            endPct,
+          ) => {
             if (dataArray.length === 0) return 0;
             const batchSize = 500;
             let totalInserted = 0;
+            const totalBatch = Math.ceil(dataArray.length / batchSize);
 
-            // Hapus data lama dengan filter teks JSON
             await client.query(
               `DELETE FROM ${tableName} WHERE data LIKE $1 AND data LIKE $2`,
               [`%"masa":"${masa}"%`, `%"cabang":"${kode_cabang}"%`],
             );
-            console.log(
-              `🧹 Data lama masa ${masa} cabang ${kode_cabang} di ${tableName} dihapus.`,
-            );
+            send(startPct, `Hapus data lama ${typePrefix}...`);
 
             for (let i = 0; i < dataArray.length; i += batchSize) {
               const batch = dataArray.slice(i, i + batchSize);
@@ -715,15 +721,12 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
               batch.forEach((row, index) => {
                 let mappedData = {};
                 let customId = "";
-
-                // Ambil nilai string aman atau fallback default angka 0
                 const getStr = (val) =>
                   val !== undefined && val !== null ? String(val).trim() : "";
                 const getNum = (val) =>
                   val !== undefined && val !== null ? Number(val) : 0;
 
                 if (typePrefix === "CDG") {
-                  // 1. FORMAT GOLONGAN
                   mappedData = {
                     gol: getStr(row.GOLACCT),
                     namaGol: getStr(row.PJLSAN),
@@ -733,11 +736,10 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     db: getNum(row.DB),
                     cr: getNum(row.CR),
                     akhir: getNum(row.AKHIR),
-                    cabang: getStr(row.REST) || kode_cabang, // Pakai REST, fallback ke kode_cabang form
+                    cabang: getStr(row.REST) || kode_cabang,
                   };
                   customId = `CDG_${mappedData.cabang}_${masa}_${mappedData.gol || "X"}_${i + index}`;
                 } else if (typePrefix === "CDD") {
-                  // 2. FORMAT PERKIRAAN
                   mappedData = {
                     gol: getStr(row.GOLACCT),
                     noPerk: getStr(row.SUBACCT),
@@ -750,29 +752,24 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     akhir: getNum(row.AKHIR),
                     cabang: getStr(row.REST) || kode_cabang,
                   };
-                  // Ditambahkan index urutan agar mutlak unik jika ada sub-account perkiraan yang sama
                   const cleanNoPerk =
                     mappedData.noPerk.replace(/\./g, "_") || "X";
                   customId = `CDD_${mappedData.cabang}_${masa}_${cleanNoPerk}_${i + index}`;
                 } else if (typePrefix === "DET") {
-                  // 3. FORMAT TRANSAKSI
                   const dbVal = getNum(row.DB);
                   const crVal = getNum(row.CR);
-
-                  // ID Transaksi menggunakan format UUID v4 acak + index perulangan untuk menjamin keunikan primer
                   const crypto = require("crypto");
                   customId = `${crypto.randomUUID()}_${i + index}`;
-
                   mappedData = {
                     id: customId,
                     noreff: getStr(row.REFF),
-                    tanggal: getStr(row.DATE), // Sesuaikan jika format date perlu diekstrak stringnya YYYY-MM-DD
+                    tanggal: getStr(row.DATE),
                     kodeBank: "",
                     cabang: getStr(row.KODE) || kode_cabang,
                     dariKePada: "BANK",
                     noperkiraan: getStr(row.NOACCT),
                     desc: getStr(row.DESC),
-                    total: dbVal + crVal, // DB + CR = total
+                    total: dbVal + crVal,
                     db: dbVal,
                     cr: crVal,
                     kodeTrans: "",
@@ -787,63 +784,75 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
 
               queryText += placeholders.join(", ");
               queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
-
               await client.query(queryText, values);
               totalInserted += batch.length;
+
+              // Kirim progress tiap batch
+              const currentBatch = Math.floor(i / batchSize) + 1;
+              const pct =
+                startPct + ((endPct - startPct) * currentBatch) / totalBatch;
+              send(
+                Math.round(pct),
+                `Insert ${typePrefix}: ${totalInserted}/${dataArray.length}`,
+              );
             }
-            console.log(
-              `   └─ 🟩 ${typePrefix} -> ${tableName}: ${totalInserted} data tersimpan.`,
-            );
             return totalInserted;
           };
 
-          console.log(`📥 [3/4] Memproses Batch Insert...`);
-          const countCdg = await batchInsert(tableGolongan, dataCdg, "CDG");
-          const countCdd = await batchInsert(tablePerkiraan, dataCdd, "CDD");
-          const countDet = await batchInsert(tableTransaksi, dataDet, "DET");
+          send(60, "Mulai insert database...");
+          const countCdg = await batchInsert(
+            tableGolongan,
+            dataCdg,
+            "CDG",
+            60,
+            75,
+          );
+          const countCdd = await batchInsert(
+            tablePerkiraan,
+            dataCdd,
+            "CDD",
+            75,
+            90,
+          );
+          const countDet = await batchInsert(
+            tableTransaksi,
+            dataDet,
+            "DET",
+            90,
+            98,
+          );
 
           await client.query("COMMIT");
 
-          console.log(`==================================================`);
-          console.log(
-            `🎉 [SUKSES] Impor selesai untuk masa ${masa} cabang ${kode_cabang}`,
-          );
-          console.log(`==================================================\n`);
-
-          res.json({
-            success: true,
-            message: `Berhasil impor ${countCdg} Golongan, ${countCdd} Perkiraan, dan ${countDet} Transaksi`,
-            tables: {
-              golongan: tableGolongan,
-              perkiraan: tablePerkiraan,
-              transaksi: tableTransaksi,
+          send(
+            100,
+            `Sukses! Golongan:${countCdg} Perkiraan:${countCdd} Transaksi:${countDet}`,
+            {
+              success: true,
+              tables: {
+                golongan: tableGolongan,
+                perkiraan: tablePerkiraan,
+                transaksi: tableTransaksi,
+              },
             },
-          });
+          );
+          res.end();
         } catch (txError) {
           await client.query("ROLLBACK");
-          console.error(
-            "❌ [ERROR TRANSACTION] Gagal eksekusi query:",
-            txError,
-          );
-          res.status(500).json({
-            success: false,
-            message: "Gagal simpan DB: " + txError.message,
-          });
+          send(100, "Gagal simpan DB: " + txError.message, { success: false });
+          res.end();
         } finally {
           client.release();
         }
       } catch (innerErr) {
-        console.error(
-          "❌ [ERROR PROCESS] Terjadi kesalahan di dalam busboy:",
-          innerErr,
-        );
-        res.status(500).json({ success: false, message: innerErr.message });
+        send(100, "Error: " + innerErr.message, { success: false });
+        res.end();
       }
     });
 
     req.pipe(bb);
   } catch (error) {
-    console.error("❌ [ERROR API] Gagal memproses request:", error);
-    res.status(500).json({ success: false, message: error.message });
+    send(100, "Error: " + error.message, { success: false });
+    res.end();
   }
 });
