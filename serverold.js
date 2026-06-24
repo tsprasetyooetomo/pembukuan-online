@@ -602,6 +602,16 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
       .json({ success: false, message: "Database tidak terkoneksi" });
   }
 
+  // Set header SSE
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const sendProgress = (percent, message, data = {}) => {
+    res.write(`data: ${JSON.stringify({ percent, message, ...data })}\n\n`);
+  };
+
   try {
     const busboy = require("busboy");
     const bb = busboy({ headers: req.headers });
@@ -626,148 +636,156 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         const { kode_cabang, tahun, bulan, masa } = fields;
         const fileCdg = files["file_cdg"];
         const fileCdd = files["file_cdd"];
+        const fileDet = files["file_det"];
 
         if (!fileCdg || !fileCdd) {
-          return res.status(400).json({
-            success: false,
-            message: "File CDG atau CDD tidak ditemukan",
-          });
+          sendProgress(100, "Error: File CDG/CDD kosong", { success: false });
+          return res.end();
         }
 
-        // 🔄 INDIKATOR 1: Awal proses masuk
-        console.log(`\n==================================================`);
-        console.log(`🚀 [START] Memproses Impor Foxpro Online`);
-        console.log(
-          `📍 Cabang : ${kode_cabang} | Masa: ${masa} | Tahun: ${tahun}`,
-        );
-        console.log(`==================================================`);
+        sendProgress(5, "Membaca file CDG...");
+        const { Dbf } = require("dbf-reader");
+        const dataCdg = Dbf.read(fileCdg)?.rows || [];
+        sendProgress(20, `CDG terbaca: ${dataCdg.length} record`);
 
-        // === FUNGSI PARSE SINKRONUS ===
-        const parseDbf = (fileBuffer) => {
-          const { Dbf } = require("dbf-reader");
-          const datatable = Dbf.read(fileBuffer);
-          return datatable ? datatable.rows : [];
-        };
+        sendProgress(25, "Membaca file CDD...");
+        const dataCdd = Dbf.read(fileCdd)?.rows || [];
+        sendProgress(40, `CDD terbaca: ${dataCdd.length} record`);
 
-        // ⏳ INDIKATOR 2: Membaca berkas memory
-        console.log("⏳ [1/4] Membaca file CDG ke memori...");
-        const dataCdg = parseDbf(fileCdg);
-        console.log(`✅ [OK] Terbaca ${dataCdg.length} record di CDG.`);
-
-        console.log("⏳ [2/4] Membaca file CDD ke memori...");
-        const dataCdd = parseDbf(fileCdd);
-        console.log(`✅ [OK] Terbaca ${dataCdd.length} record di CDD.`);
-
-        const tableName = `transaksi${tahun}`.toLowerCase();
-
-        // Pastikan tabel ada
-        const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
-        const resCheck = await db.query(checkQuery, [tableName]);
-        if (!resCheck.rows[0].exists) {
-          console.log(`🛠️ [SETUP] Membuat tabel tahunan baru: ${tableName}`);
-          await db.query(
-            `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
-          );
+        let dataDet = [];
+        if (fileDet) {
+          sendProgress(45, "Membaca file DET...");
+          dataDet = Dbf.read(fileDet)?.rows || [];
+          sendProgress(55, `DET terbaca: ${dataDet.length} record`);
         }
+
+        const tableGolongan = `golongan${tahun}`.toLowerCase();
+        const tablePerkiraan = `perkiraan${tahun}`.toLowerCase();
+        const tableTransaksi = `transaksi${tahun}`.toLowerCase();
 
         const client = await db.connect();
         try {
           await client.query("BEGIN");
 
-          console.log(
-            `🧹 [3/4] Menghapus data lama untuk Masa ${masa} Cabang ${kode_cabang}...`,
-          );
-          await client.query(
-            `DELETE FROM ${tableName} WHERE masa = $1 AND cabang = $2`,
-            [masa, kode_cabang],
-          );
-
-          const queryText = `INSERT INTO ${tableName} (id, masa, cabang, data) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
-
-          // 💾 INDIKATOR 3: Log Perulangan Data CDG
-          console.log(`📥 [4/4] Memasukkan data CDG ke PostgreSQL...`);
-          let countCdg = 0;
-          for (const row of dataCdg) {
-            const id = `CDG_${kode_cabang}_${masa}_${row.NO_BUKTI || row.ID || Math.random().toString(36).substr(2, 5)}`;
-            await client.query(queryText, [
-              id,
-              masa,
-              kode_cabang,
-              JSON.stringify(row),
-            ]);
-
-            countCdg++;
-            // Memunculkan log kemajuan setiap kelipatan 100 baris data
-            if (countCdg % 100 === 0 || countCdg === dataCdg.length) {
-              console.log(
-                `   └─ 🟩 Progress CDG: ${countCdg}/${dataCdg.length} data berhasil diproses.`,
+          const ensureTableExists = async (tableName) => {
+            const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
+            const resCheck = await client.query(checkQuery, [tableName]);
+            if (!resCheck.rows[0].exists) {
+              await client.query(
+                `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
               );
             }
-          }
+          };
 
-          // 💾 INDIKATOR 4: Log Perulangan Data CDD
-          console.log(`📥 Memasukkan data CDD ke PostgreSQL...`);
-          let countCdd = 0;
-          for (const row of dataCdd) {
-            const id = `CDD_${kode_cabang}_${masa}_${row.NO_BUKTI || row.ID || Math.random().toString(36).substr(2, 5)}`;
-            await client.query(queryText, [
-              id,
-              masa,
-              kode_cabang,
-              JSON.stringify(row),
-            ]);
+          await ensureTableExists(tableGolongan);
+          await ensureTableExists(tablePerkiraan);
+          await ensureTableExists(tableTransaksi);
 
-            countCdd++;
-            // Memunculkan log kemajuan setiap kelipatan 100 baris data
-            if (countCdd % 100 === 0 || countCdd === dataCdd.length) {
-              console.log(
-                `   └─ 🟨 Progress CDD: ${countCdd}/${dataCdd.length} data berhasil diproses.`,
+          // Fungsi batch insert + progress
+          const batchInsert = async (
+            tableName,
+            dataArray,
+            typePrefix,
+            startPercent,
+            endPercent,
+          ) => {
+            if (dataArray.length === 0) return 0;
+            const batchSize = 500;
+            let totalInserted = 0;
+            const totalBatches = Math.ceil(dataArray.length / batchSize);
+
+            await client.query(
+              `DELETE FROM ${tableName} WHERE masa = $1 AND cabang = $2`,
+              [masa, kode_cabang],
+            );
+
+            for (let i = 0; i < dataArray.length; i += batchSize) {
+              const batch = dataArray.slice(i, i + batchSize);
+              let queryText = `INSERT INTO ${tableName} (id, masa, cabang, data) VALUES `;
+              let values = [];
+              let placeholders = [];
+
+              batch.forEach((row, index) => {
+                const id = `${typePrefix}_${kode_cabang}_${masa}_${row.NO_BUKTI || row.ID || Math.random().toString(36).substr(2, 5)}`;
+                const base = index * 4;
+                placeholders.push(
+                  `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`,
+                );
+                values.push(id, masa, kode_cabang, JSON.stringify(row));
+              });
+
+              queryText += placeholders.join(", ");
+              queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+
+              await client.query(queryText, values);
+              totalInserted += batch.length;
+
+              // Hitung progress
+              const currentBatch = Math.floor(i / batchSize) + 1;
+              const percent =
+                startPercent +
+                ((endPercent - startPercent) * currentBatch) / totalBatches;
+              sendProgress(
+                Math.round(percent),
+                `Insert ${typePrefix}: ${totalInserted}/${dataArray.length}`,
               );
             }
-          }
+            return totalInserted;
+          };
+
+          sendProgress(60, "Menyimpan ke database...");
+          const countCdg = await batchInsert(
+            tableGolongan,
+            dataCdg,
+            "CDG",
+            60,
+            75,
+          );
+          const countCdd = await batchInsert(
+            tablePerkiraan,
+            dataCdd,
+            "CDD",
+            75,
+            90,
+          );
+          const countDet = await batchInsert(
+            tableTransaksi,
+            dataDet,
+            "DET",
+            90,
+            98,
+          );
 
           await client.query("COMMIT");
-
-          // 🎉 INDIKATOR 5: Selesai Sukses
-          console.log(`==================================================`);
-          console.log(
-            `🎉 [SUKSES] Impor selesai untuk masa ${masa} cabang ${kode_cabang}`,
+          sendProgress(
+            100,
+            `Sukses! CDG:${countCdg} CDD:${countCdd} DET:${countDet}`,
+            {
+              success: true,
+              tables: {
+                golongan: tableGolongan,
+                perkiraan: tablePerkiraan,
+                transaksi: tableTransaksi,
+              },
+            },
           );
-          console.log(
-            `Total data tersimpan: ${countCdg} CDG & ${countCdd} CDD di tabel [${tableName}]`,
-          );
-          console.log(`==================================================\n`);
-
-          res.json({
-            success: true,
-            message: `Berhasil impor ${dataCdg.length} CDG & ${dataCdd.length} CDD`,
-            table: tableName,
-          });
+          res.end();
         } catch (txError) {
           await client.query("ROLLBACK");
-          console.error(
-            "❌ [ERROR TRANSACTION] Gagal eksekusi query:",
-            txError,
-          );
-          res.status(500).json({
-            success: false,
-            message: "Gagal simpan DB: " + txError.message,
-          });
+          sendProgress(100, "Error: " + txError.message, { success: false });
+          res.end();
         } finally {
           client.release();
         }
       } catch (innerErr) {
-        console.error(
-          "❌ [ERROR PROCESS] Terjadi kesalahan di dalam busboy:",
-          innerErr,
-        );
-        res.status(500).json({ success: false, message: innerErr.message });
+        sendProgress(100, "Error: " + innerErr.message, { success: false });
+        res.end();
       }
     });
 
     req.pipe(bb);
   } catch (error) {
-    console.error("❌ [ERROR API] Gagal memproses request:", error);
-    res.status(500).json({ success: false, message: error.message });
+    sendProgress(100, "Error: " + error.message, { success: false });
+    res.end();
   }
 });
