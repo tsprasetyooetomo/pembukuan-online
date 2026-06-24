@@ -3800,7 +3800,7 @@ async function terapkanOpsiRLLebar() {
 
     function buatBarisKeterangan(teks) {
       html +=
-        '<tr><td colspan="16" style="padding:8px;border:1px solid #444;font-weight:bold;background:#111;color:#fff;">' +
+        '<tr><td colspan="16" style="padding:8px;border:1px solid #444;font-weight:bold;background:#111;color:#fff;;text-align:left;">' +
         teks +
         "</td></tr>";
     }
