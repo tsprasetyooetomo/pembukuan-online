@@ -607,7 +607,9 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
       .json({ success: false, message: "Database tidak terkoneksi" });
 
   try {
+    // === LAZY LOAD DBF-READER ===
     const { DBFFile } = require("dbf-reader");
+
     const busboy = require("busboy");
     const bb = busboy({ headers: req.headers });
 
@@ -643,13 +645,19 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           `📂 Memproses Impor Foxpro: Cabang ${kode_cabang}, Masa ${masa}`,
         );
 
-        // === PERUBAHAN: Langsung parse dari Buffer di Memory (Tanpa simpan ke disk) ===
-        const { Readable } = require("stream");
         const parseDbf = async (fileBuffer) => {
-          const stream = Readable.from(fileBuffer);
-          // dbf-reader mendukung pembacaan dari stream
-          const dbf = await DBFFile.open(stream);
-          return await dbf.readRecords();
+          const fs = require("fs");
+          const os = require("os");
+          const path = require("path");
+
+          const tmpPath = path.join(os.tmpdir(), `dbf_${Date.now()}.dbf`);
+          fs.writeFileSync(tmpPath, fileBuffer);
+
+          const dbf = await DBFFile.open(tmpPath);
+          const records = await dbf.readRecords();
+
+          fs.unlinkSync(tmpPath);
+          return records;
         };
 
         console.log("⏳ Membaca file CDG...");
@@ -719,12 +727,10 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         } catch (txError) {
           await client.query("ROLLBACK");
           console.error("❌ Error transaksi DB:", txError);
-          res
-            .status(500)
-            .json({
-              success: false,
-              message: "Gagal simpan DB: " + txError.message,
-            });
+          res.status(500).json({
+            success: false,
+            message: "Gagal simpan DB: " + txError.message,
+          });
         } finally {
           client.release();
         }
