@@ -595,7 +595,6 @@ app.post("/api/saldo-harian", async (req, res) => {
 // ============================================================================
 // 16. ENDPOINT IMPOR FOXPRO (.DBF) - TANPA MULTER (PURE EXPRESS)
 // ============================================================================
-
 app.post("/api/impor-foxpro-online", async (req, res) => {
   if (!db) {
     return res
@@ -635,26 +634,29 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           });
         }
 
+        // 🔄 INDIKATOR 1: Awal proses masuk
+        console.log(`\n==================================================`);
+        console.log(`🚀 [START] Memproses Impor Foxpro Online`);
         console.log(
-          `📂 Memproses Impor Foxpro: Cabang ${kode_cabang}, Masa ${masa}`,
+          `📍 Cabang : ${kode_cabang} | Masa: ${masa} | Tahun: ${tahun}`,
         );
-        // === FUNGSI PARSE BARU: Menggunakan dbf-reader secara benar ===
-        // === FUNGSI PARSE FINAL: Menggunakan Dbf.read() secara sinkronus ===
+        console.log(`==================================================`);
+
+        // === FUNGSI PARSE SINKRONUS ===
         const parseDbf = (fileBuffer) => {
           const { Dbf } = require("dbf-reader");
-
-          // dbf-reader membaca buffer secara langsung menggunakan metode .read()
           const datatable = Dbf.read(fileBuffer);
-
-          // Jika data berhasil dibaca, kembalikan array rows, jika gagal kembalikan array kosong
           return datatable ? datatable.rows : [];
         };
 
-        console.log("⏳ Membaca file CDG...");
-        const dataCdg = parseDbf(fileCdg); // Hapus await, panggil langsung
+        // ⏳ INDIKATOR 2: Membaca berkas memory
+        console.log("⏳ [1/4] Membaca file CDG ke memori...");
+        const dataCdg = parseDbf(fileCdg);
+        console.log(`✅ [OK] Terbaca ${dataCdg.length} record di CDG.`);
 
-        console.log("⏳ Membaca file CDD...");
-        const dataCdd = parseDbf(fileCdd); // Hapus await, panggil langsung
+        console.log("⏳ [2/4] Membaca file CDD ke memori...");
+        const dataCdd = parseDbf(fileCdd);
+        console.log(`✅ [OK] Terbaca ${dataCdd.length} record di CDD.`);
 
         const tableName = `transaksi${tahun}`.toLowerCase();
 
@@ -662,7 +664,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
         const resCheck = await db.query(checkQuery, [tableName]);
         if (!resCheck.rows[0].exists) {
-          console.log(`🛠️ Membuat tabel tahunan: ${tableName}`);
+          console.log(`🛠️ [SETUP] Membuat tabel tahunan baru: ${tableName}`);
           await db.query(
             `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
           );
@@ -672,7 +674,9 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         try {
           await client.query("BEGIN");
 
-          // Hapus data lama
+          console.log(
+            `🧹 [3/4] Menghapus data lama untuk Masa ${masa} Cabang ${kode_cabang}...`,
+          );
           await client.query(
             `DELETE FROM ${tableName} WHERE masa = $1 AND cabang = $2`,
             [masa, kode_cabang],
@@ -680,7 +684,9 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
 
           const queryText = `INSERT INTO ${tableName} (id, masa, cabang, data) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
 
-          // Insert CDG
+          // 💾 INDIKATOR 3: Log Perulangan Data CDG
+          console.log(`📥 [4/4] Memasukkan data CDG ke PostgreSQL...`);
+          let countCdg = 0;
           for (const row of dataCdg) {
             const id = `CDG_${kode_cabang}_${masa}_${row.NO_BUKTI || row.ID || Math.random().toString(36).substr(2, 5)}`;
             await client.query(queryText, [
@@ -689,9 +695,19 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
               kode_cabang,
               JSON.stringify(row),
             ]);
+
+            countCdg++;
+            // Memunculkan log kemajuan setiap kelipatan 100 baris data
+            if (countCdg % 100 === 0 || countCdg === dataCdg.length) {
+              console.log(
+                `   └─ 🟩 Progress CDG: ${countCdg}/${dataCdg.length} data berhasil diproses.`,
+              );
+            }
           }
 
-          // Insert CDD
+          // 💾 INDIKATOR 4: Log Perulangan Data CDD
+          console.log(`📥 Memasukkan data CDD ke PostgreSQL...`);
+          let countCdd = 0;
           for (const row of dataCdd) {
             const id = `CDD_${kode_cabang}_${masa}_${row.NO_BUKTI || row.ID || Math.random().toString(36).substr(2, 5)}`;
             await client.query(queryText, [
@@ -700,12 +716,27 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
               kode_cabang,
               JSON.stringify(row),
             ]);
+
+            countCdd++;
+            // Memunculkan log kemajuan setiap kelipatan 100 baris data
+            if (countCdd % 100 === 0 || countCdd === dataCdd.length) {
+              console.log(
+                `   └─ 🟨 Progress CDD: ${countCdd}/${dataCdd.length} data berhasil diproses.`,
+              );
+            }
           }
 
           await client.query("COMMIT");
+
+          // 🎉 INDIKATOR 5: Selesai Sukses
+          console.log(`==================================================`);
           console.log(
-            `✅ Impor sukses untuk masa ${masa} cabang ${kode_cabang}`,
+            `🎉 [SUKSES] Impor selesai untuk masa ${masa} cabang ${kode_cabang}`,
           );
+          console.log(
+            `Total data tersimpan: ${countCdg} CDG & ${countCdd} CDD di tabel [${tableName}]`,
+          );
+          console.log(`==================================================\n`);
 
           res.json({
             success: true,
@@ -714,7 +745,10 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           });
         } catch (txError) {
           await client.query("ROLLBACK");
-          console.error("❌ Error transaksi DB:", txError);
+          console.error(
+            "❌ [ERROR TRANSACTION] Gagal eksekusi query:",
+            txError,
+          );
           res.status(500).json({
             success: false,
             message: "Gagal simpan DB: " + txError.message,
@@ -723,14 +757,17 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           client.release();
         }
       } catch (innerErr) {
-        console.error("❌ Error di proses upload:", innerErr);
+        console.error(
+          "❌ [ERROR PROCESS] Terjadi kesalahan di dalam busboy:",
+          innerErr,
+        );
         res.status(500).json({ success: false, message: innerErr.message });
       }
     });
 
     req.pipe(bb);
   } catch (error) {
-    console.error("❌ Error proses Impor Foxpro:", error);
+    console.error("❌ [ERROR API] Gagal memproses request:", error);
     res.status(500).json({ success: false, message: error.message });
   }
 });
