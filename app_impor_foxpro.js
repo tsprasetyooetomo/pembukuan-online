@@ -1,6 +1,6 @@
 const AppImporFoxpro = {
   API_URL: window.location.origin + "/api/impor-foxpro-online",
-  files: { cdg: [], cdd: [] }, // ganti jadi array
+  files: { cdg: [], cdd: [], det: [] }, // ganti jadi array
 
   getHTML() {
     let opsiCabang = `<option value="" disabled selected>-- Pilih Cabang --</option>`;
@@ -85,7 +85,7 @@ const AppImporFoxpro = {
 
   parseName(fileName) {
     const n = fileName.toUpperCase().replace(".DBF", "");
-    const m = n.match(/^(CDG|CDD)(\d{2})(\d{2})(\d{2})$/);
+    const m = n.match(/^(CDG|CDD|DET)(\d{2})(\d{2})(\d{2})$/);
     if (!m) return null;
     return { type: m[1], kode: m[2], bulan: m[3], tahun2digit: m[4] };
   },
@@ -103,6 +103,7 @@ const AppImporFoxpro = {
       if (p.kode === kode && p.tahun2digit === tahun2) {
         if (p.type === "CDG") this.files.cdg.push({ file: f, info: p });
         if (p.type === "CDD") this.files.cdd.push({ file: f, info: p });
+        if (p.type === "DET") this.files.cdd.push({ file: f, info: p });
       }
     });
 
@@ -127,7 +128,7 @@ const AppImporFoxpro = {
     // Urutkan by bulan
     this.files.cdg.sort((a, b) => a.info.bulan - b.info.bulan);
     this.files.cdd.sort((a, b) => a.info.bulan - b.info.bulan);
-
+    this.files.det.sort((a, b) => a.info.bulan - b.info.bulan);
     let html = "";
     let bulanValid = [];
 
@@ -135,13 +136,13 @@ const AppImporFoxpro = {
       const bln = String(i).padStart(2, "0");
       const cdg = this.files.cdg.find((f) => f.info.bulan === bln);
       const cdd = this.files.cdd.find((f) => f.info.bulan === bln);
-
-      if (cdg && cdd) {
+      const det = this.files.det.find((f) => f.info.bulan === bln);
+      if (cdg && cdd && det) {
         html += `<div style="color: #10b981; margin-bottom: 0.3rem;">
-          <i class="fa-solid fa-check"></i> Bulan ${bln}: ${cdg.file.name} + ${cdd.file.name}
+          <i class="fa-solid fa-check"></i> Bulan ${bln}: ${cdg.file.name} + ${cdd.file.name}+ ${det.file.name}
         </div>`;
         bulanValid.push(bln);
-      } else if (cdg || cdd) {
+      } else if (cdg || cdd || det) {
         html += `<div style="color: #fbbf24; margin-bottom: 0.3rem;">
           <i class="fa-solid fa-triangle-exclamation"></i> Bulan ${bln}: File tidak lengkap
         </div>`;
@@ -178,8 +179,8 @@ const AppImporFoxpro = {
         const bln = String(i).padStart(2, "0");
         const cdg = this.files.cdg.find((f) => f.info.bulan === bln);
         const cdd = this.files.cdd.find((f) => f.info.bulan === bln);
-
-        if (cdg && cdd) {
+        const det = this.files.det.find((f) => f.info.bulan === bln);
+        if (cdg && cdd && det) {
           const fd = new FormData();
           fd.append("kode_cabang", kode);
           fd.append("tahun", tahun4);
@@ -187,7 +188,7 @@ const AppImporFoxpro = {
           fd.append("masa", bln + cdg.info.tahun2digit);
           fd.append("file_cdg", cdg.file);
           fd.append("file_cdd", cdd.file);
-
+          fd.append("file_det", det.file);
           const res = await fetch(this.API_URL, { method: "POST", body: fd });
           const data = await res.json();
 
