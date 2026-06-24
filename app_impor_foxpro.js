@@ -1,6 +1,6 @@
 const AppImporFoxpro = {
   API_URL: window.location.origin + "/api/impor-foxpro-online",
-  files: { cdg: [], cdd: [], det: [] },
+  files: { cdg: [], cdd: [] }, // ganti jadi array
 
   getHTML() {
     let opsiCabang = `<option value="" disabled selected>-- Pilih Cabang --</option>`;
@@ -31,14 +31,14 @@ const AppImporFoxpro = {
 
         <form id="formImporFoxpro">
           <div style="margin-bottom: 2rem;">
-            <label style="display: block; color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Cabang</label>
+            <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Cabang</label>
             <select id="impCabang" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace;">
               ${opsiCabang}
             </select>
           </div>
 
           <div style="margin-bottom: 1.5rem;">
-            <label style="display: block; color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Tahun</label>
+            <label style="display: block; color: #151414; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Tahun</label>
             <select id="impTahun" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace;">
               ${opsiTahun}
             </select>
@@ -53,14 +53,6 @@ const AppImporFoxpro = {
                 Klik untuk pilih folder
               </div>
             </div>
-          </div>
-
-          <!-- PROGRESS BAR -->
-          <div id="progressBox" style="display:none;margin-bottom:1.5rem">
-            <div style="background:var(--bg2);border-radius:8px;height:24px;overflow:hidden;border:1px solid var(--brd)">
-              <div id="progressBar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),#fbbf24);transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#000;font-weight:700;font-size:0.75rem"></div>
-            </div>
-            <div id="progressText" style="font-size:.75rem;color:var(--muted);margin-top:.5rem;text-align:center">Menunggu...</div>
           </div>
 
           <div id="statusBox" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 0.8rem; max-height: 200px; overflow-y: auto;">
@@ -93,7 +85,7 @@ const AppImporFoxpro = {
 
   parseName(fileName) {
     const n = fileName.toUpperCase().replace(".DBF", "");
-    const m = n.match(/^(CDG|CDD|DET)(\d{2})(\d{2})(\d{2})$/);
+    const m = n.match(/^(CDG|CDD)(\d{2})(\d{2})(\d{2})$/);
     if (!m) return null;
     return { type: m[1], kode: m[2], bulan: m[3], tahun2digit: m[4] };
   },
@@ -111,7 +103,6 @@ const AppImporFoxpro = {
       if (p.kode === kode && p.tahun2digit === tahun2) {
         if (p.type === "CDG") this.files.cdg.push({ file: f, info: p });
         if (p.type === "CDD") this.files.cdd.push({ file: f, info: p });
-        if (p.type === "DET") this.files.cdd.push({ file: f, info: p });
       }
     });
 
@@ -133,9 +124,9 @@ const AppImporFoxpro = {
     const infoMasa = document.getElementById("infoMasa");
     const btn = document.getElementById("btnSubmit");
 
+    // Urutkan by bulan
     this.files.cdg.sort((a, b) => a.info.bulan - b.info.bulan);
     this.files.cdd.sort((a, b) => a.info.bulan - b.info.bulan);
-    this.files.det.sort((a, b) => a.info.bulan - b.info.bulan);
 
     let html = "";
     let bulanValid = [];
@@ -144,21 +135,27 @@ const AppImporFoxpro = {
       const bln = String(i).padStart(2, "0");
       const cdg = this.files.cdg.find((f) => f.info.bulan === bln);
       const cdd = this.files.cdd.find((f) => f.info.bulan === bln);
-      const det = this.files.cdd.find((f) => f.info.bulan === bln);
 
-      if (cdg && cdd && det) {
-        html += `<div style="color: #10b981; margin-bottom: 0.3rem;"><i class="fa-solid fa-check"></i> Bulan ${bln}: ${cdg.file.name} + ${cdd.file.name}</div>`;
+      if (cdg && cdd) {
+        html += `<div style="color: #10b981; margin-bottom: 0.3rem;">
+          <i class="fa-solid fa-check"></i> Bulan ${bln}: ${cdg.file.name} + ${cdd.file.name}
+        </div>`;
         bulanValid.push(bln);
-      } else if (cdg || cdd || det) {
-        html += `<div style="color: #fbbf24; margin-bottom: 0.3rem;"><i class="fa-solid fa-triangle-exclamation"></i> Bulan ${bln}: File tidak lengkap</div>`;
+      } else if (cdg || cdd) {
+        html += `<div style="color: #fbbf24; margin-bottom: 0.3rem;">
+          <i class="fa-solid fa-triangle-exclamation"></i> Bulan ${bln}: File tidak lengkap
+        </div>`;
       } else {
-        html += `<div style="color: #64748b; margin-bottom: 0.3rem;"><i class="fa-solid fa-minus"></i> Bulan ${bln}: File tidak ditemukan</div>`;
+        html += `<div style="color: #64748b; margin-bottom: 0.3rem;">
+          <i class="fa-solid fa-minus"></i> Bulan ${bln}: File tidak ditemukan
+        </div>`;
       }
     }
 
     listFile.innerHTML = html;
     infoMasa.innerHTML = `<i class="fa-solid fa-info-circle"></i> Siap upload: ${bulanValid.length} bulan | Cabang ${kode} | Tahun ${tahun4}`;
 
+    // Aktif selama ada minimal 1 bulan lengkap
     const ok = bulanValid.length > 0;
     btn.disabled = !ok;
     btn.style.opacity = ok ? "1" : "0.5";
@@ -169,42 +166,20 @@ const AppImporFoxpro = {
     e.preventDefault();
     const btn = document.getElementById("btnSubmit");
     const loading = document.getElementById("loadingOv");
-    const progressBox = document.getElementById("progressBox");
-    const progressBar = document.getElementById("progressBar");
-    const progressText = document.getElementById("progressText");
-
     const kode = document.getElementById("impCabang").value;
     const tahun4 = document.getElementById("impTahun").value;
 
     try {
       loading?.classList.add("show");
       btn.disabled = true;
-      progressBox.style.display = "block";
 
-      // Hitung total bulan yang akan diupload
-      let totalBulan = 0;
+      // Loop per bulan yang lengkap
       for (let i = 1; i <= 12; i++) {
         const bln = String(i).padStart(2, "0");
         const cdg = this.files.cdg.find((f) => f.info.bulan === bln);
         const cdd = this.files.cdd.find((f) => f.info.bulan === bln);
-        const det = this.files.det.find((f) => f.info.bulan === bln);
-        if (cdg && cdd && det) totalBulan++;
-      }
 
-      let bulanKe = 0;
-
-      // Loop per bulan
-      for (let i = 1; i <= 12; i++) {
-        const bln = String(i).padStart(2, "0");
-        const cdg = this.files.cdg.find((f) => f.info.bulan === bln);
-        const cdd = this.files.cdd.find((f) => f.info.bulan === bln);
-        const det = this.files.det.find((f) => f.info.bulan === bln);
-        if (cdg && cdd && det) {
-          bulanKe++;
-          progressText.textContent = `Upload bulan ${bln}... 0%`;
-          progressBar.style.width = "0%";
-          progressBar.textContent = "0%";
-
+        if (cdg && cdd) {
           const fd = new FormData();
           fd.append("kode_cabang", kode);
           fd.append("tahun", tahun4);
@@ -212,61 +187,22 @@ const AppImporFoxpro = {
           fd.append("masa", bln + cdg.info.tahun2digit);
           fd.append("file_cdg", cdg.file);
           fd.append("file_cdd", cdd.file);
-          fd.append("file_det", det.file);
-          // Pakai XHR biar bisa baca SSE streaming
-          await new Promise((resolve, reject) => {
-            const xhr = new XMLHttpRequest();
-            xhr.open("POST", this.API_URL);
 
-            xhr.onreadystatechange = function () {
-              if (xhr.readyState === 3) {
-                // streaming
-                const lines = xhr.responseText.split("\n\n");
-                const lastLine = lines[lines.length - 2];
-                if (lastLine && lastLine.startsWith("data: ")) {
-                  try {
-                    const data = JSON.parse(lastLine.replace("data: ", ""));
-                    // Gabung progress bulan ke + progress internal backend
-                    const baseProgress = ((bulanKe - 1) / totalBulan) * 100;
-                    const currentProgress =
-                      (data.percent / 100) * (100 / totalBulan);
-                    const totalProgress = Math.round(
-                      baseProgress + currentProgress,
-                    );
+          const res = await fetch(this.API_URL, { method: "POST", body: fd });
+          const data = await res.json();
 
-                    progressBar.style.width = totalProgress + "%";
-                    progressBar.textContent = totalProgress + "%";
-                    progressText.textContent = `Bulan ${bln}/${bulanKe} - ${data.message}`;
-
-                    if (data.percent === 100) {
-                      if (!data.success) {
-                        reject(new Error(data.message));
-                      } else {
-                        resolve();
-                      }
-                    }
-                  } catch (err) {}
-                }
-              }
-            };
-
-            xhr.onerror = () => reject(new Error("Network error"));
-            xhr.send(fd);
-          });
+          if (!res.ok || !data.success) {
+            throw new Error(`Gagal upload bulan ${bln}: ${data.message}`);
+          }
         }
       }
 
-      toast(
-        `Sukses! ${totalBulan} bulan data cabang ${kode} tahun ${tahun4} terupload`,
-        "ok",
+      alert(
+        `Sukses! ${this.files.cdg.length} bulan data cabang ${kode} tahun ${tahun4} terupload`,
       );
-      progressBar.style.width = "100%";
-      progressBar.textContent = "100%";
-      progressText.textContent = "Selesai!";
       navigate?.("importFoxpro");
     } catch (err) {
-      toast("Error: " + err.message, "err");
-      progressBar.style.background = "var(--danger)";
+      alert("Error: " + err.message);
     } finally {
       loading?.classList.remove("show");
       btn.disabled = false;
