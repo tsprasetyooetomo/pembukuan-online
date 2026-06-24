@@ -640,22 +640,41 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         );
 
         // === PERUBAHAN: Langsung parse dari Buffer di Memory (Tanpa simpan ke disk) ===
-        const { Readable } = require("stream");
-        const parseDbf = async (fileBuffer) => {
-          const stream = Readable.from(fileBuffer);
-          // dbf-reader mendukung pembacaan dari stream
-          const dbf = await DBFFile.open(stream);
-          return await dbf.readRecords();
-        };
+        // Gunakan os.tmpdir() untuk kompatibilitas Railway (ephemeral storage)
+        const fs = require("fs");
+        const os = require("os");
+        const path = require("path");
 
+        const parseDbf = async (fileBuffer, prefix) => {
+          const tmpPath = path.join(
+            os.tmpdir(),
+            `dbf_${prefix}_${Date.now()}.dbf`,
+          );
+          fs.writeFileSync(tmpPath, fileBuffer);
+
+          // Ambil class DBFFile dengan aman
+          const DbfReaderModule = require("dbf-reader");
+          const DBFFile =
+            DbfReaderModule.DBFFile ||
+            DbfReaderModule.default ||
+            DbfReaderModule;
+
+          // Baca file dari disk
+          const dbf = await DBFFile.open(tmpPath);
+          const records = await dbf.readRecords();
+
+          // Hapus file temporary agar tidak memenuhi disk server
+          fs.unlinkSync(tmpPath);
+
+          return records;
+        };
         console.log("⏳ Membaca file CDG...");
-        const dataCdg = await parseDbf(fileCdg);
+        const dataCdg = await parseDbf(fileCdg, "cdg");
         console.log(`✅ Ditemukan ${dataCdg.length} record di CDG.`);
 
         console.log("⏳ Membaca file CDD...");
-        const dataCdd = await parseDbf(fileCdd);
+        const dataCdd = await parseDbf(fileCdd, "cdd");
         console.log(`✅ Ditemukan ${dataCdd.length} record di CDD.`);
-
         const tableName = `transaksi${tahun}`.toLowerCase();
 
         // Pastikan tabel ada
