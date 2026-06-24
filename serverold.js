@@ -618,7 +618,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     res.write(
       `data: ${JSON.stringify({ percent, message: msg, ...extra })}\n\n`,
     );
-    res.flush(); // WAJIB biar langsung push ke browser
+    //res.flush(); // WAJIB biar langsung push ke browser
   };
 
   try {
