@@ -735,7 +735,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     akhir: getNum(row.AKHIR),
                     cabang: getStr(row.REST) || kode_cabang, // Pakai REST, fallback ke kode_cabang form
                   };
-                  customId = `CDG_${mappedData.cabang}_${masa}_${mappedData.gol || Math.random().toString(36).substr(2, 5)}`;
+                  customId = `CDG_${mappedData.cabang}_${masa}_${mappedData.gol || "X"}_${i + index}`;
                 } else if (typePrefix === "CDD") {
                   // 2. FORMAT PERKIRAAN
                   mappedData = {
@@ -750,7 +750,10 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     akhir: getNum(row.AKHIR),
                     cabang: getStr(row.REST) || kode_cabang,
                   };
-                  customId = `CDD_${mappedData.cabang}_${masa}_${mappedData.noPerk.replace(/\./g, "_") || Math.random().toString(36).substr(2, 5)}`;
+                  // Ditambahkan index urutan agar mutlak unik jika ada sub-account perkiraan yang sama
+                  const cleanNoPerk =
+                    mappedData.noPerk.replace(/\./g, "_") || "X";
+                  customId = `CDD_${mappedData.cabang}_${masa}_${cleanNoPerk}_${i + index}`;
                 } else if (typePrefix === "DET") {
                   // 3. FORMAT TRANSAKSI
                   const dbVal = getNum(row.DB);
@@ -822,12 +825,10 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             "❌ [ERROR TRANSACTION] Gagal eksekusi query:",
             txError,
           );
-          res
-            .status(500)
-            .json({
-              success: false,
-              message: "Gagal simpan DB: " + txError.message,
-            });
+          res.status(500).json({
+            success: false,
+            message: "Gagal simpan DB: " + txError.message,
+          });
         } finally {
           client.release();
         }
