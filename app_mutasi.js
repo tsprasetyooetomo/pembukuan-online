@@ -310,7 +310,9 @@ function renderMutasi() {
     "</div>" +
     "</div>" +
     /* KOLOM KANAN */
-    '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column">' +
+    /* KOLOM KANAN */
+    // Perubahan 1: Ditambahkan height: 100% agar tinggi kolom kanan mengunci sama rata dengan kolom kiri
+    '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;height:100%;box-sizing:border-box">' +
     // ✅ DARI FILE BARU: POSISI BARU Filter Cabang List Pindah ke Puncak Kolom Kanan
     '<div style="margin-bottom:.4rem">' +
     '<div class="fg" style="margin-bottom:0">' +
@@ -331,12 +333,11 @@ function renderMutasi() {
     tahunOpts +
     "</select></div>" +
     "</div>" +
-    '<div id="mutNoreffList" style="flex:1;overflow-y:auto;max-height:180px;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px">' +
+    // Perubahan 2: Menghapus max-height:180px dan menambahkan min-height agar list otomatis memanjang sejajar bawah
+    '<div id="mutNoreffList" style="flex:1;min-height:150px;overflow-y:auto;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px">' +
     '<div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div>' +
     "</div>" +
     '<div id="mutNoreffCount" style="font-size:.65rem;color:var(--muted);margin-top:.3rem;text-align:right"></div>' +
-    "</div>" +
-    "</div>" +
     "</div>" +
     /* TABEL DETIL */
     "<style>" +
