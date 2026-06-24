@@ -55,6 +55,15 @@ const AppImporFoxpro = {
             </div>
           </div>
 
+          <!-- PROGRESS BAR -->
+          <div id="progressBox" style="display:none;margin-bottom:1.5rem">
+            <div style="background:var(--bg2);border-radius:8px;height:28px;overflow:hidden;border:1px solid var(--brd);position:relative">
+              <div id="progressBar" style="width:0%;height:100%;background:linear-gradient(90deg,#3b82f6,#10b981);transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:0.8rem"></div>
+            </div>
+            <div id="progressText" style="font-size:.8rem;color:var(--muted);margin-top:.5rem;text-align:center">Menunggu...</div>
+            <div id="progressLog" style="font-size:.7rem;color:var(--muted);margin-top:.3rem;max-height:80px;overflow-y:auto;background:rgba(0,0,0,0.2);padding:.5rem;border-radius:4px"></div>
+          </div>
+
           <div id="statusBox" style="display: none; margin-bottom: 1.5rem; padding: 1rem; background: rgba(0,0,0,0.2); border-radius: 4px; font-size: 0.8rem; max-height: 200px; overflow-y: auto;">
             <div id="listFile"></div>
             <div id="infoMasa" style="margin-top: 0.75rem; color: #60a5fa;"></div>
@@ -92,7 +101,6 @@ const AppImporFoxpro = {
 
   scanFolder(e) {
     const files = Array.from(e.target.files || []);
-    // RESET HARUS 3 ARRAY
     this.files = { cdg: [], cdd: [], det: [] };
 
     const kode = document.getElementById("impCabang")?.value || "";
@@ -104,7 +112,7 @@ const AppImporFoxpro = {
       if (p.kode === kode && p.tahun2digit === tahun2) {
         if (p.type === "CDG") this.files.cdg.push({ file: f, info: p });
         if (p.type === "CDD") this.files.cdd.push({ file: f, info: p });
-        if (p.type === "DET") this.files.det.push({ file: f, info: p }); // FIX: det bukan cdd
+        if (p.type === "DET") this.files.det.push({ file: f, info: p });
       }
     });
 
@@ -124,17 +132,14 @@ const AppImporFoxpro = {
   validate() {
     const kode = document.getElementById("impCabang")?.value || "";
     const tahun4 = document.getElementById("impTahun")?.value || "";
-    const tahun2 = tahun4.slice(-2);
     const listFile = document.getElementById("listFile");
     const infoMasa = document.getElementById("infoMasa");
     const btn = document.getElementById("btnSubmit");
 
-    // GUARD biar nggak error sort
     this.files.cdg = this.files.cdg || [];
     this.files.cdd = this.files.cdd || [];
     this.files.det = this.files.det || [];
 
-    // Urutkan by bulan
     this.files.cdg.sort(
       (a, b) => (a.info.bulan || "00") - (b.info.bulan || "00"),
     );
@@ -186,14 +191,35 @@ const AppImporFoxpro = {
     e.preventDefault();
     const btn = document.getElementById("btnSubmit");
     const loading = document.getElementById("loadingOv");
+    const progressBox = document.getElementById("progressBox");
+    const progressBar = document.getElementById("progressBar");
+    const progressText = document.getElementById("progressText");
+    const progressLog = document.getElementById("progressLog");
+
     const kode = document.getElementById("impCabang")?.value;
     const tahun4 = document.getElementById("impTahun")?.value;
 
     try {
       loading?.classList.add("show");
       btn.disabled = true;
+      progressBox.style.display = "block";
+      progressLog.innerHTML = "";
 
-      let totalUpload = 0;
+      // Hitung total bulan lengkap
+      let totalBulan = 0;
+      for (let i = 1; i <= 12; i++) {
+        const bln = String(i).padStart(2, "0");
+        const cdg = this.files.cdg.find((f) => f.info.bulan === bln);
+        const cdd = this.files.cdd.find((f) => f.info.bulan === bln);
+        const det = this.files.det.find((f) => f.info.bulan === bln);
+        if (cdg && cdd && det) totalBulan++;
+      }
+
+      if (totalBulan === 0)
+        throw new Error("Tidak ada bulan lengkap untuk diupload");
+
+      let bulanKe = 0;
+
       for (let i = 1; i <= 12; i++) {
         const bln = String(i).padStart(2, "0");
         const cdg = this.files.cdg.find((f) => f.info.bulan === bln);
@@ -201,7 +227,11 @@ const AppImporFoxpro = {
         const det = this.files.det.find((f) => f.info.bulan === bln);
 
         if (cdg && cdd && det) {
-          totalUpload++;
+          bulanKe++;
+          progressText.textContent = `Upload bulan ${bln} - 0%`;
+          progressBar.style.width = "0%";
+          progressBar.textContent = "0%";
+
           const fd = new FormData();
           fd.append("kode_cabang", kode);
           fd.append("tahun", tahun4);
@@ -211,21 +241,74 @@ const AppImporFoxpro = {
           fd.append("file_cdd", cdd.file);
           fd.append("file_det", det.file);
 
-          const res = await fetch(this.API_URL, { method: "POST", body: fd });
-          const data = await res.json();
+          await new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open("POST", this.API_URL);
 
-          if (!res.ok || !data.success) {
-            throw new Error(`Gagal upload bulan ${bln}: ${data.message}`);
-          }
+            let lastLine = "";
+            xhr.onreadystatechange = function () {
+              if (xhr.readyState === 3) {
+                // streaming SSE
+                const lines = xhr.responseText.split("\n\n");
+                const newLine = lines[lines.length - 2];
+                if (
+                  newLine &&
+                  newLine.startsWith("data: ") &&
+                  newLine !== lastLine
+                ) {
+                  lastLine = newLine;
+                  try {
+                    const data = JSON.parse(newLine.replace("data: ", ""));
+
+                    // Hitung progress global: bulan sebelumnya + progress bulan ini
+                    const baseProgress = ((bulanKe - 1) / totalBulan) * 100;
+                    const currentProgress =
+                      (data.percent / 100) * (100 / totalBulan);
+                    const totalProgress = Math.round(
+                      baseProgress + currentProgress,
+                    );
+
+                    progressBar.style.width = totalProgress + "%";
+                    progressBar.textContent = totalProgress + "%";
+                    progressText.textContent = `Bulan ${bln} ${bulanKe}/${totalBulan} - ${data.message}`;
+
+                    // Log detail
+                    if (data.message) {
+                      progressLog.innerHTML += `<div style="margin-bottom:2px">${new Date().toLocaleTimeString()} ${data.message}</div>`;
+                      progressLog.scrollTop = progressLog.scrollHeight;
+                    }
+
+                    if (data.percent === 100) {
+                      if (!data.success) {
+                        reject(new Error(data.message));
+                      } else {
+                        resolve(data);
+                      }
+                    }
+                  } catch (err) {}
+                }
+              }
+            };
+
+            xhr.onerror = () => reject(new Error("Network error"));
+            xhr.send(fd);
+          });
         }
       }
 
-      alert(
-        `Sukses! ${totalUpload} bulan data cabang ${kode} tahun ${tahun4} terupload`,
+      toast(
+        `Sukses! ${totalBulan} bulan data cabang ${kode} tahun ${tahun4} terupload`,
+        "ok",
       );
-      navigate?.("importFoxpro");
+      progressBar.style.width = "100%";
+      progressBar.textContent = "100%";
+      progressText.textContent = "Selesai semua!";
+
+      setTimeout(() => navigate?.("importFoxpro"), 1500);
     } catch (err) {
-      alert("Error: " + err.message);
+      toast("Error: " + err.message, "err");
+      progressBar.style.background = "var(--danger)";
+      progressText.textContent = "Gagal: " + err.message;
     } finally {
       loading?.classList.remove("show");
       btn.disabled = false;
