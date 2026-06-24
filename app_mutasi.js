@@ -243,11 +243,8 @@ function renderMutasi() {
     "#mutDetilTbl thead th { position: sticky; top: 0; background: var(--bg2); z-index: 5; }" +
     "#mutNoreffList { max-height: 300px !important; overflow-y: auto !important; }" +
     "</style>" +
-    // ...HTML kamu
-
-    // Bug duplikasi div di file baru sudah diperbaiki di sini (hanya 1 pembuka)
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
-    /* ✅ DARI FILE BARU: BARIS JUDUL UTAMA SEJAJAR (JUDUL + RIWAYAT & BARU) */
+    /* BARIS JUDUL UTAMA */
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)">' +
     '<i class="fa-solid fa-file-circle-plus"></i> Header Transaksi' +
@@ -261,13 +258,13 @@ function renderMutasi() {
     "</button>" +
     "</div>" +
     "</div>" +
-    /* BARIS ISI */
+    /* BARIS ISI (AWAL FLEXBOX) */
     '<div style="display:flex;gap:1rem">' +
     /* KOLOM KIRI */
     '<div style="flex:3">' +
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
     '<div class="fg" style="flex:1"><label>Cabang</label><select id="m_cab" class="in">' +
-    getCabangOpts(firstCab) +
+    getCababangOpts(firstCab) +
     "</select></div>" +
     '<div class="fg" style="flex:1"><label>Kode Bank</label><select id="m_kb" class="in">' +
     kbOpts +
@@ -278,77 +275,56 @@ function renderMutasi() {
     '<div class="fg" style="flex:1"><label>No Ref</label><input id="m_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
     "</div>" +
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
-    '<div class="fg" style="flex:2"><label>Dari / Kepada <span class="req">*</span></label>' +
-    '<input id="m_dkp" class="in" placeholder="Nama pihak terkait"></div>' +
-    '<div class="fg" style="flex:1"><label>Nominal / Rp</label>' +
-    '<input id="m_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
+    '<div class="fg" style="flex:2"><label>Dari / Kepada <span class="req">*</span></label><input id="m_dkp" class="in" placeholder="Nama pihak terkait"></div>' +
+    '<div class="fg" style="flex:1"><label>Nominal / Rp</label><input id="m_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
     "</div>" +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'transaksi\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllDataMutasi(\'transaksi\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
     /* FORM DETIL */
     '<div style="margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--brd)">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
-    '<div style="font-size:.8rem;font-weight:700;color:var(--info)">' +
-    '<i class="fa-solid fa-list-ol"></i> Tambah Detil Jurnal' +
-    "</div>" +
-    '<button type="button" class="btn btn-sm" style="background:var(--info);color:#fff;font-size:.7rem;padding:3px 10px" onclick="printMutasi()">' +
-    '<i class="fa-solid fa-print"></i> Print' +
-    "</button>" +
+    '<div style="font-size:.8rem;font-weight:700;color:var(--info)"><i class="fa-solid fa-list-ol"></i> Tambah Detil Jurnal</div>' +
+    '<button type="button" class="btn btn-sm" style="background:var(--info);color:#fff;font-size:.7rem;padding:3px 10px" onclick="printMutasi()"><i class="fa-solid fa-print"></i> Print</button>' +
     "</div>" +
     '<div style="display:flex;gap:.5rem;align-items:flex-end">' +
-    '<div class="fg" style="flex:2;margin-bottom:0"><label>No Perkiraan <span class="req">*</span></label>' +
-    '<select id="d_perk" class="in">' +
+    '<div class="fg" style="flex:2;margin-bottom:0"><label>No Perkiraan <span class="req">*</span></label><select id="d_perk" class="in">' +
     perkOpts +
     "</select></div>" +
-    '<div class="fg" style="flex:3;margin-bottom:0"><label>Penjelasan <span class="req">*</span></label>' +
-    '<input id="d_penjelasan" class="in" placeholder="Keterangan transaksi"></div>' +
-    '<div class="fg" style="flex:1;margin-bottom:0"><label>Rp <span class="req">*</span></label>' +
-    '<input type="number" id="d_rp" class="in" placeholder="0"></div>' +
-    '<button class="btn btn-a" onclick="SafeaddDetil()" style="margin-bottom:2px">' +
-    '<i class="fa-solid fa-plus"></i> Tambah</button>' +
+    '<div class="fg" style="flex:3;margin-bottom:0"><label>Penjelasan <span class="req">*</span></label><input id="d_penjelasan" class="in" placeholder="Keterangan transaksi"></div>' +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label>Rp <span class="req">*</span></label><input type="number" id="d_rp" class="in" placeholder="0"></div>' +
+    '<button class="btn btn-a" onclick="SafeaddDetil()" style="margin-bottom:2px"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div>" +
     "</div>" +
-    "</div>" +
+    "</div>" /* TUTUP KOLOM KIRI */ +
     /* KOLOM KANAN */
-    /* KOLOM KANAN */
-    // Perubahan 1: Ditambahkan height: 100% agar tinggi kolom kanan mengunci sama rata dengan kolom kiri
-    '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;height:100%;box-sizing:border-box">' +
-    // ✅ DARI FILE BARU: POSISI BARU Filter Cabang List Pindah ke Puncak Kolom Kanan
+    '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
     '<div style="margin-bottom:.4rem">' +
-    '<div class="fg" style="margin-bottom:0">' +
-    '<label style="font-size:.65rem">Filter Cabang List</label>' +
-    '<select id="filter_cabang_list" class="in" style="font-size:.75rem">' +
+    '<div class="fg" style="margin-bottom:0"><label style="font-size:.65rem">Filter Cabang List</label><select id="filter_cabang_list" class="in" style="font-size:.75rem">' +
     cabFilterOpts +
     "</select></div>" +
     "</div>" +
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
-    '<div class="fg" style="flex:1;margin-bottom:0">' +
-    '<label style="font-size:.65rem">Bulan</label>' +
-    '<select id="filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
     bulanOpts +
     "</select></div>" +
-    '<div class="fg" style="flex:1;margin-bottom:0">' +
-    '<label style="font-size:.65rem">Tahun</label>' +
-    '<select id="filter_tahun" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Tahun</label><select id="filter_tahun" class="in" style="font-size:.75rem;padding:3px 5px">' +
     tahunOpts +
     "</select></div>" +
     "</div>" +
-    // Perubahan 2: Menghapus max-height:180px dan menambahkan min-height agar list otomatis memanjang sejajar bawah
-    // Mengubah min-height menjadi height statis, dan menghapus flex:1
     '<div id="mutNoreffList" style="height:180px;overflow-y:auto;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px">' +
     '<div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div>' +
     "</div>" +
     '<div id="mutNoreffCount" style="font-size:.65rem;color:var(--muted);margin-top:.3rem;text-align:right"></div>' +
-    "</div>" +
-    /* TABEL DETIL */
+    "</div>" /* TUTUP KOLOM KANAN */ +
+    "</div>" /* 💡 KUNCI PERBAIKAN: Menutup 'baris isi' agar tabel detail tidak masuk layout flexbox kesamping */ +
+    /* TABEL DETIL (SEKARANG SUDAH DI BAWAH) */
     "<style>" +
-    "#mutDetilTbl { display: block !important; max-height: 450px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
-    // Tambahkan width: 100% !important; pada baris pertama style
     "#mutDetilTbl { display: block !important; width: 100% !important; max-height: 450px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
     "#mutDetilTbl th { position: sticky !important; top: 0 !important; background: var(--bg2) !important; z-index: 2; }" +
     "</style>" +
-    '<div style="font-size:.85rem;font-weight:700;margin-bottom:.4rem">Riwayat Detil Transaksi</div>' +
-    '<div id="mutDetilTbl" class="tw"></div>'
+    '<div style="font-size:.85rem;font-weight:700;margin-top:1rem;margin-bottom:.4rem">Riwayat Detil Transaksi</div>' +
+    '<div id="mutDetilTbl" class="tw"></div>' +
+    "</div>" /* TUTUP UTAMA CONTAINER */
   );
 }
 
