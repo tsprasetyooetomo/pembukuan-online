@@ -595,8 +595,6 @@ app.post("/api/saldo-harian", async (req, res) => {
 // ============================================================================
 // 16. ENDPOINT IMPOR FOXPRO (.DBF) - TANPA MULTER (PURE EXPRESS)
 // ============================================================================
-const express = require("express");
-const router = express.Router();
 
 app.post("/api/impor-foxpro-online", async (req, res) => {
   if (!db)
@@ -717,12 +715,10 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         } catch (txError) {
           await client.query("ROLLBACK");
           console.error("❌ Error transaksi DB:", txError);
-          res
-            .status(500)
-            .json({
-              success: false,
-              message: "Gagal simpan DB: " + txError.message,
-            });
+          res.status(500).json({
+            success: false,
+            message: "Gagal simpan DB: " + txError.message,
+          });
         } finally {
           client.release();
         }
