@@ -3716,7 +3716,7 @@ async function terapkanOpsiRLLebar() {
       "NOV",
       "DES",
     ];
-    var mapGolongan = {}; // {gol: {gol, namaGol, cabang, bulan:{01:val,02:val,...}, total:0}}
+    var mapGolongan = {};
 
     for (var bln = 1; bln <= 12; bln++) {
       var blnStr = ("0" + bln).slice(-2);
@@ -3760,7 +3760,7 @@ async function terapkanOpsiRLLebar() {
 
     if (listGol.length === 0) {
       area.innerHTML =
-        '<div style="padding:3rem;text-align:center;color:var(--muted);">Data kosong</div>';
+        '<div style="padding:3rem;text-align:center;color:#888;">Data kosong</div>';
       return;
     }
 
@@ -3769,7 +3769,7 @@ async function terapkanOpsiRLLebar() {
       valTahun +
       "</div>";
     html +=
-      '<div style="overflow-x:auto;border:1px solid #333;"><table border="1" style="width:100%;border-collapse:collapse;color:#fff;border:1px solid #444;background:#000;">';
+      '<div style="overflow-x:auto;border:1px solid #444;"><table border="1" style="width:100%;border-collapse:collapse;color:#fff;border:1px solid #444;background:#000;">';
 
     html +=
       '<thead><tr style="background:#1a1a1a;font-weight:bold;color:#fff;">';
@@ -3794,31 +3794,32 @@ async function terapkanOpsiRLLebar() {
     html += "</tr></thead><tbody>";
 
     var currentDigit = null;
-    var subTotalPerBulan = {}; // {01:0, 02:0...12:0}
+    var subTotalPerBulan = {};
     var subTotalYTD = 0;
     for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
 
     function buatBarisKeterangan(teks) {
       html +=
-        '<tr><td colspan="16" style="padding:8px;border:1px solid #444;font-weight:bold;background:#222;color:#fff;">' +
+        '<tr><td colspan="16" style="padding:8px;border:1px solid #444;font-weight:bold;background:#111;color:#fff;">' +
         teks +
         "</td></tr>";
     }
+
     function buatBarisSubtotal(teks, arrBulan, total, warnaBg, doubleTop) {
-      var topBorder = doubleTop ? "border-top:3px double #000;" : "";
+      var topBorder = doubleTop ? "border-top:3px double #fff;" : "";
       html += '<tr style="background:' + warnaBg + ';font-weight:bold;">';
       html +=
-        '<td colspan="2" style="padding:8px;border:1px solid #000;text-align:right;' +
+        '<td colspan="2" style="padding:8px;border:1px solid #444;text-align:right;' +
         topBorder +
-        '">' +
+        'color:#fff;">' +
         teks +
         "</td>";
       for (var b = 1; b <= 12; b++) {
         var blnStr = ("0" + b).slice(-2);
         var val = arrBulan[blnStr] || 0;
         html +=
-          '<td style="padding:8px;border:1px solid #000;text-align:right;color:' +
-          (val >= 0 ? "green" : "red") +
+          '<td style="padding:8px;border:1px solid #444;text-align:right;color:' +
+          (val >= 0 ? "#fff" : "#ff6b6b") +
           ";" +
           topBorder +
           '">' +
@@ -3826,17 +3827,17 @@ async function terapkanOpsiRLLebar() {
           "</td>";
       }
       html +=
-        '<td style="padding:8px;border:1px solid #000;text-align:right;color:' +
-        (total >= 0 ? "green" : "red") +
+        '<td style="padding:8px;border:1px solid #444;text-align:right;color:' +
+        (total >= 0 ? "#fff" : "#ff6b6b") +
         ";" +
         topBorder +
         '">' +
         formatUang(total) +
         "</td>";
       html +=
-        '<td style="padding:8px;border:1px solid #000;' +
+        '<td style="padding:8px;border:1px solid #444;' +
         topBorder +
-        '"></td></tr>';
+        'color:#fff;"></td></tr>';
     }
 
     for (var i = 0; i < listGol.length; i++) {
@@ -3858,7 +3859,7 @@ async function terapkanOpsiRLLebar() {
         if (currentDigit === "4") ket = "TOTAL HPP";
         if (currentDigit === "5") ket = "TOTAL BY ADM & UMUM";
         if (currentDigit === "6") ket = "TOTAL BEBAN LAINNYA";
-        buatBarisSubtotal(ket, arrSub, totalSub, "#d6d8db", false);
+        buatBarisSubtotal(ket, arrSub, totalSub, "#1a1a1a", false);
 
         if (currentDigit === "4") {
           var labKotor =
@@ -3886,12 +3887,12 @@ async function terapkanOpsiRLLebar() {
               arrSub["10"] +
               arrSub["11"] +
               arrSub["12"]);
-          // hitung Laba Kotor per bulan: 3xx + 4xx
+
           var arrLabaKotor = {};
           var totalLabaKotor = 0;
           for (var b = 1; b <= 12; b++) {
             var bs = ("0" + b).slice(-2);
-            arrLabaKotor[bs] = subTotalPerBulan[bs] * 0 + 0; // placeholder, nanti dihitung ulang
+            arrLabaKotor[bs] = subTotalPerBulan[bs] * 0 + 0;
           }
         }
 
@@ -3916,32 +3917,32 @@ async function terapkanOpsiRLLebar() {
         valTahun +
         "','" +
         valCabang +
-        '\')" style="padding:6px;border:1px solid #000;cursor:pointer;color:blue;font-weight:bold;text-decoration:underline;">' +
+        '\')" style="padding:6px;border:1px solid #444;cursor:pointer;color:#4da3ff;font-weight:bold;text-decoration:underline;">' +
         item.gol +
         "</td>";
       html +=
-        '<td style="padding:6px;border:1px solid #000;">' +
+        '<td style="padding:6px;border:1px solid #444;color:#fff;">' +
         item.namaGol +
         "</td>";
       for (var b = 1; b <= 12; b++) {
         var bs = ("0" + b).slice(-2);
         var val = num(item.bulan[bs]);
         html +=
-          '<td style="padding:6px;border:1px solid #000;text-align:right;color:' +
-          (val >= 0 ? "#000" : "red") +
+          '<td style="padding:6px;border:1px solid #444;text-align:right;color:' +
+          (val >= 0 ? "#fff" : "#ff6b6b") +
           '">' +
           (val !== 0 ? formatUang(val) : "") +
           "</td>";
         subTotalPerBulan[bs] += val;
       }
       html +=
-        '<td style="padding:6px;border:1px solid #000;text-align:right;font-weight:bold;color:' +
-        (item.total >= 0 ? "green" : "red") +
+        '<td style="padding:6px;border:1px solid #444;text-align:right;font-weight:bold;color:' +
+        (item.total >= 0 ? "#fff" : "#ff6b6b") +
         '">' +
         formatUang(item.total) +
         "</td>";
       html +=
-        '<td style="padding:6px;border:1px solid #000;">' +
+        '<td style="padding:6px;border:1px solid #444;color:#fff;">' +
         item.cabang +
         "</td>";
       html += "</tr>";
@@ -3963,12 +3964,12 @@ async function terapkanOpsiRLLebar() {
       if (currentDigit === "4") ketAkhir = "TOTAL HPP";
       if (currentDigit === "5") ketAkhir = "TOTAL BY ADM & UMUM";
       if (currentDigit === "6") ketAkhir = "TOTAL BEBAN LAINNYA";
-      buatBarisSubtotal(ketAkhir, arrSubAkhir, totalSubAkhir, "#d6d8db", false);
+      buatBarisSubtotal(ketAkhir, arrSubAkhir, totalSubAkhir, "#1a1a1a", false);
     }
 
     // LABA RUGI BERSIH YTD
     html +=
-      '<tr><td colspan="16" style="border:1px solid #000;padding:4px;background:#fff;"></td></tr>';
+      '<tr><td colspan="16" style="border:1px solid #444;padding:4px;background:#000;"></td></tr>';
     var arrTotalBulan = {};
     var grandTotal = 0;
     for (var b = 1; b <= 12; b++) {
@@ -3980,7 +3981,7 @@ async function terapkanOpsiRLLebar() {
       "LABA / RUGI BERSIH YTD",
       arrTotalBulan,
       grandTotal,
-      "#f1f3f5",
+      "#222",
       true,
     );
 
@@ -3989,7 +3990,7 @@ async function terapkanOpsiRLLebar() {
   } catch (e) {
     console.error(e);
     area.innerHTML =
-      '<div style="padding:3rem;text-align:center;color:darkred;">Error: ' +
+      '<div style="padding:3rem;text-align:center;color:#ff6b6b;">Error: ' +
       e.message +
       "</div>";
   }
