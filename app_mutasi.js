@@ -334,7 +334,8 @@ function renderMutasi() {
     "</select></div>" +
     "</div>" +
     // Perubahan 2: Menghapus max-height:180px dan menambahkan min-height agar list otomatis memanjang sejajar bawah
-    '<div id="mutNoreffList" style="flex:1;min-height:150px;overflow-y:auto;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px">' +
+    // Mengubah min-height menjadi height statis, dan menghapus flex:1
+    '<div id="mutNoreffList" style="height:180px;overflow-y:auto;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px">' +
     '<div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div>' +
     "</div>" +
     '<div id="mutNoreffCount" style="font-size:.65rem;color:var(--muted);margin-top:.3rem;text-align:right"></div>' +
