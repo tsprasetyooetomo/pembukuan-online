@@ -626,7 +626,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         const { kode_cabang, tahun, bulan, masa } = fields;
         const fileCdg = files["file_cdg"];
         const fileCdd = files["file_cdd"];
-        const fileDet = files["file_det"]; // Jika nanti ada file DET
+        const fileDet = files["file_det"];
 
         if (!fileCdg || !fileCdd) {
           return res.status(400).json({
@@ -636,9 +636,11 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         }
 
         console.log(`\n==================================================`);
-        console.log(`🚀 [START] Memproses Impor Foxpro Online`);
         console.log(
-          `📍 Cabang : ${kode_cabang} | Masa: ${masa} | Tahun: ${tahun}`,
+          `🚀 [START] Memproses Impor Foxpro Online (Mapping Format)`,
+        );
+        console.log(
+          `📍 Cabang Form: ${kode_cabang} | Masa: ${masa} | Tahun: ${tahun}`,
         );
         console.log(`==================================================`);
 
@@ -664,7 +666,6 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           console.log(`✅ [OK] Terbaca ${dataDet.length} record di DET.`);
         }
 
-        // Definisi 3 tabel tahunan
         const tableGolongan = `golongan${tahun}`.toLowerCase();
         const tablePerkiraan = `perkiraan${tahun}`.toLowerCase();
         const tableTransaksi = `transaksi${tahun}`.toLowerCase();
@@ -673,7 +674,6 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         try {
           await client.query("BEGIN");
 
-          // Fungsi untuk memastikan tabel ada
           const ensureTableExists = async (tableName) => {
             const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
             const resCheck = await client.query(checkQuery, [tableName]);
@@ -682,7 +682,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                 `🛠️ [SETUP] Membuat tabel tahunan baru: ${tableName}`,
               );
               await client.query(
-                `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
+                `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
               );
             }
           };
@@ -691,32 +691,95 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           await ensureTableExists(tablePerkiraan);
           await ensureTableExists(tableTransaksi);
 
-          // === FUNGSI BATCH INSERT DINAMIS ===
+          // === FUNGSI BATCH INSERT DENGAN PEMETAAN KUSTOM ===
           const batchInsert = async (tableName, dataArray, typePrefix) => {
             if (dataArray.length === 0) return 0;
             const batchSize = 500;
             let totalInserted = 0;
 
-            // Hapus data lama di tabel spesifik untuk masa & cabang ini
+            // Hapus data lama dengan filter teks JSON
             await client.query(
-              `DELETE FROM ${tableName} WHERE masa = $1 AND cabang = $2`,
-              [masa, kode_cabang],
+              `DELETE FROM ${tableName} WHERE data LIKE $1 AND data LIKE $2`,
+              [`%"masa":"${masa}"%`, `%"cabang":"${kode_cabang}"%`],
             );
-            console.log(`🧹 Data lama di tabel ${tableName} dihapus.`);
+            console.log(
+              `🧹 Data lama masa ${masa} cabang ${kode_cabang} di ${tableName} dihapus.`,
+            );
 
             for (let i = 0; i < dataArray.length; i += batchSize) {
               const batch = dataArray.slice(i, i + batchSize);
-              let queryText = `INSERT INTO ${tableName} (id, masa, cabang, data) VALUES `;
+              let queryText = `INSERT INTO ${tableName} (id, data) VALUES `;
               let values = [];
               let placeholders = [];
 
               batch.forEach((row, index) => {
-                const id = `${typePrefix}_${kode_cabang}_${masa}_${row.NO_BUKTI || row.ID || Math.random().toString(36).substr(2, 5)}`;
-                const base = index * 4;
-                placeholders.push(
-                  `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4})`,
-                );
-                values.push(id, masa, kode_cabang, JSON.stringify(row));
+                let mappedData = {};
+                let customId = "";
+
+                // Ambil nilai string aman atau fallback default angka 0
+                const getStr = (val) =>
+                  val !== undefined && val !== null ? String(val).trim() : "";
+                const getNum = (val) =>
+                  val !== undefined && val !== null ? Number(val) : 0;
+
+                if (typePrefix === "CDG") {
+                  // 1. FORMAT GOLONGAN
+                  mappedData = {
+                    gol: getStr(row.GOLACCT),
+                    namaGol: getStr(row.PJLSAN),
+                    tipe: "Golongan",
+                    masa: masa,
+                    awal: getNum(row.AWAL),
+                    db: getNum(row.DB),
+                    cr: getNum(row.CR),
+                    akhir: getNum(row.AKHIR),
+                    cabang: getStr(row.REST) || kode_cabang, // Pakai REST, fallback ke kode_cabang form
+                  };
+                  customId = `CDG_${mappedData.cabang}_${masa}_${mappedData.gol || Math.random().toString(36).substr(2, 5)}`;
+                } else if (typePrefix === "CDD") {
+                  // 2. FORMAT PERKIRAAN
+                  mappedData = {
+                    gol: getStr(row.GOLACCT),
+                    noPerk: getStr(row.SUBACCT),
+                    desc: getStr(row.PJLSAN),
+                    tipe: "Perkiraan",
+                    masa: masa,
+                    awal: getNum(row.AWAL),
+                    db: getNum(row.DB),
+                    cr: getNum(row.CR),
+                    akhir: getNum(row.AKHIR),
+                    cabang: getStr(row.REST) || kode_cabang,
+                  };
+                  customId = `CDD_${mappedData.cabang}_${masa}_${mappedData.noPerk.replace(/\./g, "_") || Math.random().toString(36).substr(2, 5)}`;
+                } else if (typePrefix === "DET") {
+                  // 3. FORMAT TRANSAKSI
+                  const dbVal = getNum(row.DB);
+                  const crVal = getNum(row.CR);
+
+                  // ID Transaksi menggunakan format UUID v4 acak + index perulangan untuk menjamin keunikan primer
+                  const crypto = require("crypto");
+                  customId = `${crypto.randomUUID()}_${i + index}`;
+
+                  mappedData = {
+                    id: customId,
+                    noreff: getStr(row.REFF),
+                    tanggal: getStr(row.DATE), // Sesuaikan jika format date perlu diekstrak stringnya YYYY-MM-DD
+                    kodeBank: "",
+                    cabang: getStr(row.KODE) || kode_cabang,
+                    dariKePada: "BANK",
+                    noperkiraan: getStr(row.NOACCT),
+                    desc: getStr(row.DESC),
+                    total: dbVal + crVal, // DB + CR = total
+                    db: dbVal,
+                    cr: crVal,
+                    kodeTrans: "",
+                    masa: masa,
+                  };
+                }
+
+                const base = index * 2;
+                placeholders.push(`($${base + 1}, $${base + 2})`);
+                values.push(customId, JSON.stringify(mappedData));
               });
 
               queryText += placeholders.join(", ");
@@ -731,13 +794,9 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             return totalInserted;
           };
 
-          // Eksekusi Insert ke 3 tabel yang berbeda
           console.log(`📥 [3/4] Memproses Batch Insert...`);
-
           const countCdg = await batchInsert(tableGolongan, dataCdg, "CDG");
           const countCdd = await batchInsert(tablePerkiraan, dataCdd, "CDD");
-
-          // Jika ada file DET yang diupload, akan masuk ke tabel transaksi
           const countDet = await batchInsert(tableTransaksi, dataDet, "DET");
 
           await client.query("COMMIT");
@@ -746,14 +805,11 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           console.log(
             `🎉 [SUKSES] Impor selesai untuk masa ${masa} cabang ${kode_cabang}`,
           );
-          console.log(
-            `Total: ${countCdg} Golongan | ${countCdd} Perkiraan | ${countDet} Transaksi`,
-          );
           console.log(`==================================================\n`);
 
           res.json({
             success: true,
-            message: `Berhasil impor ${countCdg} CDG, ${countCdd} CDD, dan ${countDet} DET`,
+            message: `Berhasil impor ${countCdg} Golongan, ${countCdd} Perkiraan, dan ${countDet} Transaksi`,
             tables: {
               golongan: tableGolongan,
               perkiraan: tablePerkiraan,
@@ -766,10 +822,12 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             "❌ [ERROR TRANSACTION] Gagal eksekusi query:",
             txError,
           );
-          res.status(500).json({
-            success: false,
-            message: "Gagal simpan DB: " + txError.message,
-          });
+          res
+            .status(500)
+            .json({
+              success: false,
+              message: "Gagal simpan DB: " + txError.message,
+            });
         } finally {
           client.release();
         }
