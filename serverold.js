@@ -640,27 +640,22 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         );
 
         // === FUNGSI PARSE BARU: Membaca langsung dari Buffer Memory menggunakan dbf-reader ===
-        const parseDbf = (fileBuffer) => {
-          const DbfReaderModule = require("dbf-reader");
-          const DBFFile =
-            DbfReaderModule.DBFFile ||
-            DbfReaderModule.default ||
-            DbfReaderModule;
+        // === FUNGSI PARSE BARU: Menggunakan dbf-reader secara benar ===
+        const parseDbf = async (fileBuffer) => {
+          const { Dbf } = require("dbf-reader");
 
-          // dbf-reader diinstansiasi dengan operator 'new' dan parameter Buffer
-          const dbf = new DBFFile(fileBuffer);
+          // dbf-reader membaca buffer menggunakan metode statis .from() yang bersifat async
+          const dbf = await Dbf.from(fileBuffer);
 
-          // records adalah properti langsung, bukan method asynchronous
-          return dbf.records;
+          // Mengambil baris data dalam bentuk Array of Object
+          return dbf.rows;
         };
 
         console.log("⏳ Membaca file CDG...");
-        const dataCdg = parseDbf(fileCdg);
-        console.log(`✅ Ditemukan ${dataCdg.length} record di CDG.`);
+        const dataCdg = await parseDbf(fileCdg); //  Benar
 
         console.log("⏳ Membaca file CDD...");
-        const dataCdd = parseDbf(fileCdd);
-        console.log(`✅ Ditemukan ${dataCdd.length} record di CDD.`);
+        const dataCdd = await parseDbf(fileCdd); //  Benar
 
         const tableName = `transaksi${tahun}`.toLowerCase();
 
