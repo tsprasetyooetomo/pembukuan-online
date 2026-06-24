@@ -343,7 +343,8 @@ function renderMutasi() {
     /* TABEL DETIL */
     "<style>" +
     "#mutDetilTbl { display: block !important; max-height: 450px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
-    "#mutDetilTbl table { width: 100% !important; border-collapse: collapse !important; }" +
+    // Tambahkan width: 100% !important; pada baris pertama style
+    "#mutDetilTbl { display: block !important; width: 100% !important; max-height: 450px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
     "#mutDetilTbl th { position: sticky !important; top: 0 !important; background: var(--bg2) !important; z-index: 2; }" +
     "</style>" +
     '<div style="font-size:.85rem;font-weight:700;margin-bottom:.4rem">Riwayat Detil Transaksi</div>' +
