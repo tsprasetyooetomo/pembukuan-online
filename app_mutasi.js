@@ -264,7 +264,7 @@ function renderMutasi() {
     '<div style="flex:3">' +
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
     '<div class="fg" style="flex:1"><label>Cabang</label><select id="m_cab" class="in">' +
-    getCababangOpts(firstCab) +
+    getCabangOpts(firstCab) +
     "</select></div>" +
     '<div class="fg" style="flex:1"><label>Kode Bank</label><select id="m_kb" class="in">' +
     kbOpts +
