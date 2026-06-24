@@ -619,6 +619,7 @@ var MENUS = [
       { id: "detilNeraca", label: "Detil Neraca", icon: "fa-table-list" },
       { id: "rlRekap", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
       { id: "rlDetil", label: "RL Detil Bulanan", icon: "fa-bars-staggered" },
+      { id: "rlLebar", label: "RL rekap 1-12", icon: "fa-bars-staggered" },
       { id: "bukuBesar", label: "Buku Besar", icon: "fa-book" },
       { id: "expXls", label: "Export XLS", icon: "fa-file-excel" },
     ],
@@ -717,6 +718,7 @@ async function navigate(id) {
     "neraca",
     "rlRekap",
     "rlDetil",
+    "rlLebar",
     "detilNeraca",
   ];
 
