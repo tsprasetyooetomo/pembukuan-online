@@ -597,13 +597,13 @@ app.post("/api/saldo-harian", async (req, res) => {
 // ============================================================================
 
 app.post("/api/impor-foxpro-online", async (req, res) => {
-  if (!db)
+  if (!db) {
     return res
       .status(500)
       .json({ success: false, message: "Database tidak terkoneksi" });
+  }
 
   try {
-    const { DBFFile } = require("dbf-reader");
     const busboy = require("busboy");
     const bb = busboy({ headers: req.headers });
 
@@ -639,42 +639,29 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           `📂 Memproses Impor Foxpro: Cabang ${kode_cabang}, Masa ${masa}`,
         );
 
-        // === PERUBAHAN: Langsung parse dari Buffer di Memory (Tanpa simpan ke disk) ===
-        // Gunakan os.tmpdir() untuk kompatibilitas Railway (ephemeral storage)
-        const fs = require("fs");
-        const os = require("os");
-        const path = require("path");
-
-        const parseDbf = async (fileBuffer, prefix) => {
-          const tmpPath = path.join(
-            os.tmpdir(),
-            `dbf_${prefix}_${Date.now()}.dbf`,
-          );
-          fs.writeFileSync(tmpPath, fileBuffer);
-
-          // Ambil class DBFFile dengan aman
+        // === FUNGSI PARSE BARU: Membaca langsung dari Buffer Memory menggunakan dbf-reader ===
+        const parseDbf = (fileBuffer) => {
           const DbfReaderModule = require("dbf-reader");
           const DBFFile =
             DbfReaderModule.DBFFile ||
             DbfReaderModule.default ||
             DbfReaderModule;
 
-          // Baca file dari disk
-          const dbf = await DBFFile.open(tmpPath);
-          const records = await dbf.readRecords();
+          // dbf-reader diinstansiasi dengan operator 'new' dan parameter Buffer
+          const dbf = new DBFFile(fileBuffer);
 
-          // Hapus file temporary agar tidak memenuhi disk server
-          fs.unlinkSync(tmpPath);
-
-          return records;
+          // records adalah properti langsung, bukan method asynchronous
+          return dbf.records;
         };
+
         console.log("⏳ Membaca file CDG...");
-        const dataCdg = await parseDbf(fileCdg, "cdg");
+        const dataCdg = parseDbf(fileCdg);
         console.log(`✅ Ditemukan ${dataCdg.length} record di CDG.`);
 
         console.log("⏳ Membaca file CDD...");
-        const dataCdd = await parseDbf(fileCdd, "cdd");
+        const dataCdd = parseDbf(fileCdd);
         console.log(`✅ Ditemukan ${dataCdd.length} record di CDD.`);
+
         const tableName = `transaksi${tahun}`.toLowerCase();
 
         // Pastikan tabel ada
