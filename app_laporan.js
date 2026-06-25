@@ -3902,7 +3902,7 @@ async function terapkanOpsiRLLebar() {
 
       html += "<tr>";
       html +=
-        "<td onclick=\"lihatDetilPerkiraan('" +
+        "<td onclick=\"lihatDetilTransaksiRLLebar('" +
         item.gol +
         "','YTD" +
         valTahun +
@@ -3920,8 +3920,10 @@ async function terapkanOpsiRLLebar() {
         var val = num(item.bulan[bs]);
 
         html +=
-          '<td style="padding:6px;border:1px solid #444;text-align:right;background-color:#0056b3;color:' +
-          (val >= 0 ? "#fff" : "#ff6b6b") +
+          '<td style="padding:6px;border:1px solid #444;text-align:right;color:'(
+            //   '<td style="padding:6px;border:1px solid #444;text-align:right;background-color:#0056b3;color:' +
+            val >= 0 ? "#fff" : "#ff6b6b",
+          ) +
           '">' +
           (val !== 0 ? formatUang(val) : "") +
           "</td>";
@@ -3992,4 +3994,165 @@ async function terapkanOpsiRLLebar() {
       e.message +
       "</div>";
   }
+}
+function lihatDetilTransaksiRlLebar(noPerkiraan, masa, cabang) {
+  // ← TAMBAH PARAMETER cabang
+
+  // 1. Parsing Tahun dari format MMYY (karena dikirim dari lihatDetilPerkiraan sudah bentuk MMYY)
+  var duadigittahun = masa.substring(2, 4);
+  var tahun = "20" + duadigittahun;
+  var namaStore = "transaksi" + tahun;
+
+  var popupId = "popup_transaksi_" + Date.now();
+
+  // ✅ CEK NILAI TERIMA
+  console.log("📥 [TERIMA] Masa:", masa, "| Cabang:", cabang);
+
+  var popupHtml =
+    '<div id="' +
+    popupId +
+    '" style="position:fixed; top:20px; right:20px; width:45%; max-width:650px; max-height:90vh; background:white; border:1px solid #aaa; box-shadow:0 5px 15px rgba(0,0,0,0.5); z-index:10001; display:flex; flex-direction:column; border-radius:6px;">' +
+    '<div style="padding:10px; background:#f0f0f0; border-bottom:1px solid #ccc; display:flex; justify-content:space-between; align-items:center; border-radius:6px 6px 0 0;">' +
+    '<strong style="font-size:0.9rem; color:#333;">Detil Transaksi: ' +
+    noPerkiraan +
+    "</strong>" +
+    "<button onclick=\"document.getElementById('" +
+    popupId +
+    '\').remove()" style="background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:#555;">&times;</button>' +
+    "</div>" +
+    '<div id="' +
+    popupId +
+    '_body" style="padding:10px; overflow-y:auto; flex:1; font-size:0.8rem;">' +
+    '<div style="text-align:center; padding:20px; color:#666;">Loading...</div>' +
+    "</div>" +
+    "</div>";
+
+  document.body.insertAdjacentHTML("beforeend", popupHtml);
+  var container = document.getElementById(popupId + "_body");
+
+  db.getAll(namaStore)
+    .then(function (rawData) {
+      var listTrans = Array.isArray(rawData) ? rawData : [];
+
+      // Masa sudah dalam format MMYY, jadi langsung gunakan
+      var masaCari = masa;
+      console.log("🔢 [HASIL] Masa Dicari di DB:", masaCari);
+
+      // ✅ GUNAKAN PARAMETER CABANG YANG DITERIMA DARI ONCLICK
+      var cabInput = String(cabang || "")
+        .trim()
+        .toUpperCase();
+
+      // ✅ PERBAIKAN LOGIKA MAPPING CABANG
+      var cabFilter = cabInput;
+      if (cabInput === "PUSAT") {
+        cabFilter = "00"; // Jika user pilih PUSAT, cari kode 00
+      }
+
+      console.log(
+        "🔍 Mencori Cabang Input:",
+        cabInput,
+        "-> Dikonversi ke Kode DB:",
+        cabFilter,
+      );
+
+      // Filter Data
+      var detilTrans = listTrans.filter(function (t) {
+        var tNo = String(t.noperkiraan || "").trim();
+        var tCab = String(t.cabang || "")
+          .trim()
+          .toUpperCase(); // Pastikan uppercase
+        var tMasa = String(t.masa || "").trim();
+
+        // ✅ LOGIKA CABANG: Jika "ALL", abaikan filter cabang. Jika spesifik, harus cocok.
+        var cocokCabang = true;
+        if (cabFilter !== "ALL" && cabFilter !== "") {
+          cocokCabang = tCab === cabFilter;
+        }
+
+        return tNo === noPerkiraan && tMasa === masaCari && cocokCabang;
+      });
+
+      if (detilTrans.length === 0) {
+        container.innerHTML =
+          '<div style="text-align:center; padding:20px; color:orange;">' +
+          "Data tidak ditemukan.<br><br>" +
+          "<small>Dicari No Perkiraan: " +
+          noPerkiraan +
+          " | Masa: " +
+          masaCari +
+          " | Cabang Kode: " +
+          cabFilter +
+          "</small>" +
+          "</div>";
+        return;
+      }
+
+      // Render Tabel
+      var tableHtml =
+        '<div style="overflow-x:auto; background-color:#000000; color:#ffffff;">' +
+        '<table style="width:100%; border-collapse:collapse; font-size:0.75rem; min-width:500px; background-color:#000000; color:#ffffff;">' +
+        '<thead style="background:#1a1a1a; position:sticky; top:0; color:#ffffff;"><tr>' +
+        '<th style="border:1px solid #444; padding:5px;">TANGGAL</th>' +
+        '<th style="border:1px solid #444; padding:5px;">NOREFF</th>' +
+        '<th style="border:1px solid #444; padding:5px;">DESC</th>' +
+        '<th style="border:1px solid #444; padding:5px; text-align:right;">DEBET</th>' +
+        '<th style="border:1px solid #444; padding:5px; text-align:right;">KREDIT</th>' +
+        "</tr></thead><tbody>";
+
+      var totalDb = 0;
+      var totalCr = 0;
+
+      detilTrans.forEach(function (t) {
+        var tgl = t.tanggal || "-";
+        var ref = t.noreff || "-";
+        var ket = t.desc || "-";
+        var dbVal = num(t.db || 0);
+        var crVal = num(t.cr || 0);
+
+        totalDb += dbVal;
+        totalCr += crVal;
+
+        tableHtml +=
+          "<tr>" +
+          '<td style="border:1px solid #ddd; padding:4px;">' +
+          tgl +
+          "</td>" +
+          '<td style="border:1px solid #ddd; padding:4px;">' +
+          ref +
+          "</td>" +
+          '<td style="border:1px solid #ddd; padding:4px;">' +
+          ket +
+          "</td>" +
+          '<td style="border:1px solid #ddd; padding:4px; text-align:right;">' +
+          fmtN(dbVal) +
+          "</td>" +
+          '<td style="border:1px solid #ddd; padding:4px; text-align:right;">' +
+          fmtN(crVal) +
+          "</td>" +
+          "</tr>";
+      });
+
+      // ✅ TAMBAHAN: Baris Total di bawah tabel
+      tableHtml +=
+        '<tr style="background:#f4f4f4; font-weight:bold;">' +
+        '<td colspan="3" style="border:1px solid #ccc; padding:5px; text-align:right;">TOTAL</td>' +
+        '<td style="border:1px solid #ccc; padding:5px; text-align:right;">' +
+        fmtN(totalDb) +
+        "</td>" +
+        '<td style="border:1px solid #ccc; padding:5px; text-align:right;">' +
+        fmtN(totalCr) +
+        "</td>" +
+        "</tr>";
+
+      tableHtml += "</tbody></table></div>";
+      container.innerHTML = tableHtml;
+    })
+    .catch(function (err) {
+      console.error(err);
+      container.innerHTML =
+        '<div style="text-align:center; padding:20px; color:red;">Error: ' +
+        err.message +
+        "</div>";
+    });
 }
