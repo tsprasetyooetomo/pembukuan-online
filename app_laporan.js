@@ -3774,7 +3774,7 @@ async function terapkanOpsiRLLebar() {
     html +=
       '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">CABANG</th>';
     html +=
-      '</tr><tr style="background:#1a1a1a;font-weight:bold;color:#fff;text-align:centre">';
+      '</tr><tr style="background:#1a1a1a;font-weight:bold;color:#fff;text-align:center">';
 
     namaBulan.forEach(
       (nb) =>
