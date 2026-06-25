@@ -3786,8 +3786,15 @@ async function terapkanOpsiRLLebar() {
 
     var currentDigit = null;
     var subTotalPerBulan = {};
-    var subTotalYTD = 0;
-    for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
+    var akumulasiLabaRugiPerBulan = {};
+    for (var b = 1; b <= 12; b++) {
+      var bsInit = ("0" + b).slice(-2);
+      subTotalPerBulan[bsInit] = 0;
+      akumulasiLabaRugiPerBulan[bsInit] = 0;
+    }
+
+    //  var subTotalYTD = 0;
+    // for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
 
     function buatBarisKeterangan(teks) {
       html +=
