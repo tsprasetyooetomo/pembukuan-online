@@ -3779,7 +3779,7 @@ async function terapkanOpsiRLLebar() {
     namaBulan.forEach(
       (nb) =>
         (html +=
-          '<th style="padding:6px;border:1px solid #444;background:#1a1a1a;color:#fff;">' +
+          '<th style="padding:6px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:center">' +
           nb +
           "</th>"),
     );
