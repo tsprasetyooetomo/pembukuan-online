@@ -625,7 +625,7 @@ var MENUS = [
     ],
   },
   {
-    group: "LAPORAN KEUANGAN KHUSUS",
+    group: "LAPORAN KEUANGAN GABUNGAN",
     icon: "fa-chart-pie",
     items: [
       { id: "neracas", label: "Neraca", icon: "fa-scale-balanced" },
