@@ -1880,7 +1880,8 @@ async function terapkanOpsiRLRekap() {
 
       if (currentDigit !== itemDigit) {
         if (itemDigit === "3") buatBarisKeterangan("PENJUALAN");
-        if (itemDigit === "4") buatBarisKeterangan("HARGA POK PENJUALAN (HPP)");
+        if (itemDigit === "4")
+          buatBarisKeterangan("HARGA POKOK PENJUALAN (HPP)");
         if (itemDigit === "5") buatBarisKeterangan("BIAYA ADMINISTRASI & UMUM");
         if (itemDigit === "6") buatBarisKeterangan("BEBAN LAINNYA");
       }
