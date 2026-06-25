@@ -625,6 +625,19 @@ var MENUS = [
     ],
   },
   {
+    group: "LAPORAN KEUANGAN KHUSUS",
+    icon: "fa-chart-pie",
+    items: [
+      { id: "neraca", label: "Neraca", icon: "fa-scale-balanced" },
+      { id: "detilNeraca", label: "Detil Neraca", icon: "fa-table-list" },
+      { id: "rlRekap", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
+      { id: "rlDetil", label: "RL Detil Bulanan", icon: "fa-bars-staggered" },
+      { id: "rlLebar", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
+      { id: "bukuBesar", label: "Buku Besar", icon: "fa-book" },
+      { id: "expXls", label: "Export XLS", icon: "fa-file-excel" },
+    ],
+  },
+  {
     group: "UTILITY",
     icon: "fa-wrench",
     items: [
