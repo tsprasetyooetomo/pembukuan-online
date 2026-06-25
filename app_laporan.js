@@ -3955,7 +3955,7 @@ async function terapkanOpsiRLLebar() {
 
     // LABA RUGI BERSIH YTD (Menggunakan variabel akumulasi yang benar, bukan yang sudah di-reset)
     html +=
-      '<tr><td colspan="16" style="border:1px solid #444;padding:4px;background-color:#1b5e20;"></td></tr>';
+      '<tr><td colspan="16" style="border:1px solid #444;padding:4px;background-color:#ffc107;"></td></tr>';
     var arrTotalBulan = {};
     var grandTotal = 0;
     for (var b = 1; b <= 12; b++) {
