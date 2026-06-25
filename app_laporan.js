@@ -3850,7 +3850,7 @@ async function terapkanOpsiRLLebar() {
         if (currentDigit === "4") ket = "TOTAL HPP";
         if (currentDigit === "5") ket = "TOTAL BY ADM & UMUM";
         if (currentDigit === "6") ket = "TOTAL BEBAN LAINNYA";
-        buatBarisSubtotal(ket, arrSub, totalSub, "#2e7d32", false);
+        buatBarisSubtotal(ket, arrSub, totalSub, "#1a1a1a", false);
 
         if (currentDigit === "4") {
           var labKotor =
