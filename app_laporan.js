@@ -3669,7 +3669,6 @@ function renderRLLebar() {
     "</div></div></div>";
   return htmlLaporan;
 }
-
 async function terapkanOpsiRLLebar() {
   var selectTahun = document.getElementById("filter_rllebar_tahun");
   var selectCabang = document.getElementById("filter_rllebar_cabang");
@@ -3775,6 +3774,7 @@ async function terapkanOpsiRLLebar() {
     html +=
       '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">CABANG</th>';
     html += '</tr><tr style="background:#1a1a1a;font-weight:bold;color:#fff;">';
+
     namaBulan.forEach(
       (nb) =>
         (html +=
@@ -3793,12 +3793,9 @@ async function terapkanOpsiRLLebar() {
       akumulasiLabaRugiPerBulan[bsInit] = 0;
     }
 
-    //  var subTotalYTD = 0;
-    // for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
-
     function buatBarisKeterangan(teks) {
       html +=
-        '<tr><td colspan="16" style="padding:8px;border:1px solid #444;font-weight:bold;background:#111;color:#fff;;text-align:left;">' +
+        '<tr><td colspan="16" style="padding:8px;border:1px solid #444;font-weight:bold;background:#111;color:#fff;text-align:left;">' +
         teks +
         "</td></tr>";
     }
@@ -3817,7 +3814,7 @@ async function terapkanOpsiRLLebar() {
         var val = arrBulan[blnStr] || 0;
         html +=
           '<td style="padding:8px;border:1px solid #444;text-align:right;color:' +
-          (val >= 0 ? "#fff" : "#ff6b6b") +
+          (val >= 0 ? "#fff" : "#ffcdd2") +
           ";" +
           topBorder +
           '">' +
@@ -3826,7 +3823,7 @@ async function terapkanOpsiRLLebar() {
       }
       html +=
         '<td style="padding:8px;border:1px solid #444;text-align:right;color:' +
-        (total >= 0 ? "#fff" : "#ff6b6b") +
+        (total >= 0 ? "#fff" : "#ffcdd2") +
         ";" +
         topBorder +
         '">' +
@@ -3857,45 +3854,22 @@ async function terapkanOpsiRLLebar() {
         if (currentDigit === "4") ket = "TOTAL HPP";
         if (currentDigit === "5") ket = "TOTAL BY ADM & UMUM";
         if (currentDigit === "6") ket = "TOTAL BEBAN LAINNYA";
-        buatBarisSubtotal(ket, arrSub, totalSub, "#1a1a1a", false);
 
-        if (currentDigit === "4") {
-          var labKotor =
-            subTotalPerBulan["01"] +
-            subTotalPerBulan["02"] +
-            subTotalPerBulan["03"] +
-            subTotalPerBulan["04"] +
-            subTotalPerBulan["05"] +
-            subTotalPerBulan["06"] +
-            subTotalPerBulan["07"] +
-            subTotalPerBulan["08"] +
-            subTotalPerBulan["09"] +
-            subTotalPerBulan["10"] +
-            subTotalPerBulan["11"] +
-            subTotalPerBulan["12"] +
-            (arrSub["01"] +
-              arrSub["02"] +
-              arrSub["03"] +
-              arrSub["04"] +
-              arrSub["05"] +
-              arrSub["06"] +
-              arrSub["07"] +
-              arrSub["08"] +
-              arrSub["09"] +
-              arrSub["10"] +
-              arrSub["11"] +
-              arrSub["12"]);
+        // WARNA HIJAU UNTUK SEMUA SUBTOTAL DI DALAM LOOP
+        buatBarisSubtotal(ket, arrSub, totalSub, "#1b5e20", false);
 
-          var arrLabaKotor = {};
-          var totalLabaKotor = 0;
-          for (var b = 1; b <= 12; b++) {
-            var bs = ("0" + b).slice(-2);
-            arrLabaKotor[bs] = subTotalPerBulan[bs] * 0 + 0;
+        // LOGIKA BARU: Simpan akumulasi Laba/Rugi sebelum reset
+        for (var b = 1; b <= 12; b++) {
+          var bsLaba = ("0" + b).slice(-2);
+          if (currentDigit === "3") {
+            akumulasiLabaRugiPerBulan[bsLaba] = subTotalPerBulan[bsLaba];
+          } else {
+            akumulasiLabaRugiPerBulan[bsLaba] -= subTotalPerBulan[bsLaba];
           }
         }
 
+        // Reset untuk golongan selanjutnya
         for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
-        subTotalYTD = 0;
       }
 
       if (currentDigit !== digit) {
@@ -3926,7 +3900,7 @@ async function terapkanOpsiRLLebar() {
         var bs = ("0" + b).slice(-2);
         var val = num(item.bulan[bs]);
         html +=
-          '<td style="padding:6px;border:1px solid #444;text-align:right;color:' +
+          '<td style="padding:6px;border:1px solid #444;text-align:right;background-color:#2e7d32;color:' +
           (val >= 0 ? "#fff" : "#ffc107") +
           '">' +
           (val !== 0 ? formatUang(val) : "") +
@@ -3945,11 +3919,9 @@ async function terapkanOpsiRLLebar() {
         item.cabang +
         "</td>";
       html += "</tr>";
-
-      subTotalYTD += item.total;
     }
 
-    // Subtotal digit terakhir
+    // Subtotal digit terakhir (DI LUAR LOOP)
     if (currentDigit !== null) {
       var arrSubAkhir = {};
       var totalSubAkhir = 0;
@@ -3963,40 +3935,34 @@ async function terapkanOpsiRLLebar() {
       if (currentDigit === "4") ketAkhir = "TOTAL HPP";
       if (currentDigit === "5") ketAkhir = "TOTAL BY ADM & UMUM";
       if (currentDigit === "6") ketAkhir = "TOTAL BEBAN LAINNYA";
+
+      // WARNA HIJAU UNTUK SUBTOTAL TERAKHIR
       buatBarisSubtotal(ketAkhir, arrSubAkhir, totalSubAkhir, "#1b5e20", false);
-      // LOGIKA BARU: Simpan akumulasi Laba/Rugi sebelum reset
+
+      // LOGIKA BARU: Simpan akumulasi digit terakhir sebelum cetak YTD
       for (var b = 1; b <= 12; b++) {
-        var bsLaba = ("0" + b).slice(-2);
+        var bsLabaAkhir = ("0" + b).slice(-2);
         if (currentDigit === "3") {
-          akumulasiLabaRugiPerBulan[bsLaba] = subTotalPerBulan[bsLaba];
+          akumulasiLabaRugiPerBulan[bsLabaAkhir] =
+            subTotalPerBulan[bsLabaAkhir];
         } else {
-          akumulasiLabaRugiPerBulan[bsLaba] -= subTotalPerBulan[bsLaba];
+          akumulasiLabaRugiPerBulan[bsLabaAkhir] -=
+            subTotalPerBulan[bsLabaAkhir];
         }
       }
-
-      // Reset untuk golongan selanjutnya
-      for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
     }
 
-    if (currentDigit !== digit) {
-      if (digit === "3") buatBarisKeterangan("PENJUALAN");
-      if (digit === "4") buatBarisKeterangan("HARGA POKOK PENJUALAN (HPP)");
-      if (digit === "5") buatBarisKeterangan("BIAYA ADMINISTRASI & UMUM");
-      if (digit === "6") buatBarisKeterangan("BEBAN LAINNYA");
-    }
-
-    currentDigit = digit;
-
-    // LABA RUGI BERSIH YTD
+    // LABA RUGI BERSIH YTD (Menggunakan variabel akumulasi yang benar, bukan yang sudah di-reset)
     html +=
       '<tr><td colspan="16" style="border:1px solid #444;padding:4px;background:#000;"></td></tr>';
     var arrTotalBulan = {};
     var grandTotal = 0;
     for (var b = 1; b <= 12; b++) {
       var bs = ("0" + b).slice(-2);
-      arrTotalBulan[bs] = subTotalPerBulan[bs];
-      grandTotal += subTotalPerBulan[bs];
+      arrTotalBulan[bs] = akumulasiLabaRugiPerBulan[bs]; // DIPERBAIKI
+      grandTotal += akumulasiLabaRugiPerBulan[bs]; // DIPERBAIKI
     }
+
     buatBarisSubtotal(
       "LABA / RUGI BERSIH YTD",
       arrTotalBulan,
@@ -4015,6 +3981,7 @@ async function terapkanOpsiRLLebar() {
       "</div>";
   }
 }
+
 function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
   // ← TAMBAH PARAMETER cabang
 
