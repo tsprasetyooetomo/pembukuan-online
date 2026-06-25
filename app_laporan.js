@@ -3957,7 +3957,28 @@ async function terapkanOpsiRLLebar() {
       if (currentDigit === "5") ketAkhir = "TOTAL BY ADM & UMUM";
       if (currentDigit === "6") ketAkhir = "TOTAL BEBAN LAINNYA";
       buatBarisSubtotal(ketAkhir, arrSubAkhir, totalSubAkhir, "#1b5e20", false);
+      // LOGIKA BARU: Simpan akumulasi Laba/Rugi sebelum reset
+      for (var b = 1; b <= 12; b++) {
+        var bsLaba = ("0" + b).slice(-2);
+        if (currentDigit === "3") {
+          akumulasiLabaRugiPerBulan[bsLaba] = subTotalPerBulan[bsLaba];
+        } else {
+          akumulasiLabaRugiPerBulan[bsLaba] -= subTotalPerBulan[bsLaba];
+        }
+      }
+
+      // Reset untuk golongan selanjutnya
+      for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
     }
+
+    if (currentDigit !== digit) {
+      if (digit === "3") buatBarisKeterangan("PENJUALAN");
+      if (digit === "4") buatBarisKeterangan("HARGA POKOK PENJUALAN (HPP)");
+      if (digit === "5") buatBarisKeterangan("BIAYA ADMINISTRASI & UMUM");
+      if (digit === "6") buatBarisKeterangan("BEBAN LAINNYA");
+    }
+
+    currentDigit = digit;
 
     // LABA RUGI BERSIH YTD
     html +=
