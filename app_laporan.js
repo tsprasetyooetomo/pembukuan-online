@@ -1714,7 +1714,6 @@ async function terapkanOpsiRLRekap() {
         : Object.values(resgolbackup)
       : [];
 
-    // Filter golongan 3xx, 4xx, 5xx, 6xx
     window.golterfilterrl = rawdatagolongan
       .filter(function (g) {
         var kodeGolongan = parseInt(
@@ -1726,9 +1725,7 @@ async function terapkanOpsiRLRekap() {
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
-
         var saldoAkhir = num(g.akhir || 0);
-
         return (
           cocokGolongan &&
           masaData === kodemasadicari &&
@@ -1764,11 +1761,11 @@ async function terapkanOpsiRLRekap() {
     }
 
     html +=
-      '<div style="margin-bottom: .7rem; font-size: .78rem; color: var(--muted);">3xx = Penjualan &bull; 4xx = HPP &bull; 5xx = By Adm & Umum &bull; 6xx = Beban Lainnya</div>';
+      '<div style="margin-bottom:.7rem; font-size:.78rem; color: var(--muted);">3xx = Penjualan &bull; 4xx = HPP &bull; 5xx = By Adm & Umum &bull; 6xx = Beban Lainnya</div>';
     html +=
       '<div style="width: 100%; overflow-x: auto; border: 1px solid #ddd;">';
     html +=
-      '<table border="1" style="width:100%; min-width: 600px; border-collapse: collapse; text-align:left; color:#000000; border: 1px solid #000;">';
+      '<table border="1" style="width:100%; min-width: 600px; border-collapse: collapse; text-align:left; color:#000; border: 1px solid #000;">';
 
     html += '<thead style="background:#f4f4f4; font-weight:bold;"><tr>';
     html += '<th style="padding:10px; border:1px solid #000;">GOL</th>';
@@ -1784,7 +1781,6 @@ async function terapkanOpsiRLRekap() {
     var sumAkhir = 0;
     var subtotals = {};
 
-    // Fungsi bantuan untuk membuat baris Keterangan Header
     function buatBarisKeterangan(teks) {
       html += "<tr>";
       html +=
@@ -1794,7 +1790,6 @@ async function terapkanOpsiRLRekap() {
       html += "</tr>";
     }
 
-    // Fungsi bantuan untuk membuat baris Subtotal / Laba
     function buatBarisSubtotal(teks, nilai, warnaBg, isBold, isDoubleTop) {
       var topBorder = isDoubleTop ? "border-top: 3px double #000;" : "";
       html += "<tr>";
@@ -1810,7 +1805,7 @@ async function terapkanOpsiRLRekap() {
         '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; white-space:nowrap; background-color:' +
         warnaBg +
         "; color:" +
-        (nilai >= 0 ? "green" : "red") +
+        (nilai >= 0 ? "#0a0" : "#d00") + // hijau tua / merah tua biar kontras
         "; " +
         topBorder +
         '">' +
@@ -1831,7 +1826,6 @@ async function terapkanOpsiRLRekap() {
       var itemDigit = String(kodeGol).charAt(0);
       var valAkhir = num(item.akhir || 0);
 
-      // Jika berpindah grup digit (misal dari 3xx ke 4xx)
       if (currentDigit !== null && itemDigit !== currentDigit) {
         subtotals[currentDigit] = sumAkhir;
 
@@ -1842,11 +1836,10 @@ async function terapkanOpsiRLRekap() {
           ketSubtotal = "TOTAL BEBAN OPERASIONAL / TOTAL BY ADM & UMUM";
         if (currentDigit === "6") ketSubtotal = "TOTAL BEBAN LAINNYA";
 
-        buatBarisSubtotal(ketSubtotal, sumAkhir, "#d6d8db", true, false);
+        // SUBTOTAL = KUNING
+        buatBarisSubtotal(ketSubtotal, sumAkhir, "#fff3cd", true, false);
 
-        // ✅ LOGIKA LABA/RUGI DI TENGAH LAPORAN
         if (currentDigit === "3") {
-          // Baris kosong pemisah (opsional, agar rapi)
           html +=
             '<tr><td colspan="5" style="border:1px solid #000; padding:4px; background-color:#fff;"></td></tr>';
         } else if (currentDigit === "4") {
@@ -1854,10 +1847,11 @@ async function terapkanOpsiRLRekap() {
           var totalHPP = subtotals["4"] || 0;
           var labaKotor = penjualanBersih + totalHPP;
 
+          // LABA KOTOR = HIJAU
           buatBarisSubtotal(
             "LABA KOTOR (Penjualan Bersih - HPP)",
             labaKotor,
-            "#e8f5e9",
+            "#d4edda",
             true,
             false,
           );
@@ -1869,10 +1863,11 @@ async function terapkanOpsiRLRekap() {
           var totalByAdm = subtotals["5"] || 0;
           var labaStlhByAdm = penjualanBersih2 + totalHPP2 + totalByAdm;
 
+          // LABA SETELAH BY ADM = HIJAU MUDA
           buatBarisSubtotal(
             "LABA / RUGI SETELAH BY ADM & UMUM",
             labaStlhByAdm,
-            "#b7d4b7",
+            "#c3e6cb",
             true,
             false,
           );
@@ -1883,11 +1878,9 @@ async function terapkanOpsiRLRekap() {
         sumAkhir = 0;
       }
 
-      // ✅ TAMBAHKAN KETERANGAN HEADER SEBELUM DETAIL ITEM
       if (currentDigit !== itemDigit) {
         if (itemDigit === "3") buatBarisKeterangan("PENJUALAN");
-        if (itemDigit === "4")
-          buatBarisKeterangan("HARGA POKOK PENJUALAN (HPP)");
+        if (itemDigit === "4") buatBarisKeterangan("HARGA POK PENJUALAN (HPP)");
         if (itemDigit === "5") buatBarisKeterangan("BIAYA ADMINISTRASI & UMUM");
         if (itemDigit === "6") buatBarisKeterangan("BEBAN LAINNYA");
       }
@@ -1895,7 +1888,6 @@ async function terapkanOpsiRLRekap() {
       currentDigit = itemDigit;
       sumAkhir += valAkhir;
 
-      // Render baris detail item
       html += '<tr style="font-size: 0.85rem;">';
       var golVal =
         item.gol !== undefined
@@ -1930,11 +1922,9 @@ async function terapkanOpsiRLRekap() {
         '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
         (item.cabang || item.kode_cabang || "") +
         "</td>";
-
       html += "</tr>";
     }
 
-    // Subtotal untuk digit terakhir (6xx)
     if (currentDigit !== null) {
       subtotals[currentDigit] = sumAkhir;
       var ketSubtotalAkhir = "SUBTOTAL GOLONGAN " + currentDigit + "xx";
@@ -1944,10 +1934,10 @@ async function terapkanOpsiRLRekap() {
         ketSubtotalAkhir = "TOTAL BEBAN OPERASIONAL / TOTAL BY ADM & UMUM";
       if (currentDigit === "6") ketSubtotalAkhir = "TOTAL BEBAN LAINNYA";
 
-      buatBarisSubtotal(ketSubtotalAkhir, sumAkhir, "#d6d8db", true, false);
+      // SUBTOTAL TERAKHIR = KUNING
+      buatBarisSubtotal(ketSubtotalAkhir, sumAkhir, "#fff3cd", true, false);
     }
 
-    // ✅ LABA RUGI BERSIH DI PALING BAWAH
     var penjualanBersihFinal = subtotals["3"] || 0;
     var totalHPPFinal = subtotals["4"] || 0;
     var totalByAdmFinal = subtotals["5"] || 0;
@@ -1961,16 +1951,17 @@ async function terapkanOpsiRLRekap() {
 
     html +=
       '<tr><td colspan="5" style="border:1px solid #000; padding:6px; background-color:#fff;"></td></tr>';
+
+    // LABA RUGI BERSIH = HIJAU TUA
     buatBarisSubtotal(
       "LABA / RUGI BERSIH",
       labaRugiBersih,
-      "#f1f3f5",
+      "#d1e7dd",
       true,
       true,
     );
 
     html += "</tbody></table></div>";
-
     area.innerHTML = html;
   } catch (error) {
     console.error("❌ Gagal total RL Rekap:", error);
@@ -1981,7 +1972,6 @@ async function terapkanOpsiRLRekap() {
         "</div>";
   }
 }
-
 async function downloadRLRekapExcel() {
   if (!window.golterfilterrl || window.golterfilterrl.length === 0) {
     if (typeof toast === "function")
