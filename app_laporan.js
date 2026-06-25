@@ -1915,7 +1915,7 @@ async function terapkanOpsiRLRekap() {
         "</td>";
 
       html +=
-        '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
+        '<td style="padding:10px; border:1px solid #000; white-space:nowrap;text-align: left;">' +
         (item.namaGol || "") +
         "</td>";
       html +=
