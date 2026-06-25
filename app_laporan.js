@@ -1662,8 +1662,8 @@ function renderRLRekap() {
     '<div class="table-responsive-container" style="width:100%; max-width:100%; height:380px; max-height:380px; overflow:auto; display:block; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box; margin:0 auto; clear:both;">' +
     "<style>" +
     "#tempat_tabel_rlrekap table { width: 100% !important; min-width: 900px !important; border-collapse: collapse !important; table-layout: auto !important; margin:0 !important; }" +
-    "#tempat_tabel_rlrekap th { padding: 8px 12px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; }" +
-    "#tempat_tabel_rlrekap td { padding: 8px 12px !important; white-space: nowrap !important; border: 1px solid var(--brd); }" +
+    "#tempat_tabel_rlrekap th { padding: 8px 12px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10;text-align: left !important; }" +
+    "#tempat_tabel_rlrekap td { padding: 8px 12px !important; white-space: nowrap !important; border: 1px solid var(--brd); text-align: left !important;}" +
     "</style>" +
     '<div id="tempat_tabel_rlrekap" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
     "</div>" +
