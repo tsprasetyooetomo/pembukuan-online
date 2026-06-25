@@ -3920,16 +3920,8 @@ async function terapkanOpsiRLLebar() {
         var val = num(item.bulan[bs]);
 
         html +=
-          '<td style="padding:6px;border:1px solid #444;text-align:right;color:'(
-            //   '<td style="padding:6px;border:1px solid #444;text-align:right;background-color:#0056b3;color:' +
-            val >= 0 ? "#fff" : "#ff6b6b",
-          ) +
-          '">' +
-          (val !== 0 ? formatUang(val) : "") +
-          "</td>";
-        subTotalPerBulan[bs] += val;
-
-        +(val >= 0 ? "#fff" : "#ff6b6b") +
+          '<td style="padding:6px;border:1px solid #444;text-align:right;color:' +
+          (val >= 0 ? "#fff" : "#ff6b6b") +
           '">' +
           (val !== 0 ? formatUang(val) : "") +
           "</td>";
