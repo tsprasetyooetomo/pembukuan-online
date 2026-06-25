@@ -3987,7 +3987,7 @@ async function terapkanOpsiRLLebar() {
       "</div>";
   }
 }
-function lihatDetilTransaksiRlLebar(noPerkiraan, masa, cabang) {
+function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
   // ← TAMBAH PARAMETER cabang
 
   // 1. Parsing Tahun dari format MMYY (karena dikirim dari lihatDetilPerkiraan sudah bentuk MMYY)
@@ -4144,137 +4144,6 @@ function lihatDetilTransaksiRlLebar(noPerkiraan, masa, cabang) {
       console.error(err);
       container.innerHTML =
         '<div style="text-align:center; padding:20px; color:red;">Error: ' +
-        err.message +
-        "</div>";
-    });
-}
-
-function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
-  var tahun;
-  if (masa.startsWith("YTD")) {
-    tahun = masa.substring(3);
-  } else {
-    var duadigittahun = masa.substring(2, 4);
-    tahun = "20" + duadigittahun;
-  }
-  var namaStore = "transaksi" + tahun;
-  var popupId = "popup_transaksi_" + Date.now();
-
-  console.log(
-    "📥 [TERIMA] Masa:",
-    masa,
-    "| Cabang:",
-    cabang,
-    "| Tahun:",
-    tahun,
-  );
-
-  var popupHtml =
-    '<div id="' +
-    popupId +
-    '" style="position:fixed; top:20px; right:20px; width:45%; max-width:650px; max-height:90vh; background:#000; border:1px solid #333; box-shadow:0 5px 15px rgba(0,0,0,0.5); z-index:10001; display:flex; flex-direction:column; border-radius:6px;">' +
-    '<div style="padding:10px; background:#1a1a1a; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; border-radius:6px 6px 0 0;">' +
-    '<strong style="font-size:0.9rem; color:#fff;">Detil Transaksi: ' +
-    noPerkiraan +
-    " | " +
-    masa +
-    "</strong>" +
-    "<button onclick=\"document.getElementById('" +
-    popupId +
-    '\').remove()" style="background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:#ccc;">&times;</button>' +
-    "</div>" +
-    '<div id="' +
-    popupId +
-    '_body" style="padding:10px; overflow-y:auto; flex:1; font-size:0.8rem; color:#fff;">' +
-    '<div style="text-align:center; padding:20px; color:#888;">Loading...</div>' +
-    "</div></div>";
-  document.body.insertAdjacentHTML("beforeend", popupHtml);
-  var container = document.getElementById(popupId + "_body");
-
-  db.getAll(namaStore)
-    .then(function (rawData) {
-      var listTrans = Array.isArray(rawData) ? rawData : [];
-      var masaCari = masa;
-      var cabInput = String(cabang || "")
-        .trim()
-        .toUpperCase();
-      var cabFilter = cabInput === "PUSAT" ? "00" : cabInput;
-
-      var detilTrans = listTrans.filter(function (t) {
-        var tNo = String(t.noperkiraan || "").trim();
-        var tCab = String(t.cabang || "")
-          .trim()
-          .toUpperCase();
-        var tMasa = String(t.masa || "").trim();
-        var cocokCabang =
-          cabFilter !== "ALL" && cabFilter !== "" ? tCab === cabFilter : true;
-        return tNo === noPerkiraan && tMasa === masaCari && cocokCabang;
-      });
-
-      if (detilTrans.length === 0) {
-        container.innerHTML =
-          '<div style="text-align:center; padding:20px; color:#ffc107;">Data tidak ditemukan.<br><small>Dicari: ' +
-          noPerkiraan +
-          " | " +
-          masaCari +
-          " | Cabang: " +
-          cabFilter +
-          "</small></div>";
-        return;
-      }
-
-      var tableHtml =
-        '<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:0.75rem; min-width:500px; background:#000; color:#fff;">' +
-        '<thead style="background:#1a1a1a; position:sticky; top:0;"><tr>' +
-        '<th style="border:1px solid #444; padding:5px;">TANGGAL</th>' +
-        '<th style="border:1px solid #444; padding:5px;">NOREFF</th>' +
-        '<th style="border:1px solid #444; padding:5px;">DESC</th>' +
-        '<th style="border:1px solid #444; padding:5px; text-align:right;">DEBET</th>' +
-        '<th style="border:1px solid #444; padding:5px; text-align:right;">KREDIT</th>' +
-        "</tr></thead><tbody>";
-
-      var totalDb = 0,
-        totalCr = 0;
-      detilTrans.forEach(function (t) {
-        var dbVal = num(t.db || 0);
-        var crVal = num(t.cr || 0);
-        totalDb += dbVal;
-        totalCr += crVal;
-        tableHtml +=
-          "<tr>" +
-          '<td style="border:1px solid #333; padding:4px;">' +
-          (t.tanggal || "-") +
-          "</td>" +
-          '<td style="border:1px solid #333; padding:4px;">' +
-          (t.noreff || "-") +
-          "</td>" +
-          '<td style="border:1px solid #333; padding:4px;">' +
-          (t.desc || "-") +
-          "</td>" +
-          '<td style="border:1px solid #333; padding:4px; text-align:right;">' +
-          fmtN(dbVal) +
-          "</td>" +
-          '<td style="border:1px solid #333; padding:4px; text-align:right;">' +
-          fmtN(crVal) +
-          "</td>" +
-          "</tr>";
-      });
-
-      tableHtml +=
-        '<tr style="background:#1a1a1a; font-weight:bold;">' +
-        '<td colspan="3" style="border:1px solid #444; padding:5px; text-align:right;">TOTAL</td>' +
-        '<td style="border:1px solid #444; padding:5px; text-align:right;">' +
-        fmtN(totalDb) +
-        "</td>" +
-        '<td style="border:1px solid #444; padding:5px; text-align:right;">' +
-        fmtN(totalCr) +
-        "</td>" +
-        "</tr></tbody></table></div>";
-      container.innerHTML = tableHtml;
-    })
-    .catch(function (err) {
-      container.innerHTML =
-        '<div style="text-align:center; padding:20px; color:#ff6b6b;">Error: ' +
         err.message +
         "</div>";
     });
