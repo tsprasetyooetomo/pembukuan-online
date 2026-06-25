@@ -3912,7 +3912,7 @@ async function terapkanOpsiRLLebar() {
         item.gol +
         "</td>";
       html +=
-        '<td style="padding:6px;border:1px solid #444;color:#fff;">' +
+        '<td style="padding:6px;border:1px solid #444;color:#fff;text-align: left;">' +
         item.namaGol +
         "</td>";
       for (var b = 1; b <= 12; b++) {
