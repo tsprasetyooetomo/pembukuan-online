@@ -3919,7 +3919,7 @@ async function terapkanOpsiRLLebar() {
         var bs = ("0" + b).slice(-2);
         var val = num(item.bulan[bs]);
         html +=
-          '<td style="padding:6px;border:1px solid #444;text-align:right;background-color:#2e7d32;color:' +
+          '<td style="padding:6px;border:1px solid #444;text-align:right;color:' +
           (val >= 0 ? "#fff" : "#ffc107") +
           '">' +
           (val !== 0 ? formatUang(val) : "") +
