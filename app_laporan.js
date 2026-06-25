@@ -3956,7 +3956,7 @@ async function terapkanOpsiRLLebar() {
       if (currentDigit === "4") ketAkhir = "TOTAL HPP";
       if (currentDigit === "5") ketAkhir = "TOTAL BY ADM & UMUM";
       if (currentDigit === "6") ketAkhir = "TOTAL BEBAN LAINNYA";
-      buatBarisSubtotal(ketAkhir, arrSubAkhir, totalSubAkhir, "#2e7d32", false);
+      buatBarisSubtotal(ketAkhir, arrSubAkhir, totalSubAkhir, "#1a1a1a", false);
     }
 
     // LABA RUGI BERSIH YTD
