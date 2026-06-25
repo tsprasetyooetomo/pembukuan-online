@@ -3669,7 +3669,6 @@ function renderRLLebar() {
     "</div></div></div>";
   return htmlLaporan;
 }
-
 async function terapkanOpsiRLLebar() {
   var selectTahun = document.getElementById("filter_rllebar_tahun");
   var selectCabang = document.getElementById("filter_rllebar_cabang");
@@ -3775,6 +3774,7 @@ async function terapkanOpsiRLLebar() {
     html +=
       '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">CABANG</th>';
     html += '</tr><tr style="background:#1a1a1a;font-weight:bold;color:#fff;">';
+
     namaBulan.forEach(
       (nb) =>
         (html +=
@@ -3786,16 +3786,22 @@ async function terapkanOpsiRLLebar() {
 
     var currentDigit = null;
     var subTotalPerBulan = {};
-    var subTotalYTD = 0;
-    for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
+    // ✅ PERBAIKAN: Variabel baru untuk menyimpan akumulasi Laba Rugi sebelum di-reset
+    var akumulasiLabaRugiPerBulan = {};
+    for (var b = 1; b <= 12; b++) {
+      var bsInit = ("0" + b).slice(-2);
+      subTotalPerBulan[bsInit] = 0;
+      akumulasiLabaRugiPerBulan[bsInit] = 0;
+    }
 
     function buatBarisKeterangan(teks) {
       html +=
-        '<tr><td colspan="16" style="padding:8px;border:1px solid #444;font-weight:bold;background:#111;color:#fff;;text-align:left;">' +
+        '<tr><td colspan="16" style="padding:8px;border:1px solid #444;font-weight:bold;background:#111;color:#fff;text-align:left;">' +
         teks +
         "</td></tr>";
     }
 
+    // ✅ PERUBAHAN: Parameter warnaBg defaultnya diubah menjadi hijau gelap (#1b5e20)
     function buatBarisSubtotal(teks, arrBulan, total, warnaBg, doubleTop) {
       var topBorder = doubleTop ? "border-top:3px double #fff;" : "";
       html += '<tr style="background:' + warnaBg + ';font-weight:bold;">';
@@ -3810,7 +3816,7 @@ async function terapkanOpsiRLLebar() {
         var val = arrBulan[blnStr] || 0;
         html +=
           '<td style="padding:8px;border:1px solid #444;text-align:right;color:' +
-          (val >= 0 ? "#fff" : "#ff6b6b") +
+          (val >= 0 ? "#fff" : "#ffcdd2") + // ✅ Sedikit diadjust agar merah mudah dibaca di bg hijau
           ";" +
           topBorder +
           '">' +
@@ -3819,7 +3825,7 @@ async function terapkanOpsiRLLebar() {
       }
       html +=
         '<td style="padding:8px;border:1px solid #444;text-align:right;color:' +
-        (total >= 0 ? "#fff" : "#ff6b6b") +
+        (total >= 0 ? "#fff" : "#ffcdd2") +
         ";" +
         topBorder +
         '">' +
@@ -3850,45 +3856,21 @@ async function terapkanOpsiRLLebar() {
         if (currentDigit === "4") ket = "TOTAL HPP";
         if (currentDigit === "5") ket = "TOTAL BY ADM & UMUM";
         if (currentDigit === "6") ket = "TOTAL BEBAN LAINNYA";
-        buatBarisSubtotal(ket, arrSub, totalSub, "#1a1a1a", false);
 
-        if (currentDigit === "4") {
-          var labKotor =
-            subTotalPerBulan["01"] +
-            subTotalPerBulan["02"] +
-            subTotalPerBulan["03"] +
-            subTotalPerBulan["04"] +
-            subTotalPerBulan["05"] +
-            subTotalPerBulan["06"] +
-            subTotalPerBulan["07"] +
-            subTotalPerBulan["08"] +
-            subTotalPerBulan["09"] +
-            subTotalPerBulan["10"] +
-            subTotalPerBulan["11"] +
-            subTotalPerBulan["12"] +
-            (arrSub["01"] +
-              arrSub["02"] +
-              arrSub["03"] +
-              arrSub["04"] +
-              arrSub["05"] +
-              arrSub["06"] +
-              arrSub["07"] +
-              arrSub["08"] +
-              arrSub["09"] +
-              arrSub["10"] +
-              arrSub["11"] +
-              arrSub["12"]);
+        // ✅ PERUBAHAN: Warna background diubah dari "#1a1a1a" menjadi "#1b5e20" (HIJAU)
+        buatBarisSubtotal(ket, arrSub, totalSub, "#1b5e20", false);
 
-          var arrLabaKotor = {};
-          var totalLabaKotor = 0;
-          for (var b = 1; b <= 12; b++) {
-            var bs = ("0" + b).slice(-2);
-            arrLabaKotor[bs] = subTotalPerBulan[bs] * 0 + 0;
+        // ✅ PERBAIKAN LOGIKA: Hitung dan simpan akumulasi Laba Rugi sebelum variabel subTotalPerBulan di-reset ke nol
+        for (var b = 1; b <= 12; b++) {
+          var bsLaba = ("0" + b).slice(-2);
+          if (currentDigit === "3") {
+            akumulasiLabaRugiPerBulan[bsLaba] = subTotalPerBulan[bsLaba]; // Pendapatan bertambah
+          } else {
+            akumulasiLabaRugiPerBulan[bsLaba] -= subTotalPerBulan[bsLaba]; // HPP & Beban mengurangi
           }
         }
 
         for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
-        subTotalYTD = 0;
       }
 
       if (currentDigit !== digit) {
@@ -3938,8 +3920,6 @@ async function terapkanOpsiRLLebar() {
         item.cabang +
         "</td>";
       html += "</tr>";
-
-      subTotalYTD += item.total;
     }
 
     // Subtotal digit terakhir
@@ -3956,19 +3936,34 @@ async function terapkanOpsiRLLebar() {
       if (currentDigit === "4") ketAkhir = "TOTAL HPP";
       if (currentDigit === "5") ketAkhir = "TOTAL BY ADM & UMUM";
       if (currentDigit === "6") ketAkhir = "TOTAL BEBAN LAINNYA";
-      buatBarisSubtotal(ketAkhir, arrSubAkhir, totalSubAkhir, "#1a1a1a", false);
+
+      // ✅ PERUBAHAN: Warna background diubah menjadi hijau
+      buatBarisSubtotal(ketAkhir, arrSubAkhir, totalSubAkhir, "#1b5e20", false);
+
+      // ✅ PERBAIKAN LOGIKA: Akumulasi untuk digit terakhir sebelum reset
+      for (var b = 1; b <= 12; b++) {
+        var bsLabaAkhir = ("0" + b).slice(-2);
+        if (currentDigit === "3") {
+          akumulasiLabaRugiPerBulan[bsLabaAkhir] =
+            subTotalPerBulan[bsLabaAkhir];
+        } else {
+          akumulasiLabaRugiPerBulan[bsLabaAkhir] -=
+            subTotalPerBulan[bsLabaAkhir];
+        }
+      }
     }
 
-    // LABA RUGI BERSIH YTD
+    // ✅ PERBAIKAN LOGIKA: Menggunakan variabel akumulasiLabaRugiPerBulan yang sudah benar, bukan subTotalPerBulan yang sudah di-reset ke 0
     html +=
       '<tr><td colspan="16" style="border:1px solid #444;padding:4px;background:#000;"></td></tr>';
     var arrTotalBulan = {};
     var grandTotal = 0;
     for (var b = 1; b <= 12; b++) {
       var bs = ("0" + b).slice(-2);
-      arrTotalBulan[bs] = subTotalPerBulan[bs];
-      grandTotal += subTotalPerBulan[bs];
+      arrTotalBulan[bs] = akumulasiLabaRugiPerBulan[bs];
+      grandTotal += akumulasiLabaRugiPerBulan[bs];
     }
+
     buatBarisSubtotal(
       "LABA / RUGI BERSIH YTD",
       arrTotalBulan,
@@ -3987,17 +3982,14 @@ async function terapkanOpsiRLLebar() {
       "</div>";
   }
 }
-function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
-  // ← TAMBAH PARAMETER cabang
 
-  // 1. Parsing Tahun dari format MMYY (karena dikirim dari lihatDetilPerkiraan sudah bentuk MMYY)
+function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
   var duadigittahun = masa.substring(2, 4);
   var tahun = "20" + duadigittahun;
   var namaStore = "transaksi" + tahun;
 
   var popupId = "popup_transaksi_" + Date.now();
 
-  // ✅ CEK NILAI TERIMA
   console.log("📥 [TERIMA] Masa:", masa, "| Cabang:", cabang);
 
   var popupHtml =
@@ -4026,37 +4018,32 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
     .then(function (rawData) {
       var listTrans = Array.isArray(rawData) ? rawData : [];
 
-      // Masa sudah dalam format MMYY, jadi langsung gunakan
       var masaCari = masa;
       console.log("🔢 [HASIL] Masa Dicari di DB:", masaCari);
 
-      // ✅ GUNAKAN PARAMETER CABANG YANG DITERIMA DARI ONCLICK
       var cabInput = String(cabang || "")
         .trim()
         .toUpperCase();
 
-      // ✅ PERBAIKAN LOGIKA MAPPING CABANG
       var cabFilter = cabInput;
       if (cabInput === "PUSAT") {
-        cabFilter = "00"; // Jika user pilih PUSAT, cari kode 00
+        cabFilter = "00";
       }
 
       console.log(
-        "🔍 Mencori Cabang Input:",
+        "🔍 Mencari Cabang Input:",
         cabInput,
         "-> Dikonversi ke Kode DB:",
         cabFilter,
       );
 
-      // Filter Data
       var detilTrans = listTrans.filter(function (t) {
         var tNo = String(t.noperkiraan || "").trim();
         var tCab = String(t.cabang || "")
           .trim()
-          .toUpperCase(); // Pastikan uppercase
+          .toUpperCase();
         var tMasa = String(t.masa || "").trim();
 
-        // ✅ LOGIKA CABANG: Jika "ALL", abaikan filter cabang. Jika spesifik, harus cocok.
         var cocokCabang = true;
         if (cabFilter !== "ALL" && cabFilter !== "") {
           cocokCabang = tCab === cabFilter;
@@ -4080,7 +4067,6 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
         return;
       }
 
-      // Render Tabel
       var tableHtml =
         '<div style="overflow-x:auto; background-color:#000000; color:#ffffff;">' +
         '<table style="width:100%; border-collapse:collapse; font-size:0.75rem; min-width:500px; background-color:#000000; color:#ffffff;">' +
@@ -4125,7 +4111,6 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
           "</tr>";
       });
 
-      // ✅ TAMBAHAN: Baris Total di bawah tabel
       tableHtml +=
         '<tr style="background:#f4f4f4; font-weight:bold;">' +
         '<td colspan="3" style="border:1px solid #ccc; padding:5px; text-align:right;">TOTAL</td>' +
