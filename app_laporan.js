@@ -3890,7 +3890,7 @@ async function terapkanOpsiRLLebar() {
         valTahun +
         "','" +
         valCabang +
-        '\')" style="padding:6px;border:1px solid #444;cursor:pointer;color:#4da3ff;font-weight:bold;text-decoration:underline;">' +
+        '\')" style="padding:6px;border:1px solid #3e0a93;cursor:pointer;color:#4da3ff;font-weight:bold;text-decoration:underline;">' +
         item.gol +
         "</td>";
       html +=
