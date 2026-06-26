@@ -388,6 +388,7 @@ async function refreshCache(onlyStore) {
   DBCache.postedMonths = await db.getAll("postedMonths");
   DBCache.kodeBank = await db.getAll("kodeBank");
   DBCache.cabang = await db.getAll("cabang");
+  DBCache.saldoKasir = await db.getAll("saldoKasir");
 }
 async function refreshCache2(onlyStore) {
   if (onlyStore) {
