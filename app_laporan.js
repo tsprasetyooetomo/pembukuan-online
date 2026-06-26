@@ -3881,44 +3881,45 @@ async function terapkanOpsiRLLebar() {
       }
 
       currentDigit = digit;
-
       html += "<tr>";
-      html +=
-        "<td onclick=\"lihatDetilTransaksiRLLebar('" +
-        item.gol +
-        "','YTD" +
-        valTahun +
-        "','" +
-        valCabang +
-        '\')" style="padding:6px;border:1px solid #3e0a93;cursor:pointer;color:#4da3ff;font-weight:bold;text-decoration:underline;">' +
-        item.gol +
-        "</td>";
-      html +=
-        '<td style="padding:6px;border:1px solid #444;color:#fff;text-align: left;">' +
-        item.namaGol +
-        "</td>";
+      // Menggunakan Template Literals (backtick) agar lebih rapi
+      html += `
+  <td onclick="lihatDetilTransaksiRLLebar('${item.gol}', 'YTD${valTahun}', '${valCabang}')" 
+      style="padding:6px;border:1px solid #3e0a93;cursor:pointer;color:#4da3ff;font-weight:bold;text-decoration:underline;">
+      ${item.gol}
+  </td>
+  <td style="padding:6px;border:1px solid #444;color:#fff;text-align: left;">
+      ${item.namaGol}
+  </td>
+`;
+
       for (var b = 1; b <= 12; b++) {
         var bs = ("0" + b).slice(-2);
-        var val = num(item.bulan[bs]);
-        html +=
-          '<td style="padding:6px;border:1px solid #444;text-align:right;color:' +
-          (val >= 0 ? "#fff" : "#ffc107") +
-          '">' +
-          (val !== 0 ? formatUang(val) : "") +
-          "</td>";
+
+        // AMAN: Cek apakah item.bulan adalah object/array, dan berikan nilai default 0 jika undefined
+        var rawVal =
+          item.bulan && item.bulan[bs] !== undefined ? item.bulan[bs] : 0;
+        var val = num(rawVal);
+
+        // AMAN: Pastikan subTotalPerBulan sudah terdefinisi sebelum ditambah
+        if (!subTotalPerBulan[bs]) subTotalPerBulan[bs] = 0;
         subTotalPerBulan[bs] += val;
+
+        html += `
+    <td style="padding:6px;border:1px solid #444;text-align:right;color:${val >= 0 ? "#fff" : "#ffc107"}">
+      ${val !== 0 ? formatUang(val) : ""}
+    </td>
+  `;
       }
 
-      html +=
-        '<td style="padding:6px;border:1px solid #444;text-align:right;font-weight:bold;color:' +
-        (item.total >= 0 ? "#fff" : "#ff6b6b") +
-        '">' +
-        formatUang(item.total) +
-        "</td>";
-      html +=
-        '<td style="padding:6px;border:1px solid #444;color:#fff;">' +
-        item.cabang +
-        "</td>";
+      html += `
+  <td style="padding:6px;border:1px solid #444;text-align:right;font-weight:bold;color:${item.total >= 0 ? "#fff" : "#ff6b6b"}">
+    ${formatUang(item.total)}
+  </td>
+  <td style="padding:6px;border:1px solid #444;color:#fff;">
+    ${item.cabang}
+  </td>
+`;
       html += "</tr>";
     }
 
