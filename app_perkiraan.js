@@ -1123,7 +1123,7 @@ function getCabangFilterHTML() {
   html += "</select>";
   return html;
 }
-PANEL_MAP.kode = renderKodeKasir;
+PANEL_MAP.kodeKasir = renderKodeKasir;
 
 async function renderKodeKasir() {
   var rawData = DBCache.kodeKasir || [];
