@@ -1123,10 +1123,11 @@ function getCabangFilterHTML() {
   html += "</select>";
   return html;
 }
-PANEL_MAP.kodeKasir = renderKodeKasir;
+PANEL_MAP.saldoKasir = renderSaldoKasir;
 
-async function renderKodeKasir() {
-  var rawData = DBCache.kodeKasir || [];
+async function renderSaldoKasir() {
+  // ✅ PERBAIKAN: Konsisten pakai DBCache.kodeKasir
+  var rawData = DBCache.saldoKasir || [];
   var data = filterByCabang(rawData);
 
   data.sort(function (a, b) {
@@ -1141,14 +1142,14 @@ async function renderKodeKasir() {
   var ids = data.map(function (r) {
     return r.id;
   });
-  bulkInit("kodeBank", ids);
+
+  // ✅ PERBAIKAN: Konsisten pakai "kodeKasir" di bulkInit
+  bulkInit("kodeKasir", ids);
 
   var dataLimit = data.slice(0, _viewLimit);
   var idsLimit = dataLimit.map(function (r) {
     return r.id;
   });
-
-  console.log("Navigate ke 1: " + currentPanel);
 
   function countRef(kode) {
     var tc = 0;
@@ -1157,6 +1158,7 @@ async function renderKodeKasir() {
     });
     return tc;
   }
+
   function lookupPerk(noper) {
     if (!noper) return "-";
     var p = (DBCache.perkiraan || []).find(function (x) {
@@ -1176,9 +1178,11 @@ async function renderKodeKasir() {
       lookupCabangLabel(r.cabang),
     ];
   });
+
   var totalTrans = data.reduce(function (s, r) {
     return s + countRef(r.kodebank);
   }, 0);
+
   var foot = [
     data.length + " kode",
     "-",
@@ -1186,8 +1190,10 @@ async function renderKodeKasir() {
     '<span style="color:var(--success)">' + totalTrans + "</span>",
     "-",
   ];
+
   return (
-    bulkBarHTML("kodeBank", "kodeBank") +
+    // ✅ PERBAIKAN: Parameter bulkBarHTML disesuaikan jadi "kodeKasir"
+    bulkBarHTML("kodeKasir", "kodeKasir") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
     "Filter Cabang: " +
@@ -1200,11 +1206,13 @@ async function renderKodeKasir() {
     " record" +
     "</div>" +
     '<div style="display:flex;gap:.4rem">' +
-    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'kodeBank\', \'Data_KodeBank\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
-    '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'kodeBank\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
-    '<button type="button" class="btn btn-r" onclick="clearAllData(\'kodeBank\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
-    '<button type="button" class="btn btn-a" onclick="formKodeBank()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
-    "</div></div>" +
+    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'kodeKasir\', \'Data_KodeKasir\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
+    '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'kodeKasir\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
+    '<button type="button" class="btn btn-r" onclick="clearAllData(\'kodeKasir\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
+    // ✅ PERBAIKAN: Panggil formKodeKasir(), BUKAN formKodeBank()
+    '<button type="button" class="btn btn-a" onclick="formKodeKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
+    "</div>" +
+    "</div>" +
     wrapTable(
       buildTable(
         ["Kode Kasir", "Penjelasan", "No Perkiraan", "Jml Transaksi", "Cabang"],
@@ -1222,7 +1230,8 @@ async function renderKodeKasir() {
     )
   );
 }
-function formKodeKasir(id) {
+
+function formSaldoKasir(id) {
   var isEdit = !!id;
   var data = isEdit
     ? (DBCache.kodeKasir || []).find(function (d) {
@@ -1248,7 +1257,6 @@ function formKodeKasir(id) {
     '<div class="fg"><label>Saldo Awal</label><input id="fKbAwal" type="number" class="in" value="' +
     esc(data.awal || 0) +
     '"></div>' +
-    /* ✅ TAMBAHAN: INPUT TANGGAL SALDO AWAL */
     '<div class="fg"><label>Tgl Saldo Awal</label><input id="fKbTglAwal" type="date" class="in" value="' +
     esc(data.tgl_awal || "") +
     '"></div>';
@@ -1264,8 +1272,7 @@ function formKodeKasir(id) {
   openModal(isEdit ? "Edit Kode Kasir" : "Tambah Kode Kasir", html, foot);
 }
 
-async function saveKodeKasir(e, editId) {
-  // ✅ 1. Kunci browser agar tidak memicu hard refresh bawaan
+async function saveSaldoKasir(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
   try {
@@ -1277,14 +1284,11 @@ async function saveKodeKasir(e, editId) {
     var tgl_awal = $("fKbTglAwal").value;
 
     if (!kodebank || !penjelasan || !noper) {
-      console.warn("Validasi gagal: Field tidak lengkap");
       return toast("Semua field wajib diisi", "err");
     }
 
     if (editId) {
-      console.log("Menjalankan Mode EDIT untuk ID:", editId);
-
-      // Ambal data lama dari IndexedDB lokal browser
+      // ✅ PERBAIKAN: Ambil dari IndexedDB store "kodeKasir"
       var r = await db.get("kodeKasir", editId);
       if (r) {
         var updated = Object.assign({}, r, {
@@ -1296,7 +1300,6 @@ async function saveKodeKasir(e, editId) {
           tgl_awal: tgl_awal,
         });
 
-        // ✅ 2. TEMBAK KE BACKEND SERVER (Menyimpan permanen di file SQLite Drive D)
         var response = await fetch(
           API_BASE_URL + "/api/data/kodeKasir/" + editId,
           {
@@ -1311,20 +1314,18 @@ async function saveKodeKasir(e, editId) {
           throw new Error(errJson.error || "Gagal update ke server backend");
         }
 
-        // ✅ 3. Sinkronisasi data ke IndexedDB browser agar tetap sama
-        await db.put("kodeBank", updated);
+        // ✅ PERBAIKAN: Put ke IndexedDB store "kodeKasir"
+        await db.put("kodeKasir", updated);
 
-        // ✅ 4. Perbarui data cache layar (DBCache)
-        var idx = DBCache.kodeBank.findIndex((x) => x.id === editId);
+        // ✅ PERBAIKAN: Update cache DBCache.kodeKasir
+        var idx = DBCache.kodeKasir.findIndex((x) => x.id === editId);
         if (idx !== -1) {
-          DBCache.kodeBank[idx] = updated;
-          console.log("✅ Cache sukses diperbarui");
+          DBCache.kodeKasir[idx] = updated;
         }
       } else {
-        console.error("Data lama tidak ditemukan di DB!");
+        throw new Error("Data lama tidak ditemukan di DB lokal!");
       }
     } else {
-      console.log("Menjalankan Mode BARU");
       var newId = uid();
       var newObj = {
         id: newId,
@@ -1336,7 +1337,6 @@ async function saveKodeKasir(e, editId) {
         tgl_awal: tgl_awal,
       };
 
-      // ✅ 5. TEMBAK DATA BARU KE BACKEND SERVER (Jika backend Anda mendukung POST rute dinamis ini)
       var response = await fetch(API_BASE_URL + "/api/data/kodeKasir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1350,20 +1350,17 @@ async function saveKodeKasir(e, editId) {
         );
       }
 
-      // ✅ 6. Sinkronisasi data baru ke IndexedDB dan DBCache browser
-      await db.add("kodeBank", newObj);
-      DBCache.kodeBank.push(newObj);
-      console.log("✅ Data baru sukses ditambahkan");
+      // ✅ PERBAIKAN: Add ke IndexedDB store "kodeKasir"
+      await db.add("kodeKasir", newObj);
+
+      // ✅ PERBAIKAN: Push ke cache DBCache.kodeKasir
+      DBCache.kodeKasir.push(newObj);
     }
 
-    // ✅ 7. Eksekusi visual update secara mulus tanpa mengganggu siklus browser
     setTimeout(async function () {
-      console.log("Menutup modal...");
       closeModal();
-
       toast(editId ? "Diperbarui" : "Ditambahkan", "ok");
 
-      // Render ulang isi tabel komponen secara instan tanpa lompat halaman/dashboard
       if (typeof renderCurrentPanel === "function") {
         await renderCurrentPanel();
       } else if (typeof safeRenderCurrentPanel === "function") {
