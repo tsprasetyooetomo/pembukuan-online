@@ -75,6 +75,8 @@ const ALLOWED_TABLES = [
   "cabang",
   "detiltransaksi",
   "saldo_harian",
+  "saldoKasir",
+  "mutasikasir",
 ];
 
 function isValidTable(name) {
