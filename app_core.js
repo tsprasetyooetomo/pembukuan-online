@@ -723,6 +723,7 @@ async function navigate(id) {
     "formatNeraca",
     "users",
     "kodeBank",
+    "kodeKasir",
     "cabang",
   ].forEach(function (s) {
     bulkCleanup(s);
