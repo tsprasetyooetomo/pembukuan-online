@@ -586,17 +586,26 @@ var MENUS = [
       { id: "perk", label: "No Perkiraan", icon: "fa-list-ol" },
       { id: "cbg", label: "Cabang", icon: "fa-code-branch" },
       { id: "kode", label: "Kode Bank/Kas", icon: "fa-building-columns" },
+      { id: "kodekasir", label: "Kode Kasir", icon: "fa-building-columns" },
     ],
   },
   {
     group: "MUTASI",
     icon: "fa-right-left",
-    items: [{ id: "mutasi", label: "Mutasi Transaksi", icon: "fa-right-left" }],
+    items: [
+      {
+        id: "mutasikasir",
+        label: "Mutasi Harian Kasir",
+        icon: "fa-right-left",
+      },
+      { id: "mutasi", label: "Mutasi Transaksi", icon: "fa-right-left" },
+    ],
   },
   {
     group: "LAPORAN KAS",
     icon: "fa-cash-register",
     items: [
+      { id: "kaskasir", label: "Kas Harian Kasir", icon: "fa-calendar-day" },
       { id: "kasHarian", label: "Kas Harian", icon: "fa-calendar-day" },
       { id: "inputHarian", label: "Input Harian", icon: "fa-keyboard" },
     ],
