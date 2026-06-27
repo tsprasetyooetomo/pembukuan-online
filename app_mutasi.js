@@ -1863,9 +1863,12 @@ function printMutasiKasir() {
     // Pengeluaran (CS)
     "<tr class='bold'><td>PENGELUARAN</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.CS) +
-    "<tr class='bold'><td>PENJUALAN TUNAI </td><td style='text-align:right;border-top: 1px solid var(--brd);'>" +
+    "<tr class='bold'>" +
+    "<td>PENJUALAN TUNAI</td>" +
+    "<td style='text-align:right;border-top: 1px solid var(--brd);'>" +
     fmtRp(penjualanTunai) +
-    "</td></tr>" +
+    "</td>" +
+    "</tr>" +
     // Ringkasan Saldo
     "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right'>" +
     fmtRp(saldoAwalKasir) +
@@ -1875,9 +1878,12 @@ function printMutasiKasir() {
     "<tr class='total'><td>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
     fmtRp(saldoTersedia) +
     "</td></tr>" +
-    "<tr style='font-weight:bold;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
+    "<tr style='font-weight:bold;'>" +
+    "<td>TOTAL BELANJA</td>" +
+    "<td style='text-align:right'>" +
     fmtRp(totalBE) +
-    "</td></tr>" +
+    "</td>" +
+    "</tr>" +
     "<tr class='total'><td>SALDO KAS</td><td style='text-align:right;border-top: 1px solid var(--brd);'>" +
     fmtRp(saldoKas) +
     "</td></tr>" +
