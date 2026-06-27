@@ -1865,6 +1865,7 @@ function printMutasiKasir() {
     rowHtml(dataKode.CS) +
     "<tr class='bold'><td>PENJUALAN TUNAI </td><td style='text-align:right;border-top: 1px solid var(--brd);'>" +
     fmtRp(penjualanTunai) +
+    "</td></tr>" +
     // Ringkasan Saldo
     "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right'>" +
     fmtRp(saldoAwalKasir) +
@@ -1877,7 +1878,7 @@ function printMutasiKasir() {
     "<tr style='font-weight:bold;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     fmtRp(totalBE) +
     "</td></tr>" +
-    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right'>" +
+    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right;border-top: 1px solid var(--brd);'>" +
     fmtRp(saldoKas) +
     "</td></tr>" +
     // Kode KT
@@ -1891,7 +1892,7 @@ function printMutasiKasir() {
     "</td></tr>" +
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Saldo Akhir
-    "<tr class='total'><td>SALDO AKHIR KAS </td><td style='text-align:right'>" +
+    "<tr class='total'><td>SALDO AKHIR KAS </td><td style='text-align:right;border-top: 1px solid var(--brd);'>" +
     fmtRp(saldoAkhirKas) +
     "</td></tr>" +
     "</table>" +
