@@ -1650,7 +1650,8 @@ function renderKasirNoreffList() {
 
   var filterBulan = $("mk_filter_bulan") ? $("mk_filter_bulan").value : "";
   var filterTahun = $("mk_filter_tahun") ? $("mk_filter_tahun").value : "";
-  var data = DBCache.mutasiKasir || [];
+  // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
+  var data = Array.isArray(DBCache.mutasiKasir) ? DBCache.mutasiKasir : [];
 
   var filtered = data.filter(function (t) {
     if (filterBulan && t.tanggal.substring(5, 7) !== filterBulan) return false;
