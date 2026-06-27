@@ -1162,7 +1162,7 @@ async function renderSaldoKasir() {
   });
 
   var totalSaldo = data.reduce(function (s, r) {
-    return s + (num(r.awal) || 0);
+    return s + (num(r.akhir) || 0);
   }, 0);
 
   // ✅ TAMBAH: "-" pada posisi cabang di footer
