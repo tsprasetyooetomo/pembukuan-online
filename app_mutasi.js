@@ -1727,7 +1727,9 @@ function resetKasirNewTransaction() {
   renderKasirDetilTable();
   renderKasirNoreffList();
 }
-
+/* ================================================================
+   PRINT MUTASI KASIR (TOTAL BELANJA DIKASIH GARIS ATAS)
+   ================================================================ */
 function printMutasiKasir() {
   var noreff = _kasirSession.noreff;
   if (!noreff) return toast("Pilih transaksi terlebih dahulu", "wrn");
@@ -1784,30 +1786,24 @@ function printMutasiKasir() {
   });
   if (kasirMatch) saldoAwalKasir = num(kasirMatch.awal);
 
-  // 3. Hitung Penjualan Tunai (PJ - CS)
+  // 3. Hitung Rumus Matematika Kas
   var penjualanTunai = totalPJ - totalCS;
-
-  // 4. Saldo Kas Tersedia (Saldo Awal + Penjualan Tunai)
   var saldoTersedia = saldoAwalKasir + penjualanTunai;
-
-  // 5. Saldo Kas (Saldo Tersedia - Belanja/BE)
   var saldoKas = saldoTersedia - totalBE;
-
-  // 6. Saldo Akhir Kas (Saldo Kas + KT - KK)
   var saldoAkhirKas = saldoKas + totalKT - totalKK;
 
-  // Format Tabel Cetak
+  // Format Rupiah
   function fmtRp(val) {
     return num(val).toLocaleString("id-ID");
   }
+
+  // Fungsi rowHtml (Tanpa kode di depan penjelasan)
   function rowHtml(kodeArr) {
     var html = "";
     kodeArr.forEach(function (d) {
       html +=
-        "<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;" +
-        esc(d.kodeTrans) +
-        "</td><td>" +
-        esc(d.desc) +
+        "<tr><td style='padding-left:20px;'>" +
+        esc(d.desc || "-") +
         "</td><td style='text-align:right'>" +
         fmtRp(d.total) +
         "</td></tr>";
@@ -1815,6 +1811,7 @@ function printMutasiKasir() {
     return html;
   }
 
+  // 4. Rangkai HTML
   var printHtml =
     "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Print Kasir - " +
     esc(noreff) +
@@ -1832,57 +1829,57 @@ function printMutasiKasir() {
     "</p><hr>" +
     "<table>" +
     // Bagian Belanja (BE)
-    "<tr class='bold'><td colspan='3'>BELANJA</td></tr>" +
+    "<tr class='bold'><td>BELANJA</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.BE) +
-    "<tr class='bold'><td colspan='2'>TOTAL BELANJA</td><td style='text-align:right'>" +
+    // ✅ TOTAL BELANJA DIBERI GARIS ATAS (border-top)
+    "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     fmtRp(totalBE) +
     "</td></tr>" +
-    "<tr><td colspan='3'>&nbsp;</td></tr>" + // Spasi
+    "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Pemasukan (PJ)
-    "<tr class='bold'><td colspan='3'>(+)</td></tr>" +
+    "<tr class='bold'><td>PEMASUKAN</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.PJ) +
-    "<tr><td colspan='3'>&nbsp;</td></tr>" + // Spasi
+    "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Pengeluaran (CS)
-    "<tr class='bold'><td colspan='3'>(-)</td></tr>" +
+    "<tr class='bold'><td>PENGELUARAN</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.CS) +
-    "<tr class='bold'><td colspan='2'>PENJUALAN TUNAI/td><td style='text-align:right'>" +
+    "<tr class='bold'><td>PENJUALAN TUNAI (PJ - CS)</td><td style='text-align:right'>" +
     fmtRp(penjualanTunai) +
     "</td></tr>" +
-    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Ringkasan Saldo
-    "<tr class='bold'><td colspan='2'>SALDO AWAL </td><td style='text-align:right'>" +
+    "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right'>" +
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
-    "<tr class='bold'><td colspan='2'>TOTAL BELANJA</td><td style='text-align:right'>" +
-    fmtRp(totalBE);
-  "<tr class='total'><td colspan='2'>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
+    "<tr class='total'><td>SALDO KAS TERSEDIA (Awal + Penjualan)</td><td style='text-align:right'>" +
     fmtRp(saldoTersedia) +
     "</td></tr>" +
-    "<tr class='total'><td colspan='2'>Saldo Kas (Tersedia - Belanja)</td><td style='text-align:right'>" +
+    "<tr class='total'><td>Saldo Kas (Tersedia - Belanja)</td><td style='text-align:right'>" +
     fmtRp(saldoKas) +
     "</td></tr>" +
-    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Kode KT
-    "<tr class='bold'><td colspan='3'>KAS MASUK LAIN (KT)</td></tr>" +
+    "<tr class='bold'><td>KAS MASUK LAIN (KT)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KT) +
-    "<tr class='bold'><td colspan='2'>Total KT</td><td style='text-align:right'>" +
+    "<tr class='bold'><td>Total KT</td><td style='text-align:right'>" +
     fmtRp(totalKT) +
     "</td></tr>" +
-    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Kode KK
-    "<tr class='bold'><td colspan='3'>KAS KELUAR LAIN (KK)</td></tr>" +
+    "<tr class='bold'><td>KAS KELUAR LAIN (KK)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KK) +
-    "<tr class='bold'><td colspan='2'>Total KK</td><td style='text-align:right'>" +
+    "<tr class='bold'><td>Total KK</td><td style='text-align:right'>" +
     fmtRp(totalKK) +
     "</td></tr>" +
-    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Saldo Akhir
-    "<tr class='total'><td colspan='2'>SALDO AKHIR KAS (Saldo Kas + KT - KK)</td><td style='text-align:right'>" +
+    "<tr class='total'><td>SALDO AKHIR KAS (Saldo Kas + KT - KK)</td><td style='text-align:right'>" +
     fmtRp(saldoAkhirKas) +
     "</td></tr>" +
     "</table>" +
     "</body></html>";
 
+  // 5. Eksekusi Print
   var printWindow = window.open("", "_blank", "width=800,height=600");
   if (!printWindow)
     return toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
