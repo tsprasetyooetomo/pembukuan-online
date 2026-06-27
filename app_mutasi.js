@@ -1533,10 +1533,10 @@ async function addKasirDetil() {
       cr: 0,
     };
 
-    await db.add("mutasiKasir", newDetil);
+    await db.add("mutasikasir", newDetil);
 
-    if (!DBCache.mutasiKasir) DBCache.mutasiKasir = [];
-    DBCache.mutasiKasir.push(newDetil);
+    if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
+    DBCache.mutasikasir.push(newDetil);
 
     // Kosongkan input di baris Excel
     $("mk_kode").value = "";
@@ -1558,7 +1558,7 @@ async function addKasirDetil() {
 
 function updateKasirHeaderNominal() {
   var totalRp = 0;
-  var data = DBCache.mutasiKasir || [];
+  var data = DBCache.mutasikasir || [];
   data.forEach(function (t) {
     if (t.noreff === _kasirSession.noreff) totalRp += num(t.total);
   });
@@ -1571,7 +1571,7 @@ function renderKasirDetilTable() {
   var tblEl = $("mutKasirDetilTbl");
   if (!tblEl) return;
   // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
-  var data = Array.isArray(DBCache.mutasiKasir) ? DBCache.mutasiKasir : [];
+  var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
 
   var detilData = data.filter(function (t) {
     return t.noreff === noreff;
@@ -1622,15 +1622,15 @@ function renderKasirDetilTable() {
 async function hapusKasirDetil(id) {
   if (!confirm("Yakin hapus detil ini?")) return;
 
-  await db.del("mutasiKasir", id);
+  await db.del("mutasikasir", id);
 
-  if (DBCache.mutasiKasir) {
-    DBCache.mutasiKasir = DBCache.mutasiKasir.filter(function (t) {
+  if (DBCache.mutasikasir) {
+    DBCache.mutasikasir = DBCache.mutasikasir.filter(function (t) {
       return t.id !== id;
     });
   }
 
-  var sisa = (DBCache.mutasiKasir || []).filter(function (t) {
+  var sisa = (DBCache.mutasikasir || []).filter(function (t) {
     return t.noreff === _kasirSession.noreff;
   }).length;
   if (sisa === 0) {
@@ -1651,7 +1651,7 @@ function renderKasirNoreffList() {
   var filterBulan = $("mk_filter_bulan") ? $("mk_filter_bulan").value : "";
   var filterTahun = $("mk_filter_tahun") ? $("mk_filter_tahun").value : "";
   // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
-  var data = Array.isArray(DBCache.mutasiKasir) ? DBCache.mutasiKasir : [];
+  var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
 
   var filtered = data.filter(function (t) {
     if (filterBulan && t.tanggal.substring(5, 7) !== filterBulan) return false;
@@ -1699,7 +1699,7 @@ function renderKasirNoreffList() {
 }
 
 function onKasirNoreffClicked(noreffTarget) {
-  var data = DBCache.mutasiKasir || [];
+  var data = DBCache.mutasikasir || [];
   var headerData = data.find(function (t) {
     return t.noreff === noreffTarget;
   });
@@ -1736,7 +1736,7 @@ function printMutasiKasir() {
   var noreff = _kasirSession.noreff;
   if (!noreff) return toast("Pilih transaksi terlebih dahulu", "wrn");
   // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
-  var data = Array.isArray(DBCache.mutasiKasir) ? DBCache.mutasiKasir : [];
+  var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
 
   var detilData = data.filter(function (t) {
     return t.noreff === noreff;
