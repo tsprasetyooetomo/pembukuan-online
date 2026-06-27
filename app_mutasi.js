@@ -1344,9 +1344,8 @@ async function clearAllDataMutasi2(storeName) {
 }
 /* ================================================================
    MUTASI KASIR (CUSTOM RENDER, FORM, SAVE, PRINT)
-   ================================================================ */
-/* ================================================================
-   MUTASI KASIR (DETIL INPUT BENTUK SPREADSHEET/EXCEL)
+   =/* ================================================================
+   MUTASI KASIR (INPUT EXCEL DI ATAS, DATA DI BAWAH, RIWAYAT KANAN)
    ================================================================ */
 
 PANEL_MAP.mutasikasir = renderMutasiKasir;
@@ -1378,42 +1377,34 @@ function renderMutasiKasir() {
       ? DBCache.cabang[0].kode || "Pusat"
       : "Pusat";
 
-  var cabFilterOpts = '<option value="">-- Semua Cabang --</option>';
-  if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
-    DBCache.cabang.forEach(function (c) {
-      cabFilterOpts +=
-        '<option value="' +
-        esc(c.kode || "") +
-        '">' +
-        esc(c.kode || "") +
-        " — " +
-        esc(c.nama || "") +
-        "</option>";
-    });
-  }
-
   return (
     "<style>" +
     ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
     /* ✅ CSS TABEL EXCEL-LIKE */
-    "#mutKasirDetilTbl { max-height: 450px; overflow-y: auto; border: 1px solid var(--brd); border-radius: 6px; }" +
-    "#mutKasirDetilTbl table { width: 100%; border-collapse: collapse; }" +
-    "#mutKasirDetilTbl th, #mutKasirDetilTbl td { border: 1px solid var(--brd); padding: 6px 8px; font-size: .8rem; }" +
-    "#mutKasirDetilTbl thead th { position: sticky; top: 0; background: var(--bg2); z-index: 5; text-align: center; }" +
-    "#mutKasirDetilTbl .row-input td { background: rgba(245, 158, 11, 0.05); border-top: 2px dashed var(--accent); }" +
-    "#mutKasirDetilTbl select, #mutKasirDetilTbl input { width: 100%; border: none; background: transparent; font-size: .8rem; color: var(--fg); padding: 2px; outline: none; }" +
-    "#mutKasirDetilTbl select:focus, #mutKasirDetilTbl input:focus { background: var(--bg); border-radius: 4px; }" +
+    ".tbl-excel { width: 100%; border-collapse: collapse; border: 1px solid var(--brd); border-radius: 6px; overflow: hidden; }" +
+    ".tbl-excel th, .tbl-excel td { border: 1px solid var(--brd); padding: 6px 8px; font-size: .8rem; }" +
+    ".tbl-excel thead th { background: var(--bg2); text-align: center; }" +
+    ".tbl-excel .row-input td { background: rgba(245, 158, 11, 0.05); border-top: 2px dashed var(--accent); }" +
+    ".tbl-excel select, .tbl-excel input { width: 100%; border: none; background: transparent; font-size: .8rem; color: var(--fg); padding: 2px; outline: none; }" +
+    ".tbl-excel select:focus, .tbl-excel input:focus { background: var(--bg); border-radius: 4px; }" +
     ".col-kode { width: 80px; text-align: center; }" +
     ".col-rp { width: 140px; text-align: right; }" +
     ".col-aksi { width: 90px; text-align: center; }" +
+    "#mutKasirDetilTbl { max-height: 400px; overflow-y: auto; border: 1px solid var(--brd); border-radius: 6px; }" +
+    "#mutKasirNoreffList { max-height: 450px !important; overflow-y: auto !important; }" +
     "</style>" +
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)"><i class="fa-solid fa-file-circle-plus"></i> Header Transaksi Kasir</div>' +
+    '<div style="display:flex; gap:.4rem;">' +
+    '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Baru</button>' +
     "</div>" +
+    "</div>" +
     '<div style="display:flex;gap:1rem">' +
+    /* KOLOM KIRI (INPUT EXCEL & DETIL) */
     '<div style="flex:3">' +
+    /* BARIS HEADER (CABANG, TANGGAL, NOREF, TOTAL) */
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
     '<div class="fg" style="flex:1"><label>Cabang</label><select id="mk_cab" class="in">' +
     getCabangOpts(firstCab) +
@@ -1424,13 +1415,29 @@ function renderMutasiKasir() {
     '<div class="fg" style="flex:1"><label>No Ref</label><input id="mk_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
     '<div class="fg" style="flex:1"><label>Total Rp</label><input id="mk_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
     "</div>" +
-    '<div style="margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--brd)">' +
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
-    '<div style="font-size:.8rem;font-weight:700;color:var(--info)"><i class="fa-solid fa-list-ol"></i> Tambah Detil Kasir</div>' +
-    '<button type="button" class="btn btn-sm" style="background:var(--info);color:#fff;font-size:.7rem;padding:3px 10px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print</button>' +
+    /* ✅ TABEL INPUT EXCEL DI ATAS */
+    '<div style="margin-top:.8rem;">' +
+    '<table class="tbl-excel">' +
+    "<thead>" +
+    '<tr><th class="col-kode">Kode</th><th>Penjelasan</th><th class="col-rp">Rp</th><th class="col-aksi">Aksi</th></tr>' +
+    "</thead>" +
+    "<tbody>" +
+    '<tr class="row-input">' +
+    '<td><select id="mk_kode">' +
+    generateKasirKodeOpts("") +
+    "</select></td>" +
+    '<td><input type="text" id="mk_penjelasan" placeholder="Ketik penjelasan lalu tekan Enter..."></td>' +
+    '<td><input type="number" id="mk_rp" placeholder="0"></td>' +
+    '<td style="text-align:center;"><button class="btn btn-a btn-sm" onclick="addKasirDetil()" style="width:100%;"><i class="fa-solid fa-plus"></i> Tambah</button></td>' +
+    "</tr>" +
+    "</tbody>" +
+    "</table>" +
     "</div>" +
+    /* ✅ TABEL RIWAYAT DETIL DI BAWAHNYA */
+    '<div style="font-size:.85rem;font-weight:700;margin-top:1rem;margin-bottom:.4rem">Riwayat Detil Transaksi Kasir</div>' +
+    '<div id="mutKasirDetilTbl" class="tw"></div>' +
     "</div>" +
-    "</div>" +
+    /* ✅ KOLOM KANAN (RIWAYAT NOREF DIPERTAHANKAN) */
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
     '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="mk_filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
@@ -1443,9 +1450,6 @@ function renderMutasiKasir() {
     '<div id="mutKasirNoreffList" style="height:180px;overflow-y:auto;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px"><div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div></div>' +
     "</div>" +
     "</div>" +
-    '<div style="font-size:.85rem;font-weight:700;margin-top:1rem;margin-bottom:.4rem">Riwayat Detil Transaksi Kasir</div>' +
-    /* ✅ KONTAINER TABEL EXCEL DI SINI */
-    '<div id="mutKasirDetilTbl" class="tw"></div>' +
     "</div>"
   );
 }
@@ -1462,7 +1466,7 @@ function initMutasiKasirState() {
   $("mk_filter_bulan").addEventListener("change", renderKasirNoreffList);
   $("mk_filter_tahun").addEventListener("change", renderKasirNoreffList);
 
-  // Bind Enter key pada input Excel di baris bawah
+  // Bind Enter key pada input Excel
   ["mk_penjelasan", "mk_rp"].forEach(function (id) {
     var el = $(id);
     if (el)
@@ -1538,7 +1542,7 @@ async function addKasirDetil() {
     $("mk_kode").value = "";
     $("mk_penjelasan").value = "";
     $("mk_rp").value = "";
-    $("mk_kode").focus(); // Kembali ke kolom 1
+    $("mk_kode").focus();
 
     renderKasirDetilTable();
     updateKasirHeaderNominal();
@@ -1561,7 +1565,7 @@ function updateKasirHeaderNominal() {
   $("mk_nominal").value = fmtN(totalRp);
 }
 
-/* ✅ FUNGSI RENDER TABEL DIMANA INPUT MENJADI BARIS TERAKHIR (EXCEL-LIKE) */
+/* ✅ FUNGSI RENDER TABEL RIWAYAT DETIL DI BAWAH INPUT */
 function renderKasirDetilTable() {
   var noreff = _kasirSession.noreff;
   var tblEl = $("mutKasirDetilTbl");
@@ -1572,7 +1576,7 @@ function renderKasirDetilTable() {
     return t.noreff === noreff;
   });
 
-  var html = "<table>";
+  var html = '<table class="tbl-excel">';
   html += "<thead><tr>";
   html += '<th class="col-kode">Kode</th>';
   html += "<th>Penjelasan</th>";
@@ -1610,19 +1614,6 @@ function renderKasirDetilTable() {
     });
   }
 
-  // ✅ BARIS INPUT SEPERTI EXCEL DI PALING BAWAH
-  html +=
-    '<tr class="row-input">' +
-    '<td><select id="mk_kode">' +
-    generateKasirKodeOpts("") +
-    "</select></td>" +
-    '<td><input type="text" id="mk_penjelasan" placeholder="Ketik penjelasan..."></td>' +
-    '<td><input type="number" id="mk_rp" placeholder="0"></td>' +
-    '<td style="text-align:center;">' +
-    '<button class="btn btn-a btn-sm" onclick="addKasirDetil()" style="width:100%;"><i class="fa-solid fa-plus"></i> Tambah</button>' +
-    "</td>" +
-    "</tr>";
-
   html += "</tbody></table>";
   tblEl.innerHTML = html;
 }
@@ -1649,6 +1640,7 @@ async function hapusKasirDetil(id) {
   }
   renderKasirDetilTable();
   updateKasirHeaderNominal();
+  renderKasirNoreffList();
 }
 
 function renderKasirNoreffList() {
@@ -1735,9 +1727,7 @@ function resetKasirNewTransaction() {
   renderKasirDetilTable();
   renderKasirNoreffList();
 }
-/* ================================================================
-   PRINT MUTASI KASIR (LAYOUT KHUSUS ALUR KAS)
-   ================================================================ */
+
 function printMutasiKasir() {
   var noreff = _kasirSession.noreff;
   if (!noreff) return toast("Pilih transaksi terlebih dahulu", "wrn");
