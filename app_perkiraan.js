@@ -1124,30 +1124,30 @@ function getCabangFilterHTML() {
   return html;
 }
 PANEL_MAP.saldoKasir = renderSaldoKasir;
+PANEL_MAP.saldoKasir = renderSaldoKasir;
 
 async function renderSaldoKasir() {
   var rawData = DBCache.saldoKasir || [];
-  var data = filterByCabang(rawData); // Filter cabang tetap jalan di background jika diperlukan sistem
+  var data = filterByCabang(rawData);
 
-  // Sort berdasarkan Tanggal (terbaru duluan), jika sama baru urutkan Kode Bank
+  // Sort berdasarkan Tanggal (terbaru dulukan), lalu Kode Bank
   data.sort(function (a, b) {
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
-    if (tglB !== tglA) return tglB.localeCompare(tglA); // Descending
+    if (tglB !== tglA) return tglB.localeCompare(tglA);
     return String(a.kodebank || "").localeCompare(String(b.kodebank || ""));
   });
 
   var ids = data.map(function (r) {
     return r.id;
   });
-  bulkInit("saldoKasir", ids); // Sesuaikan store name
+  bulkInit("saldoKasir", ids);
 
   var dataLimit = data.slice(0, _viewLimit);
   var idsLimit = dataLimit.map(function (r) {
     return r.id;
   });
 
-  // Format tanggal agar rapi (YYYY-MM-DD menjadi DD/MM/YYYY)
   function formatTgl(str) {
     if (!str) return "-";
     var d = str.split("-");
@@ -1157,13 +1157,12 @@ async function renderSaldoKasir() {
 
   var rows = dataLimit.map(function (r) {
     return [
-      formatTgl(r.tgl_awal), // Kolom 1: Tanggal
-      esc(r.kodebank || "-"), // Kolom 2: Kode Kasir
-      formatUang(r.awal || 0), // Kolom 3: Saldo
+      formatTgl(r.tgl_awal),
+      esc(r.kodebank || "-"),
+      formatUang(r.awal || 0),
     ];
   });
 
-  // Hitung total saldo di footer
   var totalSaldo = data.reduce(function (s, r) {
     return s + (num(r.awal) || 0);
   }, 0);
@@ -1189,22 +1188,17 @@ async function renderSaldoKasir() {
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasir\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasir\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
     '<button type="button" class="btn btn-a" onclick="formSaldoKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
-    "</div>" +
-    "</div>" +
+    "</div></div>" +
     wrapTable(
-      buildTable(
-        ["Tanggal", "Kode Kasir", "Saldo Awal"], // Header tabel
-        rows,
-        {
-          foot: foot,
-          bulkStore: "saldoKasir",
-          bulkIds: idsLimit,
-          actions: function (r, i) {
-            return crudActions(dataLimit[i].id, "saldoKasir");
-          },
-          emptyMsg: "Belum ada data Saldo Kasir",
+      buildTable(["Tanggal", "Kode Kasir", "Saldo Awal"], rows, {
+        foot: foot,
+        bulkStore: "saldoKasir",
+        bulkIds: idsLimit,
+        actions: function (r, i) {
+          return crudActions(dataLimit[i].id, "saldoKasir");
         },
-      ),
+        emptyMsg: "Belum ada data Saldo Kasir",
+      }),
     )
   );
 }
@@ -1217,7 +1211,6 @@ function formSaldoKasir(id) {
       }) || {}
     : {};
 
-  // Hanya 3 input: Cabang (hidden/disable), Tanggal, Kode Kasir, dan Saldo
   var html =
     '<div class="fg"><label>Cabang</label><select id="fSkCab" class="in"' +
     (isEdit ? " disabled" : "") +
@@ -1254,7 +1247,6 @@ async function saveSaldoKasir(e, editId) {
     var kodebank = $("fSkKode").value.trim();
     var awal = num($("fSkAwal").value);
 
-    // Validasi hanya untuk field yang ada
     if (!tgl_awal || !kodebank) {
       return toast("Tanggal dan Kode Kasir wajib diisi", "err");
     }
@@ -1269,7 +1261,6 @@ async function saveSaldoKasir(e, editId) {
           awal: awal,
         });
 
-        // Tembak ke backend endpoint saldoKasir
         var response = await fetch(
           API_BASE_URL + "/api/data/saldoKasir/" + editId,
           {
@@ -1303,7 +1294,6 @@ async function saveSaldoKasir(e, editId) {
         awal: awal,
       };
 
-      // Tembak ke backend endpoint saldoKasir
       var response = await fetch(API_BASE_URL + "/api/data/saldoKasir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
