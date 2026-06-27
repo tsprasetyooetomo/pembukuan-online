@@ -1755,7 +1755,7 @@ function printMutasiKasir() {
   detilData.forEach(function (t) {
     var k = t.kodeTrans || "";
     if (k === "BE") {
-      dataKode.push(t);
+      dataKode.BE.push(t);
       totalBE += num(t.total);
     } else if (k === "PJ") {
       dataKode.PJ.push(t);
@@ -1831,9 +1831,6 @@ function printMutasiKasir() {
     esc(noreff) +
     "</p><hr>" +
     "<table>" +
-    "<tr class='bold'><td colspan='2'>Saldo Awal</td><td style='text-align:right'>" +
-    fmtRp(saldoAwalKasir) +
-    "</td></tr>" +
     // Bagian Belanja (BE)
     "<tr class='bold'><td colspan='3'>BELANJA</td></tr>" +
     rowHtml(dataKode.BE) +
@@ -1848,12 +1845,17 @@ function printMutasiKasir() {
     // Pengeluaran (CS)
     "<tr class='bold'><td colspan='3'>(-)</td></tr>" +
     rowHtml(dataKode.CS) +
-    "<tr class='bold'><td colspan='2'>PENJUALAN TUNAI (PJ - CS)</td><td style='text-align:right'>" +
+    "<tr class='bold'><td colspan='2'>PENJUALAN TUNAI/td><td style='text-align:right'>" +
     fmtRp(penjualanTunai) +
     "</td></tr>" +
     "<tr><td colspan='3'>&nbsp;</td></tr>" +
     // Ringkasan Saldo
-    "<tr class='total'><td colspan='2'>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
+    "<tr class='bold'><td colspan='2'>SALDO AWAL </td><td style='text-align:right'>" +
+    fmtRp(saldoAwalKasir) +
+    "</td></tr>" +
+    "<tr class='bold'><td colspan='2'>TOTAL BELANJA</td><td style='text-align:right'>" +
+    fmtRp(totalBE);
+  "<tr class='total'><td colspan='2'>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
     fmtRp(saldoTersedia) +
     "</td></tr>" +
     "<tr class='total'><td colspan='2'>Saldo Kas (Tersedia - Belanja)</td><td style='text-align:right'>" +
