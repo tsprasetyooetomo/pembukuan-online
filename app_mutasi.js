@@ -1869,31 +1869,25 @@ function printMutasiKasir() {
     "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right'>" +
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
-    "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     rowHtml(dataKode.TK) +
     "</td></tr>" +
     "<tr class='total'><td>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
     fmtRp(saldoTersedia) +
     "</td></tr>" +
-    "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
+    "<tr style='font-weight:bold;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     fmtRp(totalBE) +
     "</td></tr>" +
-    "<tr class='total'><td>Saldo Kas (Tersedia - Belanja)</td><td style='text-align:right'>" +
+    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right'>" +
     fmtRp(saldoKas) +
     "</td></tr>" +
-    "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Kode KT
-    "<tr class='bold'><td>KAS MASUK LAIN (KT)</td><td style='text-align:right'>Rp</td></tr>" +
+    "<tr class='bold'><td>KOREKSI(+)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KT) +
-    "<tr class='bold'><td>Total KT</td><td style='text-align:right'>" +
-    fmtRp(totalKT) +
     "</td></tr>" +
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Kode KK
-    "<tr class='bold'><td>KAS KELUAR LAIN (KK)</td><td style='text-align:right'>Rp</td></tr>" +
+    "<tr class='bold'><td>KOREKSI(-)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KK) +
-    "<tr class='bold'><td>Total KK</td><td style='text-align:right'>" +
-    fmtRp(totalKK) +
     "</td></tr>" +
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Saldo Akhir
