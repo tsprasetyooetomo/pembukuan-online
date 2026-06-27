@@ -1570,8 +1570,9 @@ function renderKasirDetilTable() {
   var noreff = _kasirSession.noreff;
   var tblEl = $("mutKasirDetilTbl");
   if (!tblEl) return;
+  // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
+  var data = Array.isArray(DBCache.mutasiKasir) ? DBCache.mutasiKasir : [];
 
-  var data = DBCache.mutasiKasir || [];
   var detilData = data.filter(function (t) {
     return t.noreff === noreff;
   });
@@ -1733,8 +1734,9 @@ function resetKasirNewTransaction() {
 function printMutasiKasir() {
   var noreff = _kasirSession.noreff;
   if (!noreff) return toast("Pilih transaksi terlebih dahulu", "wrn");
+  // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
+  var data = Array.isArray(DBCache.mutasiKasir) ? DBCache.mutasiKasir : [];
 
-  var data = DBCache.mutasiKasir || [];
   var detilData = data.filter(function (t) {
     return t.noreff === noreff;
   });
