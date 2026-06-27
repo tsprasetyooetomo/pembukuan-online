@@ -1863,7 +1863,7 @@ function printMutasiKasir() {
     // Pengeluaran (CS)
     "<tr class='bold'><td>PENGELUARAN</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.CS) +
-    "<tr class='bold'><td>PENJUALAN TUNAI </td><td style='text-align:right;border-top: 1px solid #000);'>" +
+    "<tr class='bold'><td>PENJUALAN TUNAI </td><td style='text-align:right;border-top: 1px solid var(--brd);'>" +
     fmtRp(penjualanTunai) +
     // Ringkasan Saldo
     "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right'>" +
