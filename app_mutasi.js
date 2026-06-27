@@ -1652,24 +1652,26 @@ function renderKasirNoreffList() {
   var filterTahun = $("mk_filter_tahun") ? $("mk_filter_tahun").value : "";
   // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
   var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
+  // ✅ TAMBAHKAN INI UNTUK DEBUG
+  console.log("Jumlah data di DBCache:", data.length);
+  console.log("Isi DBCache:", data);
+  console.log("Filter Bulan:", filterBulan, " | Filter Tahun:", filterTahun);
 
- 
-
-var filtered = data.filter(function (t) {
+  var filtered = data.filter(function (t) {
     // Ambil 7 karakter pertama (YYYY-MM) untuk menghindari jam/menit/detik
-    var ym = t.tanggal ? t.tanggal.substring(0, 7) : ""; 
-    
+    var ym = t.tanggal ? t.tanggal.substring(0, 7) : "";
+
     if (filterBulan && filterTahun) {
-        return ym === filterTahun + "-" + filterBulan; // Contoh: "2026-06" === "2026-06"
+      return ym === filterTahun + "-" + filterBulan; // Contoh: "2026-06" === "2026-06"
     }
     if (filterBulan && !filterTahun) {
-        return ym.substring(5, 7) === filterBulan;
+      return ym.substring(5, 7) === filterBulan;
     }
     if (filterTahun && !filterBulan) {
-        return ym.substring(0, 4) === filterTahun;
+      return ym.substring(0, 4) === filterTahun;
     }
     return true;
-});
+  });
 
   var uniqueNoreff = {};
   filtered.forEach(function (t) {
