@@ -1650,66 +1650,72 @@ function renderKasirNoreffList() {
 
   var filterBulan = $("mk_filter_bulan") ? $("mk_filter_bulan").value : "";
   var filterTahun = $("mk_filter_tahun") ? $("mk_filter_tahun").value : "";
-  // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
   var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
-  // ✅ TAMBAHKAN INI UNTUK DEBUG
-  console.log("Jumlah data di DBCache:", data.length);
-  console.log("Isi DBCache:", data);
-  console.log("Filter Bulan:", filterBulan, " | Filter Tahun:", filterTahun);
+
+  // DEBUG: Hapus 3 baris ini setelah berhasil
+  console.log("Jumlah data:", data.length);
+  console.log("Filter Bulan:", filterBulan, "Tahun:", filterTahun);
+  console.log("Contoh data ke-0:", data[0]);
 
   var filtered = data.filter(function (t) {
-    // Ambil 7 karakter pertama (YYYY-MM) untuk menghindari jam/menit/detik
-    var ym = t.tanggal ? t.tanggal.substring(0, 7) : "";
-
-    if (filterBulan && filterTahun) {
-      return ym === filterTahun + "-" + filterBulan; // Contoh: "2026-06" === "2026-06"
-    }
-    if (filterBulan && !filterTahun) {
-      return ym.substring(5, 7) === filterBulan;
-    }
-    if (filterTahun && !filterBulan) {
-      return ym.substring(0, 4) === filterTahun;
-    }
+    if (!t.tanggal) return false;
+    var ym = t.tanggal.substring(0, 7); // "2026-06"
+    if (filterBulan && filterTahun)
+      return ym === filterTahun + "-" + filterBulan;
+    if (filterBulan) return ym.substring(5, 7) === filterBulan;
+    if (filterTahun) return ym.substring(0, 4) === filterTahun;
     return true;
   });
 
+  console.log("Jumlah setelah filter:", filtered.length); // DEBUG
+
+  // ⬇️ PERBAIKAN: Mulai dengan array kosong, bukan string table
+  var rows = [];
+
   var uniqueNoreff = {};
   filtered.forEach(function (t) {
-    if (!uniqueNoreff[t.noreff])
+    if (!uniqueNoreff[t.noreff]) {
       uniqueNoreff[t.noreff] = {
         tanggal: t.tanggal,
         totalRp: 0,
         cabang: t.cabang,
       };
+    }
     uniqueNoreff[t.noreff].totalRp += num(t.total);
   });
 
-  var html = '<table style="width:100%;border-collapse:collapse">';
   Object.keys(uniqueNoreff).forEach(function (nref) {
     var item = uniqueNoreff[nref];
     var isActive = nref === _kasirSession.noreff;
-    html +=
+
+    rows.push(
       '<tr style="cursor:pointer;border-bottom:1px solid var(--brd);' +
-      (isActive ? "background:var(--accent);color:#fff;" : "") +
-      '" onclick="onKasirNoreffClicked(\'' +
-      nref +
-      "')\">";
-    html +=
-      '<td style="padding:4px;font-size:.7rem;font-family:monospace">' +
-      esc(nref) +
-      "<br><small>" +
-      esc(item.tanggal) +
-      "</small></td>";
-    html +=
-      '<td style="padding:4px;font-size:.7rem;text-align:right;font-weight:600">' +
-      fmtN(item.totalRp) +
-      "</td>";
-    html += "</tr>";
+        (isActive ? "background:var(--accent);color:#fff;" : "") +
+        '" onclick="onKasirNoreffClicked(\'' +
+        nref +
+        "')\">" +
+        '<td style="padding:4px;font-size:.7rem;font-family:monospace">' +
+        esc(nref) +
+        "<br><small>" +
+        esc(item.tanggal) +
+        "</small></td>" +
+        '<td style="padding:4px;font-size:.7rem;text-align:right;font-weight:600">' +
+        fmtN(item.totalRp) +
+        "</td>" +
+        "</tr>",
+    );
   });
 
-  box.innerHTML =
-    html ||
-    '<div style="padding:1rem;color:var(--muted);text-align:center">Tidak ada data</div>';
+  // ⬇️ PERBAIKAN: Cek berdasarkan jumlah baris, BUKAN string
+  if (rows.length === 0) {
+    box.innerHTML =
+      '<div style="padding:1rem;color:var(--muted);text-align:center">Tidak ada data</div>';
+  } else {
+    box.innerHTML =
+      '<table style="width:100%;border-collapse:collapse">' +
+      rows.join("") +
+      "</table>";
+  }
 }
 
 function onKasirNoreffClicked(noreffTarget) {
