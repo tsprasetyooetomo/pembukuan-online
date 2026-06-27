@@ -1346,7 +1346,7 @@ async function clearAllDataMutasi2(storeName) {
    MUTASI KASIR (CUSTOM RENDER, FORM, SAVE, PRINT)
    ================================================================ */
 /* ================================================================
-   MUTASI KASIR (DENGAN TAMPILAN DETIL GRID)
+   MUTASI KASIR (DETIL INPUT BENTUK SPREADSHEET/EXCEL)
    ================================================================ */
 
 PANEL_MAP.mutasikasir = renderMutasiKasir;
@@ -1356,7 +1356,7 @@ var _kasirSession = { noreff: "", isLocked: false };
 
 function generateKasirKodeOpts(selectedKode) {
   var kodeList = ["PJ", "BE", "CS", "KK", "KL", "TK", "SK", "KT"];
-  var opts = '<option value="">-- Pilih Kode --</option>';
+  var opts = '<option value="">-- Pilih --</option>';
   for (var i = 0; i < kodeList.length; i++) {
     var sel = kodeList[i] === selectedKode ? " selected" : "";
     opts +=
@@ -1395,15 +1395,17 @@ function renderMutasiKasir() {
   return (
     "<style>" +
     ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
-    /* ✅ CSS TAMBAHAN UNTUK GRID DETIL */
-    "#mutKasirDetilGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: .8rem; padding: .5rem; max-height: 450px; overflow-y: auto; }" +
-    ".grid-card { background: var(--bg2); border: 1px solid var(--brd); border-radius: 8px; padding: .8rem; display: flex; flex-direction: column; gap: .4rem; position: relative; transition: all .2s ease; }" +
-    ".grid-card:hover { border-color: var(--accent); box-shadow: 0 4px 10px rgba(0,0,0,0.1); transform: translateY(-2px); }" +
-    ".grid-card-top { display: flex; justify-content: space-between; align-items: center; }" +
-    ".grid-kode { font-size: .75rem; font-weight: 700; padding: 2px 8px; border-radius: 4px; background: var(--accent); color: #fff; }" +
-    ".grid-rp { font-size: 1.1rem; font-weight: 700; color: var(--success); text-align: right; }" +
-    ".grid-desc { font-size: .8rem; color: var(--fg); border-top: 1px dashed var(--brd); padding-top: .4rem; min-height: 30px; }" +
-    ".grid-actions { display: flex; gap: .3rem; justify-content: flex-end; margin-top: .3rem; }" +
+    /* ✅ CSS TABEL EXCEL-LIKE */
+    "#mutKasirDetilTbl { max-height: 450px; overflow-y: auto; border: 1px solid var(--brd); border-radius: 6px; }" +
+    "#mutKasirDetilTbl table { width: 100%; border-collapse: collapse; }" +
+    "#mutKasirDetilTbl th, #mutKasirDetilTbl td { border: 1px solid var(--brd); padding: 6px 8px; font-size: .8rem; }" +
+    "#mutKasirDetilTbl thead th { position: sticky; top: 0; background: var(--bg2); z-index: 5; text-align: center; }" +
+    "#mutKasirDetilTbl .row-input td { background: rgba(245, 158, 11, 0.05); border-top: 2px dashed var(--accent); }" +
+    "#mutKasirDetilTbl select, #mutKasirDetilTbl input { width: 100%; border: none; background: transparent; font-size: .8rem; color: var(--fg); padding: 2px; outline: none; }" +
+    "#mutKasirDetilTbl select:focus, #mutKasirDetilTbl input:focus { background: var(--bg); border-radius: 4px; }" +
+    ".col-kode { width: 80px; text-align: center; }" +
+    ".col-rp { width: 140px; text-align: right; }" +
+    ".col-aksi { width: 90px; text-align: center; }" +
     "</style>" +
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
@@ -1427,14 +1429,6 @@ function renderMutasiKasir() {
     '<div style="font-size:.8rem;font-weight:700;color:var(--info)"><i class="fa-solid fa-list-ol"></i> Tambah Detil Kasir</div>' +
     '<button type="button" class="btn btn-sm" style="background:var(--info);color:#fff;font-size:.7rem;padding:3px 10px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print</button>' +
     "</div>" +
-    '<div style="display:flex;gap:.5rem;align-items:flex-end">' +
-    '<div class="fg" style="flex:1;margin-bottom:0"><label>Kode <span class="req">*</span></label><select id="mk_kode" class="in">' +
-    generateKasirKodeOpts("") +
-    "</select></div>" +
-    '<div class="fg" style="flex:3;margin-bottom:0"><label>Penjelasan <span class="req">*</span></label><input id="mk_penjelasan" class="in" placeholder="Keterangan transaksi"></div>' +
-    '<div class="fg" style="flex:1;margin-bottom:0"><label>Rp <span class="req">*</span></label><input type="number" id="mk_rp" class="in" placeholder="0"></div>' +
-    '<button class="btn btn-a" onclick="addKasirDetil()" style="margin-bottom:2px"><i class="fa-solid fa-plus"></i> Tambah</button>' +
-    "</div>" +
     "</div>" +
     "</div>" +
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
@@ -1450,8 +1444,8 @@ function renderMutasiKasir() {
     "</div>" +
     "</div>" +
     '<div style="font-size:.85rem;font-weight:700;margin-top:1rem;margin-bottom:.4rem">Riwayat Detil Transaksi Kasir</div>' +
-    /* ✅ CONTAINER GRID DI SINI (bukan tw / table lagi) */
-    '<div id="mutKasirDetilGrid" class="tw"></div>' +
+    /* ✅ KONTAINER TABEL EXCEL DI SINI */
+    '<div id="mutKasirDetilTbl" class="tw"></div>' +
     "</div>"
   );
 }
@@ -1468,6 +1462,7 @@ function initMutasiKasirState() {
   $("mk_filter_bulan").addEventListener("change", renderKasirNoreffList);
   $("mk_filter_tahun").addEventListener("change", renderKasirNoreffList);
 
+  // Bind Enter key pada input Excel di baris bawah
   ["mk_penjelasan", "mk_rp"].forEach(function (id) {
     var el = $(id);
     if (el)
@@ -1539,9 +1534,11 @@ async function addKasirDetil() {
     if (!DBCache.mutasiKasir) DBCache.mutasiKasir = [];
     DBCache.mutasiKasir.push(newDetil);
 
+    // Kosongkan input di baris Excel
+    $("mk_kode").value = "";
     $("mk_penjelasan").value = "";
     $("mk_rp").value = "";
-    $("mk_penjelasan").focus();
+    $("mk_kode").focus(); // Kembali ke kolom 1
 
     renderKasirDetilTable();
     updateKasirHeaderNominal();
@@ -1564,55 +1561,70 @@ function updateKasirHeaderNominal() {
   $("mk_nominal").value = fmtN(totalRp);
 }
 
-/* ✅ RENDER DETIL DALAM BENTUK KARTU/GRID */
+/* ✅ FUNGSI RENDER TABEL DIMANA INPUT MENJADI BARIS TERAKHIR (EXCEL-LIKE) */
 function renderKasirDetilTable() {
   var noreff = _kasirSession.noreff;
-  var gridEl = $("mutKasirDetilGrid");
-  if (!gridEl) return;
+  var tblEl = $("mutKasirDetilTbl");
+  if (!tblEl) return;
 
   var data = DBCache.mutasiKasir || [];
   var detilData = data.filter(function (t) {
     return t.noreff === noreff;
   });
 
+  var html = "<table>";
+  html += "<thead><tr>";
+  html += '<th class="col-kode">Kode</th>';
+  html += "<th>Penjelasan</th>";
+  html += '<th class="col-rp">Rp</th>';
+  html += '<th class="col-aksi">Aksi</th>';
+  html += "</tr></thead><tbody>";
+
   if (!detilData.length) {
-    gridEl.innerHTML =
-      '<div class="empty-msg" style="grid-column: 1 / -1;"><i class="fa-solid fa-inbox"></i> Belum ada detil untuk No Ref: ' +
+    html +=
+      '<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:1rem;"><i class="fa-solid fa-inbox"></i> Belum ada detil untuk No Ref: ' +
       esc(noreff || "...") +
-      "</div>";
-    return;
+      "</td></tr>";
+  } else {
+    detilData.forEach(function (r) {
+      html +=
+        "<tr>" +
+        '<td style="text-align:center; font-weight:600; color:var(--accent);">' +
+        esc(r.kodeTrans || "-") +
+        "</td>" +
+        "<td>" +
+        esc(r.desc || "-") +
+        "</td>" +
+        '<td style="text-align:right; font-weight:600;">' +
+        fmtN(r.total) +
+        "</td>" +
+        '<td style="text-align:center; white-space:nowrap;">' +
+        '<button class="btn btn-g btn-sm" onclick="editKasirDetil(\'' +
+        r.id +
+        '\')"><i class="fa-solid fa-pen"></i></button> ' +
+        '<button type="button" class="btn btn-r btn-sm" onclick="hapusKasirDetil(\'' +
+        r.id +
+        '\')"><i class="fa-solid fa-trash"></i></button>' +
+        "</td>" +
+        "</tr>";
+    });
   }
 
-  var html = "";
-  detilData.forEach(function (r) {
-    html +=
-      '<div class="grid-card">' +
-      '<div class="grid-card-top">' +
-      '<span class="grid-kode">' +
-      esc(r.kodeTrans || "-") +
-      "</span>" +
-      '<span style="font-size:.65rem; color:var(--muted);">' +
-      esc(r.tanggal || "-") +
-      "</span>" +
-      "</div>" +
-      '<div class="grid-desc">' +
-      esc(r.desc || "-") +
-      "</div>" +
-      '<div class="grid-rp">Rp ' +
-      fmtN(r.total) +
-      "</div>" +
-      '<div class="grid-actions">' +
-      '<button class="btn btn-g btn-sm" onclick="editKasirDetil(\'' +
-      r.id +
-      '\')" title="Edit"><i class="fa-solid fa-pen"></i></button>' +
-      '<button type="button" class="btn btn-r btn-sm" onclick="hapusKasirDetil(\'' +
-      r.id +
-      '\')" title="Hapus"><i class="fa-solid fa-trash"></i></button>' +
-      "</div>" +
-      "</div>";
-  });
+  // ✅ BARIS INPUT SEPERTI EXCEL DI PALING BAWAH
+  html +=
+    '<tr class="row-input">' +
+    '<td><select id="mk_kode">' +
+    generateKasirKodeOpts("") +
+    "</select></td>" +
+    '<td><input type="text" id="mk_penjelasan" placeholder="Ketik penjelasan..."></td>' +
+    '<td><input type="number" id="mk_rp" placeholder="0"></td>' +
+    '<td style="text-align:center;">' +
+    '<button class="btn btn-a btn-sm" onclick="addKasirDetil()" style="width:100%;"><i class="fa-solid fa-plus"></i> Tambah</button>' +
+    "</td>" +
+    "</tr>";
 
-  gridEl.innerHTML = html;
+  html += "</tbody></table>";
+  tblEl.innerHTML = html;
 }
 
 async function hapusKasirDetil(id) {
@@ -1723,5 +1735,177 @@ function resetKasirNewTransaction() {
   renderKasirDetilTable();
   renderKasirNoreffList();
 }
+/* ================================================================
+   PRINT MUTASI KASIR (LAYOUT KHUSUS ALUR KAS)
+   ================================================================ */
+function printMutasiKasir() {
+  var noreff = _kasirSession.noreff;
+  if (!noreff) return toast("Pilih transaksi terlebih dahulu", "wrn");
 
-// (Fungsi printMutasiKasir tetap sama persis seperti kode sebelumnya, tidak diubah)
+  var data = DBCache.mutasiKasir || [];
+  var detilData = data.filter(function (t) {
+    return t.noreff === noreff;
+  });
+  if (detilData.length === 0)
+    return toast("Tidak ada detil untuk No Ref ini", "wrn");
+
+  var header = detilData[0];
+  var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
+  var tanggal = header.tanggal || "-";
+  var cabang = header.cabang || "Pusat";
+
+  // 1. Kelompokkan data berdasarkan kode
+  var dataKode = { BE: [], PJ: [], CS: [], KK: [], KT: [], LAIN: [] };
+  var totalBE = 0,
+    totalPJ = 0,
+    totalCS = 0,
+    totalKK = 0,
+    totalKT = 0;
+
+  detilData.forEach(function (t) {
+    var k = t.kodeTrans || "";
+    if (k === "BE") {
+      dataKode.BE.push(t);
+      totalBE += num(t.total);
+    } else if (k === "PJ") {
+      dataKode.PJ.push(t);
+      totalPJ += num(t.total);
+    } else if (k === "CS") {
+      dataKode.CS.push(t);
+      totalCS += num(t.total);
+    } else if (k === "KK") {
+      dataKode.KK.push(t);
+      totalKK += num(t.total);
+    } else if (k === "KT") {
+      dataKode.KT.push(t);
+      totalKT += num(t.total);
+    } else {
+      dataKode.LAIN.push(t);
+    }
+  });
+
+  // 2. Ambil Saldo Awal Kasir dari DBCache.saldoKasir
+  var saldoAwalKasir = 0;
+  var kasirData = DBCache.saldoKasir || [];
+  var kasirMatch = kasirData.find(function (k) {
+    return (
+      String(k.cabang || "").toLowerCase() === String(cabang).toLowerCase()
+    );
+  });
+  if (kasirMatch) saldoAwalKasir = num(kasirMatch.awal);
+
+  // 3. Hitung Penjualan Tunai (PJ - CS)
+  var penjualanTunai = totalPJ - totalCS;
+
+  // 4. Saldo Kas Tersedia (Saldo Awal + Penjualan Tunai)
+  var saldoTersedia = saldoAwalKasir + penjualanTunai;
+
+  // 5. Saldo Kas (Saldo Tersedia - Belanja/BE)
+  var saldoKas = saldoTersedia - totalBE;
+
+  // 6. Saldo Akhir Kas (Saldo Kas + KT - KK)
+  var saldoAkhirKas = saldoKas + totalKT - totalKK;
+
+  // Format Tabel Cetak
+  function fmtRp(val) {
+    return num(val).toLocaleString("id-ID");
+  }
+  function rowHtml(kodeArr) {
+    var html = "";
+    kodeArr.forEach(function (d) {
+      html +=
+        "<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;" +
+        esc(d.kodeTrans) +
+        "</td><td>" +
+        esc(d.desc) +
+        "</td><td style='text-align:right'>" +
+        fmtRp(d.total) +
+        "</td></tr>";
+    });
+    return html;
+  }
+
+  var printHtml =
+    "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Print Kasir - " +
+    esc(noreff) +
+    "</title>" +
+    "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;padding:15px;color:#000}" +
+    "h2{text-align:center;margin-bottom:10px}table{width:100%;border-collapse:collapse;margin-bottom:10px}" +
+    "th,td{padding:4px 8px;text-align:left}td.rp{text-align:right}.bold{font-weight:bold}.total{border-top:1px solid #000;border-bottom:1px solid #000;font-weight:bold}</style></head><body>" +
+    "<h2>LAPORAN KAS HARIAN KASIR</h2>" +
+    "<p>Cabang : " +
+    esc(cabangLabel) +
+    "<br>Tanggal : " +
+    esc(tanggal) +
+    "<br>No Ref : " +
+    esc(noreff) +
+    "</p><hr>" +
+    "<table>" +
+    "<tr class='bold'><td colspan='2'>Saldo Awal</td><td style='text-align:right'>" +
+    fmtRp(saldoAwalKasir) +
+    "</td></tr>" +
+    // Bagian Belanja (BE)
+    "<tr class='bold'><td colspan='3'>BELANJA (BE)</td></tr>" +
+    rowHtml(dataKode.BE) +
+    "<tr class='bold'><td colspan='2'>Total Belanja</td><td style='text-align:right'>" +
+    fmtRp(totalBE) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" + // Spasi
+    // Pemasukan (PJ)
+    "<tr class='bold'><td colspan='3'>PEMASUKAN (PJ)</td></tr>" +
+    rowHtml(dataKode.PJ) +
+    "<tr class='bold'><td colspan='2'>Total Pemasukan</td><td style='text-align:right'>" +
+    fmtRp(totalPJ) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" + // Spasi
+    // Pengeluaran (CS)
+    "<tr class='bold'><td colspan='3'>PENGELUARAN (CS)</td></tr>" +
+    rowHtml(dataKode.CS) +
+    "<tr class='bold'><td colspan='2'>Total Pengeluaran</td><td style='text-align:right'>" +
+    fmtRp(totalCS) +
+    "</td></tr>" +
+    "<tr class='bold'><td colspan='2'>Penjualan Tunai (PJ - CS)</td><td style='text-align:right'>" +
+    fmtRp(penjualanTunai) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    // Ringkasan Saldo
+    "<tr class='total'><td colspan='2'>Saldo Kas Tersedia (Awal + Penjualan)</td><td style='text-align:right'>" +
+    fmtRp(saldoTersedia) +
+    "</td></tr>" +
+    "<tr class='total'><td colspan='2'>Saldo Kas (Tersedia - Belanja)</td><td style='text-align:right'>" +
+    fmtRp(saldoKas) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    // Kode KT
+    "<tr class='bold'><td colspan='3'>KAS MASUK LAIN (KT)</td></tr>" +
+    rowHtml(dataKode.KT) +
+    "<tr class='bold'><td colspan='2'>Total KT</td><td style='text-align:right'>" +
+    fmtRp(totalKT) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    // Kode KK
+    "<tr class='bold'><td colspan='3'>KAS KELUAR LAIN (KK)</td></tr>" +
+    rowHtml(dataKode.KK) +
+    "<tr class='bold'><td colspan='2'>Total KK</td><td style='text-align:right'>" +
+    fmtRp(totalKK) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    // Saldo Akhir
+    "<tr class='total'><td colspan='2'>SALDO AKHIR KAS (Saldo Kas + KT - KK)</td><td style='text-align:right'>" +
+    fmtRp(saldoAkhirKas) +
+    "</td></tr>" +
+    "</table>" +
+    "</body></html>";
+
+  var printWindow = window.open("", "_blank", "width=800,height=600");
+  if (!printWindow)
+    return toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
+
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  printWindow.onload = function () {
+    setTimeout(function () {
+      printWindow.print();
+    }, 300);
+  };
+}
