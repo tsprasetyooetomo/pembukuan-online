@@ -1917,3 +1917,65 @@ function printMutasiKasir() {
     }, 300);
   };
 }
+async function editKasirDetil(idYangDiedit) {
+  var noreff = _kasirSession.noreff;
+  var kode = $("mk_kode").value;
+  var penjelasan = $("mk_penjelasan").value.trim();
+  var rp = num($("mk_rp").value);
+
+  // 1. Validasi input wajib
+  if (!kode || !penjelasan || rp <= 0) {
+    return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
+  }
+
+  _kasirSession.isLocked = true;
+  $("mk_cab").disabled = true;
+  $("mk_tgl").disabled = true;
+
+  try {
+    // 2. Siapkan objek data baru untuk diperbarui
+    var updatedDetil = {
+      id: idYangDiedit,
+      noreff: noreff,
+      tanggal: $("mk_tgl").value,
+      cabang: $("mk_cab").value,
+      kodeTrans: kode,
+      noperkiraan: "", // Sesuaikan jika ada input perkiraan saat edit
+      desc: penjelasan,
+      total: rp,
+      db: rp,
+      cr: 0,
+    };
+
+    // 3. Update data di database IndexedDB / API
+    await db.update("mutasikasir", updatedDetil);
+
+    // 4. Sinkronisasi data di DBCache
+    if (DBCache.mutasikasir) {
+      var index = DBCache.mutasikasir.findIndex(
+        (item) => item.id === idYangDiedit,
+      );
+      if (index !== -1) {
+        DBCache.mutasikasir[index] = updatedDetil;
+      }
+    }
+
+    // 5. Kosongkan kembali form input baris Excel
+    $("mk_kode").value = "";
+    $("mk_penjelasan").value = "";
+    $("mk_rp").value = "";
+    $("mk_kode").focus();
+
+    // 6. Refresh dan update tampilan UI
+    renderKasirDetilTable();
+    updateKasirHeaderNominal();
+    renderKasirNoreffList();
+
+    toast("Detil kasir berhasil diperbarui", "ok");
+  } catch (error) {
+    toast("Gagal edit: " + error.message, "err");
+    _kasirSession.isLocked = false;
+    $("mk_cab").disabled = false;
+    $("mk_tgl").disabled = false;
+  }
+}
