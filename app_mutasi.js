@@ -1838,6 +1838,7 @@ function printMutasiKasir() {
     "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     fmtRp(totalBE) +
     "</td></tr>" +
+    "<tr style='font-weight:bold; border-bottom:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Pemasukan (PJ)
     "<tr class='bold'><td>PEMASUKAN</td><td style='text-align:right'>Rp</td></tr>" +
@@ -1854,7 +1855,10 @@ function printMutasiKasir() {
     "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right'>" +
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
-    "<tr class='total'><td>SALDO KAS TERSEDIA (Awal + Penjualan)</td><td style='text-align:right'>" +
+    "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
+    fmtRp(totalBE) +
+    "</td></tr>" +
+    "<tr class='total'><td>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
     fmtRp(saldoTersedia) +
     "</td></tr>" +
     "<tr class='total'><td>Saldo Kas (Tersedia - Belanja)</td><td style='text-align:right'>" +
