@@ -1533,7 +1533,7 @@ async function addKasirDetil() {
       cr: 0,
     };
 
-    await db.add("mutasikasir", newDetil);
+    await db.add("mutasiKasir", newDetil);
 
     if (!DBCache.mutasiKasir) DBCache.mutasiKasir = [];
     DBCache.mutasiKasir.push(newDetil);
@@ -1622,7 +1622,7 @@ function renderKasirDetilTable() {
 async function hapusKasirDetil(id) {
   if (!confirm("Yakin hapus detil ini?")) return;
 
-  await db.del("mutasikasir", id);
+  await db.del("mutasiKasir", id);
 
   if (DBCache.mutasiKasir) {
     DBCache.mutasiKasir = DBCache.mutasiKasir.filter(function (t) {
