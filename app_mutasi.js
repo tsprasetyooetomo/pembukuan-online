@@ -1790,7 +1790,7 @@ function printMutasiKasir() {
       totalKT += num(t.total);
     } else if (k === "TK") {
       dataKode.TK.push(t);
-      totalKT += num(t.total);
+      totalTK += num(t.total);
     } else {
       dataKode.LAIN.push(t);
     }
@@ -1891,7 +1891,7 @@ function printMutasiKasir() {
     "</td></tr>" +
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Saldo Akhir
-    "<tr class='total'><td>SALDO AKHIR KAS (Saldo Kas + KT - KK)</td><td style='text-align:right'>" +
+    "<tr class='total'><td>SALDO AKHIR KAS </td><td style='text-align:right'>" +
     fmtRp(saldoAkhirKas) +
     "</td></tr>" +
     "</table>" +
