@@ -1158,7 +1158,7 @@ async function renderSaldoKasir() {
 
   // ✅ TAMBAH: r.cabang pada rows
   var rows = dataLimit.map(function (r) {
-    return [r.cabang || "-", formatTgl(r.tgl_awal), formatUang(r.awal || 0)];
+    return [r.cabang || "-", formatTgl(r.tgl_awal), formatUang(r.akhir || 0)];
   });
 
   var totalSaldo = data.reduce(function (s, r) {
@@ -1169,7 +1169,7 @@ async function renderSaldoKasir() {
   var foot = [
     "Total: " + data.length + " record",
     "-",
-    "-",
+
     '<span style="font-weight:bold;">' + formatUang(totalSaldo) + "</span>",
   ];
 
