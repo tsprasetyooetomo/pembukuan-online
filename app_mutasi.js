@@ -1750,12 +1750,13 @@ function printMutasiKasir() {
   var cabang = header.cabang || "Pusat";
 
   // 1. Kelompokkan data berdasarkan kode
-  var dataKode = { BE: [], PJ: [], CS: [], KK: [], KT: [], LAIN: [] };
+  var dataKode = { BE: [], PJ: [], CS: [], KK: [], KT: [], TK: [], LAIN: [] };
   var totalBE = 0,
     totalPJ = 0,
     totalCS = 0,
     totalKK = 0,
     totalKT = 0;
+  totalTK = 0;
 
   detilData.forEach(function (t) {
     var k = t.kodeTrans || "";
@@ -1773,6 +1774,9 @@ function printMutasiKasir() {
       totalKK += num(t.total);
     } else if (k === "KT") {
       dataKode.KT.push(t);
+      totalKT += num(t.total);
+    } else if (k === "TK") {
+      dataKode.TK.push(t);
       totalKT += num(t.total);
     } else {
       dataKode.LAIN.push(t);
@@ -1856,10 +1860,13 @@ function printMutasiKasir() {
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
     "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
-    fmtRp(totalBE) +
+    rowHtml(dataKode.TK) +
     "</td></tr>" +
     "<tr class='total'><td>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
     fmtRp(saldoTersedia) +
+    "</td></tr>" +
+    "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
+    fmtRp(totalBE) +
     "</td></tr>" +
     "<tr class='total'><td>Saldo Kas (Tersedia - Belanja)</td><td style='text-align:right'>" +
     fmtRp(saldoKas) +
