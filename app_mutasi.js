@@ -1795,7 +1795,7 @@ function printMutasiKasir() {
 
   // 3. Hitung Rumus Matematika Kas
   var penjualanTunai = totalPJ - totalCS;
-  var saldoTersedia = saldoAwalKasir + penjualanTunai;
+  var saldoTersedia = saldoAwalKasir + penjualanTunai + totalTK;
   var saldoKas = saldoTersedia - totalBE;
   var saldoAkhirKas = saldoKas + totalKT - totalKK;
 
