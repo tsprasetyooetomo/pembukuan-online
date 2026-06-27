@@ -1855,7 +1855,6 @@ function printMutasiKasir() {
     "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     fmtRp(totalBE) +
     "</td></tr>" +
-    "<tr style='font-weight:bold; border-bottom:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Pemasukan (PJ)
     "<tr class='bold'><td>PEMASUKAN</td><td style='text-align:right'>Rp</td></tr>" +
@@ -1864,10 +1863,8 @@ function printMutasiKasir() {
     // Pengeluaran (CS)
     "<tr class='bold'><td>PENGELUARAN</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.CS) +
-    "<tr class='bold'><td>PENJUALAN TUNAI (PJ - CS)</td><td style='text-align:right'>" +
+    "<tr class='bold'><td>PENJUALAN TUNAI </td><td style='text-align:right;border-top: 1px solid #000);'>" +
     fmtRp(penjualanTunai) +
-    "</td></tr>" +
-    "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Ringkasan Saldo
     "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right'>" +
     fmtRp(saldoAwalKasir) +
