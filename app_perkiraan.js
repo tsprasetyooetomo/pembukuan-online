@@ -1123,7 +1123,7 @@ function getCabangFilterHTML() {
   html += "</select>";
   return html;
 }
-PANEL_MAP.saldoKasir = renderSaldoKasir;
+
 PANEL_MAP.saldoKasir = renderSaldoKasir;
 
 async function renderSaldoKasir() {
@@ -1134,8 +1134,6 @@ async function renderSaldoKasir() {
   data.sort(function (a, b) {
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
-    if (tglB !== tglA) return tglB.localeCompare(tglA);
-    return String(a.kodebank || "").localeCompare(String(b.kodebank || ""));
   });
 
   var ids = data.map(function (r) {
@@ -1156,11 +1154,7 @@ async function renderSaldoKasir() {
   }
 
   var rows = dataLimit.map(function (r) {
-    return [
-      formatTgl(r.tgl_awal),
-      esc(r.kodebank || "-"),
-      formatUang(r.awal || 0),
-    ];
+    return [formatTgl(r.tgl_awal), formatUang(r.awal || 0)];
   });
 
   var totalSaldo = data.reduce(function (s, r) {
@@ -1220,9 +1214,6 @@ function formSaldoKasir(id) {
     '<div class="fg"><label>Tanggal Saldo</label><input id="fSkTgl" type="date" class="in" value="' +
     esc(data.tgl_awal || "") +
     '"></div>' +
-    '<div class="fg"><label>Kode Kasir</label><input id="fSkKode" class="in" value="' +
-    esc(data.kodebank || "") +
-    '"></div>' +
     '<div class="fg"><label>Saldo Awal</label><input id="fSkAwal" type="number" class="in" value="' +
     esc(data.awal || 0) +
     '"></div>';
@@ -1244,10 +1235,10 @@ async function saveSaldoKasir(e, editId) {
   try {
     var cabang = $("fSkCab").value;
     var tgl_awal = $("fSkTgl").value;
-    var kodebank = $("fSkKode").value.trim();
+
     var awal = num($("fSkAwal").value);
 
-    if (!tgl_awal || !kodebank) {
+    if (!tgl_awal) {
       return toast("Tanggal dan Kode Kasir wajib diisi", "err");
     }
 
@@ -1257,7 +1248,7 @@ async function saveSaldoKasir(e, editId) {
         var updated = Object.assign({}, r, {
           cabang: cabang,
           tgl_awal: tgl_awal,
-          kodebank: kodebank,
+
           awal: awal,
         });
 
@@ -1290,7 +1281,7 @@ async function saveSaldoKasir(e, editId) {
         id: newId,
         cabang: cabang,
         tgl_awal: tgl_awal,
-        kodebank: kodebank,
+
         awal: awal,
       };
 
