@@ -1342,3 +1342,556 @@ async function clearAllDataMutasi2(storeName) {
     toast("Gagal mengosongkan data: " + err.message, "err");
   }
 }
+/* ================================================================
+   MUTASI KASIR (CUSTOM RENDER, FORM, SAVE, PRINT)
+   ================================================================ */
+/* ================================================================
+   MUTASI KASIR (CUSTOM RENDER, FORM, SAVE, PRINT)
+   Data disimpan di DBCache.mutasiKasir & IndexedDB store "mutasiKasir"
+   ================================================================ */
+
+PANEL_MAP.mutasikasir = renderMutasiKasir;
+AFTER_RENDER.mutasikasir = initMutasiKasirState;
+
+var _kasirSession = { noreff: "", isLocked: false };
+var _kasirHandlers = {
+  cab: null,
+  tgl: null,
+  bulan: null,
+  tahun: null,
+  filterCabList: null,
+};
+
+function generateKasirKodeOpts(selectedKode) {
+  var kodeList = ["PJ", "BE", "CS", "KK", "KL", "TK", "SK", "KT"];
+  var opts = '<option value="">-- Pilih Kode --</option>';
+  for (var i = 0; i < kodeList.length; i++) {
+    var sel = kodeList[i] === selectedKode ? " selected" : "";
+    opts +=
+      '<option value="' +
+      kodeList[i] +
+      '"' +
+      sel +
+      ">" +
+      kodeList[i] +
+      "</option>";
+  }
+  return opts;
+}
+
+function renderMutasiKasir() {
+  var today = new Date().toISOString().split("T")[0];
+  var firstCab =
+    DBCache.cabang && DBCache.cabang.length > 0
+      ? DBCache.cabang[0].kode || "Pusat"
+      : "Pusat";
+
+  var cabFilterOpts = '<option value="">-- Semua Cabang --</option>';
+  if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
+    DBCache.cabang.forEach(function (c) {
+      cabFilterOpts +=
+        '<option value="' +
+        esc(c.kode || "") +
+        '">' +
+        esc(c.kode || "") +
+        " — " +
+        esc(c.nama || "") +
+        "</option>";
+    });
+  }
+
+  return (
+    "<style>" +
+    ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
+    "#mutKasirDetilTbl { max-height: 450px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
+    "#mutKasirNoreffList { max-height: 300px !important; overflow-y: auto !important; }" +
+    "</style>" +
+    '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
+    '<div style="font-size:.8rem;font-weight:700;color:var(--accent)"><i class="fa-solid fa-file-circle-plus"></i> Header Transaksi Kasir</div>' +
+    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Baru</button>' +
+    "</div>" +
+    '<div style="display:flex;gap:1rem">' +
+    '<div style="flex:3">' +
+    '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
+    '<div class="fg" style="flex:1"><label>Cabang</label><select id="mk_cab" class="in">' +
+    getCabangOpts(firstCab) +
+    "</select></div>" +
+    '<div class="fg" style="flex:1"><label>Tanggal</label><input id="mk_tgl" type="date" class="in" value="' +
+    esc(today) +
+    '"></div>' +
+    '<div class="fg" style="flex:1"><label>No Ref</label><input id="mk_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
+    '<div class="fg" style="flex:1"><label>Total Rp</label><input id="mk_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
+    "</div>" +
+    '<div style="margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--brd)">' +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
+    '<div style="font-size:.8rem;font-weight:700;color:var(--info)"><i class="fa-solid fa-list-ol"></i> Tambah Detil Kasir</div>' +
+    '<button type="button" class="btn btn-sm" style="background:var(--info);color:#fff;font-size:.7rem;padding:3px 10px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print</button>' +
+    "</div>" +
+    '<div style="display:flex;gap:.5rem;align-items:flex-end">' +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label>Kode <span class="req">*</span></label><select id="mk_kode" class="in">' +
+    generateKasirKodeOpts("") +
+    "</select></div>" +
+    '<div class="fg" style="flex:3;margin-bottom:0"><label>Penjelasan <span class="req">*</span></label><input id="mk_penjelasan" class="in" placeholder="Keterangan transaksi"></div>' +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label>Rp <span class="req">*</span></label><input type="number" id="mk_rp" class="in" placeholder="0"></div>' +
+    '<button class="btn btn-a" onclick="addKasirDetil()" style="margin-bottom:2px"><i class="fa-solid fa-plus"></i> Tambah</button>' +
+    "</div>" +
+    "</div>" +
+    "</div>" +
+    '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
+    '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="mk_filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    generateBulanOpts("") +
+    "</select></div>" +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Tahun</label><select id="mk_filter_tahun" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    generateTahunOpts("") +
+    "</select></div>" +
+    "</div>" +
+    '<div id="mutKasirNoreffList" style="height:180px;overflow-y:auto;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px"><div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div></div>' +
+    "</div>" +
+    "</div>" +
+    '<div style="font-size:.85rem;font-weight:700;margin-top:1rem;margin-bottom:.4rem">Riwayat Detil Transaksi Kasir</div>' +
+    '<div id="mutKasirDetilTbl" class="tw"></div>' +
+    "</div>"
+  );
+}
+
+function initMutasiKasirState() {
+  _kasirSession = { noreff: "", isLocked: false };
+
+  var cabEl = $("mk_cab");
+  var tglEl = $("mk_tgl");
+  if (!cabEl) return;
+
+  cabEl.addEventListener("change", onKasirCabangChange);
+  tglEl.addEventListener("change", onKasirHeaderChange);
+  $("mk_filter_bulan").addEventListener("change", renderKasirNoreffList);
+  $("mk_filter_tahun").addEventListener("change", renderKasirNoreffList);
+
+  ["mk_penjelasan", "mk_rp"].forEach(function (id) {
+    var el = $(id);
+    if (el)
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          addKasirDetil();
+        }
+      });
+  });
+
+  onKasirHeaderChange();
+  renderKasirDetilTable();
+  renderKasirNoreffList();
+}
+
+function onKasirCabangChange() {
+  _kasirSession = { noreff: "", isLocked: false };
+  $("mk_tgl").disabled = false;
+  $("mk_cab").disabled = false;
+  onKasirHeaderChange();
+}
+
+function onKasirHeaderChange() {
+  if (_kasirSession.isLocked) return;
+  var cab = $("mk_cab").value;
+  var tgl = $("mk_tgl").value;
+
+  // Generate No Ref sederhana: KASIR-CABANG-TGL-RANDOM
+  var newNoref =
+    "KASIR-" +
+    (cab || "PUSAT").substring(0, 3).toUpperCase() +
+    "-" +
+    tgl +
+    "-" +
+    Math.random().toString(36).substr(2, 4).toUpperCase();
+  $("mk_noref").value = newNoref;
+  _kasirSession.noreff = newNoref;
+}
+
+async function addKasirDetil() {
+  var noreff = _kasirSession.noreff;
+  var kode = $("mk_kode").value;
+  var penjelasan = $("mk_penjelasan").value.trim();
+  var rp = num($("mk_rp").value);
+
+  if (!kode || !penjelasan || rp <= 0)
+    return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
+
+  _kasirSession.isLocked = true;
+  $("mk_cab").disabled = true;
+  $("mk_tgl").disabled = true;
+
+  try {
+    var newDetil = {
+      id: uid(),
+      noreff: noreff,
+      tanggal: $("mk_tgl").value,
+      cabang: $("mk_cab").value,
+      kodeTrans: kode, // Kode PJ, BE, CS, dll
+      noperkiraan: "", // Tidak dipakai
+      desc: penjelasan,
+      total: rp,
+      db: rp,
+      cr: 0,
+    };
+
+    // Simpan ke IndexedDB store "mutasiKasir"
+    await db.add("mutasiKasir", newDetil);
+
+    // Update DBCache.mutasiKasir
+    if (!DBCache.mutasiKasir) DBCache.mutasiKasir = [];
+    DBCache.mutasiKasir.push(newDetil);
+
+    $("mk_penjelasan").value = "";
+    $("mk_rp").value = "";
+    $("mk_penjelasan").focus();
+
+    renderKasirDetilTable();
+    updateKasirHeaderNominal();
+    renderKasirNoreffList();
+    toast("Detil kasir ditambahkan", "ok");
+  } catch (error) {
+    toast("Gagal simpan: " + error.message, "err");
+    _kasirSession.isLocked = false;
+    $("mk_cab").disabled = false;
+    $("mk_tgl").disabled = false;
+  }
+}
+
+function updateKasirHeaderNominal() {
+  var totalRp = 0;
+  var data = DBCache.mutasiKasir || [];
+  data.forEach(function (t) {
+    if (t.noreff === _kasirSession.noreff) totalRp += num(t.total);
+  });
+  $("mk_nominal").value = fmtN(totalRp);
+}
+
+function renderKasirDetilTable() {
+  var noreff = _kasirSession.noreff;
+  var tblEl = $("mutKasirDetilTbl");
+  if (!tblEl) return;
+
+  var data = DBCache.mutasiKasir || [];
+  var detilData = data.filter(function (t) {
+    return t.noreff === noreff;
+  });
+
+  if (!detilData.length) {
+    tblEl.innerHTML =
+      '<div class="empty-msg"><i class="fa-solid fa-inbox"></i> Belum ada detil untuk No Ref: ' +
+      esc(noreff || "...") +
+      "</div>";
+    return;
+  }
+
+  var rows = detilData.map(function (r) {
+    return [
+      r.tanggal || "-",
+      '<span style="font-weight:600;color:var(--accent)">' +
+        esc(r.kodeTrans || "-") +
+        "</span>",
+      esc(r.desc || "-"),
+      '<span style="font-weight:600">' + fmtN(r.total) + "</span>",
+      '<button class="btn btn-g btn-sm" onclick="editKasirDetil(\'' +
+        r.id +
+        '\')"><i class="fa-solid fa-pen"></i></button> ' +
+        '<button type="button" class="btn btn-r btn-sm" onclick="hapusKasirDetil(\'' +
+        r.id +
+        '\')"><i class="fa-solid fa-trash"></i></button>',
+    ];
+  });
+
+  tblEl.innerHTML =
+    '<div class="ts"><table>' +
+    buildTable(["Tanggal", "Kode", "Penjelasan", "Rp", "Aksi"], rows, {
+      numCols: [3],
+    }) +
+    "</table></div>";
+}
+
+async function hapusKasirDetil(id) {
+  if (!confirm("Yakin hapus detil ini?")) return;
+
+  // Hapus dari IndexedDB
+  await db.del("mutasiKasir", id);
+
+  // Update DBCache
+  if (DBCache.mutasiKasir) {
+    DBCache.mutasiKasir = DBCache.mutasiKasir.filter(function (t) {
+      return t.id !== id;
+    });
+  }
+
+  var sisa = (DBCache.mutasiKasir || []).filter(function (t) {
+    return t.noreff === _kasirSession.noreff;
+  }).length;
+  if (sisa === 0) {
+    _kasirSession.isLocked = false;
+    $("mk_cab").disabled = false;
+    $("mk_tgl").disabled = false;
+    $("mk_nominal").value = "0";
+  }
+  renderKasirDetilTable();
+  updateKasirHeaderNominal();
+}
+
+function renderKasirNoreffList() {
+  var box = $("mutKasirNoreffList");
+  if (!box) return;
+
+  var filterBulan = $("mk_filter_bulan") ? $("mk_filter_bulan").value : "";
+  var filterTahun = $("mk_filter_tahun") ? $("mk_filter_tahun").value : "";
+  var data = DBCache.mutasiKasir || [];
+
+  var filtered = data.filter(function (t) {
+    if (filterBulan && t.tanggal.substring(5, 7) !== filterBulan) return false;
+    if (filterTahun && t.tanggal.substring(0, 4) !== filterTahun) return false;
+    return true;
+  });
+
+  var uniqueNoreff = {};
+  filtered.forEach(function (t) {
+    if (!uniqueNoreff[t.noreff])
+      uniqueNoreff[t.noreff] = {
+        tanggal: t.tanggal,
+        totalRp: 0,
+        cabang: t.cabang,
+      };
+    uniqueNoreff[t.noreff].totalRp += num(t.total);
+  });
+
+  var html = '<table style="width:100%;border-collapse:collapse">';
+  Object.keys(uniqueNoreff).forEach(function (nref) {
+    var item = uniqueNoreff[nref];
+    var isActive = nref === _kasirSession.noreff;
+    html +=
+      '<tr style="cursor:pointer;border-bottom:1px solid var(--brd);' +
+      (isActive ? "background:var(--accent);color:#fff;" : "") +
+      '" onclick="onKasirNoreffClicked(\'' +
+      nref +
+      "')\">";
+    html +=
+      '<td style="padding:4px;font-size:.7rem;font-family:monospace">' +
+      esc(nref) +
+      "<br><small>" +
+      esc(item.tanggal) +
+      "</small></td>";
+    html +=
+      '<td style="padding:4px;font-size:.7rem;text-align:right;font-weight:600">' +
+      fmtN(item.totalRp) +
+      "</td>";
+    html += "</tr>";
+  });
+
+  box.innerHTML =
+    html ||
+    '<div style="padding:1rem;color:var(--muted);text-align:center">Tidak ada data</div>';
+}
+
+function onKasirNoreffClicked(noreffTarget) {
+  var data = DBCache.mutasiKasir || [];
+  var headerData = data.find(function (t) {
+    return t.noreff === noreffTarget;
+  });
+  if (!headerData) return;
+
+  _kasirSession.noreff = noreffTarget;
+  _kasirSession.isLocked = true;
+
+  $("mk_noref").value = noreffTarget;
+  $("mk_tgl").value = headerData.tanggal || "";
+  $("mk_cab").value = headerData.cabang || "";
+
+  $("mk_cab").disabled = true;
+  $("mk_tgl").disabled = true;
+
+  updateKasirHeaderNominal();
+  renderKasirDetilTable();
+  renderKasirNoreffList();
+}
+
+function resetKasirNewTransaction() {
+  _kasirSession = { noreff: "", isLocked: false };
+  $("mk_cab").disabled = false;
+  $("mk_tgl").disabled = false;
+  $("mk_nominal").value = "0";
+  onKasirHeaderChange();
+  renderKasirDetilTable();
+  renderKasirNoreffList();
+}
+
+/* ================================================================
+   PRINT MUTASI KASIR (LAYOUT KHUSUS ALUR KAS)
+   ================================================================ */
+function printMutasiKasir() {
+  var noreff = _kasirSession.noreff;
+  if (!noreff) return toast("Pilih transaksi terlebih dahulu", "wrn");
+
+  var data = DBCache.mutasiKasir || [];
+  var detilData = data.filter(function (t) {
+    return t.noreff === noreff;
+  });
+  if (detilData.length === 0)
+    return toast("Tidak ada detil untuk No Ref ini", "wrn");
+
+  var header = detilData[0];
+  var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
+  var tanggal = header.tanggal || "-";
+  var cabang = header.cabang || "Pusat";
+
+  // 1. Kelompokkan data berdasarkan kode
+  var dataKode = { BE: [], PJ: [], CS: [], KK: [], KT: [], LAIN: [] };
+  var totalBE = 0,
+    totalPJ = 0,
+    totalCS = 0,
+    totalKK = 0,
+    totalKT = 0;
+
+  detilData.forEach(function (t) {
+    var k = t.kodeTrans || "";
+    if (k === "BE") {
+      dataKode.BE.push(t);
+      totalBE += num(t.total);
+    } else if (k === "PJ") {
+      dataKode.PJ.push(t);
+      totalPJ += num(t.total);
+    } else if (k === "CS") {
+      dataKode.CS.push(t);
+      totalCS += num(t.total);
+    } else if (k === "KK") {
+      dataKode.KK.push(t);
+      totalKK += num(t.total);
+    } else if (k === "KT") {
+      dataKode.KT.push(t);
+      totalKT += num(t.total);
+    } else {
+      dataKode.LAIN.push(t);
+    }
+  });
+
+  // 2. Ambil Saldo Awal Kasir dari DBCache.saldoKasir
+  var saldoAwalKasir = 0;
+  var kasirData = DBCache.saldoKasir || [];
+  var kasirMatch = kasirData.find(function (k) {
+    return (
+      String(k.cabang || "").toLowerCase() === String(cabang).toLowerCase()
+    );
+  });
+  if (kasirMatch) saldoAwalKasir = num(kasirMatch.awal);
+
+  // 3. Hitung Penjualan Tunai (PJ - CS)
+  var penjualanTunai = totalPJ - totalCS;
+
+  // 4. Saldo Kas Tersedia (Saldo Awal + Penjualan Tunai)
+  var saldoTersedia = saldoAwalKasir + penjualanTunai;
+
+  // 5. Saldo Kas (Saldo Tersedia - Belanja/BE)
+  var saldoKas = saldoTersedia - totalBE;
+
+  // 6. Saldo Akhir Kas (Saldo Kas + KT - KK)
+  var saldoAkhirKas = saldoKas + totalKT - totalKK;
+
+  // Format Tabel Cetak
+  function fmtRp(val) {
+    return num(val).toLocaleString("id-ID");
+  }
+  function rowHtml(kodeArr) {
+    var html = "";
+    kodeArr.forEach(function (d) {
+      html +=
+        "<tr><td>&nbsp;&nbsp;&nbsp;&nbsp;" +
+        esc(d.kodeTrans) +
+        "</td><td>" +
+        esc(d.desc) +
+        "</td><td style='text-align:right'>" +
+        fmtRp(d.total) +
+        "</td></tr>";
+    });
+    return html;
+  }
+
+  var printHtml =
+    "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Print Kasir - " +
+    esc(noreff) +
+    "</title>" +
+    "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;padding:15px;color:#000}" +
+    "h2{text-align:center;margin-bottom:10px}table{width:100%;border-collapse:collapse;margin-bottom:10px}" +
+    "th,td{padding:4px 8px;text-align:left}td.rp{text-align:right}.bold{font-weight:bold}.total{border-top:1px solid #000;border-bottom:1px solid #000;font-weight:bold}</style></head><body>" +
+    "<h2>LAPORAN KAS HARIAN KASIR</h2>" +
+    "<p>Cabang : " +
+    esc(cabangLabel) +
+    "<br>Tanggal : " +
+    esc(tanggal) +
+    "<br>No Ref : " +
+    esc(noreff) +
+    "</p><hr>" +
+    "<table>" +
+    "<tr class='bold'><td colspan='2'>Saldo Awal</td><td style='text-align:right'>" +
+    fmtRp(saldoAwalKasir) +
+    "</td></tr>" +
+    // Bagian Belanja (BE)
+    "<tr class='bold'><td colspan='3'>BELANJA (BE)</td></tr>" +
+    rowHtml(dataKode.BE) +
+    "<tr class='bold'><td colspan='2'>Total Belanja</td><td style='text-align:right'>" +
+    fmtRp(totalBE) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" + // Spasi
+    // Pemasukan (PJ)
+    "<tr class='bold'><td colspan='3'>PEMASUKAN (PJ)</td></tr>" +
+    rowHtml(dataKode.PJ) +
+    "<tr class='bold'><td colspan='2'>Total Pemasukan</td><td style='text-align:right'>" +
+    fmtRp(totalPJ) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" + // Spasi
+    // Pengeluaran (CS)
+    "<tr class='bold'><td colspan='3'>PENGELUARAN (CS)</td></tr>" +
+    rowHtml(dataKode.CS) +
+    "<tr class='bold'><td colspan='2'>Total Pengeluaran</td><td style='text-align:right'>" +
+    fmtRp(totalCS) +
+    "</td></tr>" +
+    "<tr class='bold'><td colspan='2'>Penjualan Tunai (PJ - CS)</td><td style='text-align:right'>" +
+    fmtRp(penjualanTunai) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    // Ringkasan Saldo
+    "<tr class='total'><td colspan='2'>Saldo Kas Tersedia (Awal + Penjualan)</td><td style='text-align:right'>" +
+    fmtRp(saldoTersedia) +
+    "</td></tr>" +
+    "<tr class='total'><td colspan='2'>Saldo Kas (Tersedia - Belanja)</td><td style='text-align:right'>" +
+    fmtRp(saldoKas) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    // Kode KT
+    "<tr class='bold'><td colspan='3'>KAS MASUK LAIN (KT)</td></tr>" +
+    rowHtml(dataKode.KT) +
+    "<tr class='bold'><td colspan='2'>Total KT</td><td style='text-align:right'>" +
+    fmtRp(totalKT) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    // Kode KK
+    "<tr class='bold'><td colspan='3'>KAS KELUAR LAIN (KK)</td></tr>" +
+    rowHtml(dataKode.KK) +
+    "<tr class='bold'><td colspan='2'>Total KK</td><td style='text-align:right'>" +
+    fmtRp(totalKK) +
+    "</td></tr>" +
+    "<tr><td colspan='3'>&nbsp;</td></tr>" +
+    // Saldo Akhir
+    "<tr class='total'><td colspan='2'>SALDO AKHIR KAS (Saldo Kas + KT - KK)</td><td style='text-align:right'>" +
+    fmtRp(saldoAkhirKas) +
+    "</td></tr>" +
+    "</table>" +
+    "</body></html>";
+
+  var printWindow = window.open("", "_blank", "width=800,height=600");
+  if (!printWindow)
+    return toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
+
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  printWindow.onload = function () {
+    setTimeout(function () {
+      printWindow.print();
+    }, 300);
+  };
+}
