@@ -1755,7 +1755,7 @@ function printMutasiKasir() {
   detilData.forEach(function (t) {
     var k = t.kodeTrans || "";
     if (k === "BE") {
-      dataKode.BE.push(t);
+      dataKode.push(t);
       totalBE += num(t.total);
     } else if (k === "PJ") {
       dataKode.PJ.push(t);
@@ -1835,31 +1835,25 @@ function printMutasiKasir() {
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
     // Bagian Belanja (BE)
-    "<tr class='bold'><td colspan='3'>BELANJA (BE)</td></tr>" +
+    "<tr class='bold'><td colspan='3'>BELANJA</td></tr>" +
     rowHtml(dataKode.BE) +
-    "<tr class='bold'><td colspan='2'>Total Belanja</td><td style='text-align:right'>" +
+    "<tr class='bold'><td colspan='2'>TOTAL BELANJA</td><td style='text-align:right'>" +
     fmtRp(totalBE) +
     "</td></tr>" +
     "<tr><td colspan='3'>&nbsp;</td></tr>" + // Spasi
     // Pemasukan (PJ)
-    "<tr class='bold'><td colspan='3'>PEMASUKAN (PJ)</td></tr>" +
+    "<tr class='bold'><td colspan='3'>(+)</td></tr>" +
     rowHtml(dataKode.PJ) +
-    "<tr class='bold'><td colspan='2'>Total Pemasukan</td><td style='text-align:right'>" +
-    fmtRp(totalPJ) +
-    "</td></tr>" +
     "<tr><td colspan='3'>&nbsp;</td></tr>" + // Spasi
     // Pengeluaran (CS)
-    "<tr class='bold'><td colspan='3'>PENGELUARAN (CS)</td></tr>" +
+    "<tr class='bold'><td colspan='3'>(-)</td></tr>" +
     rowHtml(dataKode.CS) +
-    "<tr class='bold'><td colspan='2'>Total Pengeluaran</td><td style='text-align:right'>" +
-    fmtRp(totalCS) +
-    "</td></tr>" +
-    "<tr class='bold'><td colspan='2'>Penjualan Tunai (PJ - CS)</td><td style='text-align:right'>" +
+    "<tr class='bold'><td colspan='2'>PENJUALAN TUNAI (PJ - CS)</td><td style='text-align:right'>" +
     fmtRp(penjualanTunai) +
     "</td></tr>" +
     "<tr><td colspan='3'>&nbsp;</td></tr>" +
     // Ringkasan Saldo
-    "<tr class='total'><td colspan='2'>Saldo Kas Tersedia (Awal + Penjualan)</td><td style='text-align:right'>" +
+    "<tr class='total'><td colspan='2'>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
     fmtRp(saldoTersedia) +
     "</td></tr>" +
     "<tr class='total'><td colspan='2'>Saldo Kas (Tersedia - Belanja)</td><td style='text-align:right'>" +
