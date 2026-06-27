@@ -1125,15 +1125,18 @@ function getCabangFilterHTML() {
 }
 
 PANEL_MAP.saldoKasir = renderSaldoKasir;
-
 async function renderSaldoKasir() {
   var rawData = DBCache.saldoKasir || [];
   var data = filterByCabang(rawData);
 
-  // Sort berdasarkan Tanggal (terbaru dulukan), lalu Kode Bank
+  // ✅ FIX: Tambahkan return agar sorting berjalan
   data.sort(function (a, b) {
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
+
+    if (tglA < tglB) return 1; // Terbaru duluan (descending)
+    if (tglA > tglB) return -1;
+    return 0;
   });
 
   var ids = data.map(function (r) {
@@ -1153,16 +1156,19 @@ async function renderSaldoKasir() {
     return str;
   }
 
+  // ✅ TAMBAH: r.cabang pada rows
   var rows = dataLimit.map(function (r) {
-    return [formatTgl(r.tgl_awal), formatUang(r.awal || 0)];
+    return [r.cabang || "-", formatTgl(r.tgl_awal), formatUang(r.awal || 0)];
   });
 
   var totalSaldo = data.reduce(function (s, r) {
     return s + (num(r.awal) || 0);
   }, 0);
 
+  // ✅ TAMBAH: "-" pada posisi cabang di footer
   var foot = [
     "Total: " + data.length + " record",
+    "-",
     "-",
     '<span style="font-weight:bold;">' + formatUang(totalSaldo) + "</span>",
   ];
@@ -1184,7 +1190,8 @@ async function renderSaldoKasir() {
     '<button type="button" class="btn btn-a" onclick="formSaldoKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
-      buildTable(["Tanggal", "Kode Kasir", "Saldo Awal"], rows, {
+      // ✅ TAMBAH: "Cabang" di header tabel
+      buildTable(["Cabang", "Tanggal", "Saldo Awal"], rows, {
         foot: foot,
         bulkStore: "saldoKasir",
         bulkIds: idsLimit,
@@ -1235,8 +1242,10 @@ async function saveSaldoKasir(e, editId) {
   try {
     var cabang = $("fSkCab").value;
     var tgl_awal = $("fSkTgl").value;
-
-    var awal = num($("fSkAwal").value);
+    var vdb = 0;
+    var vcr = 0;
+    var akhir = num($("fSkAwal").value);
+    var awal = 0;
 
     if (!tgl_awal) {
       return toast("Tanggal dan Kode Kasir wajib diisi", "err");
@@ -1248,7 +1257,9 @@ async function saveSaldoKasir(e, editId) {
         var updated = Object.assign({}, r, {
           cabang: cabang,
           tgl_awal: tgl_awal,
-
+          db: vdb,
+          cr: vcr,
+          akhir: akhir,
           awal: awal,
         });
 
@@ -1281,7 +1292,9 @@ async function saveSaldoKasir(e, editId) {
         id: newId,
         cabang: cabang,
         tgl_awal: tgl_awal,
-
+        db: vdb,
+        cr: vcr,
+        akhir: akhir,
         awal: awal,
       };
 
