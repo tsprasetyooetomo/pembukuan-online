@@ -1652,27 +1652,21 @@ function renderKasirNoreffList() {
   var filterTahun = $("mk_filter_tahun") ? $("mk_filter_tahun").value : "";
   var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
 
-  // DEBUG: Hapus 3 baris ini setelah berhasil
-  console.log("Jumlah data:", data.length);
-  console.log("Filter Bulan:", filterBulan, "Tahun:", filterTahun);
-  console.log("Contoh data ke-0:", data[0]);
+  // ✅ FIX: Tambahkan padStart agar "6" menjadi "06"
+  var safeBulan = filterBulan ? filterBulan.padStart(2, "0") : "";
 
   var filtered = data.filter(function (t) {
     if (!t.tanggal) return false;
-    var ym = t.tanggal.substring(0, 7); // "2026-06"
-    if (filterBulan && filterTahun)
-      return ym === filterTahun + "-" + filterBulan;
-    if (filterBulan) return ym.substring(5, 7) === filterBulan;
+    var ym = t.tanggal.substring(0, 7);
+    if (safeBulan && filterTahun) return ym === filterTahun + "-" + safeBulan;
+    if (safeBulan) return ym.substring(5, 7) === safeBulan;
     if (filterTahun) return ym.substring(0, 4) === filterTahun;
     return true;
   });
 
-  console.log("Jumlah setelah filter:", filtered.length); // DEBUG
-
-  // ⬇️ PERBAIKAN: Mulai dengan array kosong, bukan string table
   var rows = [];
-
   var uniqueNoreff = {};
+
   filtered.forEach(function (t) {
     if (!uniqueNoreff[t.noreff]) {
       uniqueNoreff[t.noreff] = {
@@ -1706,7 +1700,6 @@ function renderKasirNoreffList() {
     );
   });
 
-  // ⬇️ PERBAIKAN: Cek berdasarkan jumlah baris, BUKAN string
   if (rows.length === 0) {
     box.innerHTML =
       '<div style="padding:1rem;color:var(--muted);text-align:center">Tidak ada data</div>';
