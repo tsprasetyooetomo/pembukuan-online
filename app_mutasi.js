@@ -1870,7 +1870,7 @@ function printMutasiKasir() {
     "</td>" +
     "</tr>" +
     // Ringkasan Saldo
-    "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right'>" +
+    "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right;border-top: none'>" +
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
     rowHtml(dataKode.TK) +
@@ -1880,7 +1880,7 @@ function printMutasiKasir() {
     "</td></tr>" +
     // PERBAIKAN: Hapus <td> nganggur sebelum TOTAL BELANJA
     "<tr class='bold'><td style='font-weight:bold; width:70%'>TOTAL BELANJA</td>" +
-    "<td style='width:30%;text-align:right'>" +
+    "<td style='width:30%;text-align:right;border-top: none'>" +
     fmtRp(totalBE) +
     "</td>" +
     "</tr>" +
