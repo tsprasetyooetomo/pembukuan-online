@@ -1857,11 +1857,11 @@ function printMutasiKasir() {
     "</td></tr>" +
     "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Pemasukan (PJ)
-    "<tr class='bold'><td>PEMASUKAN</td><td style='text-align:right'>Rp</td></tr>" +
+    "<tr class='bold'><td>(+)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.PJ) +
     "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Pengeluaran (CS)
-    "<tr class='bold'><td>PENGELUARAN</td><td style='text-align:right'>Rp</td></tr>" +
+    "<tr class='bold'><td>(-)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.CS) +
     "<tr class='total'>" +
     "<td>PENJUALAN TUNAI</td>" +
