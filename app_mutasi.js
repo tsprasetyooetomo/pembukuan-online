@@ -1865,7 +1865,7 @@ function printMutasiKasir() {
     rowHtml(dataKode.CS) +
     "<tr class='bold'>" +
     "<td>PENJUALAN TUNAI</td>" +
-    "<td style='text-align:right;border-top: 1px solid var(--brd);'>" +
+    "<td style='text-align:right;border-top: 1px solid #000;'>" +
     fmtRp(penjualanTunai) +
     "</td>" +
     "</tr>" +
