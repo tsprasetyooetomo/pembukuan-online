@@ -1865,7 +1865,7 @@ function printMutasiKasir() {
     rowHtml(dataKode.CS) +
     "<tr class='total'>" +
     "<td>PENJUALAN TUNAI</td>" +
-    "<td style='text-align:right;border-top: 1px solid #000;'>" +
+    "<td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 1: Diatas Penjualan Tunai
     fmtRp(penjualanTunai) +
     "</td>" +
     "</tr>" +
@@ -1874,31 +1874,31 @@ function printMutasiKasir() {
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
     rowHtml(dataKode.TK) +
-    "</td></tr>" +
-    "<tr class='total'><td>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
+    // HAPUS </td></tr> NGANGGUR YANG ADA DI SINI
+    "<tr class='total'><td>SALDO KAS TERSEDIA</td><td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 2: Diatas Saldo Tersedia
     fmtRp(saldoTersedia) +
     "</td></tr>" +
-    "<tr class='bold'><td style='font-weight:bold;'>" +
-    "<td style='width:70%'>TOTAL BELANJA</td>" +
+    // PERBAIKAN: Hapus <td> nganggur sebelum TOTAL BELANJA
+    "<tr class='bold'><td style='font-weight:bold; width:70%'>TOTAL BELANJA</td>" +
     "<td style='width:30%;text-align:right'>" +
     fmtRp(totalBE) +
     "</td>" +
     "</tr>" +
-    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right;border-top: 1px solid var(--brd);'>" +
+    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right'>" + // Garis dihapus dulu di sini
     fmtRp(saldoKas) +
     "</td></tr>" +
     // Kode KT
     "<tr class='bold'><td>KOREKSI(+)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KT) +
-    "</td></tr>" +
+    // HAPUS </td></tr> NGANGGUR YANG ADA DI SINI
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Kode KK
     "<tr class='bold'><td>KOREKSI(-)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KK) +
-    "</td></tr>" +
+    // HAPUS </td></tr> NGANGGUR YANG ADA DI SINI
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Saldo Akhir
-    "<tr class='total'><td>SALDO AKHIR KAS </td><td style='text-align:right;border-top: 1px solid var(--brd);'>" +
+    "<tr class='total'><td>SALDO AKHIR KAS </td><td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 3: Diatas Saldo Akhir Kas
     fmtRp(saldoAkhirKas) +
     "</td></tr>" +
     "</table>" +
