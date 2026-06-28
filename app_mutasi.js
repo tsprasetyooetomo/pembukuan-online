@@ -1879,8 +1879,8 @@ function printMutasiKasir() {
     fmtRp(saldoTersedia) +
     "</td></tr>" +
     "<tr style='font-weight:bold;'>" +
-    "<td>TOTAL BELANJA</td>" +
-    "<td style='text-align:right'>" +
+    "<td style='width:70%'>TOTAL BELANJA</td>" +
+    "<td style='width:30%;text-align:right'>" +
     fmtRp(totalBE) +
     "</td>" +
     "</tr>" +
