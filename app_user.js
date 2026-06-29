@@ -16,7 +16,9 @@ async function renderUser() {
         ? '<span class="tag tag-db">Admin</span>'
         : r.role === "Kasir"
           ? '<span class="tag tag-cr">Kasir</span>'
-          : '<span class="tag tag-awal">Viewer</span>';
+          : r.role === "Akunting"
+            ? '<span class="tag tag-db" style="background-color:var(--accent,#4b5563)">Akunting</span>' // Warna kustom abu/biru aksen
+            : '<span class="tag tag-awal">Viewer</span>';
     return [
       r.username,
       r.nama,
