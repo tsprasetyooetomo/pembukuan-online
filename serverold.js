@@ -32,7 +32,63 @@ try {
 }
 
 const app = express();
+// ENDPOINT LOGIN
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password)
+      return res
+        .status(400)
+        .json({ success: false, message: "Username & Password wajib diisi" });
 
+    const result = await db.query(`SELECT data FROM users WHERE id = $1`, [
+      username,
+    ]);
+    if (result.rows.length === 0)
+      return res
+        .status(401)
+        .json({ success: false, message: "User tidak ditemukan" });
+
+    const user =
+      typeof result.rows[0].data === "string"
+        ? JSON.parse(result.rows[0].data)
+        : result.rows[0].data;
+
+    if (user.password !== password) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Password salah" });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    activeSessions[token] = {
+      username: user.username,
+      role: user.role,
+      cabang: user.cabang || "Pusat",
+      expires: Date.now() + 24 * 60 * 60 * 1000, // 24 jam
+    };
+
+    res.json({
+      success: true,
+      message: "Login berhasil",
+      token: token,
+      user: {
+        username: user.username,
+        nama: user.nama,
+        role: user.role,
+        cabang: user.cabang || "Pusat",
+      },
+    });
+  } catch (e) {
+    console.error("❌ Error Login:", e.message);
+    res
+      .status(500)
+      .json({ success: false, message: "Terjadi kesalahan pada server" });
+  }
+});
+
+// Terapkan middleware HANYA untuk route /api
+app.use("/api", authMiddleware);
 // ============================================================================
 // 3. MIDDLEWARE
 // ============================================================================
@@ -928,64 +984,6 @@ function authMiddleware(req, res, next) {
   req.user = session;
   next();
 }
-
-// Terapkan middleware HANYA untuk route /api
-app.use("/api", authMiddleware);
-
-// ENDPOINT LOGIN
-app.post("/api/login", async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    if (!username || !password)
-      return res
-        .status(400)
-        .json({ success: false, message: "Username & Password wajib diisi" });
-
-    const result = await db.query(`SELECT data FROM users WHERE id = $1`, [
-      username,
-    ]);
-    if (result.rows.length === 0)
-      return res
-        .status(401)
-        .json({ success: false, message: "User tidak ditemukan" });
-
-    const user =
-      typeof result.rows[0].data === "string"
-        ? JSON.parse(result.rows[0].data)
-        : result.rows[0].data;
-
-    if (user.password !== password) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Password salah" });
-    }
-
-    const token = crypto.randomBytes(32).toString("hex");
-    activeSessions[token] = {
-      username: user.username,
-      role: user.role,
-      cabang: user.cabang || "Pusat",
-      expires: Date.now() + 24 * 60 * 60 * 1000, // 24 jam
-    };
-
-    res.json({
-      success: true,
-      message: "Login berhasil",
-      token: token,
-      user: {
-        username: user.username,
-        nama: user.nama,
-        role: user.role,
-        cabang: user.cabang || "Pusat",
-      },
-    });
-  } catch (e) {
-    console.error("❌ Error Login:", e.message);
-    res
-      .status(500)
-      .json({ success: false, message: "Terjadi kesalahan pada server" });
-  }
-});
 
 // ENDPOINT LOGOUT
 app.post("/api/logout", (req, res) => {
