@@ -1015,7 +1015,6 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
 // ============================================================================
 // SISTEM LOGIN & AUTHORIZATION (DIPERBAIKI)
 // ============================================================================
-const crypto = require("crypto");
 
 const activeSessions = {};
 
