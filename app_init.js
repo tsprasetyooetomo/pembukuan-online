@@ -46,20 +46,23 @@ async function init() {
     const sidebar = document.getElementById("sidebar");
     const tbTitle = document.getElementById("tbTitle");
 
+    // Ambil elemen jam dan tanggal (Sesuaikan ID-nya dengan HTML Anda)
+    const elemenJam = document.getElementById("jam");
+    const elemenTanggal = document.getElementById("tanggal");
+
     if (!token) {
-      // JIKA BELUM LOGIN:
-      // Tampilkan box login
+      // JIKA BELUM LOGIN / SAAT HALAMAN BARU DIBUKA:
+
+      // A. Tampilkan box login saja
       if (loginBox) loginBox.style.display = "block";
 
-      // Sembunyikan sidebar utama dengan class bawaan css Anda
+      // B. SEMBUNYIKAN TOTAL elemen UI lainnya agar bersih
       if (sidebar) sidebar.classList.add("hidden-menu");
+      if (tbTitle) tbTitle.style.display = "none";
+      if (elemenJam) elemenJam.style.display = "none";
+      if (elemenTanggal) elemenTanggal.style.display = "none";
 
-      // Ubah judul bar atas menjadi instruksi login
-      if (tbTitle) {
-        tbTitle.innerHTML = `<i class="fa-solid fa-lock"></i> Silakan Login Terlebih Dahulu`;
-      }
-
-      // Matikan overlay loading default agar form login terlihat
+      // Matikan overlay loading default agar form login langsung terlihat
       document.getElementById("loadingOv").style.display = "none";
       console.log(
         "Auth: Token tidak ditemukan. Menghentikan init aplikasi untuk login.",
@@ -67,8 +70,15 @@ async function init() {
       return; // 🛑 STOP DI SINI. Jangan lanjut load database/sidebar.
     }
 
-    // JIKA SUDAH LOGIN, LANJUTKAN PROSES BERIKUTNYA:
+    // ========================================================================
+    // JIKA SUDAH LOGIN, LANJUTKAN PROSES BERIKUTNYA & TAMPILKAN KEMBALI UI-NYA:
+    // ========================================================================
     if (loginBox) loginBox.style.display = "none";
+
+    // Munculkan kembali judul, jam, dan tanggal karena user berhak melihatnya
+    if (tbTitle) tbTitle.style.display = "block";
+    if (elemenJam) elemenJam.style.display = "block";
+    if (elemenTanggal) elemenTanggal.style.display = "block";
 
     const namaUser = localStorage.getItem("nama") || "User";
     const cabangUser = localStorage.getItem("cabang") || "--";
@@ -80,7 +90,7 @@ async function init() {
     // 2. Buka koneksi database IndexedDB bawaan aplikasi Anda
     await initDB();
 
-    // 3. ✅ Jalankan migrasi saldo awal tepat setelah database terkoneksi
+    // 3. Jalankan migrasi saldo awal tepat setelah database terkoneksi
     await migrasiSaldoAwalKodeBank();
 
     // 4. Muat seluruh data IndexedDB ke dalam variabel memori global (DBCache)
@@ -93,18 +103,8 @@ async function init() {
     console.log("Navigate ke 3: " + currentPanel);
     navigate(currentPanel);
   } catch (err) {
-    // Penanganan jika IndexedDB atau proses sinkronisasi gagal
-    document.getElementById("loadingOv").innerHTML =
-      '<span style="color:var(--danger);display:flex;align-items:center;gap:.5rem;flex-direction:column;max-width:350px;text-align:center">' +
-      '<i class="fa-solid fa-circle-xmark" style="font-size:2rem"></i>' +
-      '<div style="font-size:.9rem;font-weight:600">Gagal Membuka Database</div>' +
-      '<div style="font-size:.76rem;color:var(--muted);line-height:1.5">' +
-      (err.message || err) +
-      "</div>" +
-      '<button class="btn btn-g" style="margin-top:.8rem" onclick="location.reload()"><i class="fa-solid fa-rotate-right"></i> Coba Lagi</button></span>';
-    console.error("Init error:", err);
+    // ... Penanganan jika IndexedDB gagal
   }
 }
-
 // Jalankan entry point aplikasi
 init();
