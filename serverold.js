@@ -345,13 +345,13 @@ app.post("/api/clear-all-data", async (req, res) => {
   }
 });
 
-// 3. GET ALL DATA
 // 3. GET ALL DATA (DENGAN FILTER KODE CABANG OTOMATIS)
+// 3. GET ALL DATA
 app.get("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
     const { storeName } = req.params;
-    const filterCabang = req.query.cabang; // 🟢 Tangkap parameter ?cabang=XX dari frontend
+    const filterCabang = req.query.cabang; // Tangkap parameter ?cabang=XX dari frontend
 
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
@@ -364,28 +364,29 @@ app.get("/api/data/:storeName", async (req, res) => {
       typeof r.data === "string" ? JSON.parse(r.data) : r.data,
     );
 
-    // 2. Tentukan tabel apa saja yang wajib disaring berdasarkan cabang
+    // 2. Daftar semua tabel Anda (ditulis dengan huruf kecil agar cocok dengan lowerStoreName)
     const tabelWajibFilter = [
       "golongan",
       "perkiraan",
       "transaksi",
       "users",
-      "formatRL",
-      "formatNeraca",
-      "postedMonths",
-      "kodeBank",
+      "formatrl",
+      "formatneraca",
+      "postedmonths",
+      "kodebank",
       "cabang",
       "detiltransaksi",
       "saldo_harian",
-      "saldoKasir",
+      "saldokasir",
       "mutasikasir",
     ];
 
     if (tabelWajibFilter.includes(lowerStoreName)) {
-      // 🟢 JIKA USER BUKAN PUSAT (Cabang "00"), SARING DATANYA!
-      if (filterCabang && filterCabang !== "PUSAT") {
+      // 🟢 JIKA USER BUKAN PUSAT, SARING DATANYA!
+      // Mengecek jika filterCabang bukan "PUSAT" atau "00" (Sesuaikan dengan isi database Anda)
+      if (filterCabang && filterCabang !== "PUSAT" && filterCabang !== "00") {
         const dataTerfilter = allData.filter((item) => {
-          // Sesuaikan nama properti di dalam JSON Anda (misal: kode_cabang atau cabang)
+          // Mengambil properti cabang/kode_cabang dari dalam objek JSON data
           const cabangItem = item.kode_cabang || item.cabang;
           return cabangItem === filterCabang;
         });
@@ -393,7 +394,7 @@ app.get("/api/data/:storeName", async (req, res) => {
       }
     }
 
-    // Jika tabel umum (seperti 'golongan') atau user adalah cabang '00', kirim semua data tanpa filter
+    // Jika user adalah PUSAT / 00, kirim semua data tanpa filter
     res.json(allData);
   } catch (e) {
     res.status(500).json({ error: e.message });
