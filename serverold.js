@@ -24,12 +24,26 @@ try {
   Pool = PgPool;
   console.log("✅ Semua library berhasil dimuat.");
 } catch (e) {
-  console.error(
-    "❌ FATAL: Gagal memuat library. Pastikan 'npm install pg' sudah dijalankan.",
-  );
-  console.error("Error:", e.message);
-  process.exit(1);
+  console.error("❌ FATAL: Gagal memuat library...");
 }
+
+// ---> TAMBAHKAN KODE INI <---
+const jwt = require("jsonwebtoken");
+const JWT_SECRET = "rahasia_super_aman_telaga_2024"; // Bisa diganti sesuai keinginan
+
+const authenticateToken = (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token)
+    return res.status(401).json({ error: "Akses ditolak. Silakan login." });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: "Token tidak valid." });
+    req.user = user;
+    next();
+  });
+};
+// ---> SAMPAI SINI <---
 
 const app = express();
 
@@ -111,6 +125,70 @@ app.get("/", (req, res) => {
 app.get("/health", (req, res) => {
   res.send("OK");
 });
+
+// ================== ENDPOINT LOGIN ==================
+app.post("/api/login", async (req, res) => {
+  if (!db)
+    return res
+      .status(500)
+      .json({ success: false, message: "Database tidak terkoneksi" });
+  try {
+    const { username, password } = req.body;
+    if (!username || !password)
+      return res
+        .status(400)
+        .json({ success: false, message: "Username dan password wajib diisi" });
+
+    // Cari user di database berdasarkan username
+    const result = await db.query(
+      `SELECT data FROM users WHERE data::json->>'username' = $1`,
+      [username],
+    );
+    const userRow = result.rows[0];
+
+    if (!userRow)
+      return res
+        .status(401)
+        .json({ success: false, message: "Username tidak ditemukan" });
+
+    const userData =
+      typeof userRow.data === "string"
+        ? JSON.parse(userRow.data)
+        : userRow.data;
+
+    if (userData.password !== password)
+      return res
+        .status(401)
+        .json({ success: false, message: "Password salah" });
+
+    // Buat Token
+    const token = jwt.sign(
+      {
+        id: userData.id,
+        username: userData.username,
+        nama: userData.nama,
+        role: userData.role,
+        kode_cabang: userData.cabang,
+      },
+      JWT_SECRET,
+      { expiresIn: "24h" },
+    );
+
+    res.json({
+      success: true,
+      message: "Login berhasil",
+      token: token,
+      user: {
+        id: userData.id,
+        nama: userData.nama,
+        kode_cabang: userData.cabang,
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+// ====================================================
 
 // Route Serve HTML (Jika file ada)
 app.get("/app", (req, res) => {
@@ -278,14 +356,35 @@ app.post("/api/clear-all-data", async (req, res) => {
 });
 
 // 3. GET ALL DATA
-app.get("/api/data/:storeName", async (req, res) => {
+// 3. GET ALL DATA (DIPROTEKSI & DIFILTER CABANG)
+app.get("/api/data/:storeName", authenticateToken, async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
     const { storeName } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
     const lowerStoreName = storeName.toLowerCase();
-    const result = await db.query(`SELECT data FROM ${lowerStoreName}`);
+
+    const userCabang = req.user.kode_cabang; // Ambil kode cabang dari token (contoh: "00")
+    let result;
+
+    // Cek apakah tabel punya kolom 'masa' (tabel transaksi) atau tidak (tabel master)
+    const colCheck = await db.query(
+      `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'masa';`,
+      [lowerStoreName],
+    );
+
+    if (colCheck.rows.length > 0) {
+      // JIKA TABEL TRANSAKSI: Filter hanya cabang user
+      result = await db.query(
+        `SELECT data FROM ${lowerStoreName} WHERE data::json->>'cabang' = $1`,
+        [userCabang],
+      );
+    } else {
+      // JIKA TABEL MASTER (kode bank, dll): Tampilkan semua
+      result = await db.query(`SELECT data FROM ${lowerStoreName}`);
+    }
+
     res.json(
       result.rows.map((r) =>
         typeof r.data === "string" ? JSON.parse(r.data) : r.data,
