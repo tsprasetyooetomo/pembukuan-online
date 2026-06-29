@@ -1508,8 +1508,8 @@ function onKasirHeaderChange() {
 
 async function addKasirDetil() {
   var noreff = _kasirSession.noreff;
-  var kode = $("mk_kode").value;
-  var penjelasan = $("mk_penjelasan").value.trim();
+  var kode = $("mk_kode").value.toUpperCase();
+  var penjelasan = $("mk_penjelasan").value.trim().toUpperCase();
   var rp = num($("mk_rp").value);
 
   if (!kode || !penjelasan || rp <= 0)
@@ -1955,8 +1955,8 @@ async function simpanPerubahanKasirDetil() {
   }
 
   var noreff = _kasirSession.noreff;
-  var kode = $("mk_kode").value;
-  var penjelasan = $("mk_penjelasan").value.trim();
+  var kode = $("mk_kode").value.toUpperCase();
+  var penjelasan = $("mk_penjelasan").value.trim().toUpperCase();
   var rp = num($("mk_rp").value);
 
   if (!kode || !penjelasan || rp <= 0) {
