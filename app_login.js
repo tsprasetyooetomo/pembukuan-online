@@ -91,34 +91,31 @@ async function loadTransaksi() {
   }
 }
 function doLogout() {
-  // 1. Hapus semua data autentikasi dari localStorage
   localStorage.removeItem("token");
   localStorage.removeItem("nama");
   localStorage.removeItem("cabang");
 
-  // 2. Berikan notifikasi jika fungsi toast tersedia
-  if (typeof toast === "function") {
+  if (typeof toast === "function")
     toast("Berhasil logout, mengalihkan...", "ok");
-  } else {
-    alert("Logout Berhasil!");
-  }
 
-  // 3. HIDE / SEMBUNYIKAN elemen UI secara instan sebelum reload
-  const sidebar = document.getElementById("sidebar");
-  const tbTitle = document.getElementById("tbTitle");
-  const elemenJam = document.getElementById("jam"); // Sesuaikan ID dengan HTML Anda
-  const elemenTanggal = document.getElementById("tanggal"); // Sesuaikan ID dengan HTML Anda
+  // 🟢 SEMBUNYIKAN ELEMEN UI SECARA INSTAN
+  if (document.getElementById("sidebar"))
+    document.getElementById("sidebar").classList.add("hidden-menu");
+  if (document.getElementById("tbTitle"))
+    document.getElementById("tbTitle").style.display = "none";
+  if (document.getElementById("btnLogout"))
+    document.getElementById("btnLogout").style.display = "none";
 
-  if (sidebar) sidebar.classList.add("hidden-menu");
-  if (tbTitle) tbTitle.style.display = "none";
-  if (elemenJam) elemenJam.style.display = "none";
-  if (elemenTanggal) elemenTanggal.style.display = "none";
+  // Tembak elemen jam Anda
+  const clockEl =
+    document.getElementById("clockEl") ||
+    document.querySelector("clockEl") ||
+    document.querySelector(".clockEl");
+  if (clockEl) clockEl.style.display = "none";
 
-  // Tampilkan box login (jika ingin transisinya instan)
-  const loginBox = document.getElementById("loginBox");
-  if (loginBox) loginBox.style.display = "block";
+  if (document.getElementById("loginBox"))
+    document.getElementById("loginBox").style.display = "block";
 
-  // 4. Muat ulang halaman untuk membersihkan seluruh sisa data memori/cache
   setTimeout(() => {
     window.location.reload();
   }, 500);
