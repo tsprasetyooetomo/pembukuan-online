@@ -1917,13 +1917,48 @@ function printMutasiKasir() {
     }, 300);
   };
 }
-async function editKasirDetil(idYangDiedit) {
+function editKasirDetil(idYangDiedit) {
+  // 1. Cari data lama berdasarkan ID di dalam DBCache
+  if (!DBCache.mutasikasir) return;
+  var dataLama = DBCache.mutasikasir.find((item) => item.id === idYangDiedit);
+
+  if (!dataLama) {
+    return toast("Data tidak ditemukan!", "err");
+  }
+
+  // 2. Lempar data lama tersebut ke dalam Input Form agar bisa diedit user
+  $("mk_kode").value = dataLama.kodeTrans || "";
+  $("mk_penjelasan").value = dataLama.desc || "";
+  $("mk_rp").value = dataLama.total || 0; // Sesuaikan formatnya jika perlu fmtN
+
+  // 3. Simpan ID yang sedang diedit ke dalam element form / variable global
+  // Kita simpan di atribut data agar tahu data mana yang mau diupdate nanti
+  $("mk_kode").setAttribute("data-editing-id", idYangDiedit);
+
+  // 4. Ubah teks tombol utama Anda (misal tombol Tambah menjadi Simpan)
+  // Ganti "btn_simpan_detil" dengan ID tombol input Anda sendiri jika ada
+  if ($("btn_simpan_detil")) {
+    $("btn_simpan_detil").innerHTML =
+      '<i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan';
+  }
+
+  $("mk_kode").focus();
+}
+async function simpanPerubahanKasirDetil() {
+  // Ambil ID yang tadi disimpan di atribut data saat tombol edit diklik
+  var idYangDiedit = $("mk_kode").getAttribute("data-editing-id");
+
+  // Jika tidak ada ID yang diedit, berarti ini mode TAMBAH BARU, bukan edit!
+  if (!idYangDiedit) {
+    // Jalankan fungsi tambah data biasa Anda di sini, lalu return
+    return tambahKasirDetilBaru();
+  }
+
   var noreff = _kasirSession.noreff;
   var kode = $("mk_kode").value;
   var penjelasan = $("mk_penjelasan").value.trim();
   var rp = num($("mk_rp").value);
 
-  // 1. Validasi input wajib
   if (!kode || !penjelasan || rp <= 0) {
     return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
   }
@@ -1933,24 +1968,22 @@ async function editKasirDetil(idYangDiedit) {
   $("mk_tgl").disabled = true;
 
   try {
-    // 2. Siapkan objek data baru untuk diperbarui
     var updatedDetil = {
       id: idYangDiedit,
       noreff: noreff,
       tanggal: $("mk_tgl").value,
       cabang: $("mk_cab").value,
       kodeTrans: kode,
-      noperkiraan: "", // Sesuaikan jika ada input perkiraan saat edit
+      noperkiraan: "",
       desc: penjelasan,
       total: rp,
       db: rp,
       cr: 0,
     };
 
-    // 3. Update data di database IndexedDB / API
+    // Update database & Cache (Kode Anda sudah benar di bagian ini)
     await db.update("mutasikasir", updatedDetil);
 
-    // 4. Sinkronisasi data di DBCache
     if (DBCache.mutasikasir) {
       var index = DBCache.mutasikasir.findIndex(
         (item) => item.id === idYangDiedit,
@@ -1960,13 +1993,21 @@ async function editKasirDetil(idYangDiedit) {
       }
     }
 
-    // 5. Kosongkan kembali form input baris Excel
+    // Kembalikan form ke kondisi kosong & reset ID editing
     $("mk_kode").value = "";
     $("mk_penjelasan").value = "";
     $("mk_rp").value = "";
+    $("mk_kode").removeAttribute("data-editing-id");
+
+    // Kembalikan teks tombol ke "Tambah" jika diubah sebelumnya
+    if ($("btn_simpan_detil")) {
+      $("btn_simpan_detil").innerHTML =
+        '<i class="fa-solid fa-plus"></i> Tambah';
+    }
+
     $("mk_kode").focus();
 
-    // 6. Refresh dan update tampilan UI
+    // Refresh Tampilan UI
     renderKasirDetilTable();
     updateKasirHeaderNominal();
     renderKasirNoreffList();
