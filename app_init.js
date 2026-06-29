@@ -116,4 +116,166 @@ async function init() {
   }
 }
 // Jalankan entry point aplikasi
+function buildSidebar() {
+  const sbBody = document.getElementById("sbBody");
+  if (!sbBody) return;
+
+  // 1. Ambil role user dari localStorage (Default ke VIEWER jika tidak ada)
+  const userRole = (localStorage.getItem("role") || "VIEWER").toUpperCase();
+
+  // 2. Gunakan array data MENUS asli milik Anda
+  var MENUS = [
+    {
+      group: "PERKIRAAN",
+      icon: "fa-sitemap",
+      items: [
+        { id: "gol", label: "Golongan Perkiraan", icon: "fa-layer-group" },
+        { id: "perk", label: "No Perkiraan", icon: "fa-list-ol" },
+        { id: "cbg", label: "Cabang", icon: "fa-code-branch" },
+        { id: "kode", label: "Kode Bank/Kas", icon: "fa-building-columns" },
+        { id: "saldoKasir", label: "Saldo Kasir", icon: "fa-building-columns" },
+      ],
+    },
+    {
+      group: "MUTASI",
+      icon: "fa-right-left",
+      items: [
+        {
+          id: "mutasikasir",
+          label: "Mutasi Harian Kasir",
+          icon: "fa-right-left",
+        },
+        { id: "mutasi", label: "Mutasi Transaksi", icon: "fa-right-left" },
+      ],
+    },
+    {
+      group: "LAPORAN KAS",
+      icon: "fa-cash-register",
+      items: [
+        { id: "kaskasir", label: "Kas Harian Kasir", icon: "fa-calendar-day" },
+        { id: "kasHarian", label: "Kas Harian", icon: "fa-calendar-day" },
+        { id: "inputHarian", label: "Input Harian", icon: "fa-keyboard" },
+      ],
+    },
+    {
+      group: "POSTING",
+      icon: "fa-stamp",
+      items: [
+        { id: "posting", label: "Posting Periode", icon: "fa-calendar-check" },
+      ],
+    },
+    {
+      group: "LAPORAN KEUANGAN",
+      icon: "fa-chart-pie",
+      items: [
+        { id: "neraca", label: "Neraca", icon: "fa-scale-balanced" },
+        { id: "detilNeraca", label: "Detil Neraca", icon: "fa-table-list" },
+        { id: "rlRekap", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
+        { id: "rlDetil", label: "RL Detil Bulanan", icon: "fa-bars-staggered" },
+        { id: "rlLebar", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
+        { id: "bukuBesar", label: "Buku Besar", icon: "fa-book" },
+        { id: "expXls", label: "Export XLS", icon: "fa-file-excel" },
+      ],
+    },
+    {
+      group: "LAPORAN KEUANGAN GABUNGAN",
+      icon: "fa-chart-pie",
+      items: [
+        { id: "neracas", label: "Neraca", icon: "fa-scale-balanced" },
+        { id: "detilNeracas", label: "Detil Neraca", icon: "fa-table-list" },
+        { id: "rlRekaps", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
+        {
+          id: "rlDetils",
+          label: "RL Detil Bulanan",
+          icon: "fa-bars-staggered",
+        },
+        { id: "rlLebars", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
+        { id: "bukuBesars", label: "Buku Besar", icon: "fa-book" },
+        { id: "expXlss", label: "Export XLS", icon: "fa-file-excel" },
+      ],
+    },
+    {
+      group: "UTILITY",
+      icon: "fa-wrench",
+      items: [
+        { id: "dbInfo", label: "Database", icon: "fa-database" },
+        {
+          id: "importFoxpro",
+          label: "Import FoxPro Online",
+          icon: "fa-cloud-arrow-up",
+        },
+      ],
+    },
+    {
+      group: "USER",
+      icon: "fa-users",
+      items: [
+        { id: "userMgmt", label: "Manajemen User", icon: "fa-user-gear" },
+      ],
+    },
+  ];
+
+  let htmlMenu = "";
+
+  // 3. PROSES STRUKTUR MENU BERDASARKAN HAK AKSES ROLE
+  MENUS.forEach((grp) => {
+    let itemsBolehTampil = [];
+
+    if (userRole === "ADMIN") {
+      // Admin bisa melihat semuanya tanpa terkecuali
+      itemsBolehTampil = grp.items;
+    } else if (userRole === "AKUNTING") {
+      // Akunting: Boleh lihat Perkiraan, Mutasi, Laporan Kas, Laporan Keuangan, Posting
+      // ⚠️ Grup UTILITY & USER di-hide total
+      if (
+        ![
+          "UTILITY",
+          "LAPORAN KEUANGAN",
+          "LAPORAN KEUANGAN GABUNGAN",
+          "USER",
+        ].includes(grp.group)
+      ) {
+        itemsBolehTampil = grp.items;
+      }
+    } else if (userRole === "KASIR") {
+      // Kasir: Hanya Saldo Kasir, Mutasi Harian Kasir, Kas Harian Kasir, Laporan Saldo Kasir
+      itemsBolehTampil = grp.items.filter((item) =>
+        ["saldoKasir", "mutasikasir", "kaskasir"].includes(item.id),
+      );
+    } else if (userRole === "VIEWER") {
+      // Viewer: Hanya menu Laporan Keuangan Gabungan saja
+      if (grp.group === "LAPORAN KEUANGAN GABUNGAN") {
+        itemsBolehTampil = grp.items;
+      }
+    }
+
+    // 4. JIKA GRUP MEMILIKI ITEM YANG BOLEH TAMPIL, GAMBAR KE HTML SIDEBAR
+    if (itemsBolehTampil.length > 0) {
+      htmlMenu += `
+        <div class="sb-group-wrapper">
+          <div class="sb-group-title">
+            <i class="fa-solid ${grp.icon}"></i> <span>${grp.group}</span>
+          </div>
+          <ul class="sb-menu-list">
+      `;
+
+      itemsBolehTampil.forEach((item) => {
+        htmlMenu += `
+          <li class="sb-menu-item" onclick="navigate('${item.id}')" id="menu-${item.id}">
+            <i class="fa-solid ${item.icon}"></i>
+            <span>${item.label}</span>
+          </li>
+        `;
+      });
+
+      htmlMenu += `
+          </ul>
+        </div>
+      `;
+    }
+  });
+
+  sbBody.innerHTML = htmlMenu;
+}
+
 init();
