@@ -1952,59 +1952,40 @@ function editKasirDetil(idYangDiedit) {
       "')\">Update</button>",
   );
 }
-
 async function simpanPerubahanKasirDetil(idYangDiedit) {
-  var noreff = _kasirSession.noreff;
+  // 1. Ambil data lama dari database menggunakan db.get (seperti jurnal)
+  var r = await db.get("mutasikasir", idYangDiedit);
+  if (!r) return toast("Data tidak ditemukan di database!", "err");
 
-  // 1. Ambil data dari elemen input yang ada di DALAM POPUP MODAL
-  // Serta otomatis ubah input teks menjadi HURUF BESAR SEMUA (UPPERCASE)
+  // 2. Ambil input dari modal popup dan paksa ke HURUF BESAR SEMUA
   var kode = $("ed_mk_kode").value.toUpperCase();
   var penjelasan = $("ed_mk_penjelasan").value.trim().toUpperCase();
   var rp = num($("ed_mk_rp").value);
 
-  // 2. Validasi input wajib
+  // 3. Validasi input wajib
   if (!kode || !penjelasan || rp <= 0) {
     return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
   }
 
-  _kasirSession.isLocked = true;
-  $("mk_cab").disabled = true;
-  $("mk_tgl").disabled = true;
-
   try {
-    // 3. Siapkan objek data baru untuk diperbarui
-    var updatedDetil = {
-      id: idYangDiedit,
-      noreff: noreff,
-      tanggal: $("mk_tgl").value,
-      cabang: $("mk_cab").value,
-      kodeTrans: kode, // Tersimpan huruf besar
-      noperkiraan: "",
-      desc: penjelasan, // Tersimpan huruf besar
-      total: rp,
-      db: rp,
-      cr: 0,
-    };
+    // 4. Perbarui data ke database menggunakan db.put & Object.assign (persis seperti jurnal)
+    await db.put(
+      "mutasikasir",
+      Object.assign({}, r, {
+        kodeTrans: kode,
+        desc: penjelasan,
+        total: rp,
+        db: rp,
+      }),
+    );
 
-    // 4. Update data di database IndexedDB / API
-    await db.update("mutasikasir", updatedDetil);
+    // 5. Tutup jendela popup modal
+    closeModal();
 
-    // 5. Sinkronisasi data di DBCache
-    if (DBCache.mutasikasir) {
-      var index = DBCache.mutasikasir.findIndex(
-        (item) => item.id === idYangDiedit,
-      );
-      if (index !== -1) {
-        DBCache.mutasikasir[index] = updatedDetil;
-      }
-    }
+    // 6. Refresh memory cache khusus untuk tabel "mutasikasir"
+    await refreshCache("mutasikasir");
 
-    // 6. Tutup jendela popup modal secara otomatis setelah sukses
-    if (typeof closeModal === "function") {
-      closeModal();
-    }
-
-    // 7. Refresh dan update seluruh tampilan UI halaman utama
+    // 7. Segarkan seluruh komponen tampilan UI di layar utama
     renderKasirDetilTable();
     updateKasirHeaderNominal();
     renderKasirNoreffList();
@@ -2012,8 +1993,5 @@ async function simpanPerubahanKasirDetil(idYangDiedit) {
     toast("Detil kasir berhasil diperbarui", "ok");
   } catch (error) {
     toast("Gagal edit: " + error.message, "err");
-    _kasirSession.isLocked = false;
-    $("mk_cab").disabled = false;
-    $("mk_tgl").disabled = false;
   }
 }
