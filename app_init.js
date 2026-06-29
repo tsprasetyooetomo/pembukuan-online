@@ -106,7 +106,7 @@ async function init() {
     await refreshCache();
 
     // 5. Bangun UI & Navigasi panel utama
-    buildSidebar();
+    await buildSidebar();
     document.getElementById("loadingOv").style.display = "none";
 
     console.log("Navigate ke 3: " + currentPanel);
@@ -115,6 +115,7 @@ async function init() {
     // ... Penanganan jika IndexedDB gagal
   }
 }
+
 // Jalankan entry point aplikasi
 function buildSidebar() {
   const sbBody = document.getElementById("sbBody");
