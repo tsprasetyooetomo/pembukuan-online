@@ -19,6 +19,18 @@ async function loginSystem() {
       body: JSON.stringify({ username: u, password: p }),
     });
 
+    // 🔴 PERBAIKAN 1: Cegah crash HTML (Unexpected token <) jika URL API backend salah/404
+    const contentType = res.headers.get("content-type");
+    if (!res.ok || !contentType || !contentType.includes("application/json")) {
+      if (typeof hideLoading === "function") hideLoading();
+      if (typeof toast === "function") {
+        toast("Server tidak merespon dengan benar (404/500)", "err");
+      } else {
+        alert("Gagal: Endpoint API tidak ditemukan atau server bermasalah.");
+      }
+      return;
+    }
+
     const data = await res.json();
 
     if (data.success) {
@@ -33,14 +45,14 @@ async function loginSystem() {
         alert("Login Berhasil! Cabang: " + data.user.kode_cabang);
       }
 
-      // 2. HUBUNGKAN KE UI HTML: Sembunyikan box login & muat ulang aplikasi
+      // 2. HUBUNGKAN KE UI HTML & DATABASE
       document.getElementById("loginBox").style.display = "none";
 
-      if (typeof refreshApp === "function") {
-        refreshApp();
-      } else {
+      // 🔴 PERBAIKAN 2: Paksa reload penuh agar fungsi init() di app_init.js jalan ulang,
+      // sehingga database IndexedDB otomatis terkoneksi (konek) menggunakan token baru.
+      setTimeout(() => {
         window.location.reload();
-      }
+      }, 500);
     } else {
       if (typeof hideLoading === "function") hideLoading();
       if (typeof toast === "function") toast("Gagal: " + data.message, "err");
