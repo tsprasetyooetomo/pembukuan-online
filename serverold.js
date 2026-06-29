@@ -1,15 +1,10 @@
 // ============================================================================
-// 1. ERROR HANDLING GLOBAL
+// 1. ERROR HANDLING GLOBAL (PALING ATAS)
 // ============================================================================
-process.on("uncaughtException", async (err) => {
+process.on("uncaughtException", (err) => {
   console.error("🔥 CRITICAL SYSTEM ERROR:", err.message);
   console.error(err.stack);
-  if (db) {
-    try {
-      await db.end();
-    } catch (e) {}
-  }
-  process.exit(1);
+  setTimeout(() => process.exit(1), 1000);
 });
 
 process.on("unhandledRejection", (reason) => {
@@ -30,88 +25,44 @@ try {
   console.log("✅ Semua library berhasil dimuat.");
 } catch (e) {
   console.error(
-    "❌ FATAL: Gagal memuat library. Jalankan 'npm install express cors pg'",
+    "❌ FATAL: Gagal memuat library. Pastikan 'npm install pg' sudah dijalankan.",
   );
   console.error("Error:", e.message);
   process.exit(1);
 }
 
 const app = express();
-const crypto = require("crypto");
 
 // ============================================================================
 // 3. MIDDLEWARE
 // ============================================================================
-const corsOrigins = process.env.CORS_ORIGIN
-  ? process.env.CORS_ORIGIN.split(",")
-  : "*";
-app.use(cors({ origin: corsOrigins, credentials: true }));
+app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(express.static(path.join(__dirname)));
 
 // ============================================================================
-// 4. AUTH MIDDLEWARE - PASANG SEBELUM ROUTE /api
+// 4. KONFIGURASI SERVER & START (PAKAI EXPRESS)
 // ============================================================================
-const activeSessions = {};
 
-// Cleanup token expired tiap 1 menit
-setInterval(() => {
-  const now = Date.now();
-  Object.keys(activeSessions).forEach((token) => {
-    if (activeSessions[token].expires < now) delete activeSessions[token];
-  });
-}, 60000);
-
-function authMiddleware(req, res, next) {
-  const publicPaths = ["/api/login", "/api/logout", "/health"];
-  if (publicPaths.includes(req.path)) return next();
-
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
-  if (!token)
-    return res.status(401).json({ error: "Akses ditolak. Silakan login." });
-
-  const session = activeSessions[token];
-  if (!session)
-    return res
-      .status(403)
-      .json({ error: "Token tidak valid atau kedaluwarsa." });
-  if (Date.now() > session.expires) {
-    delete activeSessions[token];
-    return res
-      .status(403)
-      .json({ error: "Sesi telah berakhir. Silakan login kembali." });
-  }
-
-  req.user = session;
-  next();
-}
-app.use("/api", authMiddleware);
-
-// ============================================================================
-// 5. KONFIGURASI SERVER
-// ============================================================================
-const serverPort = process.env.PORT || 8080;
+const serverPort = process.env.PORT || 8080; // Default 8080 untuk Railway
 const serverHost = "0.0.0.0";
 
-const server = app.listen(Number(serverPort), serverHost, () => {
-  console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
-  console.log("⏳ Menunggu inisialisasi database...");
-});
-
-server.on("error", (err) => {
-  if (err.code === "EADDRINUSE") {
-    console.error(`❌ Port ${serverPort} sudah dipakai`);
-  } else {
-    console.error("❌ Gagal menjalankan server:", err.message);
-  }
+try {
+  app.listen(Number(serverPort), serverHost, () => {
+    console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
+    console.log("⏳ Menunggu inisialisasi database...");
+  });
+} catch (err) {
+  console.error("❌ Gagal menjalankan server:", err.message);
   process.exit(1);
-});
+}
 
 // ============================================================================
-// 6. LOGIC APLIKASI
+// 5. LOGIC APLIKASI (ROUTES & DATABASE)
 // ============================================================================
+
+// Definisi Tabel
 const ALLOWED_TABLES = [
   "golongan",
   "perkiraan",
@@ -139,39 +90,60 @@ function isValidTable(name) {
   return false;
 }
 
-// Route Utama
+// Route Utama (Health Check) -> SEKARANG MENGGUNAKAN EXPRESS
+//app.get("/", (req, res) => {
+// res.send(`
+//  <h1>✅ Sistem Pembukuan Online</h1>
+// <p>Server Express berjalan dan Database Terhubung.</p>
+// <p>Status: OK</p>
+//`);
+//});
+// Route Utama (Otomatis buka HTML)
 app.get("/", (req, res) => {
-  const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
-  res.sendFile(htmlPath, (err) => {
-    if (err) res.status(500).send("Gagal memuat halaman: " + err.message);
-  });
+  try {
+    // Arahkan langsung ke file HTML utama
+    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
+    res.sendFile(htmlPath);
+  } catch (error) {
+    res.status(500).send("Gagal memuat halaman: " + error.message);
+  }
+});
+app.get("/health", (req, res) => {
+  res.send("OK");
 });
 
+// Route Serve HTML (Jika file ada)
 app.get("/app", (req, res) => {
-  const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
-  res.sendFile(htmlPath, (err) => {
-    if (err)
-      res.status(500).send("Gagal memuat halaman pembukuan: " + err.message);
-  });
+  try {
+    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
+    res.sendFile(htmlPath);
+  } catch (error) {
+    res.status(500).send("Gagal memuat halaman pembukuan: " + error.message);
+  }
 });
 
-app.get("/health", (req, res) => res.send("OK"));
+// ============================================================================
+// 6. INISIALISASI DATABASE SUPABASE
+// ============================================================================
 
-// ============================================================================
-// 7. INISIALISASI DATABASE SUPABASE
-// ============================================================================
 let connectionString = process.env.DATABASE_URL;
+const manualSupabaseUrl =
+  "postgresql://postgres.ortjujcvgjtfikeygbxi:supabase252118@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
 
 if (!connectionString) {
-  console.error(
-    "❌ FATAL DATABASE ERROR: Variabel DATABASE_URL tidak ditemukan di Railway/Environment!",
-  );
-  process.exit(1);
+  console.log("⚠️ Railway Gagal kirim Variabel. Menggunakan URL Manual...");
+  connectionString = manualSupabaseUrl;
 }
 
 let db;
 
 try {
+  if (!connectionString) {
+    throw new Error(
+      "❌ FATAL DATABASE ERROR: Variabel DATABASE_URL tidak ditemukan!",
+    );
+  }
+
   console.log("📂 Menghubungkan ke Cloud Database Supabase...");
   console.log(
     "🔗 Connection String:",
@@ -183,7 +155,7 @@ try {
     ssl: { rejectUnauthorized: false },
     max: 20,
     idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 5000,
+    connectionTimeoutMillis: 2000,
   });
 
   db.query("SELECT NOW()", (err, res) => {
@@ -199,17 +171,19 @@ try {
       const tableExists = resCheck.rows[0].exists;
 
       if (!tableExists) {
-        console.log(`🛠️ Membuat tabel baru: ${lowerTableName}`);
+        console.log(`🛠️ Membuat tabel baru di Supabase: ${lowerTableName}`);
         if (tableName.match(/\d{4}$/)) {
           await db.query(
-            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data JSONB NOT NULL)`,
+            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
           );
         } else {
           await db.query(
-            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, data JSONB NOT NULL)`,
+            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
           );
         }
         console.log(`✅ Tabel ${lowerTableName} berhasil dibuat.`);
+      } else {
+        console.log(`ℹ️ Tabel ${lowerTableName} sudah ada.`);
       }
     } catch (e) {
       console.error(`⚠️ Gagal init tabel ${tableName}:`, e.message);
@@ -228,14 +202,11 @@ try {
   })();
 } catch (err) {
   console.error(err.message);
-  process.exit(1);
 }
 
 module.exports = db;
 
-// ============================================================================
-// 8. API ROUTES
-// ============================================================================
+// --- API ROUTES ---
 
 // 1. RESET POSTING
 app.post("/api/reset-posting", async (req, res) => {
@@ -260,8 +231,9 @@ app.post("/api/reset-posting", async (req, res) => {
       await client.query("BEGIN");
       for (const t of tables) {
         try {
+          const lowerTableName = t.toLowerCase();
           await client.query(
-            `DELETE FROM ${t.toLowerCase()} WHERE masa = $1 AND cabang = $2`,
+            `DELETE FROM ${lowerTableName} WHERE masa = $1 AND cabang = $2`,
             [masa, cabang],
           );
         } catch (e) {}
@@ -305,29 +277,33 @@ app.post("/api/clear-all-data", async (req, res) => {
   }
 });
 
-// 3. GET ALL DATA - FILTER CABANG PAKAI JSONB
+// 3. GET ALL DATA (DIMODIFIKASI UNTUK FILTER CABANG OTOMATIS)
 app.get("/api/data/:storeName", async (req, res) => {
+  if (!db) return res.status(500).json({ error: "DB Error" });
   try {
-    if (!db) return res.status(500).json({ error: "Database tidak terhubung" });
     const { storeName } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
 
     const lowerStoreName = storeName.toLowerCase();
+
+    // Jika Admin, tampilkan semua. Jika bukan Admin, filter berdasarkan cabang user login
     let sql = `SELECT data FROM ${lowerStoreName}`;
     let params = [];
 
-    if (req.user && req.user.role !== "Admin") {
+    if (req.user.role !== "Admin") {
       sql += ` WHERE data->>'cabang' = $1`;
       params.push(req.user.cabang);
     }
 
     const result = await db.query(sql, params);
-    const parsedData = result.rows.map((r) => r.data).filter(Boolean);
-    res.json(parsedData);
+    res.json(
+      result.rows.map((r) =>
+        typeof r.data === "string" ? JSON.parse(r.data) : r.data,
+      ),
+    );
   } catch (e) {
-    console.error(`❌ Error GET /api/data/${req.params.storeName}:`, e.message);
-    res.status(500).json({ error: "Gagal mengambil data: " + e.message });
+    res.status(500).json({ error: e.message });
   }
 });
 
@@ -338,13 +314,19 @@ app.get("/api/data/:storeName/:id", async (req, res) => {
     const { storeName, id } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
+    const lowerStoreName = storeName.toLowerCase();
     const result = await db.query(
-      `SELECT data FROM ${storeName.toLowerCase()} WHERE id = $1`,
+      `SELECT data FROM ${lowerStoreName} WHERE id = $1`,
       [id],
     );
     const row = result.rows[0];
-    if (row) res.json(row.data);
-    else res.status(404).json({ error: "Not Found" });
+    if (row) {
+      const parsedData =
+        typeof row.data === "string" ? JSON.parse(row.data) : row.data;
+      res.json(parsedData);
+    } else {
+      res.status(404).json({ error: "Not Found" });
+    }
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -359,8 +341,9 @@ app.post("/api/data/:storeName", async (req, res) => {
       return res.status(400).json({ error: "Invalid Table" });
     const data = req.body;
     if (!data.id) return res.status(400).json({ error: "ID Required" });
+    const lowerStoreName = storeName.toLowerCase();
     await db.query(
-      `INSERT INTO ${storeName.toLowerCase()} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+      `INSERT INTO ${lowerStoreName} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
       [data.id, JSON.stringify(data)],
     );
     res.status(201).json({ message: "Created" });
@@ -369,24 +352,30 @@ app.post("/api/data/:storeName", async (req, res) => {
   }
 });
 
-// 6. PUT DATA BY ID
+// 6. PUT DATA (BY ID)
 app.put("/api/data/:storeName/:id", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
     const { storeName, id } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
+    const lowerStoreName = storeName.toLowerCase();
     const result = await db.query(
-      `SELECT data FROM ${storeName.toLowerCase()} WHERE id = $1`,
+      `SELECT data FROM ${lowerStoreName} WHERE id = $1`,
       [id],
     );
     const row = result.rows[0];
-    let merged = row ? { ...row.data, ...req.body } : req.body;
+    let merged = row
+      ? {
+          ...(typeof row.data === "string" ? JSON.parse(row.data) : row.data),
+          ...req.body,
+        }
+      : req.body;
     merged.id = id;
-    await db.query(
-      `UPDATE ${storeName.toLowerCase()} SET data = $1 WHERE id = $2`,
-      [JSON.stringify(merged), id],
-    );
+    await db.query(`UPDATE ${lowerStoreName} SET data = $1 WHERE id = $2`, [
+      JSON.stringify(merged),
+      id,
+    ]);
     res.json({ message: "Updated" });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -402,14 +391,20 @@ app.put("/api/data/:storeName", async (req, res) => {
       return res.status(400).json({ error: "Invalid Table" });
     const data = req.body;
     if (!data.id) return res.status(400).json({ error: "ID Required" });
+    const lowerStoreName = storeName.toLowerCase();
     const result = await db.query(
-      `SELECT data FROM ${storeName.toLowerCase()} WHERE id = $1`,
+      `SELECT data FROM ${lowerStoreName} WHERE id = $1`,
       [data.id],
     );
     const row = result.rows[0];
-    let merged = row ? { ...row.data, ...data } : data;
+    let merged = row
+      ? {
+          ...(typeof row.data === "string" ? JSON.parse(row.data) : row.data),
+          ...data,
+        }
+      : data;
     await db.query(
-      `INSERT INTO ${storeName.toLowerCase()} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
+      `INSERT INTO ${lowerStoreName} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
       [data.id, JSON.stringify(merged)],
     );
     res.json({ message: "Upserted" });
@@ -425,9 +420,8 @@ app.delete("/api/data/:storeName/:id", async (req, res) => {
     const { storeName, id } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
-    await db.query(`DELETE FROM ${storeName.toLowerCase()} WHERE id = $1`, [
-      id,
-    ]);
+    const lowerStoreName = storeName.toLowerCase();
+    await db.query(`DELETE FROM ${lowerStoreName} WHERE id = $1`, [id]);
     res.json({ message: "Deleted" });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -441,7 +435,8 @@ app.delete("/api/data/:storeName", async (req, res) => {
     const { storeName } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
-    await db.query(`DELETE FROM ${storeName.toLowerCase()}`);
+    const lowerStoreName = storeName.toLowerCase();
+    await db.query(`DELETE FROM ${lowerStoreName}`);
     res.json({ message: "Cleared" });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -455,10 +450,12 @@ app.get("/api/count/:storeName", async (req, res) => {
     const { storeName } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
+    const lowerStoreName = storeName.toLowerCase();
     const result = await db.query(
-      `SELECT COUNT(id) as total FROM ${storeName.toLowerCase()}`,
+      `SELECT COUNT(id) as total FROM ${lowerStoreName}`,
     );
-    res.json(Number(result.rows[0].total));
+    const row = result.rows[0];
+    res.json(row ? Number(row.total) : 0);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -471,8 +468,11 @@ app.get("/api/backup", async (req, res) => {
     let backupData = {};
     for (const t of ALLOWED_TABLES) {
       try {
-        const result = await db.query(`SELECT data FROM ${t.toLowerCase()}`);
-        backupData[t] = result.rows.map((r) => r.data);
+        const lowerTableName = t.toLowerCase();
+        const result = await db.query(`SELECT data FROM ${lowerTableName}`);
+        backupData[t] = result.rows.map((r) =>
+          typeof r.data === "string" ? JSON.parse(r.data) : r.data,
+        );
       } catch (e) {
         console.warn(`⚠️ Gagal backup tabel ${t}:`, e.message);
         backupData[t] = [];
@@ -497,9 +497,12 @@ app.post("/api/batch/:storeName", async (req, res) => {
 
     const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
     const resCheck = await db.query(checkQuery, [lowerStoreName]);
-    if (!resCheck.rows[0].exists && storeName.match(/\d{4}$/)) {
+    const tableExists = resCheck.rows[0].exists;
+
+    if (!tableExists && storeName.match(/\d{4}$/)) {
+      console.log(`🛠️ Auto-create tabel tahunan: ${lowerStoreName}`);
       await db.query(
-        `CREATE TABLE ${lowerStoreName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data JSONB NOT NULL)`,
+        `CREATE TABLE ${lowerStoreName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
       );
     }
 
@@ -535,17 +538,19 @@ app.post("/api/save-batch", async (req, res) => {
   try {
     const { storeName, data } = req.body;
     if (!storeName || !Array.isArray(data)) return res.json({ success: true });
+    const lowerStoreName = storeName.toLowerCase();
+
     const client = await db.connect();
     try {
       await client.query("BEGIN");
-      const queryText = `INSERT INTO ${storeName.toLowerCase()} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+      const queryText = `INSERT INTO ${lowerStoreName} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
       for (const item of data) {
         const id =
           item.id ||
           item.noPerk ||
           item.gol ||
           item.nomor ||
-          `${storeName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+          `${lowerStoreName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
         await client.query(queryText, [id, JSON.stringify(item)]);
       }
       await client.query("COMMIT");
@@ -581,106 +586,286 @@ app.post("/api/saldo-harian/clear-range", async (req, res) => {
   }
 });
 
-// 15. SNAPSHOT SALDO
+// 15. SNAPSHOT SALDO (DIPERBAIKI)
 app.post("/api/saldo-harian", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
     const { cabang, char4, tanggal, saldo_akhir } = req.body;
     if (!tanggal) return res.status(400).json({ error: "Date Required" });
     const id = `${cabang}_${char4}_${tanggal}`;
-    const jsonData = { cabang, char4, tanggal, saldo_akhir };
+    const jsonData = JSON.stringify({ cabang, char4, tanggal, saldo_akhir });
+
     await db.query(
       `INSERT INTO saldo_harian (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
-      [id, JSON.stringify(jsonData)],
+      [id, jsonData],
     );
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message }); // DIPERBAIKI: Kurung tutup yang benar
   }
 });
 
 // ============================================================================
-// 16. IMPOR FOXPRO SSE - SINGKAT AJA
+// 16. ENDPOINT IMPOR FOXPRO (.DBF) - TANPA MULTER (PURE EXPRESS)
 // ============================================================================
 app.post("/api/impor-foxpro-online", async (req, res) => {
+  if (!db) {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+    res.write(
+      `data: ${JSON.stringify({ percent: 100, message: "Database tidak terkoneksi", success: false })}\n\n`,
+    );
+    return res.end();
+  }
+
+  // WAJIB HEADER SSE
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // matiin buffer nginx Railway
   res.flushHeaders();
+
   const send = (percent, msg, extra = {}) => {
     res.write(
       `data: ${JSON.stringify({ percent, message: msg, ...extra })}\n\n`,
     );
+    //res.flush(); // WAJIB biar langsung push ke browser
   };
-  send(
-    100,
-    "Fitur impor aktif. Pastikan package dbf-reader & busboy terinstall",
-    { success: true },
-  );
-  res.end();
-});
 
-// ============================================================================
-// 17. LOGIN & LOGOUT
-// ============================================================================
-app.post("/api/login", async (req, res) => {
   try {
-    const { username, password } = req.body;
-    if (!username || !password)
-      return res
-        .status(400)
-        .json({ success: false, message: "Username & Password wajib diisi" });
+    const busboy = require("busboy");
+    const bb = busboy({ headers: req.headers });
+    const files = {};
+    const fields = {};
 
-    const result = await db.query(`SELECT data FROM users WHERE id = $1`, [
-      username,
-    ]);
-    if (result.rows.length === 0)
-      return res
-        .status(401)
-        .json({ success: false, message: "User tidak ditemukan" });
-
-    const user = result.rows[0].data;
-    if (user.password !== password)
-      return res
-        .status(401)
-        .json({ success: false, message: "Password salah" });
-
-    const token = crypto.randomBytes(32).toString("hex");
-    activeSessions[token] = {
-      username: user.username,
-      role: user.role,
-      cabang: user.cabang || "Pusat",
-      expires: Date.now() + 24 * 60 * 60 * 1000,
-    };
-
-    res.json({
-      success: true,
-      message: "Login berhasil",
-      token: token,
-      user: {
-        username: user.username,
-        nama: user.nama,
-        role: user.role,
-        cabang: user.cabang || "Pusat",
-      },
+    bb.on("file", (name, file) => {
+      const chunks = [];
+      file.on("data", (chunk) => chunks.push(chunk));
+      file.on("end", () => {
+        files[name] = Buffer.concat(chunks);
+      });
     });
-  } catch (e) {
-    console.error("❌ Error Login:", e.message);
-    res
-      .status(500)
-      .json({ success: false, message: "Terjadi kesalahan pada server" });
+
+    bb.on("field", (name, val) => {
+      fields[name] = val;
+    });
+
+    bb.on("finish", async () => {
+      try {
+        const { kode_cabang, tahun, bulan, masa } = fields;
+        const fileCdg = files["file_cdg"];
+        const fileCdd = files["file_cdd"];
+        const fileDet = files["file_det"];
+
+        if (!fileCdg || !fileCdd) {
+          send(100, "File CDG atau CDD tidak ditemukan", { success: false });
+          return res.end();
+        }
+
+        send(5, `Mulai impor masa ${masa} cabang ${kode_cabang}`);
+
+        const { Dbf } = require("dbf-reader");
+
+        send(10, "Baca file CDG...");
+        const dataCdg = Dbf.read(fileCdg)?.rows || [];
+        send(20, `CDG terbaca: ${dataCdg.length} record`);
+
+        send(25, "Baca file CDD...");
+        const dataCdd = Dbf.read(fileCdd)?.rows || [];
+        send(40, `CDD terbaca: ${dataCdd.length} record`);
+
+        let dataDet = [];
+        if (fileDet) {
+          send(45, "Baca file DET...");
+          dataDet = Dbf.read(fileDet)?.rows || [];
+          send(55, `DET terbaca: ${dataDet.length} record`);
+        }
+
+        const tableGolongan = `golongan${tahun}`.toLowerCase();
+        const tablePerkiraan = `perkiraan${tahun}`.toLowerCase();
+        const tableTransaksi = `transaksi${tahun}`.toLowerCase();
+
+        const client = await db.connect();
+        try {
+          await client.query("BEGIN");
+
+          const ensureTableExists = async (tableName) => {
+            const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
+            const resCheck = await client.query(checkQuery, [tableName]);
+            if (!resCheck.rows[0].exists) {
+              send(58, `Buat tabel ${tableName}...`);
+              await client.query(
+                `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+              );
+            }
+          };
+
+          await ensureTableExists(tableGolongan);
+          await ensureTableExists(tablePerkiraan);
+          await ensureTableExists(tableTransaksi);
+
+          // Batch insert + kirim progress tiap batch
+          const batchInsert = async (
+            tableName,
+            dataArray,
+            typePrefix,
+            startPct,
+            endPct,
+          ) => {
+            if (dataArray.length === 0) return 0;
+            const batchSize = 500;
+            let totalInserted = 0;
+            const totalBatch = Math.ceil(dataArray.length / batchSize);
+
+            await client.query(
+              `DELETE FROM ${tableName} WHERE data LIKE $1 AND data LIKE $2`,
+              [`%"masa":"${masa}"%`, `%"cabang":"${kode_cabang}"%`],
+            );
+            send(startPct, `Hapus data lama ${typePrefix}...`);
+
+            for (let i = 0; i < dataArray.length; i += batchSize) {
+              const batch = dataArray.slice(i, i + batchSize);
+              let queryText = `INSERT INTO ${tableName} (id, data) VALUES `;
+              let values = [];
+              let placeholders = [];
+
+              batch.forEach((row, index) => {
+                let mappedData = {};
+                let customId = "";
+                const getStr = (val) =>
+                  val !== undefined && val !== null ? String(val).trim() : "";
+                const getNum = (val) =>
+                  val !== undefined && val !== null ? Number(val) : 0;
+
+                if (typePrefix === "CDG") {
+                  mappedData = {
+                    gol: getStr(row.GOLACCT),
+                    namaGol: getStr(row.PJLSAN),
+                    tipe: "Golongan",
+                    masa: masa,
+                    awal: getNum(row.AWAL),
+                    db: getNum(row.DB),
+                    cr: getNum(row.CR),
+                    akhir: getNum(row.AKHIR),
+                    cabang: getStr(row.REST) || kode_cabang,
+                  };
+                  customId = `CDG_${mappedData.cabang}_${masa}_${mappedData.gol || "X"}_${i + index}`;
+                } else if (typePrefix === "CDD") {
+                  mappedData = {
+                    gol: getStr(row.GOLACCT),
+                    noPerk: getStr(row.SUBACCT),
+                    desc: getStr(row.PJLSAN),
+                    tipe: "Perkiraan",
+                    masa: masa,
+                    awal: getNum(row.AWAL),
+                    db: getNum(row.DB),
+                    cr: getNum(row.CR),
+                    akhir: getNum(row.AKHIR),
+                    cabang: getStr(row.REST) || kode_cabang,
+                  };
+                  const cleanNoPerk =
+                    mappedData.noPerk.replace(/\./g, "_") || "X";
+                  customId = `CDD_${mappedData.cabang}_${masa}_${cleanNoPerk}_${i + index}`;
+                } else if (typePrefix === "DET") {
+                  const dbVal = getNum(row.DB);
+                  const crVal = getNum(row.CR);
+                  const crypto = require("crypto");
+                  customId = `${crypto.randomUUID()}_${i + index}`;
+                  mappedData = {
+                    id: customId,
+                    noreff: getStr(row.REFF),
+                    tanggal: getStr(row.DATE),
+                    kodeBank: "",
+                    cabang: getStr(row.KODE) || kode_cabang,
+                    dariKePada: "BANK",
+                    noperkiraan: getStr(row.NOACCT),
+                    desc: getStr(row.DESC),
+                    total: dbVal + crVal,
+                    db: dbVal,
+                    cr: crVal,
+                    kodeTrans: "",
+                    masa: masa,
+                  };
+                }
+
+                const base = index * 2;
+                placeholders.push(`($${base + 1}, $${base + 2})`);
+                values.push(customId, JSON.stringify(mappedData));
+              });
+
+              queryText += placeholders.join(", ");
+              queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+              await client.query(queryText, values);
+              totalInserted += batch.length;
+
+              // Kirim progress tiap batch
+              const currentBatch = Math.floor(i / batchSize) + 1;
+              const pct =
+                startPct + ((endPct - startPct) * currentBatch) / totalBatch;
+              send(
+                Math.round(pct),
+                `Insert ${typePrefix}: ${totalInserted}/${dataArray.length}`,
+              );
+            }
+            return totalInserted;
+          };
+
+          send(60, "Mulai insert database...");
+          const countCdg = await batchInsert(
+            tableGolongan,
+            dataCdg,
+            "CDG",
+            60,
+            75,
+          );
+          const countCdd = await batchInsert(
+            tablePerkiraan,
+            dataCdd,
+            "CDD",
+            75,
+            90,
+          );
+          const countDet = await batchInsert(
+            tableTransaksi,
+            dataDet,
+            "DET",
+            90,
+            98,
+          );
+
+          await client.query("COMMIT");
+
+          send(
+            100,
+            `Sukses! Golongan:${countCdg} Perkiraan:${countCdd} Transaksi:${countDet}`,
+            {
+              success: true,
+              tables: {
+                golongan: tableGolongan,
+                perkiraan: tablePerkiraan,
+                transaksi: tableTransaksi,
+              },
+            },
+          );
+          res.end();
+        } catch (txError) {
+          await client.query("ROLLBACK");
+          send(100, "Gagal simpan DB: " + txError.message, { success: false });
+          res.end();
+        } finally {
+          client.release();
+        }
+      } catch (innerErr) {
+        send(100, "Error: " + innerErr.message, { success: false });
+        res.end();
+      }
+    });
+
+    req.pipe(bb);
+  } catch (error) {
+    send(100, "Error: " + error.message, { success: false });
+    res.end();
   }
-});
-
-app.post("/api/logout", (req, res) => {
-  const token = req.headers["authorization"]?.split(" ")[1];
-  if (token) delete activeSessions[token];
-  res.json({ success: true, message: "Logout berhasil" });
-});
-
-// Graceful shutdown
-process.on("SIGTERM", async () => {
-  console.log("SIGTERM received, closing DB...");
-  if (db) await db.end();
-  server.close(() => process.exit(0));
 });
