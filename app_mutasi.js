@@ -1870,7 +1870,7 @@ function printMutasiKasir() {
     fmtRp(penjualanTunai) +
     "</td>" +
     "</tr>" +
-    "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
+    // "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Ringkasan Saldo
     "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right;'>" +
     fmtRp(saldoAwalKasir) +
@@ -1890,11 +1890,11 @@ function printMutasiKasir() {
     // Kode KT
     "<tr class='bold'><td>KOREKSI(+)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KT) +
-    "<tr><td colspan='2'>&nbsp;</td></tr>" +
+    "<tr><td colspan='1'>&nbsp;</td></tr>" +
     // Kode KK
     "<tr class='bold'><td>KOREKSI(-)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KK) +
-    "<tr><td colspan='2'>&nbsp;</td></tr>" +
+    //"<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Saldo Akhir
     "<tr class='total'><td>SALDO AKHIR KAS</td><td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 3: Di atas Saldo Akhir Kas
     fmtRp(saldoAkhirKas) +
