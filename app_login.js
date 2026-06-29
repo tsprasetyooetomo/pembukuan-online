@@ -90,7 +90,6 @@ async function loadTransaksi() {
     console.error("Gagal memuat transaksi:", error);
   }
 }
-
 function doLogout() {
   // 1. Hapus semua data autentikasi dari localStorage
   localStorage.removeItem("token");
@@ -104,7 +103,22 @@ function doLogout() {
     alert("Logout Berhasil!");
   }
 
-  // 3. Muat ulang halaman untuk mengembalikan ke tampilan login awal
+  // 3. HIDE / SEMBUNYIKAN elemen UI secara instan sebelum reload
+  const sidebar = document.getElementById("sidebar");
+  const tbTitle = document.getElementById("tbTitle");
+  const elemenJam = document.getElementById("jam"); // Sesuaikan ID dengan HTML Anda
+  const elemenTanggal = document.getElementById("tanggal"); // Sesuaikan ID dengan HTML Anda
+
+  if (sidebar) sidebar.classList.add("hidden-menu");
+  if (tbTitle) tbTitle.style.display = "none";
+  if (elemenJam) elemenJam.style.display = "none";
+  if (elemenTanggal) elemenTanggal.style.display = "none";
+
+  // Tampilkan box login (jika ingin transisinya instan)
+  const loginBox = document.getElementById("loginBox");
+  if (loginBox) loginBox.style.display = "block";
+
+  // 4. Muat ulang halaman untuk membersihkan seluruh sisa data memori/cache
   setTimeout(() => {
     window.location.reload();
   }, 500);
