@@ -112,6 +112,46 @@ app.get("/health", (req, res) => {
   res.send("OK");
 });
 
+// 🟢 TARUH KODE LOGIN DI SINI (DI BAWAH /health)
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+
+    if (!username || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "Username dan password tidak boleh kosong",
+      });
+    }
+
+    // TODO: Hubungkan dengan pengecekan tabel "users" di database PostgreSQL Anda.
+    // Ini adalah simulasi respons sukses yang COCOK dengan app_login.js Anda:
+    if (username.toLowerCase() === "admin" && password === "123456") {
+      return res.json({
+        success: true,
+        token: "jwt_token_rahasia_pembukuan_2026", // Token dummy untuk ditangkap localStorage
+        user: {
+          nama: "TAMARIA",
+          kode_cabang: "00", // Hak akses cabang Tamaria
+        },
+      });
+    } else {
+      return res.status(401).json({
+        success: false,
+        message: "Username atau password salah",
+      });
+    }
+  } catch (error) {
+    console.error("Login API Error:", error);
+    res
+      .status(500)
+      .json({
+        success: false,
+        message: "Internal Server Error: " + error.message,
+      });
+  }
+});
+
 // Route Serve HTML (Jika file ada)
 app.get("/app", (req, res) => {
   try {
