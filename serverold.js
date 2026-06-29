@@ -366,10 +366,19 @@ app.get("/api/data/:storeName", async (req, res) => {
 
     // 2. Tentukan tabel apa saja yang wajib disaring berdasarkan cabang
     const tabelWajibFilter = [
+      "golongan",
+      "perkiraan",
       "transaksi",
+      "users",
+      "formatRL",
+      "formatNeraca",
+      "postedMonths",
+      "kodeBank",
+      "cabang",
       "detiltransaksi",
+      "saldo_harian",
+      "saldoKasir",
       "mutasikasir",
-      "saldokasir",
     ];
 
     if (tabelWajibFilter.includes(lowerStoreName)) {
