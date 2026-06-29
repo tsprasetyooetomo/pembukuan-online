@@ -888,10 +888,20 @@ const crypto = require("crypto");
 const activeSessions = {};
 
 // Middleware Otorisasi yang Lebih Aman
+// Middleware Otorisasi yang Lebih Aman
 function authMiddleware(req, res, next) {
-  // Lewati pengecekan untuk endpoint yang tidak butuh login
-  const publicPaths = ["/api/login", "/api/logout", "/health"];
-  if (publicPaths.includes(req.path)) return next();
+  // ✅ PERBAIKAN: Gunakan req.originalUrl dan startsWith agar tidak diblokir
+  // Lewati pengecekan untuk endpoint login, logout, health check, dan file statis
+  if (
+    req.originalUrl === "/api/login" ||
+    req.originalUrl === "/api/logout" ||
+    req.originalUrl === "/health" ||
+    req.originalUrl === "/" ||
+    req.originalUrl === "/app" ||
+    req.originalUrl.startsWith("/api/impor-foxpro-online") // Kalau upload juga butuh tanpa token, atau hapus jika upload butuh token
+  ) {
+    return next();
+  }
 
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1];
