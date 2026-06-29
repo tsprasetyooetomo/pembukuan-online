@@ -278,32 +278,43 @@ app.post("/api/clear-all-data", async (req, res) => {
 });
 
 // 3. GET ALL DATA (DIMODIFIKASI UNTUK FILTER CABANG OTOMATIS)
+// 3. GET ALL DATA (DIPERKUAT ERROR HANDLING & FILTER CABANG)
 app.get("/api/data/:storeName", async (req, res) => {
-  if (!db) return res.status(500).json({ error: "DB Error" });
   try {
+    if (!db) return res.status(500).json({ error: "Database tidak terhubung" });
+
     const { storeName } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
 
     const lowerStoreName = storeName.toLowerCase();
 
-    // Jika Admin, tampilkan semua. Jika bukan Admin, filter berdasarkan cabang user login
     let sql = `SELECT data FROM ${lowerStoreName}`;
     let params = [];
 
-    if (req.user.role !== "Admin") {
-      sql += ` WHERE data->>'cabang' = $1`;
-      params.push(req.user.cabang);
+    // FILTER CABANG OTOMATIS BERDASARKAN USER YANG LOGIN
+    // Jika BUKAN Admin, saring datanya
+    if (req.user && req.user.role !== "Admin") {
+      sql += ` WHERE data::text LIKE $1`; // Cara paling aman untuk mencari di JSON text
+      params.push(`%"cabang":"${req.user.cabang}"%`);
     }
 
     const result = await db.query(sql, params);
-    res.json(
-      result.rows.map((r) =>
-        typeof r.data === "string" ? JSON.parse(r.data) : r.data,
-      ),
-    );
+
+    const parsedData = result.rows
+      .map((r) => {
+        try {
+          return typeof r.data === "string" ? JSON.parse(r.data) : r.data;
+        } catch (e) {
+          return null; // Abaikan jika ada data corrupt
+        }
+      })
+      .filter(Boolean); // Buang data null/corrupt
+
+    res.json(parsedData);
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    console.error(`❌ Error GET /api/data/${req.params.storeName}:`, e.message);
+    res.status(500).json({ error: "Gagal mengambil data: " + e.message });
   }
 });
 
@@ -870,38 +881,32 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
   }
 });
 // ============================================================================
-// SISTEM LOGIN & AUTHORIZATION
+// SISTEM LOGIN & AUTHORIZATION (DIPERBAIKI)
 // ============================================================================
 const crypto = require("crypto");
 
-// Simpan sesi login sementara di memori server (Reset jika server restart)
-// Format: { token: { username, role, cabang, expires } }
 const activeSessions = {};
 
-// Middleware untuk mengecek apakah request memiliki token yang valid
+// Middleware Otorisasi yang Lebih Aman
 function authMiddleware(req, res, next) {
-  // Lewati pengecekan untuk endpoint login dan file statis
-  if (
-    req.path === "/api/login" ||
-    req.path === "/" ||
-    req.path === "/app" ||
-    req.path === "/health"
-  ) {
-    return next();
-  }
+  // Lewati pengecekan untuk endpoint yang tidak butuh login
+  const publicPaths = ["/api/login", "/api/logout", "/health"];
+  if (publicPaths.includes(req.path)) return next();
 
   const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1]; // Format: Bearer <token>
+  const token = authHeader && authHeader.split(" ")[1];
 
+  // Jika tidak ada token, tolak
   if (!token)
     return res.status(401).json({ error: "Akses ditolak. Silakan login." });
 
   const session = activeSessions[token];
+
+  // Jika token tidak valid atau kedaluwarsa
   if (!session)
     return res
       .status(403)
       .json({ error: "Token tidak valid atau kedaluwarsa." });
-
   if (Date.now() > session.expires) {
     delete activeSessions[token];
     return res
@@ -909,12 +914,12 @@ function authMiddleware(req, res, next) {
       .json({ error: "Sesi telah berakhir. Silakan login kembali." });
   }
 
-  // Simpan info user ke request agar bisa dipakai di route berikutnya
+  // Tempelkan data user ke request
   req.user = session;
   next();
 }
 
-// Terapkan middleware ke semua route /api
+// Terapkan middleware HANYA untuk route /api
 app.use("/api", authMiddleware);
 
 // ENDPOINT LOGIN
@@ -926,7 +931,6 @@ app.post("/api/login", async (req, res) => {
         .status(400)
         .json({ success: false, message: "Username & Password wajib diisi" });
 
-    // Cari user di database
     const result = await db.query(`SELECT data FROM users WHERE id = $1`, [
       username,
     ]);
@@ -940,20 +944,18 @@ app.post("/api/login", async (req, res) => {
         ? JSON.parse(result.rows[0].data)
         : result.rows[0].data;
 
-    // Verifikasi password
     if (user.password !== password) {
       return res
         .status(401)
         .json({ success: false, message: "Password salah" });
     }
 
-    // Buat Token Sesi
     const token = crypto.randomBytes(32).toString("hex");
     activeSessions[token] = {
       username: user.username,
       role: user.role,
       cabang: user.cabang || "Pusat",
-      expires: Date.now() + 24 * 60 * 60 * 1000, // Kedaluwarsa dalam 24 jam
+      expires: Date.now() + 24 * 60 * 60 * 1000, // 24 jam
     };
 
     res.json({
@@ -968,7 +970,10 @@ app.post("/api/login", async (req, res) => {
       },
     });
   } catch (e) {
-    res.status(500).json({ success: false, message: e.message });
+    console.error("❌ Error Login:", e.message);
+    res
+      .status(500)
+      .json({ success: false, message: "Terjadi kesalahan pada server" });
   }
 });
 
