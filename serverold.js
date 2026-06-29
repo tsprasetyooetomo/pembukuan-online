@@ -116,64 +116,73 @@ app.get("/health", (req, res) => {
 // API ROUTE: LOGIN SYSTEM
 // ============================================================================
 // ============================================================================
-// API ROUTE: LOGIN SYSTEM (BACA DARI DATABASE SUPABASE)
+// API ROUTE: LOGIN SYSTEM (BACA DARI STRUKTUR KOLOM DATA JSON)
 // ============================================================================
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
 
     if (!username || !password) {
-      return res.status(400).json({
-        success: false,
-        message: "Username dan password tidak boleh kosong",
-      });
+      return res
+        .status(400)
+        .json({ success: false, message: "Username & password kosong" });
     }
 
-    // 🔍 1. Cari user di tabel 'users' berdasarkan username yang diinput
-    // Catatan: Sesuaikan nama kolom jika di database Anda menggunakan nama berbeda (misal: 'user_id', 'pwd')
-    const queryText = "SELECT * FROM users WHERE LOWER(username) = $1 LIMIT 1";
-    const values = [username.toLowerCase()];
+    // 1. Ambil semua baris dari tabel 'users' menggunakan variabel 'db' Anda
+    const result = await db.query("SELECT data FROM users");
 
-    // dbPool / pool / Pool disesuaikan dengan nama variabel PgPool di serverold.js Anda
-    // Berdasarkan library Anda, biasanya variabelnya bernama 'pool' atau Anda bisa buat instance baru.
-    // Di sini kita asumsikan variabel pool Anda bernama 'pool' atau koneksi yg sudah ada.
-    const result = await pool.query(queryText, values);
+    let userDitemukan = null;
 
-    // 2. Jika user tidak ditemukan
-    if (result.rows.length === 0) {
-      return res.status(401).json({
-        success: false,
-        message: "Username tidak terdaftar",
-      });
+    // 2. Lakukan looping karena data disimpan di dalam objek kolom 'data'
+    for (let i = 0; i < result.rows.length; i++) {
+      // Pastikan data di-parse jika tipenya masih string teks, atau langsung dibaca jika tipe JSONB
+      const rowData =
+        typeof result.rows[i].data === "string"
+          ? JSON.parse(result.rows[i].data)
+          : result.rows[i].data;
+
+      // Cocokkan username (abaikan huruf besar/kecil)
+      if (
+        rowData &&
+        rowData.username &&
+        rowData.username.toLowerCase() === username.toLowerCase()
+      ) {
+        userDitemukan = rowData;
+        break;
+      }
     }
 
-    const userLengkap = result.rows[0];
-
-    // 3. Cocokkan password (pastikan text biasa / plain text sesuai sistem lama Anda)
-    if (userLengkap.password !== password) {
-      return res.status(401).json({
-        success: false,
-        message: "Password yang Anda masukkan salah",
-      });
+    // 3. Cek apakah user ada
+    if (!userDitemukan) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Username tidak terdaftar" });
     }
 
-    // 4. Jika cocok, kirim data asli dari database ke frontend
+    // 4. Cocokkan password
+    if (userDitemukan.password !== password) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Password yang dimasukkan salah" });
+    }
+
+    // 5. Sukses! Kirim balik data untuk ditangkap oleh app_login.js frontend
     return res.json({
       success: true,
-      token: "jwt_token_" + userLengkap.username + "_" + Date.now(), // Token dinamis
+      token: "jwt_" + userDitemukan.username + "_" + Date.now(),
       user: {
-        nama: userLengkap.nama || userLengkap.username, // Mengambil kolom 'nama' asli di DB
-        kode_cabang: userLengkap.cabang || userLengkap.kode_cabang || "00", // Mengambil kolom cabang asli di DB
+        nama: userDitemukan.nama || userDitemukan.username,
+        kode_cabang: userDitemukan.kode_cabang || userDitemukan.cabang || "00",
       },
     });
   } catch (error) {
-    console.error("Login Database Error:", error);
-    res
-      .status(500)
-      .json({ success: false, message: "Error Server: " + error.message });
+    console.error("🔥 ERROR LOGIN API:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Terjadi error di serverold.js: " + error.message,
+    });
   }
 });
-
 // Route Serve HTML (Jika file ada)
 app.get("/app", (req, res) => {
   try {
