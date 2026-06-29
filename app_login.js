@@ -19,6 +19,12 @@ async function loginSystem() {
       body: JSON.stringify({ username: u, password: p }),
     });
 
+    // ... di dalam fungsi handleLogin frontend setelah res.json() sukses ...
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("nama", data.user.nama);
+    localStorage.setItem("cabang", data.user.kode_cabang);
+    localStorage.setItem("role", data.user.role); // 🟢 Simpan Role ke LocalStorage
+
     // 🔴 PERBAIKAN 1: Cegah crash HTML (Unexpected token <) jika URL API backend salah/404
     const contentType = res.headers.get("content-type");
     if (!res.ok || !contentType || !contentType.includes("application/json")) {
@@ -94,7 +100,7 @@ function doLogout() {
   localStorage.removeItem("token");
   localStorage.removeItem("nama");
   localStorage.removeItem("cabang");
-
+  localStorage.removeItem("role"); // 🟢 Hapus saat logout
   if (typeof toast === "function")
     toast("Berhasil logout, mengalihkan...", "ok");
 
