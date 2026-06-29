@@ -2376,3 +2376,21 @@ function renderImport() {
   );
 }
 PANEL_MAP.importD = renderImport;
+// Menampilkan overlay loading
+function showLoading() {
+  const loader = document.getElementById("loadingOv");
+  if (loader) {
+    // Kembalikan isi teks default jika sebelumnya sempat tertimpa pesan error
+    loader.innerHTML =
+      '<span><span class="spinner"></span> Membuka database...</span>';
+    loader.style.display = "flex"; // atau 'block' sesuai CSS Anda
+  }
+}
+
+// Menyembunyikan overlay loading
+function hideLoading() {
+  const loader = document.getElementById("loadingOv");
+  if (loader) {
+    loader.style.display = "none";
+  }
+}
