@@ -1851,62 +1851,56 @@ function printMutasiKasir() {
     // Bagian Belanja (BE)
     "<tr class='bold'><td>BELANJA</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.BE) +
-    // ✅ TOTAL BELANJA DIBERI GARIS ATAS (border-top)
+    // TOTAL BELANJA DIBERI GARIS ATAS (border-top)
     "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     fmtRp(totalBE) +
     "</td></tr>" +
     "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Pemasukan (PJ)
-    "<tr class='bold'><td>(+)</td><td style='text-align:right'>Rp</td></tr>" +
+    "<tr class='bold'><td>(+) PEMASUKAN</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.PJ) +
     "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Pengeluaran (CS)
-    "<tr class='bold'><td>(-)</td><td style='text-align:right'>Rp</td></tr>" +
+    "<tr class='bold'><td>(-) PENGELUARAN</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.CS) +
+    // Penjualan Tunai
     "<tr class='total'>" +
     "<td>PENJUALAN TUNAI</td>" +
-    "<td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 1: Diatas Penjualan Tunai
+    "<td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 1: Di atas Penjualan Tunai
     fmtRp(penjualanTunai) +
     "</td>" +
     "</tr>" +
+    "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
     // Ringkasan Saldo
-    "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right;border-top: none'>" +
+    "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right;'>" +
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
     rowHtml(dataKode.TK) +
-    // Pindahkan style ke tag <tr> agar garis memanjang penuh
+    // SALDO KAS TERSEDIA
     "<tr class='bold' style='border-top: 1px solid #000;'>" +
     "<td>SALDO KAS TERSEDIA</td>" +
     "<td style='text-align:right;'>" +
     fmtRp(saldoTersedia) +
-    "</td></tr>";
-
-  // PERBAIKAN: Hapus <td> nganggur sebelum TOTAL BELANJA
-  "<tr class='bold'><td style='font-weight:bold; width:70%'>TOTAL BELANJA</td>" +
-    "<td style='width:30%;text-align:right;border-top: none'>" +
-    fmtRp(totalBE) +
-    "</td>" +
-    "</tr>" +
-    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right'>" + // Garis dihapus dulu di sini
+    "</td></tr>" +
+    // PERBAIKAN UTAMA: String disambung kembali dengan tanda +
+    // Hapus duplikasi TOTAL BELANJA (sudah ditulis di atas)
+    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right;'>" +
     fmtRp(saldoKas) +
     "</td></tr>" +
     // Kode KT
     "<tr class='bold'><td>KOREKSI(+)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KT) +
-    // HAPUS </td></tr> NGANGGUR YANG ADA DI SINI
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Kode KK
     "<tr class='bold'><td>KOREKSI(-)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KK) +
-    // HAPUS </td></tr> NGANGGUR YANG ADA DI SINI
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
     // Saldo Akhir
-    "<tr class='total'><td>SALDO AKHIR KAS </td><td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 3: Diatas Saldo Akhir Kas
+    "<tr class='total'><td>SALDO AKHIR KAS</td><td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 3: Di atas Saldo Akhir Kas
     fmtRp(saldoAkhirKas) +
     "</td></tr>" +
     "</table>" +
     "</body></html>";
-
   // 5. Eksekusi Print
   var printWindow = window.open("", "_blank", "width=800,height=600");
   if (!printWindow)
