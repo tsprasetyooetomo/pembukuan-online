@@ -277,26 +277,15 @@ app.post("/api/clear-all-data", async (req, res) => {
   }
 });
 
-// 3. GET ALL DATA (DIMODIFIKASI UNTUK FILTER CABANG OTOMATIS)
+// 3. GET ALL DATA
 app.get("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
     const { storeName } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
-
     const lowerStoreName = storeName.toLowerCase();
-
-    // Jika Admin, tampilkan semua. Jika bukan Admin, filter berdasarkan cabang user login
-    let sql = `SELECT data FROM ${lowerStoreName}`;
-    let params = [];
-
-    if (req.user.role !== "Admin") {
-      sql += ` WHERE data->>'cabang' = $1`;
-      params.push(req.user.cabang);
-    }
-
-    const result = await db.query(sql, params);
+    const result = await db.query(`SELECT data FROM ${lowerStoreName}`);
     res.json(
       result.rows.map((r) =>
         typeof r.data === "string" ? JSON.parse(r.data) : r.data,
