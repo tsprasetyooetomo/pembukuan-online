@@ -112,7 +112,9 @@ app.get("/health", (req, res) => {
   res.send("OK");
 });
 
-// 🟢 TARUH KODE LOGIN DI SINI (DI BAWAH /health)
+// ============================================================================
+// API ROUTE: LOGIN SYSTEM
+// ============================================================================
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -124,12 +126,11 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
-    // TODO: Hubungkan dengan pengecekan tabel "users" di database PostgreSQL Anda.
-    // Ini adalah simulasi respons sukses yang COCOK dengan app_login.js Anda:
+    // Simulasi respons sukses (COCOK dengan app_login.js frontend Anda)
     if (username.toLowerCase() === "admin" && password === "123456") {
       return res.json({
         success: true,
-        token: "jwt_token_rahasia_pembukuan_2026", // Token dummy untuk ditangkap localStorage
+        token: "jwt_token_rahasia_pembukuan_2026", // Token untuk disimpan di localStorage
         user: {
           nama: "TAMARIA",
           kode_cabang: "00", // Hak akses cabang Tamaria
@@ -151,7 +152,6 @@ app.post("/api/login", async (req, res) => {
       });
   }
 });
-
 // Route Serve HTML (Jika file ada)
 app.get("/app", (req, res) => {
   try {
