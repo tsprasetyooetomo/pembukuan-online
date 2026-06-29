@@ -115,6 +115,9 @@ app.get("/health", (req, res) => {
 // ============================================================================
 // API ROUTE: LOGIN SYSTEM
 // ============================================================================
+// ============================================================================
+// API ROUTE: LOGIN SYSTEM (BACA DARI DATABASE SUPABASE)
+// ============================================================================
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -126,32 +129,51 @@ app.post("/api/login", async (req, res) => {
       });
     }
 
-    // Simulasi respons sukses (COCOK dengan app_login.js frontend Anda)
-    if (username.toLowerCase() === "admin" && password === "123456") {
-      return res.json({
-        success: true,
-        token: "jwt_token_rahasia_pembukuan_2026", // Token untuk disimpan di localStorage
-        user: {
-          nama: "TAMARIA",
-          kode_cabang: "00", // Hak akses cabang Tamaria
-        },
-      });
-    } else {
+    // 🔍 1. Cari user di tabel 'users' berdasarkan username yang diinput
+    // Catatan: Sesuaikan nama kolom jika di database Anda menggunakan nama berbeda (misal: 'user_id', 'pwd')
+    const queryText = "SELECT * FROM users WHERE LOWER(username) = $1 LIMIT 1";
+    const values = [username.toLowerCase()];
+
+    // dbPool / pool / Pool disesuaikan dengan nama variabel PgPool di serverold.js Anda
+    // Berdasarkan library Anda, biasanya variabelnya bernama 'pool' atau Anda bisa buat instance baru.
+    // Di sini kita asumsikan variabel pool Anda bernama 'pool' atau koneksi yg sudah ada.
+    const result = await pool.query(queryText, values);
+
+    // 2. Jika user tidak ditemukan
+    if (result.rows.length === 0) {
       return res.status(401).json({
         success: false,
-        message: "Username atau password salah",
+        message: "Username tidak terdaftar",
       });
     }
+
+    const userLengkap = result.rows[0];
+
+    // 3. Cocokkan password (pastikan text biasa / plain text sesuai sistem lama Anda)
+    if (userLengkap.password !== password) {
+      return res.status(401).json({
+        success: false,
+        message: "Password yang Anda masukkan salah",
+      });
+    }
+
+    // 4. Jika cocok, kirim data asli dari database ke frontend
+    return res.json({
+      success: true,
+      token: "jwt_token_" + userLengkap.username + "_" + Date.now(), // Token dinamis
+      user: {
+        nama: userLengkap.nama || userLengkap.username, // Mengambil kolom 'nama' asli di DB
+        kode_cabang: userLengkap.cabang || userLengkap.kode_cabang || "00", // Mengambil kolom cabang asli di DB
+      },
+    });
   } catch (error) {
-    console.error("Login API Error:", error);
+    console.error("Login Database Error:", error);
     res
       .status(500)
-      .json({
-        success: false,
-        message: "Internal Server Error: " + error.message,
-      });
+      .json({ success: false, message: "Error Server: " + error.message });
   }
 });
+
 // Route Serve HTML (Jika file ada)
 app.get("/app", (req, res) => {
   try {
