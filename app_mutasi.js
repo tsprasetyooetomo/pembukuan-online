@@ -1923,45 +1923,46 @@ function printMutasiKasir() {
 function editKasirDetil(idYangDiedit) {
   // 1. Cari data lama berdasarkan ID di dalam DBCache
   if (!DBCache.mutasikasir) return;
-  var dataLama = DBCache.mutasikasir.find((item) => item.id === idYangDiedit);
+  var dataLama = DBCache.mutasikasir.find(function (item) {
+    return item.id === idYangDiedit;
+  });
 
   if (!dataLama) {
     return toast("Data tidak ditemukan!", "err");
   }
 
-  // 2. Lempar data lama tersebut ke dalam Input Form agar bisa diedit user
-  $("mk_kode").value = dataLama.kodeTrans || "";
-  $("mk_penjelasan").value = dataLama.desc || "";
-  $("mk_rp").value = dataLama.total || 0; // Sesuaikan formatnya jika perlu fmtN
+  // 2. Munculkan Jendela Popup (Modal) dengan Form Kasir di dalamnya
+  openModal(
+    "Edit Detil Kasir",
+    // Isi Formulir di dalam Popup
+    '<div class="fg"><label>Kode</label><input id="ed_mk_kode" value="' +
+      esc(dataLama.kodeTrans || "") +
+      '"></div>' +
+      '<div class="fg"><label>Penjelasan</label><input id="ed_mk_penjelasan" value="' +
+      esc(dataLama.desc || "") +
+      '"></div>' +
+      '<div class="fg"><label>Rp</label><input type="number" id="ed_mk_rp" value="' +
+      dataLama.total +
+      '"></div>',
 
-  // 3. Simpan ID yang sedang diedit ke dalam element form / variable global
-  // Kita simpan di atribut data agar tahu data mana yang mau diupdate nanti
-  $("mk_kode").setAttribute("data-editing-id", idYangDiedit);
-
-  // 4. Ubah teks tombol utama Anda (misal tombol Tambah menjadi Simpan)
-  // Ganti "btn_simpan_detil" dengan ID tombol input Anda sendiri jika ada
-  if ($("btn_simpan_detil")) {
-    $("btn_simpan_detil").innerHTML =
-      '<i class="fa-solid fa-floppy-disk"></i> Simpan Perubahan';
-  }
-
-  $("mk_kode").focus();
+    // Tombol Aksi di bagian bawah Popup
+    '<button class="btn btn-g" onclick="closeModal()">Batal</button>' +
+      '<button class="btn btn-a" onclick="event.preventDefault(); event.stopPropagation(); simpanPerubahanKasirDetil(\'' +
+      idYangDiedit +
+      "')\">Update</button>",
+  );
 }
-async function simpanPerubahanKasirDetil() {
-  // Ambil ID yang tadi disimpan di atribut data saat tombol edit diklik
-  var idYangDiedit = $("mk_kode").getAttribute("data-editing-id");
 
-  // Jika tidak ada ID yang diedit, berarti ini mode TAMBAH BARU, bukan edit!
-  if (!idYangDiedit) {
-    // Jalankan fungsi tambah data biasa Anda di sini, lalu return
-    return tambahKasirDetilBaru();
-  }
-
+async function simpanPerubahanKasirDetil(idYangDiedit) {
   var noreff = _kasirSession.noreff;
-  var kode = $("mk_kode").value.toUpperCase();
-  var penjelasan = $("mk_penjelasan").value.trim().toUpperCase();
-  var rp = num($("mk_rp").value);
 
+  // 1. Ambil data dari elemen input yang ada di DALAM POPUP MODAL
+  // Serta otomatis ubah input teks menjadi HURUF BESAR SEMUA (UPPERCASE)
+  var kode = $("ed_mk_kode").value.toUpperCase();
+  var penjelasan = $("ed_mk_penjelasan").value.trim().toUpperCase();
+  var rp = num($("ed_mk_rp").value);
+
+  // 2. Validasi input wajib
   if (!kode || !penjelasan || rp <= 0) {
     return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
   }
@@ -1971,22 +1972,24 @@ async function simpanPerubahanKasirDetil() {
   $("mk_tgl").disabled = true;
 
   try {
+    // 3. Siapkan objek data baru untuk diperbarui
     var updatedDetil = {
       id: idYangDiedit,
       noreff: noreff,
       tanggal: $("mk_tgl").value,
       cabang: $("mk_cab").value,
-      kodeTrans: kode,
+      kodeTrans: kode, // Tersimpan huruf besar
       noperkiraan: "",
-      desc: penjelasan,
+      desc: penjelasan, // Tersimpan huruf besar
       total: rp,
       db: rp,
       cr: 0,
     };
 
-    // Update database & Cache (Kode Anda sudah benar di bagian ini)
+    // 4. Update data di database IndexedDB / API
     await db.update("mutasikasir", updatedDetil);
 
+    // 5. Sinkronisasi data di DBCache
     if (DBCache.mutasikasir) {
       var index = DBCache.mutasikasir.findIndex(
         (item) => item.id === idYangDiedit,
@@ -1996,21 +1999,12 @@ async function simpanPerubahanKasirDetil() {
       }
     }
 
-    // Kembalikan form ke kondisi kosong & reset ID editing
-    $("mk_kode").value = "";
-    $("mk_penjelasan").value = "";
-    $("mk_rp").value = "";
-    $("mk_kode").removeAttribute("data-editing-id");
-
-    // Kembalikan teks tombol ke "Tambah" jika diubah sebelumnya
-    if ($("btn_simpan_detil")) {
-      $("btn_simpan_detil").innerHTML =
-        '<i class="fa-solid fa-plus"></i> Tambah';
+    // 6. Tutup jendela popup modal secara otomatis setelah sukses
+    if (typeof closeModal === "function") {
+      closeModal();
     }
 
-    $("mk_kode").focus();
-
-    // Refresh Tampilan UI
+    // 7. Refresh dan update seluruh tampilan UI halaman utama
     renderKasirDetilTable();
     updateKasirHeaderNominal();
     renderKasirNoreffList();
