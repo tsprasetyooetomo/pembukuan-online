@@ -18,7 +18,7 @@ async function loginSystem() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: u, password: p }),
     });
-
+    let data = { username: user, password: pass };
     // ... di dalam fungsi handleLogin frontend setelah res.json() sukses ...
     localStorage.setItem("token", data.token);
     localStorage.setItem("nama", data.user.nama);
