@@ -50,6 +50,15 @@ async function renderUser() {
 }
 
 function formUser(editId) {
+  // Di dalam fungsi formUser(editId)
+  var isDisabled =
+    CURRENT_USER &&
+    CURRENT_USER.role !== "Admin" &&
+    d &&
+    d.username === CURRENT_USER.username
+      ? 'disabled style="opacity:.5"'
+      : "";
+
   var d = editId
     ? DBCache.users.find(function (r) {
         return r.id === editId;
@@ -85,7 +94,11 @@ function formUser(editId) {
       (d && d.role === "Viewer" ? " selected" : "") +
       ">Viewer</option></select></div>" +
       // 🛠️ PERBAIKAN: Menggunakan getCabangOpts() agar dropdown otomatis dinamis
-      '<div class="fg"><label>Cabang</label><select id="f_uCabang">' +
+
+      // Pada dropdown cabang:
+      '<div class="fg"><label>Cabang</label><select id="f_uCabang" ' +
+      isDisabled +
+      ">" +
       getCabangOpts(selectedCabang) +
       "</select></div></div>" +
       '<div class="fg"><label>Password ' +
