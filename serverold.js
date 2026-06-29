@@ -277,15 +277,26 @@ app.post("/api/clear-all-data", async (req, res) => {
   }
 });
 
-// 3. GET ALL DATA
+// 3. GET ALL DATA (DIMODIFIKASI UNTUK FILTER CABANG OTOMATIS)
 app.get("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
     const { storeName } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
+
     const lowerStoreName = storeName.toLowerCase();
-    const result = await db.query(`SELECT data FROM ${lowerStoreName}`);
+
+    // Jika Admin, tampilkan semua. Jika bukan Admin, filter berdasarkan cabang user login
+    let sql = `SELECT data FROM ${lowerStoreName}`;
+    let params = [];
+
+    if (req.user.role !== "Admin") {
+      sql += ` WHERE data->>'cabang' = $1`;
+      params.push(req.user.cabang);
+    }
+
+    const result = await db.query(sql, params);
     res.json(
       result.rows.map((r) =>
         typeof r.data === "string" ? JSON.parse(r.data) : r.data,
@@ -857,4 +868,114 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     send(100, "Error: " + error.message, { success: false });
     res.end();
   }
+});
+// ============================================================================
+// SISTEM LOGIN & AUTHORIZATION
+// ============================================================================
+const crypto = require("crypto");
+
+// Simpan sesi login sementara di memori server (Reset jika server restart)
+// Format: { token: { username, role, cabang, expires } }
+const activeSessions = {};
+
+// Middleware untuk mengecek apakah request memiliki token yang valid
+function authMiddleware(req, res, next) {
+  // Lewati pengecekan untuk endpoint login dan file statis
+  if (
+    req.path === "/api/login" ||
+    req.path === "/" ||
+    req.path === "/app" ||
+    req.path === "/health"
+  ) {
+    return next();
+  }
+
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1]; // Format: Bearer <token>
+
+  if (!token)
+    return res.status(401).json({ error: "Akses ditolak. Silakan login." });
+
+  const session = activeSessions[token];
+  if (!session)
+    return res
+      .status(403)
+      .json({ error: "Token tidak valid atau kedaluwarsa." });
+
+  if (Date.now() > session.expires) {
+    delete activeSessions[token];
+    return res
+      .status(403)
+      .json({ error: "Sesi telah berakhir. Silakan login kembali." });
+  }
+
+  // Simpan info user ke request agar bisa dipakai di route berikutnya
+  req.user = session;
+  next();
+}
+
+// Terapkan middleware ke semua route /api
+app.use("/api", authMiddleware);
+
+// ENDPOINT LOGIN
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password)
+      return res
+        .status(400)
+        .json({ success: false, message: "Username & Password wajib diisi" });
+
+    // Cari user di database
+    const result = await db.query(`SELECT data FROM users WHERE id = $1`, [
+      username,
+    ]);
+    if (result.rows.length === 0)
+      return res
+        .status(401)
+        .json({ success: false, message: "User tidak ditemukan" });
+
+    const user =
+      typeof result.rows[0].data === "string"
+        ? JSON.parse(result.rows[0].data)
+        : result.rows[0].data;
+
+    // Verifikasi password
+    if (user.password !== password) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Password salah" });
+    }
+
+    // Buat Token Sesi
+    const token = crypto.randomBytes(32).toString("hex");
+    activeSessions[token] = {
+      username: user.username,
+      role: user.role,
+      cabang: user.cabang || "Pusat",
+      expires: Date.now() + 24 * 60 * 60 * 1000, // Kedaluwarsa dalam 24 jam
+    };
+
+    res.json({
+      success: true,
+      message: "Login berhasil",
+      token: token,
+      user: {
+        username: user.username,
+        nama: user.nama,
+        role: user.role,
+        cabang: user.cabang || "Pusat",
+      },
+    });
+  } catch (e) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+});
+
+// ENDPOINT LOGOUT
+app.post("/api/logout", (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (token) delete activeSessions[token];
+  res.json({ success: true, message: "Logout berhasil" });
 });
