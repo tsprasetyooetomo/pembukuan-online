@@ -17,7 +17,7 @@ async function renderUser() {
         : r.role === "Kasir"
           ? '<span class="tag tag-cr">Kasir</span>'
           : r.role === "Akunting"
-            ? '<span class="tag tag-cr">Kasir</span>'
+            ? '<span class="tag tag-cr">Akunting</span>'
             : '<span class="tag tag-awal">Viewer</span>';
     return [
       r.username,
