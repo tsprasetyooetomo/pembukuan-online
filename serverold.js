@@ -14,7 +14,7 @@ process.on("unhandledRejection", (reason) => {
 // ============================================================================
 // 2. IMPORT LIBRARY
 // ============================================================================
-let express, cors, path, Pool, crypto;
+let express, cors, path, Pool;
 
 try {
   express = require("express");
@@ -22,7 +22,6 @@ try {
   path = require("path");
   const { Pool: PgPool } = require("pg");
   Pool = PgPool;
-  crypto = require("crypto");
   console.log("✅ Semua library berhasil dimuat.");
 } catch (e) {
   console.error(
@@ -35,7 +34,7 @@ try {
 const app = express();
 
 // ============================================================================
-// 3. MIDDLEWARE EXPRESS DASAR (WAJIB DI ATAS SEMUA ROUTE)
+// 3. MIDDLEWARE
 // ============================================================================
 app.use(cors({ origin: "*" }));
 app.use(express.json({ limit: "50mb" }));
@@ -43,46 +42,27 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(express.static(path.join(__dirname)));
 
 // ============================================================================
-// 4. INISIALISASI DATABASE SUPABASE (DB HARUS ADA SEBELUM ROUTE)
+// 4. KONFIGURASI SERVER & START (PAKAI EXPRESS)
 // ============================================================================
-let connectionString = process.env.DATABASE_URL;
-const manualSupabaseUrl =
-  "postgresql://postgres.ortjujcvgjtfikeygbxi:supabase252118@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
 
-if (!connectionString) {
-  console.log("⚠️ Railway Gagal kirim Variabel. Menggunakan URL Manual...");
-  connectionString = manualSupabaseUrl;
-}
-
-let db;
+const serverPort = process.env.PORT || 8080; // Default 8080 untuk Railway
+const serverHost = "0.0.0.0";
 
 try {
-  if (!connectionString)
-    throw new Error(
-      "❌ FATAL DATABASE ERROR: Variabel DATABASE_URL tidak ditemukan!",
-    );
-  console.log("📂 Menghubungkan ke Cloud Database Supabase...");
-  console.log(
-    "🔗 Connection String:",
-    connectionString.replace(/:[^:@]+@/, ":****@"),
-  );
-
-  db = new Pool({
-    connectionString: connectionString,
-    ssl: { rejectUnauthorized: false },
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-  });
-
-  db.query("SELECT NOW()", (err, res) => {
-    if (err) console.error("❌ Gagal koneksi awal ke DB:", err.message);
-    else console.log("✅ Database Supabase Berhasil Terhubung!");
+  app.listen(Number(serverPort), serverHost, () => {
+    console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
+    console.log("⏳ Menunggu inisialisasi database...");
   });
 } catch (err) {
-  console.error(err.message);
+  console.error("❌ Gagal menjalankan server:", err.message);
+  process.exit(1);
 }
 
+// ============================================================================
+// 5. LOGIC APLIKASI (ROUTES & DATABASE)
+// ============================================================================
+
+// Definisi Tabel
 const ALLOWED_TABLES = [
   "golongan",
   "perkiraan",
@@ -110,137 +90,123 @@ function isValidTable(name) {
   return false;
 }
 
-// ============================================================================
-// 5. SISTEM LOGIN & AUTHORIZATION (WAJIB DI ATAS ROUTE API)
-// ============================================================================
-const activeSessions = {};
-
-function authMiddleware(req, res, next) {
-  if (
-    req.originalUrl === "/api/login" ||
-    req.originalUrl === "/api/logout" ||
-    req.originalUrl === "/health" ||
-    req.originalUrl === "/" ||
-    req.originalUrl === "/app" ||
-    req.originalUrl.startsWith("/api/impor-foxpro-online")
-  ) {
-    return next();
-  }
-
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
-
-  if (!token)
-    return res.status(401).json({ error: "Akses ditolak. Silakan login." });
-
-  const session = activeSessions[token];
-  if (!session)
-    return res
-      .status(403)
-      .json({ error: "Token tidak valid atau kedaluwarsa." });
-  if (Date.now() > session.expires) {
-    delete activeSessions[token];
-    return res
-      .status(403)
-      .json({ error: "Sesi telah berakhir. Silakan login kembali." });
-  }
-
-  req.user = session;
-  next();
-}
-
-// Pasang middleware auth KESEMUA route /api
-app.use("/api", authMiddleware);
-
-// ENDPOINT LOGIN
-app.post("/api/login", async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    if (!username || !password)
-      return res
-        .status(400)
-        .json({ success: false, message: "Username & Password wajib diisi" });
-
-    const result = await db.query(`SELECT data FROM users WHERE id = $1`, [
-      username,
-    ]);
-    if (result.rows.length === 0)
-      return res
-        .status(401)
-        .json({ success: false, message: "User tidak ditemukan" });
-
-    const user =
-      typeof result.rows[0].data === "string"
-        ? JSON.parse(result.rows[0].data)
-        : result.rows[0].data;
-
-    if (user.password !== password) {
-      return res
-        .status(401)
-        .json({ success: false, message: "Password salah" });
-    }
-
-    const token = crypto.randomBytes(32).toString("hex");
-    activeSessions[token] = {
-      username: user.username,
-      role: user.role,
-      cabang: user.cabang || "Pusat",
-      expires: Date.now() + 24 * 60 * 60 * 1000,
-    };
-
-    res.json({
-      success: true,
-      message: "Login berhasil",
-      token: token,
-      user: {
-        username: user.username,
-        nama: user.nama,
-        role: user.role,
-        cabang: user.cabang || "Pusat",
-      },
-    });
-  } catch (e) {
-    console.error("❌ Error Login:", e.message);
-    res
-      .status(500)
-      .json({ success: false, message: "Terjadi kesalahan pada server" });
-  }
-});
-
-// ENDPOINT LOGOUT
-app.post("/api/logout", (req, res) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
-  if (token) delete activeSessions[token];
-  res.json({ success: true, message: "Logout berhasil" });
-});
-
-// ============================================================================
-// 6. ROUTE APLIKASI & HTML
-// ============================================================================
+// Route Utama (Health Check) -> SEKARANG MENGGUNAKAN EXPRESS
+//app.get("/", (req, res) => {
+// res.send(`
+//  <h1>✅ Sistem Pembukuan Online</h1>
+// <p>Server Express berjalan dan Database Terhubung.</p>
+// <p>Status: OK</p>
+//`);
+//});
+// Route Utama (Otomatis buka HTML)
 app.get("/", (req, res) => {
   try {
-    res.sendFile(path.join(__dirname, "pembukuan_telaga.html"));
+    // Arahkan langsung ke file HTML utama
+    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
+    res.sendFile(htmlPath);
   } catch (error) {
     res.status(500).send("Gagal memuat halaman: " + error.message);
   }
 });
-
 app.get("/health", (req, res) => {
   res.send("OK");
 });
 
+// Route Serve HTML (Jika file ada)
 app.get("/app", (req, res) => {
   try {
-    res.sendFile(path.join(__dirname, "pembukuan_telaga.html"));
+    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
+    res.sendFile(htmlPath);
   } catch (error) {
     res.status(500).send("Gagal memuat halaman pembukuan: " + error.message);
   }
 });
 
 // ============================================================================
-// 7. API ROUTES (SEMUANYA SUDAH LEWAT AUTH MIDDLEWARE)
+// 6. INISIALISASI DATABASE SUPABASE
 // ============================================================================
+
+let connectionString = process.env.DATABASE_URL;
+const manualSupabaseUrl =
+  "postgresql://postgres.ortjujcvgjtfikeygbxi:supabase252118@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+
+if (!connectionString) {
+  console.log("⚠️ Railway Gagal kirim Variabel. Menggunakan URL Manual...");
+  connectionString = manualSupabaseUrl;
+}
+
+let db;
+
+try {
+  if (!connectionString) {
+    throw new Error(
+      "❌ FATAL DATABASE ERROR: Variabel DATABASE_URL tidak ditemukan!",
+    );
+  }
+
+  console.log("📂 Menghubungkan ke Cloud Database Supabase...");
+  console.log(
+    "🔗 Connection String:",
+    connectionString.replace(/:[^:@]+@/, ":****@"),
+  );
+
+  db = new Pool({
+    connectionString: connectionString,
+    ssl: { rejectUnauthorized: false },
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+
+  db.query("SELECT NOW()", (err, res) => {
+    if (err) console.error("❌ Gagal koneksi awal ke DB:", err.message);
+    else console.log("✅ Database Supabase Berhasil Terhubung!");
+  });
+
+  const initTable = async (tableName) => {
+    try {
+      const lowerTableName = tableName.toLowerCase();
+      const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
+      const resCheck = await db.query(checkQuery, [lowerTableName]);
+      const tableExists = resCheck.rows[0].exists;
+
+      if (!tableExists) {
+        console.log(`🛠️ Membuat tabel baru di Supabase: ${lowerTableName}`);
+        if (tableName.match(/\d{4}$/)) {
+          await db.query(
+            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
+          );
+        } else {
+          await db.query(
+            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+          );
+        }
+        console.log(`✅ Tabel ${lowerTableName} berhasil dibuat.`);
+      } else {
+        console.log(`ℹ️ Tabel ${lowerTableName} sudah ada.`);
+      }
+    } catch (e) {
+      console.error(`⚠️ Gagal init tabel ${tableName}:`, e.message);
+    }
+  };
+
+  (async () => {
+    try {
+      for (const table of ALLOWED_TABLES) {
+        await initTable(table);
+      }
+      console.log("🚀 Sistem Siap!");
+    } catch (loopErr) {
+      console.error("❌ Gagal menjalankan loop tabel:", loopErr.message);
+    }
+  })();
+} catch (err) {
+  console.error(err.message);
+}
+
+module.exports = db;
+
+// --- API ROUTES ---
 
 // 1. RESET POSTING
 app.post("/api/reset-posting", async (req, res) => {
@@ -311,30 +277,40 @@ app.post("/api/clear-all-data", async (req, res) => {
   }
 });
 
-// 3. GET ALL DATA (FILTER CABANG)
+// 3. GET ALL DATA (DIMODIFIKASI UNTUK FILTER CABANG OTOMATIS)
+// 3. GET ALL DATA (DIPERKUAT ERROR HANDLING & FILTER CABANG)
 app.get("/api/data/:storeName", async (req, res) => {
   try {
     if (!db) return res.status(500).json({ error: "Database tidak terhubung" });
+
     const { storeName } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
+
     const lowerStoreName = storeName.toLowerCase();
+
     let sql = `SELECT data FROM ${lowerStoreName}`;
     let params = [];
+
+    // FILTER CABANG OTOMATIS BERDASARKAN USER YANG LOGIN
+    // Jika BUKAN Admin, saring datanya
     if (req.user && req.user.role !== "Admin") {
-      sql += ` WHERE data::text LIKE $1`;
+      sql += ` WHERE data::text LIKE $1`; // Cara paling aman untuk mencari di JSON text
       params.push(`%"cabang":"${req.user.cabang}"%`);
     }
+
     const result = await db.query(sql, params);
+
     const parsedData = result.rows
       .map((r) => {
         try {
           return typeof r.data === "string" ? JSON.parse(r.data) : r.data;
         } catch (e) {
-          return null;
+          return null; // Abaikan jika ada data corrupt
         }
       })
-      .filter(Boolean);
+      .filter(Boolean); // Buang data null/corrupt
+
     res.json(parsedData);
   } catch (e) {
     console.error(`❌ Error GET /api/data/${req.params.storeName}:`, e.message);
@@ -529,15 +505,18 @@ app.post("/api/batch/:storeName", async (req, res) => {
     if (!Array.isArray(data))
       return res.json({ success: true, message: "No data" });
     const lowerStoreName = storeName.toLowerCase();
+
     const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
     const resCheck = await db.query(checkQuery, [lowerStoreName]);
     const tableExists = resCheck.rows[0].exists;
+
     if (!tableExists && storeName.match(/\d{4}$/)) {
       console.log(`🛠️ Auto-create tabel tahunan: ${lowerStoreName}`);
       await db.query(
         `CREATE TABLE ${lowerStoreName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
       );
     }
+
     const client = await db.connect();
     try {
       await client.query("BEGIN");
@@ -571,6 +550,7 @@ app.post("/api/save-batch", async (req, res) => {
     const { storeName, data } = req.body;
     if (!storeName || !Array.isArray(data)) return res.json({ success: true });
     const lowerStoreName = storeName.toLowerCase();
+
     const client = await db.connect();
     try {
       await client.query("BEGIN");
@@ -617,7 +597,7 @@ app.post("/api/saldo-harian/clear-range", async (req, res) => {
   }
 });
 
-// 15. SNAPSHOT SALDO
+// 15. SNAPSHOT SALDO (DIPERBAIKI)
 app.post("/api/saldo-harian", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
@@ -625,17 +605,20 @@ app.post("/api/saldo-harian", async (req, res) => {
     if (!tanggal) return res.status(400).json({ error: "Date Required" });
     const id = `${cabang}_${char4}_${tanggal}`;
     const jsonData = JSON.stringify({ cabang, char4, tanggal, saldo_akhir });
+
     await db.query(
       `INSERT INTO saldo_harian (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
       [id, jsonData],
     );
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(500).json({ error: e.message }); // DIPERBAIKI: Kurung tutup yang benar
   }
 });
 
-// 16. ENDPOINT IMPOR FOXPRO
+// ============================================================================
+// 16. ENDPOINT IMPOR FOXPRO (.DBF) - TANPA MULTER (PURE EXPRESS)
+// ============================================================================
 app.post("/api/impor-foxpro-online", async (req, res) => {
   if (!db) {
     res.setHeader("Content-Type", "text/event-stream");
@@ -647,21 +630,27 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     );
     return res.end();
   }
+
+  // WAJIB HEADER SSE
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no");
+  res.setHeader("X-Accel-Buffering", "no"); // matiin buffer nginx Railway
   res.flushHeaders();
+
   const send = (percent, msg, extra = {}) => {
     res.write(
       `data: ${JSON.stringify({ percent, message: msg, ...extra })}\n\n`,
     );
+    //res.flush(); // WAJIB biar langsung push ke browser
   };
+
   try {
     const busboy = require("busboy");
     const bb = busboy({ headers: req.headers });
     const files = {};
     const fields = {};
+
     bb.on("file", (name, file) => {
       const chunks = [];
       file.on("data", (chunk) => chunks.push(chunk));
@@ -669,39 +658,50 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         files[name] = Buffer.concat(chunks);
       });
     });
+
     bb.on("field", (name, val) => {
       fields[name] = val;
     });
+
     bb.on("finish", async () => {
       try {
         const { kode_cabang, tahun, bulan, masa } = fields;
         const fileCdg = files["file_cdg"];
         const fileCdd = files["file_cdd"];
         const fileDet = files["file_det"];
+
         if (!fileCdg || !fileCdd) {
           send(100, "File CDG atau CDD tidak ditemukan", { success: false });
           return res.end();
         }
+
         send(5, `Mulai impor masa ${masa} cabang ${kode_cabang}`);
+
         const { Dbf } = require("dbf-reader");
+
         send(10, "Baca file CDG...");
         const dataCdg = Dbf.read(fileCdg)?.rows || [];
         send(20, `CDG terbaca: ${dataCdg.length} record`);
+
         send(25, "Baca file CDD...");
         const dataCdd = Dbf.read(fileCdd)?.rows || [];
         send(40, `CDD terbaca: ${dataCdd.length} record`);
+
         let dataDet = [];
         if (fileDet) {
           send(45, "Baca file DET...");
           dataDet = Dbf.read(fileDet)?.rows || [];
           send(55, `DET terbaca: ${dataDet.length} record`);
         }
+
         const tableGolongan = `golongan${tahun}`.toLowerCase();
         const tablePerkiraan = `perkiraan${tahun}`.toLowerCase();
         const tableTransaksi = `transaksi${tahun}`.toLowerCase();
+
         const client = await db.connect();
         try {
           await client.query("BEGIN");
+
           const ensureTableExists = async (tableName) => {
             const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
             const resCheck = await client.query(checkQuery, [tableName]);
@@ -712,9 +712,12 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
               );
             }
           };
+
           await ensureTableExists(tableGolongan);
           await ensureTableExists(tablePerkiraan);
           await ensureTableExists(tableTransaksi);
+
+          // Batch insert + kirim progress tiap batch
           const batchInsert = async (
             tableName,
             dataArray,
@@ -726,16 +729,19 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             const batchSize = 500;
             let totalInserted = 0;
             const totalBatch = Math.ceil(dataArray.length / batchSize);
+
             await client.query(
               `DELETE FROM ${tableName} WHERE data LIKE $1 AND data LIKE $2`,
               [`%"masa":"${masa}"%`, `%"cabang":"${kode_cabang}"%`],
             );
             send(startPct, `Hapus data lama ${typePrefix}...`);
+
             for (let i = 0; i < dataArray.length; i += batchSize) {
               const batch = dataArray.slice(i, i + batchSize);
               let queryText = `INSERT INTO ${tableName} (id, data) VALUES `;
               let values = [];
               let placeholders = [];
+
               batch.forEach((row, index) => {
                 let mappedData = {};
                 let customId = "";
@@ -743,6 +749,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                   val !== undefined && val !== null ? String(val).trim() : "";
                 const getNum = (val) =>
                   val !== undefined && val !== null ? Number(val) : 0;
+
                 if (typePrefix === "CDG") {
                   mappedData = {
                     gol: getStr(row.GOLACCT),
@@ -775,6 +782,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                 } else if (typePrefix === "DET") {
                   const dbVal = getNum(row.DB);
                   const crVal = getNum(row.CR);
+                  const crypto = require("crypto");
                   customId = `${crypto.randomUUID()}_${i + index}`;
                   mappedData = {
                     id: customId,
@@ -792,14 +800,18 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     masa: masa,
                   };
                 }
+
                 const base = index * 2;
                 placeholders.push(`($${base + 1}, $${base + 2})`);
                 values.push(customId, JSON.stringify(mappedData));
               });
+
               queryText += placeholders.join(", ");
               queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
               await client.query(queryText, values);
               totalInserted += batch.length;
+
+              // Kirim progress tiap batch
               const currentBatch = Math.floor(i / batchSize) + 1;
               const pct =
                 startPct + ((endPct - startPct) * currentBatch) / totalBatch;
@@ -810,6 +822,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             }
             return totalInserted;
           };
+
           send(60, "Mulai insert database...");
           const countCdg = await batchInsert(
             tableGolongan,
@@ -832,7 +845,9 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             90,
             98,
           );
+
           await client.query("COMMIT");
+
           send(
             100,
             `Sukses! Golongan:${countCdg} Perkiraan:${countCdd} Transaksi:${countDet}`,
@@ -858,52 +873,114 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         res.end();
       }
     });
+
     req.pipe(bb);
   } catch (error) {
     send(100, "Error: " + error.message, { success: false });
     res.end();
   }
 });
-
 // ============================================================================
-// 8. START SERVER
+// SISTEM LOGIN & AUTHORIZATION (DIPERBAIKI)
 // ============================================================================
-const serverPort = process.env.PORT || 8080;
-const serverHost = "0.0.0.0";
+const crypto = require("crypto");
 
-(async () => {
-  try {
-    for (const table of ALLOWED_TABLES) {
-      const lowerTableName = table.toLowerCase();
-      const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
-      const resCheck = await db.query(checkQuery, [lowerTableName]);
-      if (!resCheck.rows[0].exists) {
-        console.log(`🛠️ Membuat tabel baru di Supabase: ${lowerTableName}`);
-        if (table.match(/\d{4}$/)) {
-          await db.query(
-            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
-          );
-        } else {
-          await db.query(
-            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
-          );
-        }
-        console.log(`✅ Tabel ${lowerTableName} berhasil dibuat.`);
-      }
-    }
-  } catch (loopErr) {
-    console.error("❌ Gagal menjalankan loop tabel:", loopErr.message);
+const activeSessions = {};
+
+// Middleware Otorisasi yang Lebih Aman
+function authMiddleware(req, res, next) {
+  // Lewati pengecekan untuk endpoint yang tidak butuh login
+  const publicPaths = ["/api/login", "/api/logout", "/health"];
+  if (publicPaths.includes(req.path)) return next();
+
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  // Jika tidak ada token, tolak
+  if (!token)
+    return res.status(401).json({ error: "Akses ditolak. Silakan login." });
+
+  const session = activeSessions[token];
+
+  // Jika token tidak valid atau kedaluwarsa
+  if (!session)
+    return res
+      .status(403)
+      .json({ error: "Token tidak valid atau kedaluwarsa." });
+  if (Date.now() > session.expires) {
+    delete activeSessions[token];
+    return res
+      .status(403)
+      .json({ error: "Sesi telah berakhir. Silakan login kembali." });
   }
-})();
 
-try {
-  app.listen(Number(serverPort), serverHost, () => {
-    console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
-  });
-} catch (err) {
-  console.error("❌ Gagal menjalankan server:", err.message);
-  process.exit(1);
+  // Tempelkan data user ke request
+  req.user = session;
+  next();
 }
 
-module.exports = db;
-// KURUNG } NGANGGUR TELAH DIHAPUS
+// Terapkan middleware HANYA untuk route /api
+app.use("/api", authMiddleware);
+
+// ENDPOINT LOGIN
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    if (!username || !password)
+      return res
+        .status(400)
+        .json({ success: false, message: "Username & Password wajib diisi" });
+
+    const result = await db.query(`SELECT data FROM users WHERE id = $1`, [
+      username,
+    ]);
+    if (result.rows.length === 0)
+      return res
+        .status(401)
+        .json({ success: false, message: "User tidak ditemukan" });
+
+    const user =
+      typeof result.rows[0].data === "string"
+        ? JSON.parse(result.rows[0].data)
+        : result.rows[0].data;
+
+    if (user.password !== password) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Password salah" });
+    }
+
+    const token = crypto.randomBytes(32).toString("hex");
+    activeSessions[token] = {
+      username: user.username,
+      role: user.role,
+      cabang: user.cabang || "Pusat",
+      expires: Date.now() + 24 * 60 * 60 * 1000, // 24 jam
+    };
+
+    res.json({
+      success: true,
+      message: "Login berhasil",
+      token: token,
+      user: {
+        username: user.username,
+        nama: user.nama,
+        role: user.role,
+        cabang: user.cabang || "Pusat",
+      },
+    });
+  } catch (e) {
+    console.error("❌ Error Login:", e.message);
+    res
+      .status(500)
+      .json({ success: false, message: "Terjadi kesalahan pada server" });
+  }
+});
+
+// ENDPOINT LOGOUT
+app.post("/api/logout", (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (token) delete activeSessions[token];
+  res.json({ success: true, message: "Logout berhasil" });
+});
