@@ -1875,7 +1875,7 @@ function printMutasiKasir() {
     "</td></tr>" +
     rowHtml(dataKode.TK) +
     // HAPUS </td></tr> NGANGGUR YANG ADA DI SINI
-    "<tr class='total'><td>SALDO KAS TERSEDIA</td><td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 2: Diatas Saldo Tersedia
+    "<tr class='bold'><td>SALDO KAS TERSEDIA</td><td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 2: Diatas Saldo Tersedia
     fmtRp(saldoTersedia) +
     "</td></tr>" +
     // PERBAIKAN: Hapus <td> nganggur sebelum TOTAL BELANJA
