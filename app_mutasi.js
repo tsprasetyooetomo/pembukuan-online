@@ -1838,7 +1838,7 @@ function printMutasiKasir() {
     "</title>" +
     "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;padding:15px;color:#000}" +
     "h2{text-align:center;margin-bottom:10px}table{width:100%;border-collapse:collapse;margin-bottom:10px}" +
-    "th,td{padding:4px 8px;text-align:left}td.rp{text-align:right}.bold{font-weight:bold}.total{border-top:1px solid #000;border-bottom:1px solid #000;font-weight:bold}</style></head><body>" +
+    "th,td{padding:4px 4px;text-align:left}td.rp{text-align:right}.bold{font-weight:bold}.total{border-top:1px solid #000;border-bottom:1px solid #000;font-weight:bold}</style></head><body>" +
     "<h2>LAPORAN KAS HARIAN KASIR</h2>" +
     "<p>Cabang : " +
     esc(cabangLabel) +
