@@ -1874,12 +1874,15 @@ function printMutasiKasir() {
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
     rowHtml(dataKode.TK) +
-    // HAPUS </td></tr> NGANGGUR YANG ADA DI SINI
-    "<tr class='bold'><td>SALDO KAS TERSEDIA</td><td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 2: Diatas Saldo Tersedia
+    // Pindahkan style ke tag <tr> agar garis memanjang penuh
+    "<tr class='bold' style='border-top: 1px solid #000;'>" +
+    "<td>SALDO KAS TERSEDIA</td>" +
+    "<td style='text-align:right;'>" +
     fmtRp(saldoTersedia) +
-    "</td></tr>" +
-    // PERBAIKAN: Hapus <td> nganggur sebelum TOTAL BELANJA
-    "<tr class='bold'><td style='font-weight:bold; width:70%'>TOTAL BELANJA</td>" +
+    "</td></tr>";
+
+  // PERBAIKAN: Hapus <td> nganggur sebelum TOTAL BELANJA
+  "<tr class='bold'><td style='font-weight:bold; width:70%'>TOTAL BELANJA</td>" +
     "<td style='width:30%;text-align:right;border-top: none'>" +
     fmtRp(totalBE) +
     "</td>" +
