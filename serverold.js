@@ -22,7 +22,7 @@ try {
   path = require("path");
   const { Pool: PgPool } = require("pg");
   Pool = PgPool;
-  crypto = require("crypto"); // Pindahkan import crypto ke atas sekali
+  crypto = require("crypto");
   console.log("✅ Semua library berhasil dimuat.");
 } catch (e) {
   console.error(
@@ -61,7 +61,6 @@ try {
     throw new Error(
       "❌ FATAL DATABASE ERROR: Variabel DATABASE_URL tidak ditemukan!",
     );
-
   console.log("📂 Menghubungkan ke Cloud Database Supabase...");
   console.log(
     "🔗 Connection String:",
@@ -84,7 +83,6 @@ try {
   console.error(err.message);
 }
 
-// Definisi Tabel
 const ALLOWED_TABLES = [
   "golongan",
   "perkiraan",
@@ -113,7 +111,7 @@ function isValidTable(name) {
 }
 
 // ============================================================================
-// 5. SISTEM LOGIN & AUTHORIZATION
+// 5. SISTEM LOGIN & AUTHORIZATION (WAJIB DI ATAS ROUTE API)
 // ============================================================================
 const activeSessions = {};
 
@@ -222,8 +220,7 @@ app.post("/api/logout", (req, res) => {
 // ============================================================================
 app.get("/", (req, res) => {
   try {
-    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
-    res.sendFile(htmlPath);
+    res.sendFile(path.join(__dirname, "pembukuan_telaga.html"));
   } catch (error) {
     res.status(500).send("Gagal memuat halaman: " + error.message);
   }
@@ -235,8 +232,7 @@ app.get("/health", (req, res) => {
 
 app.get("/app", (req, res) => {
   try {
-    const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
-    res.sendFile(htmlPath);
+    res.sendFile(path.join(__dirname, "pembukuan_telaga.html"));
   } catch (error) {
     res.status(500).send("Gagal memuat halaman pembukuan: " + error.message);
   }
@@ -245,100 +241,6 @@ app.get("/app", (req, res) => {
 // ============================================================================
 // 7. API ROUTES (SEMUANYA SUDAH LEWAT AUTH MIDDLEWARE)
 // ============================================================================
-
-// 1. RESET POSTING
-app.post("/api/reset-posting", async (req, res) => {
-  /* ... kode anda sama persis ... */
-});
-
-// 2. CLEAR ALL DATA
-app.post("/api/clear-all-data", async (req, res) => {
-  /* ... kode anda sama persis ... */
-});
-
-// 3. GET ALL DATA (FILTER CABANG)
-app.get("/api/data/:storeName", async (req, res) => {
-  try {
-    if (!db) return res.status(500).json({ error: "Database tidak terhubung" });
-    const { storeName } = req.params;
-    if (!isValidTable(storeName))
-      return res.status(400).json({ error: "Invalid Table" });
-
-    const lowerStoreName = storeName.toLowerCase();
-    let sql = `SELECT data FROM ${lowerStoreName}`;
-    let params = [];
-
-    if (req.user && req.user.role !== "Admin") {
-      sql += ` WHERE data::text LIKE $1`;
-      params.push(`%"cabang":"${req.user.cabang}"%`);
-    }
-
-    const result = await db.query(sql, params);
-    const parsedData = result.rows
-      .map((r) => {
-        try {
-          return typeof r.data === "string" ? JSON.parse(r.data) : r.data;
-        } catch (e) {
-          return null;
-        }
-      })
-      .filter(Boolean);
-
-    res.json(parsedData);
-  } catch (e) {
-    console.error(`❌ Error GET /api/data/${req.params.storeName}:`, e.message);
-    res.status(500).json({ error: "Gagal mengambil data: " + e.message });
-  }
-});
-
-// ... SEMUA ROUTE API ANDA YANG LAIN (4 sd 16) TARUH DI SINI ...
-// (Saya hapus di kode ini agar tidak terlalu panjang, tapi di file Anda biarkan saja / jangan dihapus)
-
-// ============================================================================
-// 8. START SERVER
-// ============================================================================
-const serverPort = process.env.PORT || 8080;
-const serverHost = "0.0.0.0";
-
-// Init Table saat Start
-(async () => {
-  try {
-    for (const table of ALLOWED_TABLES) {
-      const lowerTableName = table.toLowerCase();
-      const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
-      const resCheck = await db.query(checkQuery, [lowerTableName]);
-      if (!resCheck.rows[0].exists) {
-        console.log(`🛠️ Membuat tabel baru di Supabase: ${lowerTableName}`);
-        if (table.match(/\d{4}$/)) {
-          await db.query(
-            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
-          );
-        } else {
-          await db.query(
-            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
-          );
-        }
-        console.log(`✅ Tabel ${lowerTableName} berhasil dibuat.`);
-      }
-    }
-  } catch (loopErr) {
-    console.error("❌ Gagal menjalankan loop tabel:", loopErr.message);
-  }
-})();
-
-try {
-  app.listen(Number(serverPort), serverHost, () => {
-    console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
-  });
-} catch (err) {
-  console.error("❌ Gagal menjalankan server:", err.message);
-  process.exit(1);
-}
-
-module.exports = db;
-// HAPUS KURUNG } NGANGGUR YANG ADA DI VERSI SEBELUMNYA
-
-// --- API ROUTES ---
 
 // 1. RESET POSTING
 app.post("/api/reset-posting", async (req, res) => {
@@ -409,40 +311,30 @@ app.post("/api/clear-all-data", async (req, res) => {
   }
 });
 
-// 3. GET ALL DATA (DIMODIFIKASI UNTUK FILTER CABANG OTOMATIS)
-// 3. GET ALL DATA (DIPERKUAT ERROR HANDLING & FILTER CABANG)
+// 3. GET ALL DATA (FILTER CABANG)
 app.get("/api/data/:storeName", async (req, res) => {
   try {
     if (!db) return res.status(500).json({ error: "Database tidak terhubung" });
-
     const { storeName } = req.params;
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
-
     const lowerStoreName = storeName.toLowerCase();
-
     let sql = `SELECT data FROM ${lowerStoreName}`;
     let params = [];
-
-    // FILTER CABANG OTOMATIS BERDASARKAN USER YANG LOGIN
-    // Jika BUKAN Admin, saring datanya
     if (req.user && req.user.role !== "Admin") {
-      sql += ` WHERE data::text LIKE $1`; // Cara paling aman untuk mencari di JSON text
+      sql += ` WHERE data::text LIKE $1`;
       params.push(`%"cabang":"${req.user.cabang}"%`);
     }
-
     const result = await db.query(sql, params);
-
     const parsedData = result.rows
       .map((r) => {
         try {
           return typeof r.data === "string" ? JSON.parse(r.data) : r.data;
         } catch (e) {
-          return null; // Abaikan jika ada data corrupt
+          return null;
         }
       })
-      .filter(Boolean); // Buang data null/corrupt
-
+      .filter(Boolean);
     res.json(parsedData);
   } catch (e) {
     console.error(`❌ Error GET /api/data/${req.params.storeName}:`, e.message);
@@ -637,18 +529,15 @@ app.post("/api/batch/:storeName", async (req, res) => {
     if (!Array.isArray(data))
       return res.json({ success: true, message: "No data" });
     const lowerStoreName = storeName.toLowerCase();
-
     const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
     const resCheck = await db.query(checkQuery, [lowerStoreName]);
     const tableExists = resCheck.rows[0].exists;
-
     if (!tableExists && storeName.match(/\d{4}$/)) {
       console.log(`🛠️ Auto-create tabel tahunan: ${lowerStoreName}`);
       await db.query(
         `CREATE TABLE ${lowerStoreName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
       );
     }
-
     const client = await db.connect();
     try {
       await client.query("BEGIN");
@@ -682,7 +571,6 @@ app.post("/api/save-batch", async (req, res) => {
     const { storeName, data } = req.body;
     if (!storeName || !Array.isArray(data)) return res.json({ success: true });
     const lowerStoreName = storeName.toLowerCase();
-
     const client = await db.connect();
     try {
       await client.query("BEGIN");
@@ -729,7 +617,7 @@ app.post("/api/saldo-harian/clear-range", async (req, res) => {
   }
 });
 
-// 15. SNAPSHOT SALDO (DIPERBAIKI)
+// 15. SNAPSHOT SALDO
 app.post("/api/saldo-harian", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
@@ -737,20 +625,17 @@ app.post("/api/saldo-harian", async (req, res) => {
     if (!tanggal) return res.status(400).json({ error: "Date Required" });
     const id = `${cabang}_${char4}_${tanggal}`;
     const jsonData = JSON.stringify({ cabang, char4, tanggal, saldo_akhir });
-
     await db.query(
       `INSERT INTO saldo_harian (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
       [id, jsonData],
     );
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message }); // DIPERBAIKI: Kurung tutup yang benar
+    res.status(500).json({ error: e.message });
   }
 });
 
-// ============================================================================
-// 16. ENDPOINT IMPOR FOXPRO (.DBF) - TANPA MULTER (PURE EXPRESS)
-// ============================================================================
+// 16. ENDPOINT IMPOR FOXPRO
 app.post("/api/impor-foxpro-online", async (req, res) => {
   if (!db) {
     res.setHeader("Content-Type", "text/event-stream");
@@ -762,27 +647,21 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     );
     return res.end();
   }
-
-  // WAJIB HEADER SSE
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no"); // matiin buffer nginx Railway
+  res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
-
   const send = (percent, msg, extra = {}) => {
     res.write(
       `data: ${JSON.stringify({ percent, message: msg, ...extra })}\n\n`,
     );
-    //res.flush(); // WAJIB biar langsung push ke browser
   };
-
   try {
     const busboy = require("busboy");
     const bb = busboy({ headers: req.headers });
     const files = {};
     const fields = {};
-
     bb.on("file", (name, file) => {
       const chunks = [];
       file.on("data", (chunk) => chunks.push(chunk));
@@ -790,50 +669,39 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         files[name] = Buffer.concat(chunks);
       });
     });
-
     bb.on("field", (name, val) => {
       fields[name] = val;
     });
-
     bb.on("finish", async () => {
       try {
         const { kode_cabang, tahun, bulan, masa } = fields;
         const fileCdg = files["file_cdg"];
         const fileCdd = files["file_cdd"];
         const fileDet = files["file_det"];
-
         if (!fileCdg || !fileCdd) {
           send(100, "File CDG atau CDD tidak ditemukan", { success: false });
           return res.end();
         }
-
         send(5, `Mulai impor masa ${masa} cabang ${kode_cabang}`);
-
         const { Dbf } = require("dbf-reader");
-
         send(10, "Baca file CDG...");
         const dataCdg = Dbf.read(fileCdg)?.rows || [];
         send(20, `CDG terbaca: ${dataCdg.length} record`);
-
         send(25, "Baca file CDD...");
         const dataCdd = Dbf.read(fileCdd)?.rows || [];
         send(40, `CDD terbaca: ${dataCdd.length} record`);
-
         let dataDet = [];
         if (fileDet) {
           send(45, "Baca file DET...");
           dataDet = Dbf.read(fileDet)?.rows || [];
           send(55, `DET terbaca: ${dataDet.length} record`);
         }
-
         const tableGolongan = `golongan${tahun}`.toLowerCase();
         const tablePerkiraan = `perkiraan${tahun}`.toLowerCase();
         const tableTransaksi = `transaksi${tahun}`.toLowerCase();
-
         const client = await db.connect();
         try {
           await client.query("BEGIN");
-
           const ensureTableExists = async (tableName) => {
             const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
             const resCheck = await client.query(checkQuery, [tableName]);
@@ -844,12 +712,9 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
               );
             }
           };
-
           await ensureTableExists(tableGolongan);
           await ensureTableExists(tablePerkiraan);
           await ensureTableExists(tableTransaksi);
-
-          // Batch insert + kirim progress tiap batch
           const batchInsert = async (
             tableName,
             dataArray,
@@ -861,19 +726,16 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             const batchSize = 500;
             let totalInserted = 0;
             const totalBatch = Math.ceil(dataArray.length / batchSize);
-
             await client.query(
               `DELETE FROM ${tableName} WHERE data LIKE $1 AND data LIKE $2`,
               [`%"masa":"${masa}"%`, `%"cabang":"${kode_cabang}"%`],
             );
             send(startPct, `Hapus data lama ${typePrefix}...`);
-
             for (let i = 0; i < dataArray.length; i += batchSize) {
               const batch = dataArray.slice(i, i + batchSize);
               let queryText = `INSERT INTO ${tableName} (id, data) VALUES `;
               let values = [];
               let placeholders = [];
-
               batch.forEach((row, index) => {
                 let mappedData = {};
                 let customId = "";
@@ -881,7 +743,6 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                   val !== undefined && val !== null ? String(val).trim() : "";
                 const getNum = (val) =>
                   val !== undefined && val !== null ? Number(val) : 0;
-
                 if (typePrefix === "CDG") {
                   mappedData = {
                     gol: getStr(row.GOLACCT),
@@ -914,7 +775,6 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                 } else if (typePrefix === "DET") {
                   const dbVal = getNum(row.DB);
                   const crVal = getNum(row.CR);
-                  const crypto = require("crypto");
                   customId = `${crypto.randomUUID()}_${i + index}`;
                   mappedData = {
                     id: customId,
@@ -932,18 +792,14 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     masa: masa,
                   };
                 }
-
                 const base = index * 2;
                 placeholders.push(`($${base + 1}, $${base + 2})`);
                 values.push(customId, JSON.stringify(mappedData));
               });
-
               queryText += placeholders.join(", ");
               queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
               await client.query(queryText, values);
               totalInserted += batch.length;
-
-              // Kirim progress tiap batch
               const currentBatch = Math.floor(i / batchSize) + 1;
               const pct =
                 startPct + ((endPct - startPct) * currentBatch) / totalBatch;
@@ -954,7 +810,6 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             }
             return totalInserted;
           };
-
           send(60, "Mulai insert database...");
           const countCdg = await batchInsert(
             tableGolongan,
@@ -977,9 +832,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             90,
             98,
           );
-
           await client.query("COMMIT");
-
           send(
             100,
             `Sukses! Golongan:${countCdg} Perkiraan:${countCdd} Transaksi:${countDet}`,
@@ -1005,65 +858,52 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         res.end();
       }
     });
-
     req.pipe(bb);
   } catch (error) {
     send(100, "Error: " + error.message, { success: false });
     res.end();
   }
 });
+
 // ============================================================================
-// SISTEM LOGIN & AUTHORIZATION (DIPERBAIKI)
+// 8. START SERVER
 // ============================================================================
+const serverPort = process.env.PORT || 8080;
+const serverHost = "0.0.0.0";
 
-const activeSessions = {};
-
-// Middleware Otorisasi yang Lebih Aman
-// Middleware Otorisasi yang Lebih Aman
-function authMiddleware(req, res, next) {
-  // ✅ PERBAIKAN: Gunakan req.originalUrl dan startsWith agar tidak diblokir
-  // Lewati pengecekan untuk endpoint login, logout, health check, dan file statis
-  if (
-    req.originalUrl === "/api/login" ||
-    req.originalUrl === "/api/logout" ||
-    req.originalUrl === "/health" ||
-    req.originalUrl === "/" ||
-    req.originalUrl === "/app" ||
-    req.originalUrl.startsWith("/api/impor-foxpro-online") // Kalau upload juga butuh tanpa token, atau hapus jika upload butuh token
-  ) {
-    return next();
+(async () => {
+  try {
+    for (const table of ALLOWED_TABLES) {
+      const lowerTableName = table.toLowerCase();
+      const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
+      const resCheck = await db.query(checkQuery, [lowerTableName]);
+      if (!resCheck.rows[0].exists) {
+        console.log(`🛠️ Membuat tabel baru di Supabase: ${lowerTableName}`);
+        if (table.match(/\d{4}$/)) {
+          await db.query(
+            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
+          );
+        } else {
+          await db.query(
+            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+          );
+        }
+        console.log(`✅ Tabel ${lowerTableName} berhasil dibuat.`);
+      }
+    }
+  } catch (loopErr) {
+    console.error("❌ Gagal menjalankan loop tabel:", loopErr.message);
   }
+})();
 
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
-
-  // Jika tidak ada token, tolak
-  if (!token)
-    return res.status(401).json({ error: "Akses ditolak. Silakan login." });
-
-  const session = activeSessions[token];
-
-  // Jika token tidak valid atau kedaluwarsa
-  if (!session)
-    return res
-      .status(403)
-      .json({ error: "Token tidak valid atau kedaluwarsa." });
-  if (Date.now() > session.expires) {
-    delete activeSessions[token];
-    return res
-      .status(403)
-      .json({ error: "Sesi telah berakhir. Silakan login kembali." });
-  }
-
-  // Tempelkan data user ke request
-  req.user = session;
-  next();
+try {
+  app.listen(Number(serverPort), serverHost, () => {
+    console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
+  });
+} catch (err) {
+  console.error("❌ Gagal menjalankan server:", err.message);
+  process.exit(1);
 }
 
-// ENDPOINT LOGOUT
-app.post("/api/logout", (req, res) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
-  if (token) delete activeSessions[token];
-  res.json({ success: true, message: "Logout berhasil" });
-});
+module.exports = db;
+// KURUNG } NGANGGUR TELAH DIHAPUS
