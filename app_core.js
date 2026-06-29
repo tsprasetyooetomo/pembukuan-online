@@ -781,10 +781,9 @@ async function navigate(id) {
   });
 
   $("tbTitle").innerHTML =
-    '<i class="fa-solid ' +
-    (m ? m.icon : "fa-home") +
-    '"></i> ' +
-    (m ? m.label : "Dashboard");
+    '<i class="fa-solid ' + (m ? m.icon : "fa-home") + '"></i> ';
+  //+
+  // (m ? m.label : "Dashboard");
 
   $("sidebar").classList.remove("open");
 
