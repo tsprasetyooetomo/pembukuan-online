@@ -42,3 +42,25 @@ async function loadTransaksi() {
   console.log(dataTransaksi);
   // Data yang keluar di sini PASTI hanya yang cabang "00" milik TAMARIA
 }
+// Tambahkan ini di blok <script> paling bawah pada file HTML Anda
+function doLogout() {
+  // 1. Hapus semua data autentikasi dari localStorage
+  localStorage.removeItem("token");
+  localStorage.removeItem("nama");
+  localStorage.removeItem("cabang");
+
+  // Opsional: Jika menggunakan library Supabase Client secara langsung, panggil juga:
+  // if (typeof supabase !== 'undefined') supabase.auth.signOut();
+
+  // 2. Berikan notifikasi jika fungsi toast tersedia
+  if (typeof toast === "function") {
+    toast("Berhasil logout, mengalihkan...", "ok");
+  } else {
+    alert("Logout Berhasil!");
+  }
+
+  // 3. Muat ulang halaman untuk mengembalikan ke tampilan login awal
+  setTimeout(() => {
+    window.location.reload();
+  }, 500);
+}
