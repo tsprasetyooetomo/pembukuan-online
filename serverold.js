@@ -14,7 +14,7 @@ process.on("unhandledRejection", (reason) => {
 // ============================================================================
 // 2. IMPORT LIBRARY
 // ============================================================================
-let express, cors, path, Pool;
+let express, cors, path, Pool, crypto;
 
 try {
   express = require("express");
@@ -22,6 +22,7 @@ try {
   path = require("path");
   const { Pool: PgPool } = require("pg");
   Pool = PgPool;
+  crypto = require("crypto"); // Pindahkan import crypto ke atas sekali
   console.log("✅ Semua library berhasil dimuat.");
 } catch (e) {
   console.error(
@@ -32,6 +33,127 @@ try {
 }
 
 const app = express();
+
+// ============================================================================
+// 3. MIDDLEWARE EXPRESS DASAR (WAJIB DI ATAS SEMUA ROUTE)
+// ============================================================================
+app.use(cors({ origin: "*" }));
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(express.static(path.join(__dirname)));
+
+// ============================================================================
+// 4. INISIALISASI DATABASE SUPABASE (DB HARUS ADA SEBELUM ROUTE)
+// ============================================================================
+let connectionString = process.env.DATABASE_URL;
+const manualSupabaseUrl =
+  "postgresql://postgres.ortjujcvgjtfikeygbxi:supabase252118@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+
+if (!connectionString) {
+  console.log("⚠️ Railway Gagal kirim Variabel. Menggunakan URL Manual...");
+  connectionString = manualSupabaseUrl;
+}
+
+let db;
+
+try {
+  if (!connectionString)
+    throw new Error(
+      "❌ FATAL DATABASE ERROR: Variabel DATABASE_URL tidak ditemukan!",
+    );
+
+  console.log("📂 Menghubungkan ke Cloud Database Supabase...");
+  console.log(
+    "🔗 Connection String:",
+    connectionString.replace(/:[^:@]+@/, ":****@"),
+  );
+
+  db = new Pool({
+    connectionString: connectionString,
+    ssl: { rejectUnauthorized: false },
+    max: 20,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 2000,
+  });
+
+  db.query("SELECT NOW()", (err, res) => {
+    if (err) console.error("❌ Gagal koneksi awal ke DB:", err.message);
+    else console.log("✅ Database Supabase Berhasil Terhubung!");
+  });
+} catch (err) {
+  console.error(err.message);
+}
+
+// Definisi Tabel
+const ALLOWED_TABLES = [
+  "golongan",
+  "perkiraan",
+  "transaksi",
+  "users",
+  "formatRL",
+  "formatNeraca",
+  "postedMonths",
+  "kodeBank",
+  "cabang",
+  "detiltransaksi",
+  "saldo_harian",
+  "saldoKasir",
+  "mutasikasir",
+];
+
+function isValidTable(name) {
+  if (!name) return false;
+  if (ALLOWED_TABLES.includes(name)) return true;
+  if (/\d{4}$/.test(name)) {
+    const baseName = name.replace(/\d{4}$/, "");
+    if (ALLOWED_TABLES.includes(baseName)) return true;
+  }
+  if (name.startsWith("backup_")) return true;
+  return false;
+}
+
+// ============================================================================
+// 5. SISTEM LOGIN & AUTHORIZATION
+// ============================================================================
+const activeSessions = {};
+
+function authMiddleware(req, res, next) {
+  if (
+    req.originalUrl === "/api/login" ||
+    req.originalUrl === "/api/logout" ||
+    req.originalUrl === "/health" ||
+    req.originalUrl === "/" ||
+    req.originalUrl === "/app" ||
+    req.originalUrl.startsWith("/api/impor-foxpro-online")
+  ) {
+    return next();
+  }
+
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token)
+    return res.status(401).json({ error: "Akses ditolak. Silakan login." });
+
+  const session = activeSessions[token];
+  if (!session)
+    return res
+      .status(403)
+      .json({ error: "Token tidak valid atau kedaluwarsa." });
+  if (Date.now() > session.expires) {
+    delete activeSessions[token];
+    return res
+      .status(403)
+      .json({ error: "Sesi telah berakhir. Silakan login kembali." });
+  }
+
+  req.user = session;
+  next();
+}
+
+// Pasang middleware auth KESEMUA route /api
+app.use("/api", authMiddleware);
+
 // ENDPOINT LOGIN
 app.post("/api/login", async (req, res) => {
   try {
@@ -65,7 +187,7 @@ app.post("/api/login", async (req, res) => {
       username: user.username,
       role: user.role,
       cabang: user.cabang || "Pusat",
-      expires: Date.now() + 24 * 60 * 60 * 1000, // 24 jam
+      expires: Date.now() + 24 * 60 * 60 * 1000,
     };
 
     res.json({
@@ -87,88 +209,30 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-// Terapkan middleware HANYA untuk route /api
-app.use("/api", authMiddleware);
-// ============================================================================
-// 3. MIDDLEWARE
-// ============================================================================
-app.use(cors({ origin: "*" }));
-app.use(express.json({ limit: "50mb" }));
-app.use(express.urlencoded({ limit: "50mb", extended: true }));
-app.use(express.static(path.join(__dirname)));
+// ENDPOINT LOGOUT
+app.post("/api/logout", (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+  if (token) delete activeSessions[token];
+  res.json({ success: true, message: "Logout berhasil" });
+});
 
 // ============================================================================
-// 4. KONFIGURASI SERVER & START (PAKAI EXPRESS)
+// 6. ROUTE APLIKASI & HTML
 // ============================================================================
-
-const serverPort = process.env.PORT || 8080; // Default 8080 untuk Railway
-const serverHost = "0.0.0.0";
-
-try {
-  app.listen(Number(serverPort), serverHost, () => {
-    console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
-    console.log("⏳ Menunggu inisialisasi database...");
-  });
-} catch (err) {
-  console.error("❌ Gagal menjalankan server:", err.message);
-  process.exit(1);
-}
-
-// ============================================================================
-// 5. LOGIC APLIKASI (ROUTES & DATABASE)
-// ============================================================================
-
-// Definisi Tabel
-const ALLOWED_TABLES = [
-  "golongan",
-  "perkiraan",
-  "transaksi",
-  "users",
-  "formatRL",
-  "formatNeraca",
-  "postedMonths",
-  "kodeBank",
-  "cabang",
-  "detiltransaksi",
-  "saldo_harian",
-  "saldoKasir",
-  "mutasikasir",
-];
-
-function isValidTable(name) {
-  if (!name) return false;
-  if (ALLOWED_TABLES.includes(name)) return true;
-  if (/\d{4}$/.test(name)) {
-    const baseName = name.replace(/\d{4}$/, "");
-    if (ALLOWED_TABLES.includes(baseName)) return true;
-  }
-  if (name.startsWith("backup_")) return true;
-  return false;
-}
-
-// Route Utama (Health Check) -> SEKARANG MENGGUNAKAN EXPRESS
-//app.get("/", (req, res) => {
-// res.send(`
-//  <h1>✅ Sistem Pembukuan Online</h1>
-// <p>Server Express berjalan dan Database Terhubung.</p>
-// <p>Status: OK</p>
-//`);
-//});
-// Route Utama (Otomatis buka HTML)
 app.get("/", (req, res) => {
   try {
-    // Arahkan langsung ke file HTML utama
     const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
     res.sendFile(htmlPath);
   } catch (error) {
     res.status(500).send("Gagal memuat halaman: " + error.message);
   }
 });
+
 app.get("/health", (req, res) => {
   res.send("OK");
 });
 
-// Route Serve HTML (Jika file ada)
 app.get("/app", (req, res) => {
   try {
     const htmlPath = path.join(__dirname, "pembukuan_telaga.html");
@@ -179,56 +243,73 @@ app.get("/app", (req, res) => {
 });
 
 // ============================================================================
-// 6. INISIALISASI DATABASE SUPABASE
+// 7. API ROUTES (SEMUANYA SUDAH LEWAT AUTH MIDDLEWARE)
 // ============================================================================
 
-let connectionString = process.env.DATABASE_URL;
-const manualSupabaseUrl =
-  "postgresql://postgres.ortjujcvgjtfikeygbxi:supabase252118@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true";
+// 1. RESET POSTING
+app.post("/api/reset-posting", async (req, res) => {
+  /* ... kode anda sama persis ... */
+});
 
-if (!connectionString) {
-  console.log("⚠️ Railway Gagal kirim Variabel. Menggunakan URL Manual...");
-  connectionString = manualSupabaseUrl;
-}
+// 2. CLEAR ALL DATA
+app.post("/api/clear-all-data", async (req, res) => {
+  /* ... kode anda sama persis ... */
+});
 
-let db;
+// 3. GET ALL DATA (FILTER CABANG)
+app.get("/api/data/:storeName", async (req, res) => {
+  try {
+    if (!db) return res.status(500).json({ error: "Database tidak terhubung" });
+    const { storeName } = req.params;
+    if (!isValidTable(storeName))
+      return res.status(400).json({ error: "Invalid Table" });
 
-try {
-  if (!connectionString) {
-    throw new Error(
-      "❌ FATAL DATABASE ERROR: Variabel DATABASE_URL tidak ditemukan!",
-    );
+    const lowerStoreName = storeName.toLowerCase();
+    let sql = `SELECT data FROM ${lowerStoreName}`;
+    let params = [];
+
+    if (req.user && req.user.role !== "Admin") {
+      sql += ` WHERE data::text LIKE $1`;
+      params.push(`%"cabang":"${req.user.cabang}"%`);
+    }
+
+    const result = await db.query(sql, params);
+    const parsedData = result.rows
+      .map((r) => {
+        try {
+          return typeof r.data === "string" ? JSON.parse(r.data) : r.data;
+        } catch (e) {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    res.json(parsedData);
+  } catch (e) {
+    console.error(`❌ Error GET /api/data/${req.params.storeName}:`, e.message);
+    res.status(500).json({ error: "Gagal mengambil data: " + e.message });
   }
+});
 
-  console.log("📂 Menghubungkan ke Cloud Database Supabase...");
-  console.log(
-    "🔗 Connection String:",
-    connectionString.replace(/:[^:@]+@/, ":****@"),
-  );
+// ... SEMUA ROUTE API ANDA YANG LAIN (4 sd 16) TARUH DI SINI ...
+// (Saya hapus di kode ini agar tidak terlalu panjang, tapi di file Anda biarkan saja / jangan dihapus)
 
-  db = new Pool({
-    connectionString: connectionString,
-    ssl: { rejectUnauthorized: false },
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000,
-  });
+// ============================================================================
+// 8. START SERVER
+// ============================================================================
+const serverPort = process.env.PORT || 8080;
+const serverHost = "0.0.0.0";
 
-  db.query("SELECT NOW()", (err, res) => {
-    if (err) console.error("❌ Gagal koneksi awal ke DB:", err.message);
-    else console.log("✅ Database Supabase Berhasil Terhubung!");
-  });
-
-  const initTable = async (tableName) => {
-    try {
-      const lowerTableName = tableName.toLowerCase();
+// Init Table saat Start
+(async () => {
+  try {
+    for (const table of ALLOWED_TABLES) {
+      const lowerTableName = table.toLowerCase();
       const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
       const resCheck = await db.query(checkQuery, [lowerTableName]);
-      const tableExists = resCheck.rows[0].exists;
-
-      if (!tableExists) {
+      if (!resCheck.rows[0].exists) {
         console.log(`🛠️ Membuat tabel baru di Supabase: ${lowerTableName}`);
-        if (tableName.match(/\d{4}$/)) {
+        if (table.match(/\d{4}$/)) {
           await db.query(
             `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
           );
@@ -238,29 +319,24 @@ try {
           );
         }
         console.log(`✅ Tabel ${lowerTableName} berhasil dibuat.`);
-      } else {
-        console.log(`ℹ️ Tabel ${lowerTableName} sudah ada.`);
       }
-    } catch (e) {
-      console.error(`⚠️ Gagal init tabel ${tableName}:`, e.message);
     }
-  };
+  } catch (loopErr) {
+    console.error("❌ Gagal menjalankan loop tabel:", loopErr.message);
+  }
+})();
 
-  (async () => {
-    try {
-      for (const table of ALLOWED_TABLES) {
-        await initTable(table);
-      }
-      console.log("🚀 Sistem Siap!");
-    } catch (loopErr) {
-      console.error("❌ Gagal menjalankan loop tabel:", loopErr.message);
-    }
-  })();
+try {
+  app.listen(Number(serverPort), serverHost, () => {
+    console.log(`🚀 SERVER SUKSES START DI PORT: ${serverPort}`);
+  });
 } catch (err) {
-  console.error(err.message);
+  console.error("❌ Gagal menjalankan server:", err.message);
+  process.exit(1);
 }
 
 module.exports = db;
+// HAPUS KURUNG } NGANGGUR YANG ADA DI VERSI SEBELUMNYA
 
 // --- API ROUTES ---
 
