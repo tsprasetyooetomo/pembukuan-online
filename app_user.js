@@ -53,6 +53,10 @@ function formUser(editId) {
         return r.id === editId;
       })
     : null;
+
+  // Ambil data cabang lama, jika data baru default-nya adalah "Pusat"
+  var selectedCabang = d ? d.cabang || "Pusat" : "Pusat";
+
   openModal(
     d ? "Edit User" : "Tambah User",
     '<div class="f-row"><div class="fg"><label>Username <span class="req">*</span></label>' +
@@ -68,15 +72,20 @@ function formUser(editId) {
       "<option" +
       (d && d.role === "Admin" ? " selected" : "") +
       ">Admin</option>" +
+      // 🛠️ PENAMBAHAN ROLE AKUNTING:
+      "<option" +
+      (d && d.role === "Akunting" ? " selected" : "") +
+      ">Akunting</option>" +
       "<option" +
       (d && d.role === "Kasir" ? " selected" : "") +
       ">Kasir</option>" +
       "<option" +
       (d && d.role === "Viewer" ? " selected" : "") +
       ">Viewer</option></select></div>" +
-      '<div class="fg"><label>Cabang</label><input id="f_uCabang" value="' +
-      (d ? esc(d.cabang || "") : "Pusat") +
-      '"></div></div>' +
+      // 🛠️ PERBAIKAN: Menggunakan getCabangOpts() agar dropdown otomatis dinamis
+      '<div class="fg"><label>Cabang</label><select id="f_uCabang">' +
+      getCabangOpts(selectedCabang) +
+      "</select></div></div>" +
       '<div class="fg"><label>Password ' +
       (d ? "(kosongkan jika tidak diubah)" : '<span class="req">*</span>') +
       "</label>" +
