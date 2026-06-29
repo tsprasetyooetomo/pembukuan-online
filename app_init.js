@@ -59,8 +59,17 @@ async function init() {
       // B. SEMBUNYIKAN TOTAL elemen UI lainnya agar bersih
       if (sidebar) sidebar.classList.add("hidden-menu");
       if (tbTitle) tbTitle.style.display = "none";
-      if (elemenJam) elemenJam.style.display = "none";
-      if (elemenTanggal) elemenTanggal.style.display = "none";
+
+      // 🟢 SEMBUNYIKAN JAM & TANGGAL
+      const clockEl =
+        document.getElementById("clockEl") ||
+        document.querySelector("clockEl") ||
+        document.querySelector(".clockEl");
+      if (clockEl) clockEl.style.display = "none";
+
+      // Sembunyikan tombol logout yang sudah diberi ID kemarin
+      const btnLogout = document.getElementById("btnLogout");
+      if (btnLogout) btnLogout.style.display = "none";
 
       // Matikan overlay loading default agar form login langsung terlihat
       document.getElementById("loadingOv").style.display = "none";
