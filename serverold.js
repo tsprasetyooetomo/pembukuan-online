@@ -362,7 +362,7 @@ app.get("/api/data/:storeName", async (req, res) => {
       return res.status(400).json({ error: "Invalid Table" });
     }
     console.log("cabang:", filterCabang);
-    debugger;
+
     const lowerStoreName = storeName.toLowerCase();
 
     // 2. Daftar tabel yang memiliki kolom cabang di dalam objek JSON-nya
