@@ -16,7 +16,7 @@ async function loginSystem() {
     const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: u, password: p, role: r }),
+      body: JSON.stringify({ username: u, password: p }),
     });
 
     // ✅ PERBAIKAN 1: Cek status HTTP dan Content-Type DI PALING AWAL
