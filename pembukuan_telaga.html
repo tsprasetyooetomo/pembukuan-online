@@ -47,11 +47,13 @@
       .sb-toggle-btn:hover {
         background: rgba(255, 255, 255, 0.2);
       }
-      .hidden-menu {
-        transform: translateX(-100%);
-        width: 0 !important;
-        min-width: 0 !important;
+
+      /* ✅ GANTI SEMUA LOGIKA HIDDEN MENU MENJADI INI: */
+
+      .sb {
+        transition: margin-left 0.3s ease; /* Biar smooth saat slide masuk/keluar */
       }
+
       .main {
         transition: margin-left 0.3s ease;
       }
@@ -68,7 +70,7 @@
         border-radius: 8px;
         background: #fff;
         display: none;
-      } /* Default sembunyikan, tampilkan via js jika belum auth */
+      }
       .login-container input {
         width: 100%;
         margin-bottom: 10px;
