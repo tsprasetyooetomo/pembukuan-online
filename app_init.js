@@ -83,7 +83,8 @@ async function init() {
     // JIKA SUDAH LOGIN, LANJUTKAN PROSES BERIKUTNYA & TAMPILKAN KEMBALI UI-NYA:
     // ========================================================================
     if (loginBox) loginBox.style.display = "none";
-
+    // 🟢 TAMBAHKAN BARIS INI UNTUK MUNCULKAN KEMBALI SIDEBAR:
+    if (sidebar) sidebar.classList.remove("hidden-menu");
     // Munculkan kembali judul, jam, dan tanggal karena user berhak melihatnya
     if (tbTitle) tbTitle.style.display = "block";
     if (elemenJam) elemenJam.style.display = "block";
