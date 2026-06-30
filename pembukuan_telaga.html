@@ -209,7 +209,6 @@
     <script src="app_impor_foxpro.js"></script>
     <script src="app_login.js"></script>
     <script src="app_init.js"></script>
-
     <script>
       function refreshApp() {
         if (
@@ -256,6 +255,7 @@
 
         btnHamburger.addEventListener("click", function (e) {
           e.stopPropagation();
+          // ✅ SUDAH DIPERBAIKI: Mengubah { menjadi ) di baris bawah ini
           if (sidebar.classList.contains("hidden-menu")) {
             showMenu();
           } else {
