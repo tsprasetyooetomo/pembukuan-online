@@ -270,6 +270,7 @@ function buildSidebar() {
       if (
         ![
           "UTILITY",
+          "POSTING",
           "LAPORAN KEUANGAN GABUNGAN",
           "LAPORAN KEUANGAN",
           "USER",
