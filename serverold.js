@@ -347,7 +347,6 @@ app.post("/api/clear-all-data", async (req, res) => {
   }
 });
 
-// 3. GET ALL DATA (DENGAN FILTER KODE CABANG OTOMATIS)
 // 3. GET ALL DATA
 app.get("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
@@ -359,14 +358,8 @@ app.get("/api/data/:storeName", async (req, res) => {
       return res.status(400).json({ error: "Invalid Table" });
 
     const lowerStoreName = storeName.toLowerCase();
-    const result = await db.query(`SELECT data FROM ${lowerStoreName}`);
 
-    // 1. Parsing semua baris dari database ke format JSON Objek
-    const allData = result.rows.map((r) =>
-      typeof r.data === "string" ? JSON.parse(r.data) : r.data,
-    );
-
-    // 2. Daftar semua tabel Anda (ditulis dengan huruf kecil agar cocok dengan lowerStoreName)
+    // 2. Daftar tabel yang memiliki kolom cabang di dalam objek JSON-nya
     const tabelWajibFilter = [
       "golongan",
       "perkiraan",
@@ -383,25 +376,43 @@ app.get("/api/data/:storeName", async (req, res) => {
       "mutasikasir",
     ];
 
-    if (tabelWajibFilter.includes(lowerStoreName)) {
-      // 🟢 JIKA USER BUKAN PUSAT, SARING DATANYA!
-      // Mengecek jika filterCabang bukan "PUSAT" atau "00" (Sesuaikan dengan isi database Anda)
-      if (filterCabang && filterCabang !== "PUSAT" && filterCabang !== "00") {
-        const dataTerfilter = allData.filter((item) => {
-          // Mengambil properti cabang/kode_cabang dari dalam objek JSON data
-          const cabangItem = item.kode_cabang || item.cabang;
-          return cabangItem === filterCabang;
-        });
-        return res.json(dataTerfilter);
-      }
+    let result;
+
+    // 🟢 PERBAIKAN UTAMA: Saring langsung di level SQL jika user BUKAN pusat
+    if (
+      tabelWajibFilter.includes(lowerStoreName) &&
+      filterCabang &&
+      filterCabang !== "PUSAT" &&
+      filterCabang !== "00"
+    ) {
+      // Menggunakan operator SQL JSONB (data->>'kode_cabang' ATAU data->>'cabang')
+      const queryStr = `
+        SELECT data FROM ${lowerStoreName} 
+        WHERE data->>'kode_cabang' = $1 OR data->>'cabang' = $1
+      `;
+      result = await db.query(queryStr, [filterCabang]);
+      console.log(
+        `System: SQL Fetch terfilter untuk cabang ${filterCabang} pada tabel ${lowerStoreName}`,
+      );
+    } else {
+      // Jika user adalah PUSAT / 00, atau tabel tidak perlu divalidasi, tarik semua data
+      result = await db.query(`SELECT data FROM ${lowerStoreName}`);
+      console.log(`System: SQL Fetch SEMUA DATA untuk tabel ${lowerStoreName}`);
     }
 
-    // Jika user adalah PUSAT / 00, kirim semua data tanpa filter
+    // Parsing semua baris dari database ke format JSON Objek
+    const allData = result.rows.map((r) =>
+      typeof r.data === "string" ? JSON.parse(r.data) : r.data,
+    );
+
+    // Kirim langsung hasil data ke frontend (tidak perlu fungsi .filter() lagi di JavaScript)
     res.json(allData);
   } catch (e) {
+    console.error("🔥 ERROR FETCH DATA API:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
+
 // 4. GET BY ID
 app.get("/api/data/:storeName/:id", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
