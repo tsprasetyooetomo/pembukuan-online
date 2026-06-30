@@ -150,14 +150,15 @@ async function init() {
 init();
 
 // Jalankan entry point aplikasi
-async function buildSidebar() {
+// Gunakan fungsi biasa (tanpa async)
+function buildSidebar() {
   const sbBody = document.getElementById("sbBody");
   if (!sbBody) return;
 
-  // 1. Ambil role user dari localStorage (Default ke VIEWER jika tidak ada)
+  // 1. Ambil role user dari localStorage
   const userRole = (localStorage.getItem("role") || "VIEWER").toUpperCase();
 
-  // 2. Gunakan array data MENUS asli milik Anda
+  // 2. Data MENUS milik Anda
   var MENUS = [
     {
       group: "PERKIRAAN",
@@ -249,41 +250,29 @@ async function buildSidebar() {
     },
   ];
 
-  let htmlMenu = "";
+  let htmlMenu = ""; // Pastikan nama variabelnya konsisten
 
-  // 3. PROSES STRUKTUR MENU BERDASARKAN HAK AKSES ROLE
+  // 3. Filter menu berdasarkan role
   MENUS.forEach((grp) => {
     let itemsBolehTampil = [];
 
     if (userRole === "ADMIN") {
-      // Admin bisa melihat semuanya tanpa terkecuali
       itemsBolehTampil = grp.items;
     } else if (userRole === "AKUNTING") {
-      // Akunting: Boleh lihat Perkiraan, Mutasi, Laporan Kas, Laporan Keuangan, Posting
-      // ⚠️ Grup UTILITY & USER di-hide total
-      if (
-        ![
-          "UTILITY",
-          "LAPORAN KEUANGAN",
-          "LAPORAN KEUANGAN GABUNGAN",
-          "USER",
-        ].includes(grp.group)
-      ) {
+      if (!["UTILITY", "USER"].includes(grp.group)) {
         itemsBolehTampil = grp.items;
       }
     } else if (userRole === "KASIR") {
-      // Kasir: Hanya Saldo Kasir, Mutasi Harian Kasir, Kas Harian Kasir, Laporan Saldo Kasir
       itemsBolehTampil = grp.items.filter((item) =>
         ["saldoKasir", "mutasikasir", "kaskasir"].includes(item.id),
       );
     } else if (userRole === "VIEWER") {
-      // Viewer: Hanya menu Laporan Keuangan Gabungan saja
       if (grp.group === "LAPORAN KEUANGAN GABUNGAN") {
         itemsBolehTampil = grp.items;
       }
     }
 
-    // 4. JIKA GRUP MEMILIKI ITEM YANG BOLEH TAMPIL, GAMBAR KE HTML SIDEBAR
+    // 4. Gambar ke HTML jika ada item yang boleh tampil
     if (itemsBolehTampil.length > 0) {
       htmlMenu += `
         <div class="sb-group-wrapper">
@@ -309,5 +298,6 @@ async function buildSidebar() {
     }
   });
 
+  // Masukkan hasil string HTML ke DOM
   sbBody.innerHTML = htmlMenu;
 }
