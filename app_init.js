@@ -82,10 +82,11 @@ async function init() {
     // ========================================================================
     // JIKA SUDAH LOGIN, LANJUTKAN PROSES BERIKUTNYA & TAMPILKAN KEMBALI UI-NYA:
     // ========================================================================
+    // ========================================================================
+    // JIKA SUDAH LOGIN, LANJUTKAN PROSES BERIKUTNYA & TAMPILKAN KEMBALI UI-NYA:
+    // ========================================================================
     if (loginBox) loginBox.style.display = "none";
-    // 🟢 TAMBAHKAN BARIS INI UNTUK MUNCULKAN KEMBALI SIDEBAR:
     if (sidebar) sidebar.classList.remove("hidden-menu");
-    // Munculkan kembali judul, jam, dan tanggal karena user berhak melihatnya
     if (tbTitle) tbTitle.style.display = "block";
     if (elemenJam) elemenJam.style.display = "block";
     if (elemenTanggal) elemenTanggal.style.display = "block";
@@ -97,25 +98,56 @@ async function init() {
       tbTitle.innerHTML = `<i class="fa-solid fa-database"></i> Cabang: ${cabangUser} (${namaUser})`;
     }
 
+    console.log("✅ STEP 1: UI Dasar berhasil ditampilkan");
+
     // 2. Buka koneksi database IndexedDB bawaan aplikasi Anda
-    await initDB();
+    try {
+      await initDB();
+      console.log("✅ STEP 2: Database berhasil terbuka");
+    } catch (e) {
+      console.error("❌ CRASH di STEP 2 (initDB):", e);
+      alert("Gagal membuka Database: " + e.message);
+      document.getElementById("loadingOv").style.display = "none";
+      return;
+    }
 
     // 3. Jalankan migrasi saldo awal tepat setelah database terkoneksi
-    await migrasiSaldoAwalKodeBank();
+    try {
+      await migrasiSaldoAwalKodeBank();
+      console.log("✅ STEP 3: Migrasi selesai");
+    } catch (e) {
+      console.error("❌ CRASH di STEP 3 (Migrasi):", e);
+    }
 
     // 4. Muat seluruh data IndexedDB ke dalam variabel memori global (DBCache)
-    await refreshCache();
+    try {
+      await refreshCache();
+      console.log("✅ STEP 4: Cache berhasil dimuat");
+    } catch (e) {
+      console.error("❌ CRASH di STEP 4 (refreshCache):", e);
+      alert("Gagal memuat Cache Data: " + e.message);
+      document.getElementById("loadingOv").style.display = "none";
+      return;
+    }
 
     // 5. Bangun UI & Navigasi panel utama
-    await buildSidebar();
+    console.log("✅ STEP 5: Mau menjalankan buildSidebar...");
+    buildSidebar();
+    console.log("✅ STEP 6: buildSidebar sudah selesai dijalankan");
+
     document.getElementById("loadingOv").style.display = "none";
 
     console.log("Navigate ke 3: " + currentPanel);
     navigate(currentPanel);
   } catch (err) {
-    // ... Penanganan jika IndexedDB gagal
+    console.error("🚨 TERJADI ERROR GLOBAL DI INIT():", err);
+    alert("Error saat memuat aplikasi: " + err.message);
+    document.getElementById("loadingOv").style.display = "none";
   }
 }
+
+// Jalankan entry point aplikasi
+init();
 
 // Jalankan entry point aplikasi
 async function buildSidebar() {
@@ -279,5 +311,3 @@ async function buildSidebar() {
 
   sbBody.innerHTML = htmlMenu;
 }
-
-init();
