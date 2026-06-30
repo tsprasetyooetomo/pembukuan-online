@@ -153,7 +153,7 @@ init();
 // Gunakan fungsi biasa (tanpa async)
 
 // Jalankan entry point aplikasi
-function buildSidebar2() {
+function buildSidebar1() {
   const sbBody = document.getElementById("sbBody");
   if (!sbBody) return;
 
@@ -312,23 +312,37 @@ function buildSidebar2() {
     htmlMenu.length,
   );
 }
+// === SNIPER: MELACAK SIAPA YANG MEMBUNUH SIDEBAR ===
 function buildSidebar() {
+  console.trace("🔍 SIAPA YANG MEMANGGIL BUILD SIDEBAR?");
+
   const sbBody = document.getElementById("sbBody");
   if (!sbBody) {
-    console.error("❌ ELEMEN sbBody TIDAK DITEMUKAN DI HTML!");
+    console.error("SB BODY TIDAK ADA!");
     return;
   }
 
-  // TES BRUTAL: Langsung timpah dengan teks warna merah besar tanpa mempedulikan logic role
+  // Paksa langsung tulis mentah-mentah tanpa logic apapun
   sbBody.innerHTML = `
-    <div style="padding:20px; color:red; font-size:20px; font-weight:bold; z-index:99999; background:yellow;">
-      TEST SIDEBAR MUNCUL!
-    </div>
-    <div style="padding:20px; color:white;">
-      Jika Anda melihat teks kuning ini, berarti masalahnya BUKAN di CSS Hidden Menu, 
-      dan BUKAN di posisi HTML. Tapi memang kode Logic Role Anda menghasilkan kosong (0 karakter).
+    <div class="sb-grp">
+      <div class="sb-grp-t">
+        <span><i class="fa-solid fa-sitemap" style="margin-right:6px; color:var(--accent);"></i> PERKIRAAN</span>
+        <i class="fa-solid fa-chevron-down arr"></i>
+      </div>
+      <div class="sb-grp-items">
+        <div class="sb-item" onclick="alert('Klik berhasil!')">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>TEST MENU GOLONGAN</span>
+        </div>
+      </div>
     </div>
   `;
-
-  console.log("✅ Tes brutal dijalankan. Cek layar Anda!");
+  console.log(
+    "✅ ISI HTML SBODY SEKARANG:",
+    sbBody.innerHTML.length,
+    "karakter",
+  );
 }
+
+// Jalankan entry point aplikasi
+init();
