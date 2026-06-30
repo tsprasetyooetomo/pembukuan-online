@@ -1,5 +1,8 @@
 // ============================================================================
 // 1. ERROR HANDLING GLOBAL (PALING ATAS)
+
+const { buffer } = require("stream/consumers");
+
 // ============================================================================
 process.on("uncaughtException", (err) => {
   console.error("🔥 CRITICAL SYSTEM ERROR:", err.message);
@@ -358,7 +361,8 @@ app.get("/api/data/:storeName", async (req, res) => {
     if (!isValidTable(storeName)) {
       return res.status(400).json({ error: "Invalid Table" });
     }
-
+    console.log("cabang:", filterCabang);
+    Buffer;
     const lowerStoreName = storeName.toLowerCase();
 
     // 2. Daftar tabel yang memiliki kolom cabang di dalam objek JSON-nya
