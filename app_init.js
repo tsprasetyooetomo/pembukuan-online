@@ -158,7 +158,7 @@ function buildSidebar() {
   if (!sbBody) return;
 
   // 1. Ambil role user dari localStorage (Default ke VIEWER jika tidak ada)
-  const userRole = (localStorage.getItem("role") || "VIEWER").toUpperCase();
+  const userRole = (localStorage.getItem("role") || "ADMIN").toUpperCase();
 
   // 2. Gunakan array data MENUS asli milik Anda
   var MENUS = [
