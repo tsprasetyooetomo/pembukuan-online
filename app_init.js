@@ -158,7 +158,7 @@ function buildSidebar() {
   // 1. Ambil role user dari localStorage
   const userRole = (localStorage.getItem("role") || "VIEWER").toUpperCase();
 
-  // 2. Data MENUS milik Anda
+  // 2. Data MENUS lengkap (Sudah ditutup dengan benar, tidak terpotong)
   var MENUS = [
     {
       group: "PERKIRAAN",
@@ -216,17 +216,25 @@ function buildSidebar() {
       group: "LAPORAN KEUANGAN GABUNGAN",
       icon: "fa-chart-pie",
       items: [
-        { id: "neracas", label: "Neraca", icon: "fa-scale-balanced" },
-        { id: "detilNeracas", label: "Detil Neraca", icon: "fa-table-list" },
-        { id: "rlRekaps", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
+        { id: "neracas", label: "Neraca Gabungan", icon: "fa-scale-balanced" },
+        {
+          id: "detilNeracas",
+          label: "Detil Neraca Gabungan",
+          icon: "fa-table-list",
+        },
+        { id: "rlRekaps", label: "RL Rekap Gabungan", icon: "fa-chart-bar" },
         {
           id: "rlDetils",
-          label: "RL Detil Bulanan",
+          label: "RL Detil Gabungan",
           icon: "fa-bars-staggered",
         },
-        { id: "rlLebars", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
-        { id: "bukuBesars", label: "Buku Besar", icon: "fa-book" },
-        { id: "expXlss", label: "Export XLS", icon: "fa-file-excel" },
+        {
+          id: "rlLebars",
+          label: "RL Rekap 1-12 Gabungan",
+          icon: "fa-bars-staggered",
+        },
+        { id: "bukuBesars", label: "Buku Besar Gabungan", icon: "fa-book" },
+        { id: "expXlss", label: "Export XLS Gabungan", icon: "fa-file-excel" },
       ],
     },
     {
@@ -250,7 +258,7 @@ function buildSidebar() {
     },
   ];
 
-  let htmlMenu = ""; // Pastikan nama variabelnya konsisten
+  let menuHtml = "";
 
   // 3. Filter menu berdasarkan role
   MENUS.forEach((grp) => {
@@ -272,9 +280,9 @@ function buildSidebar() {
       }
     }
 
-    // 4. Gambar ke HTML jika ada item yang boleh tampil
+    // 4. Buat HTML Group & Item Menu
     if (itemsBolehTampil.length > 0) {
-      htmlMenu += `
+      menuHtml += `
         <div class="sb-group-wrapper">
           <div class="sb-group-title">
             <i class="fa-solid ${grp.icon}"></i> <span>${grp.group}</span>
@@ -283,7 +291,7 @@ function buildSidebar() {
       `;
 
       itemsBolehTampil.forEach((item) => {
-        htmlMenu += `
+        menuHtml += `
           <li class="sb-menu-item" onclick="navigate('${item.id}')" id="menu-${item.id}">
             <i class="fa-solid ${item.icon}"></i>
             <span>${item.label}</span>
@@ -291,13 +299,13 @@ function buildSidebar() {
         `;
       });
 
-      htmlMenu += `
+      menuHtml += `
           </ul>
         </div>
       `;
     }
   });
 
-  // Masukkan hasil string HTML ke DOM
-  sbBody.innerHTML = htmlMenu;
+  // 5. Masukkan ke elemen DOM sidebar Anda
+  sbBody.innerHTML = menuHtml;
 }
