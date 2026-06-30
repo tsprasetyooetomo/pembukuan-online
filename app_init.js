@@ -158,7 +158,7 @@ function buildSidebar() {
 
   // Jika role kosong di localStorage, defaultnya ADMIN agar tidak blank
   const userRole = (localStorage.getItem("role") || "ADMIN").toUpperCase();
-
+  console.log("role: " + userRole);
   var MENUS = [
     {
       group: "PERKIRAAN",
