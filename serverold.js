@@ -350,12 +350,14 @@ app.post("/api/clear-all-data", async (req, res) => {
 // 3. GET ALL DATA
 app.get("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
+
   try {
     const { storeName } = req.params;
     const filterCabang = req.query.cabang; // Tangkap parameter ?cabang=XX dari frontend
 
-    if (!isValidTable(storeName))
+    if (!isValidTable(storeName)) {
       return res.status(400).json({ error: "Invalid Table" });
+    }
 
     const lowerStoreName = storeName.toLowerCase();
 
@@ -385,19 +387,23 @@ app.get("/api/data/:storeName", async (req, res) => {
       filterCabang !== "PUSAT" &&
       filterCabang !== "00"
     ) {
-      // Menggunakan operator SQL JSONB (data->>'kode_cabang' ATAU data->>'cabang')
+      // Menggunakan COALESCE (antisipasi null) dan ::text (paksa jadi teks agar tipe data cocok)
       const queryStr = `
         SELECT data FROM ${lowerStoreName} 
-        WHERE data->>'kode_cabang' = $1 OR data->>'cabang' = $1
+        WHERE COALESCE(data->>'kode_cabang', '')::text = $1 
+           OR COALESCE(data->>'cabang', '')::text = $1
       `;
+
       result = await db.query(queryStr, [filterCabang]);
       console.log(
-        `System: SQL Fetch terfilter untuk cabang ${filterCabang} pada tabel ${lowerStoreName}`,
+        `System: SQL Fetch TERFILTER untuk cabang ${filterCabang} pada tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
       );
     } else {
       // Jika user adalah PUSAT / 00, atau tabel tidak perlu divalidasi, tarik semua data
       result = await db.query(`SELECT data FROM ${lowerStoreName}`);
-      console.log(`System: SQL Fetch SEMUA DATA untuk tabel ${lowerStoreName}`);
+      console.log(
+        `System: SQL Fetch SEMUA DATA untuk tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
+      );
     }
 
     // Parsing semua baris dari database ke format JSON Objek
@@ -405,14 +411,13 @@ app.get("/api/data/:storeName", async (req, res) => {
       typeof r.data === "string" ? JSON.parse(r.data) : r.data,
     );
 
-    // Kirim langsung hasil data ke frontend (tidak perlu fungsi .filter() lagi di JavaScript)
+    // Kirim langsung hasil data ke frontend
     res.json(allData);
   } catch (e) {
     console.error("🔥 ERROR FETCH DATA API:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
-
 // 4. GET BY ID
 app.get("/api/data/:storeName/:id", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
