@@ -82,9 +82,7 @@ async function init() {
     // ========================================================================
     // JIKA SUDAH LOGIN, LANJUTKAN PROSES BERIKUTNYA & TAMPILKAN KEMBALI UI-NYA:
     // ========================================================================
-    // ========================================================================
-    // JIKA SUDAH LOGIN, LANJUTKAN PROSES BERIKUTNYA & TAMPILKAN KEMBALI UI-NYA:
-    // ========================================================================
+
     if (loginBox) loginBox.style.display = "none";
     if (sidebar) sidebar.classList.remove("hidden-menu");
     if (tbTitle) tbTitle.style.display = "block";
@@ -155,10 +153,19 @@ init();
 function buildSidebar() {
   const sbBody = document.getElementById("sbBody");
   if (!sbBody) return;
+  // Ambil data dari storage
+  let rawRole = localStorage.getItem("role");
 
+  // PROTEKSI: Jika dihapus/kosong/bernilai string "undefined", paksa balik ke ADMIN agar menu tidak hilang
+  if (!rawRole || rawRole === "undefined" || rawRole === "null") {
+    rawRole = "ADMIN";
+  }
+
+  const userRole = rawRole.toUpperCase();
+  console.log("🎯 Role Fix yang digunakan sidebar: " + userRole);
   // Jika role kosong di localStorage, defaultnya ADMIN agar tidak blank
-  const userRole = (localStorage.getItem("role") || "ADMIN").toUpperCase();
-  console.log("role: " + userRole);
+  // const userRole = (localStorage.getItem("role") || "ADMIN").toUpperCase();
+  // console.log("role: " + userRole);
   var MENUS = [
     {
       group: "PERKIRAAN",
