@@ -39,8 +39,8 @@ async function loginSystem() {
       localStorage.setItem("token", data.token);
       localStorage.setItem("nama", data.user.nama);
       localStorage.setItem("cabang", data.user.kode_cabang);
-      // localStorage.setItem("role", data.user.role);
-      localStorage.setItem("role", "ADMIN");
+      localStorage.setItem("role", data.user.role);
+      // localStorage.setItem("role", "ADMIN");
 
       if (typeof toast === "function") {
         toast("Login Berhasil! Cabang: " + data.user.kode_cabang, "ok");
