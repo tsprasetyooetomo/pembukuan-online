@@ -115,7 +115,6 @@ app.get("/health", (req, res) => {
 // ============================================================================
 // API ROUTE: LOGIN SYSTEM (BACA DARI STRUKTUR KOLOM DATA JSON)
 // ============================================================================
-
 app.post("/api/login", async (req, res) => {
   try {
     const { username, password } = req.body;
@@ -126,21 +125,36 @@ app.post("/api/login", async (req, res) => {
         .json({ success: false, message: "Username & password kosong" });
     }
 
-    // 🔥 OPTIMASI 1: Cari langsung menggunakan SQL, tidak perlu menarik semua data ke memori Node.js
-    // Ini mengasumsikan kolom 'data' bertipe JSONB di PostgreSQL/Supabase
-    const queryStr = `SELECT data FROM users WHERE LOWER(data->>'username') = LOWER($1) LIMIT 1`;
-    const result = await db.query(queryStr, [username]);
+    // 1. Ambil semua baris dari tabel 'users' menggunakan variabel 'db' Anda
+    const result = await db.query("SELECT data FROM users");
 
-    if (result.rows.length === 0) {
+    let userDitemukan = null;
+
+    // 2. Lakukan looping karena data disimpan di dalam objek kolom 'data'
+    for (let i = 0; i < result.rows.length; i++) {
+      // Pastikan data di-parse jika tipenya masih string teks, atau langsung dibaca jika tipe JSONB
+      const rowData =
+        typeof result.rows[i].data === "string"
+          ? JSON.parse(result.rows[i].data)
+          : result.rows[i].data;
+
+      // Cocokkan username (abaikan huruf besar/kecil)
+      if (
+        rowData &&
+        rowData.username &&
+        rowData.username.toLowerCase() === username.toLowerCase()
+      ) {
+        userDitemukan = rowData;
+        break;
+      }
+    }
+
+    // 3. Cek apakah user ada
+    if (!userDitemukan) {
       return res
         .status(401)
         .json({ success: false, message: "Username tidak terdaftar" });
     }
-
-    // Ambil data user pertama yang ditemukan
-    const rawData = result.rows[0].data;
-    const userDitemukan =
-      typeof rawData === "string" ? JSON.parse(rawData) : rawData;
 
     // 4. Cocokkan password
     if (userDitemukan.password !== password) {
@@ -149,21 +163,21 @@ app.post("/api/login", async (req, res) => {
         .json({ success: false, message: "Password yang dimasukkan salah" });
     }
 
-    // ✅ OPTIMASI 2: Sertakan data 'role' agar bisa ditangkap oleh localStorage frontend!
+    // 5. Sukses! Kirim balik data untuk ditangkap oleh app_login.js frontend
     return res.json({
       success: true,
       token: "jwt_" + userDitemukan.username + "_" + Date.now(),
       user: {
         nama: userDitemukan.nama || userDitemukan.username,
         kode_cabang: userDitemukan.kode_cabang || userDitemukan.cabang || "00",
-        role: userDitemukan.role || "VIEWER", // 👈 BARIS KRUSIAL YANG HILANG KEMARIN
+        role: userDitemukan.role || "ADMIN", // Jika di DB kosong, defaultnya ADMIN
       },
     });
   } catch (error) {
     console.error("🔥 ERROR LOGIN API:", error.message);
     res.status(500).json({
       success: false,
-      message: "Terjadi error di server: " + error.message,
+      message: "Terjadi error di serverold.js: " + error.message,
     });
   }
 });
