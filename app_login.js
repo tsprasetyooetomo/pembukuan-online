@@ -33,7 +33,7 @@ async function loginSystem() {
 
     // ✅ PERBAIKAN 2: Deklarasi 'data' di sini (SEBELUM dipakai)
     const data = await res.json();
-    console.log("datauser :" + data);
+    console.log("datauser :", data);
     if (data.success) {
       // ✅ PERBAIKAN 3: Simpan ke localStorage cukup 1x di sini saja (tidak perlu duplikat)
       localStorage.setItem("token", data.token);
