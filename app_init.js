@@ -151,14 +151,16 @@ init();
 
 // Jalankan entry point aplikasi
 // Gunakan fungsi biasa (tanpa async)
+
+// Jalankan entry point aplikasi
 function buildSidebar() {
   const sbBody = document.getElementById("sbBody");
   if (!sbBody) return;
 
-  // 1. Ambil role user dari localStorage
+  // 1. Ambil role user dari localStorage (Default ke VIEWER jika tidak ada)
   const userRole = (localStorage.getItem("role") || "VIEWER").toUpperCase();
 
-  // 2. Data MENUS lengkap (Sudah ditutup dengan benar, tidak terpotong)
+  // 2. Gunakan array data MENUS asli milik Anda
   var MENUS = [
     {
       group: "PERKIRAAN",
@@ -216,25 +218,17 @@ function buildSidebar() {
       group: "LAPORAN KEUANGAN GABUNGAN",
       icon: "fa-chart-pie",
       items: [
-        { id: "neracas", label: "Neraca Gabungan", icon: "fa-scale-balanced" },
-        {
-          id: "detilNeracas",
-          label: "Detil Neraca Gabungan",
-          icon: "fa-table-list",
-        },
-        { id: "rlRekaps", label: "RL Rekap Gabungan", icon: "fa-chart-bar" },
+        { id: "neracas", label: "Neraca", icon: "fa-scale-balanced" },
+        { id: "detilNeracas", label: "Detil Neraca", icon: "fa-table-list" },
+        { id: "rlRekaps", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
         {
           id: "rlDetils",
-          label: "RL Detil Gabungan",
+          label: "RL Detil Bulanan",
           icon: "fa-bars-staggered",
         },
-        {
-          id: "rlLebars",
-          label: "RL Rekap 1-12 Gabungan",
-          icon: "fa-bars-staggered",
-        },
-        { id: "bukuBesars", label: "Buku Besar Gabungan", icon: "fa-book" },
-        { id: "expXlss", label: "Export XLS Gabungan", icon: "fa-file-excel" },
+        { id: "rlLebars", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
+        { id: "bukuBesars", label: "Buku Besar", icon: "fa-book" },
+        { id: "expXlss", label: "Export XLS", icon: "fa-file-excel" },
       ],
     },
     {
@@ -258,9 +252,9 @@ function buildSidebar() {
     },
   ];
 
-  let menuHtml = "";
+  let htmlMenu = "";
 
-  // 3. Filter menu berdasarkan role
+  // 3. PROSES STRUKTUR MENU BERDASARKAN HAK AKSES ROLE
   MENUS.forEach((grp) => {
     let itemsBolehTampil = [];
 
@@ -280,32 +274,41 @@ function buildSidebar() {
       }
     }
 
-    // 4. Buat HTML Group & Item Menu
+    // 4. JIKA GRUP MEMILIKI ITEM YANG BOLEH TAMPIL, GAMBAR KE HTML SIDEBAR
+    // ✅ PERHATIKAN: Class HTML di bawah sudah saya sesuaikan dengan style.css Anda
     if (itemsBolehTampil.length > 0) {
-      menuHtml += `
-        <div class="sb-group-wrapper">
-          <div class="sb-group-title">
-            <i class="fa-solid ${grp.icon}"></i> <span>${grp.group}</span>
+      htmlMenu += `
+        <div class="sb-grp">
+          <div class="sb-grp-t" onclick="this.classList.toggle('collapsed'); this.nextElementSibling.classList.toggle('collapsed');">
+            <span><i class="fa-solid ${grp.icon}" style="margin-right:6px; color:var(--accent);"></i> ${grp.group}</span>
+            <i class="fa-solid fa-chevron-down arr"></i>
           </div>
-          <ul class="sb-menu-list">
+          <div class="sb-grp-items">
       `;
 
       itemsBolehTampil.forEach((item) => {
-        menuHtml += `
-          <li class="sb-menu-item" onclick="navigate('${item.id}')" id="menu-${item.id}">
+        htmlMenu += `
+          <div class="sb-item" onclick="navigate('${item.id}')" id="menu-${item.id}">
             <i class="fa-solid ${item.icon}"></i>
             <span>${item.label}</span>
-          </li>
+          </div>
         `;
       });
 
-      menuHtml += `
-          </ul>
+      htmlMenu += `
+          </div>
         </div>
       `;
     }
   });
 
-  // 5. Masukkan ke elemen DOM sidebar Anda
-  sbBody.innerHTML = menuHtml;
+  sbBody.innerHTML = htmlMenu;
+
+  // 🔍 DEBUG: Untuk memastikan benar-benar terisi
+  console.log(
+    "✅ Sidebar berhasil dibangun. Role:",
+    userRole,
+    "| Jumlah Karakter HTML:",
+    htmlMenu.length,
+  );
 }
