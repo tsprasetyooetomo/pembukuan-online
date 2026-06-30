@@ -267,7 +267,14 @@ function buildSidebar() {
     if (userRole === "ADMIN") {
       itemsBolehTampil = grp.items;
     } else if (userRole === "AKUNTING") {
-      if (!["UTILITY", "USER"].includes(grp.group))
+      if (
+        ![
+          "UTILITY",
+          "LAPORAN KEUANGAN GABUNGAN",
+          "LAPORAN KEUANGAN",
+          "USER",
+        ].includes(grp.group)
+      )
         itemsBolehTampil = grp.items;
     } else if (userRole === "KASIR") {
       itemsBolehTampil = grp.items.filter((item) =>
