@@ -163,9 +163,11 @@ function buildSidebar() {
 
   const userRole = rawRole.toUpperCase();
   console.log("🎯 Role Fix yang digunakan sidebar: " + userRole);
+
   // Jika role kosong di localStorage, defaultnya ADMIN agar tidak blank
   // const userRole = (localStorage.getItem("role") || "ADMIN").toUpperCase();
   // console.log("role: " + userRole);
+
   var MENUS = [
     {
       group: "PERKIRAAN",
