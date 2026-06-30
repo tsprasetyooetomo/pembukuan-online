@@ -153,7 +153,7 @@ init();
 // Gunakan fungsi biasa (tanpa async)
 
 // Jalankan entry point aplikasi
-function buildSidebar() {
+function buildSidebar2() {
   const sbBody = document.getElementById("sbBody");
   if (!sbBody) return;
 
@@ -311,4 +311,24 @@ function buildSidebar() {
     "| Jumlah Karakter HTML:",
     htmlMenu.length,
   );
+}
+function buildSidebar() {
+  const sbBody = document.getElementById("sbBody");
+  if (!sbBody) {
+    console.error("❌ ELEMEN sbBody TIDAK DITEMUKAN DI HTML!");
+    return;
+  }
+
+  // TES BRUTAL: Langsung timpah dengan teks warna merah besar tanpa mempedulikan logic role
+  sbBody.innerHTML = `
+    <div style="padding:20px; color:red; font-size:20px; font-weight:bold; z-index:99999; background:yellow;">
+      TEST SIDEBAR MUNCUL!
+    </div>
+    <div style="padding:20px; color:white;">
+      Jika Anda melihat teks kuning ini, berarti masalahnya BUKAN di CSS Hidden Menu, 
+      dan BUKAN di posisi HTML. Tapi memang kode Logic Role Anda menghasilkan kosong (0 karakter).
+    </div>
+  `;
+
+  console.log("✅ Tes brutal dijalankan. Cek layar Anda!");
 }
