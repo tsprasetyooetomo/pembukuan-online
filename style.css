@@ -930,14 +930,21 @@ body {
   overscroll-behavior-y: contain;
 }
 /* === EFEK HIDE SIDEBAR (FLOATING) === */
-.sb.hidden-menu {
-  margin-left: -260px !important; /* Dorong sidebar keluar dari layar (sesuaikan -260px dengan lebar sidebar Anda) */
-  transition: margin-left 0.3s ease-in-out;
+/* === ANIMASI SIDEBAR YANG RAPI === */
+.sb {
+  /* Menggunakan transform lebih smooth daripada margin-left */
+  transition:
+    transform 0.3s ease-in-out,
+    width 0.3s ease-in-out,
+    min-width 0.3s ease-in-out;
 }
 
-/* Saat sidebar hidden, pastikan area main memenuhi layar */
-.sb {
-  transition: margin-left 0.3s ease-in-out;
+/* Logika Desktop: Tetap pakai transform untuk menyembunyikan */
+.hidden-menu {
+  transform: translateX(-100%) !important;
+  width: 0 !important;
+  min-width: 0 !important;
+  overflow: hidden !important;
 }
 body {
   overflow-y: auto !important;
