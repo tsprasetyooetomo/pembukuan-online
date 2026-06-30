@@ -117,7 +117,7 @@ async function init() {
 }
 
 // Jalankan entry point aplikasi
-function buildSidebar() {
+async function buildSidebar() {
   const sbBody = document.getElementById("sbBody");
   if (!sbBody) return;
 
