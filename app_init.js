@@ -152,15 +152,13 @@ init();
 // Jalankan entry point aplikasi
 // Gunakan fungsi biasa (tanpa async)
 
-// Jalankan entry point aplikasi
 function buildSidebar() {
   const sbBody = document.getElementById("sbBody");
   if (!sbBody) return;
 
-  // 1. Ambil role user dari localStorage (Default ke VIEWER jika tidak ada)
+  // Jika role kosong di localStorage, defaultnya ADMIN agar tidak blank
   const userRole = (localStorage.getItem("role") || "ADMIN").toUpperCase();
 
-  // 2. Gunakan array data MENUS asli milik Anda
   var MENUS = [
     {
       group: "PERKIRAAN",
@@ -254,28 +252,23 @@ function buildSidebar() {
 
   let htmlMenu = "";
 
-  // 3. PROSES STRUKTUR MENU BERDASARKAN HAK AKSES ROLE
   MENUS.forEach((grp) => {
     let itemsBolehTampil = [];
 
     if (userRole === "ADMIN") {
       itemsBolehTampil = grp.items;
     } else if (userRole === "AKUNTING") {
-      if (!["UTILITY", "USER"].includes(grp.group)) {
+      if (!["UTILITY", "USER"].includes(grp.group))
         itemsBolehTampil = grp.items;
-      }
     } else if (userRole === "KASIR") {
       itemsBolehTampil = grp.items.filter((item) =>
         ["saldoKasir", "mutasikasir", "kaskasir"].includes(item.id),
       );
     } else if (userRole === "VIEWER") {
-      if (grp.group === "LAPORAN KEUANGAN GABUNGAN") {
+      if (grp.group === "LAPORAN KEUANGAN GABUNGAN")
         itemsBolehTampil = grp.items;
-      }
     }
 
-    // 4. JIKA GRUP MEMILIKI ITEM YANG BOLEH TAMPIL, GAMBAR KE HTML SIDEBAR
-    // ✅ PERHATIKAN: Class HTML di bawah sudah saya sesuaikan dengan style.css Anda
     if (itemsBolehTampil.length > 0) {
       htmlMenu += `
         <div class="sb-grp">
@@ -283,66 +276,19 @@ function buildSidebar() {
             <span><i class="fa-solid ${grp.icon}" style="margin-right:6px; color:var(--accent);"></i> ${grp.group}</span>
             <i class="fa-solid fa-chevron-down arr"></i>
           </div>
-          <div class="sb-grp-items">
-      `;
+          <div class="sb-grp-items">`;
 
       itemsBolehTampil.forEach((item) => {
         htmlMenu += `
           <div class="sb-item" onclick="navigate('${item.id}')" id="menu-${item.id}">
             <i class="fa-solid ${item.icon}"></i>
             <span>${item.label}</span>
-          </div>
-        `;
+          </div>`;
       });
 
-      htmlMenu += `
-          </div>
-        </div>
-      `;
+      htmlMenu += `</div></div>`;
     }
   });
 
   sbBody.innerHTML = htmlMenu;
-
-  // 🔍 DEBUG: Untuk memastikan benar-benar terisi
-  console.log(
-    "✅ Sidebar berhasil dibangun. Role:",
-    userRole,
-    "| Jumlah Karakter HTML:",
-    htmlMenu.length,
-  );
 }
-// === SNIPER: MELACAK SIAPA YANG MEMBUNUH SIDEBAR ===
-function buildSidebar2() {
-  console.trace("🔍 SIAPA YANG MEMANGGIL BUILD SIDEBAR?");
-
-  const sbBody = document.getElementById("sbBody");
-  if (!sbBody) {
-    console.error("SB BODY TIDAK ADA!");
-    return;
-  }
-
-  // Paksa langsung tulis mentah-mentah tanpa logic apapun
-  sbBody.innerHTML = `
-    <div class="sb-grp">
-      <div class="sb-grp-t">
-        <span><i class="fa-solid fa-sitemap" style="margin-right:6px; color:var(--accent);"></i> PERKIRAAN</span>
-        <i class="fa-solid fa-chevron-down arr"></i>
-      </div>
-      <div class="sb-grp-items">
-        <div class="sb-item" onclick="alert('Klik berhasil!')">
-          <i class="fa-solid fa-layer-group"></i>
-          <span>TEST MENU GOLONGAN</span>
-        </div>
-      </div>
-    </div>
-  `;
-  console.log(
-    "✅ ISI HTML SBODY SEKARANG:",
-    sbBody.innerHTML.length,
-    "karakter",
-  );
-}
-
-// Jalankan entry point aplikasi
-init();
