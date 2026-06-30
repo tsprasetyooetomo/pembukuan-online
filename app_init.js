@@ -153,7 +153,7 @@ init();
 // Gunakan fungsi biasa (tanpa async)
 
 // Jalankan entry point aplikasi
-function buildSidebar1() {
+function buildSidebar() {
   const sbBody = document.getElementById("sbBody");
   if (!sbBody) return;
 
@@ -313,7 +313,7 @@ function buildSidebar1() {
   );
 }
 // === SNIPER: MELACAK SIAPA YANG MEMBUNUH SIDEBAR ===
-function buildSidebar() {
+function buildSidebar2() {
   console.trace("🔍 SIAPA YANG MEMANGGIL BUILD SIDEBAR?");
 
   const sbBody = document.getElementById("sbBody");
