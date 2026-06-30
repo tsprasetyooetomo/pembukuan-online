@@ -47,8 +47,8 @@ async function init() {
     const tbTitle = document.getElementById("tbTitle");
 
     // Ambil elemen jam dan tanggal (Sesuaikan ID-nya dengan HTML Anda)
-    const elemenJam = document.getElementById("jam");
-    const elemenTanggal = document.getElementById("tanggal");
+    // const elemenJam = document.getElementById("jam");
+    // const elemenTanggal = document.getElementById("tanggal");
 
     if (!token) {
       // JIKA BELUM LOGIN / SAAT HALAMAN BARU DIBUKA:
@@ -88,8 +88,8 @@ async function init() {
     if (loginBox) loginBox.style.display = "none";
     if (sidebar) sidebar.classList.remove("hidden-menu");
     if (tbTitle) tbTitle.style.display = "block";
-    if (elemenJam) elemenJam.style.display = "block";
-    if (elemenTanggal) elemenTanggal.style.display = "block";
+    //if (elemenJam) elemenJam.style.display = "block";
+    //if (elemenTanggal) elemenTanggal.style.display = "block";
 
     const namaUser = localStorage.getItem("nama") || "User";
     const cabangUser = localStorage.getItem("cabang") || "--";
