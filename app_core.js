@@ -370,19 +370,14 @@ $("mobToggle").onclick = function () {
    ================================================================ */
 var DBCache = {};
 
-var isCacheLoading = false; // Tambahkan variabel global di paling atas file app_core.js
-
 async function refreshCache() {
-  // ✅ PENGAMAN: Jika sedang proses loading, abaikan pemanggilan berikutnya
-  if (isCacheLoading) {
-    console.log("Cache: Sedang loading, pemanggilan dibatalkan.");
-    return;
-  }
-
-  isCacheLoading = true; // Kunci mulai loading
   try {
+    // 1. Ambil kode cabang user yang sedang login SEKARANG
     const cabangSaya = localStorage.getItem("cabang") || "";
-    console.log("Cache: Memuat data untuk cabang:", cabangSaya || "Pusat");
+    console.log("Cache: Memuat data untuk cabang:", cabangSaya);
+
+    // 2. Kirimkan parameter cabangSaya ke setiap pemanggilan db.getAll
+    // Jika user PUSAT ("00"), backend akan otomatis menarik semua data.
 
     DBCache.golongan = await db.getAll("golongan", cabangSaya);
     DBCache.perkiraan = await db.getAll("perkiraan", cabangSaya);
@@ -398,8 +393,6 @@ async function refreshCache() {
     console.log("✅ Cache master berhasil dimuat sesuai cabang.");
   } catch (error) {
     console.error("❌ Gagal memuat cache master:", error);
-  } finally {
-    isCacheLoading = false; // Lepas kunci setelah selesai (baik berhasil maupun error)
   }
 }
 async function refreshCache2(onlyStore) {
