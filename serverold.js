@@ -384,14 +384,19 @@ app.get("/api/data/:storeName", async (req, res) => {
 
     let result;
 
-    // 🟢 PERBAIKAN UTAMA: Saring langsung di level SQL jika user BUKAN pusat
+    // ✅ LOGIKA BARU:
+    // Jika filterCabang kosong ("") atau berisi kata "PUSAT", maka AMBIL SEMUA DATA
     if (
-      tabelWajibFilter.includes(lowerStoreName) &&
-      filterCabang &&
-      filterCabang !== "PUSAT" &&
-      filterCabang !== "00"
+      !filterCabang ||
+      filterCabang.trim() === "" ||
+      filterCabang.toUpperCase() === "PUSAT"
     ) {
-      // Menggunakan COALESCE (antisipasi null) dan ::text (paksa jadi teks agar tipe data cocok)
+      result = await db.query(`SELECT data FROM ${lowerStoreName}`);
+      console.log(
+        `System: SQL Fetch SEMUA DATA (PUSAT/TANPA CABANG) | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
+      );
+    } else if (tabelWajibFilter.includes(lowerStoreName)) {
+      // Selain itu (misalnya: 01, 02, 03, termasuk 00), maka DIFILTER
       const queryStr = `
         SELECT data FROM ${lowerStoreName} 
         WHERE COALESCE(data->>'kode_cabang', '')::text = $1 
@@ -400,13 +405,13 @@ app.get("/api/data/:storeName", async (req, res) => {
 
       result = await db.query(queryStr, [filterCabang]);
       console.log(
-        `System: SQL Fetch TERFILTER untuk cabang ${filterCabang} pada tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
+        `System: SQL Fetch TERFILTER cabang ${filterCabang} | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
       );
     } else {
-      // Jika user adalah PUSAT / 00, atau tabel tidak perlu divalidasi, tarik semua data
+      // Jika tabel tidak masuk daftar wajib filter (misal tabel lain di masa depan)
       result = await db.query(`SELECT data FROM ${lowerStoreName}`);
       console.log(
-        `System: SQL Fetch SEMUA DATA untuk tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
+        `System: SQL Fetch SEMUA DATA (TABEL BIASA) | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
       );
     }
 
