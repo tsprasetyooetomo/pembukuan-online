@@ -3947,9 +3947,9 @@ async function terapkanOpsiRLLebar() {
         var bsLabaAkhir = ("0" + b).slice(-2);
         if (currentDigit === "3") {
           akumulasiLabaRugiPerBulan[bsLabaAkhir] =
-            subTotalPerBulan[bsLabaAkhir];
+            -subTotalPerBulan[bsLabaAkhir];
         } else {
-          akumulasiLabaRugiPerBulan[bsLabaAkhir] -=
+          akumulasiLabaRugiPerBulan[bsLabaAkhir] =
             subTotalPerBulan[bsLabaAkhir];
         }
       }
