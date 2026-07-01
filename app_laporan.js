@@ -3868,7 +3868,7 @@ async function terapkanOpsiRLLebar() {
           var nilaiSubBulanIni = subTotalPerBulan[bsLaba] || 0; // Proteksi angka kosong
 
           if (currentDigit === "3") {
-            akumulasiLabaRugiPerBulan[bsLaba] = nilaiSubBulanIni;
+            akumulasiLabaRugiPerBulan[bsLaba] = nilaiSubBulanIni * -1;
           } else {
             // Proteksi juga jika nilai akumulasi sebelumnya belum terdefinisi
             akumulasiLabaRugiPerBulan[bsLaba] =
