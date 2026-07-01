@@ -373,7 +373,7 @@ var DBCache = {};
 async function refreshCache() {
   try {
     // 1. Ambil kode cabang user yang sedang login SEKARANG
-    const cabangSaya = localStorage.getItem("cabang") || "00";
+    const cabangSaya = localStorage.getItem("cabang") || "";
     console.log("Cache: Memuat data untuk cabang:", cabangSaya);
 
     // 2. Kirimkan parameter cabangSaya ke setiap pemanggilan db.getAll
