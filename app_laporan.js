@@ -3866,7 +3866,7 @@ async function terapkanOpsiRLLebar() {
           if (currentDigit === "3") {
             akumulasiLabaRugiPerBulan[bsLaba] = subTotalPerBulan[bsLaba];
           } else {
-            akumulasiLabaRugiPerBulan[bsLaba] -= subTotalPerBulan[bsLaba];
+            akumulasiLabaRugiPerBulan[bsLaba] += subTotalPerBulan[bsLaba];
           }
         }
 
