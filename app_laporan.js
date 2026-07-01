@@ -3861,18 +3861,12 @@ async function terapkanOpsiRLLebar() {
         buatBarisSubtotal(ket, arrSub, totalSub, "#1b5e20", false);
 
         // LOGIKA BARU: Simpan akumulasi Laba/Rugi sebelum reset
-
-        // Perbaikan bagian penambahan & pengurangan agar anti-NaN
         for (var b = 1; b <= 12; b++) {
           var bsLaba = ("0" + b).slice(-2);
-          var nilaiSubBulanIni = subTotalPerBulan[bsLaba] || 0; // Proteksi angka kosong
-
           if (currentDigit === "3") {
-            akumulasiLabaRugiPerBulan[bsLaba] = nilaiSubBulanIni;
+            akumulasiLabaRugiPerBulan[bsLaba] = subTotalPerBulan[bsLaba];
           } else {
-            // Proteksi juga jika nilai akumulasi sebelumnya belum terdefinisi
-            akumulasiLabaRugiPerBulan[bsLaba] =
-              (akumulasiLabaRugiPerBulan[bsLaba] || 0) + nilaiSubBulanIni;
+            akumulasiLabaRugiPerBulan[bsLaba] = subTotalPerBulan[bsLaba];
           }
         }
 
