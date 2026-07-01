@@ -3726,7 +3726,8 @@ async function terapkanOpsiRLLebar() {
       dataBulanIni.forEach((item) => {
         var kodeGol = String(item.gol || item.golongan || "");
         var namaGol = item.namaGol || item.nama_golongan || "";
-        var saldoAkhir = num(item.akhir || 0);
+        //   var saldoAkhir = num(item.akhir || 0);
+        var saldoAkhir = Number((item.db || 0) - (item.cr || 0));
 
         if (!mapGolongan[kodeGol]) {
           mapGolongan[kodeGol] = {
