@@ -370,26 +370,30 @@ $("mobToggle").onclick = function () {
    ================================================================ */
 var DBCache = {};
 
-async function refreshCache(onlyStore) {
-  if (onlyStore) {
-    DBCache[onlyStore] = await db.getAll(onlyStore);
-    return;
+async function refreshCache() {
+  try {
+    // 1. Ambil kode cabang user yang sedang login SEKARANG
+    const cabangSaya = localStorage.getItem("cabang") || "00";
+    console.log("Cache: Memuat data untuk cabang:", cabangSaya);
+
+    // 2. Kirimkan parameter cabangSaya ke setiap pemanggilan db.getAll
+    // Jika user PUSAT ("00"), backend akan otomatis menarik semua data.
+
+    DBCache.golongan = await db.getAll("golongan", cabangSaya);
+    DBCache.perkiraan = await db.getAll("perkiraan", cabangSaya);
+    DBCache.users = await db.getAll("users", cabangSaya);
+    DBCache.formatRL = await db.getAll("formatRL", cabangSaya);
+    DBCache.formatNeraca = await db.getAll("formatNeraca", cabangSaya);
+    DBCache.postedMonths = await db.getAll("postedMonths", cabangSaya);
+    DBCache.kodeBank = await db.getAll("kodeBank", cabangSaya);
+    DBCache.cabang = await db.getAll("cabang", cabangSaya);
+    DBCache.saldoKasir = await db.getAll("saldoKasir", cabangSaya);
+    DBCache.mutasikasir = await db.getAll("mutasikasir", cabangSaya);
+
+    console.log("✅ Cache master berhasil dimuat sesuai cabang.");
+  } catch (error) {
+    console.error("❌ Gagal memuat cache master:", error);
   }
-
-  // ✅ HAPUS BARIS INI:
-  // DBCache.transaksi = await db.getAll("transaksi");
-
-  // Tabel-tabel kecil/master (aman dibuka semua)
-  DBCache.golongan = await db.getAll("golongan");
-  DBCache.perkiraan = await db.getAll("perkiraan");
-  DBCache.users = await db.getAll("users");
-  DBCache.formatRL = await db.getAll("formatRL");
-  DBCache.formatNeraca = await db.getAll("formatNeraca");
-  DBCache.postedMonths = await db.getAll("postedMonths");
-  DBCache.kodeBank = await db.getAll("kodeBank");
-  DBCache.cabang = await db.getAll("cabang");
-  DBCache.saldoKasir = await db.getAll("saldoKasir");
-  DBCache.mutasikasir = await db.getAll("mutasikasir");
 }
 async function refreshCache2(onlyStore) {
   if (onlyStore) {
