@@ -1566,6 +1566,114 @@ PANEL_MAP.rlRekap = renderRLRekap;
 // =========================================================================
 // FUNGSI RENDER AWAL RL REKAP (UI Only - Tidak Load Data)
 // =========================================================================
+function renderRLRekap() {
+  // A. SIAPKAN NILAI DEFAULT SAAT PERTAMA KALI DIBUKA
+  if (typeof window._rlRekapFilterCabang === "undefined") {
+    window._rlRekapFilterCabang =
+      typeof currentCabang !== "undefined" &&
+      currentCabang !== "SEMUA" &&
+      currentCabang !== ""
+        ? currentCabang
+        : "Pusat";
+  }
+
+  if (typeof window._rlRekapFilterMasa === "undefined") {
+    var d = new Date();
+    var bln = ("0" + (d.getMonth() + 1)).slice(-2);
+    window._rlRekapFilterMasa = bln + "-" + d.getFullYear();
+  }
+
+  // Pecah Masa untuk kebutuhan format Input HTML
+  var partMasa = window._rlRekapFilterMasa.split("-");
+  var filterBulan = partMasa[0];
+  var filterTahunFull = partMasa[1];
+  var inputMonthValue = filterTahunFull + "-" + filterBulan;
+
+  // B. SIAPKAN OPSI DROPDOWN CABANG
+  var rawCabang = DBCache.cabang || [];
+  var daftarCabangObj = [];
+
+  rawCabang.forEach(function (c) {
+    var id = (c.cabang || c.kode || "").trim();
+    var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
+    if (id) {
+      daftarCabangObj.push({ id: id, nama: nama });
+    }
+  });
+
+  daftarCabangObj.sort(function (a, b) {
+    return a.id.localeCompare(b.id, undefined, { numeric: true });
+  });
+
+  if (daftarCabangObj.length === 0) {
+    daftarCabangObj.push({ id: "PUSAT", nama: "PUSAT" });
+  }
+
+  var kodeDefault = window._rlRekapFilterCabang;
+  if (!kodeDefault) kodeDefault = daftarCabangObj[0].id;
+
+  var opsiCabangHtml = daftarCabangObj
+    .map(function (item) {
+      var sel =
+        item.id.toLowerCase() === kodeDefault.toLowerCase() ? "selected" : "";
+      return (
+        '<option value="' +
+        item.id +
+        '" ' +
+        sel +
+        ">" +
+        item.nama.toUpperCase() +
+        "</option>"
+      );
+    })
+    .join("");
+
+  // C. RENDER HTML ANTARMUKA KOSONG
+  var htmlLaporan =
+    '<div id="area_cetak_rlrekap" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
+    '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
+    // --- JUDUL ---
+    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap (Pendapatan & Beban)</h3>' +
+    // --- FILTER PANEL ---
+    '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
+    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
+    '<div style="display:flex; align-items:center; gap:5px;">' +
+    '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
+    '<input type="month" id="filter_rlrekap_masa" value="' +
+    inputMonthValue +
+    '" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem;">' +
+    "</div>" +
+    '<div style="display:flex; align-items:center; gap:5px;">' +
+    '<label style="font-size:.75rem; color:var(--muted);">Cabang:</label>' +
+    '<select id="filter_rlrekap_cabang" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;">' +
+    opsiCabangHtml +
+    "</select>" +
+    "</div>" +
+    '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiRLRekap()">' +
+    "Terapkan" +
+    "</button>" +
+    // ✅ TAMBAHKAN TOMBOL DOWNLOAD EXCEL
+    // '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLDetilExcel()">' +
+    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLRekapExcel()">' +
+    '<i class="fa-solid fa-file-excel"></i> Download Excel' +
+    "</button>" +
+    "</div>" +
+    // --- WADAH SCROLL UTAMA ---
+    '<div class="table-responsive-container" style="width:100%; max-width:100%; height:380px; max-height:380px; overflow:auto; display:block; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box; margin:0 auto; clear:both;">' +
+    "<style>" +
+    "#tempat_tabel_rlrekap table { width: 100% !important; min-width: 900px !important; border-collapse: collapse !important; table-layout: auto !important; margin:0 !important; }" +
+    "#tempat_tabel_rlrekap th { padding: 8px 12px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; }" +
+    "#tempat_tabel_rlrekap td { padding: 8px 12px !important; white-space: nowrap !important; border: 1px solid var(--brd); " +
+    "</style>" +
+    '<div id="tempat_tabel_rlrekap" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
+    "</div>" +
+    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data RL Rekap.</p>' +
+    "</div>" +
+    "</div>";
+
+  return htmlLaporan;
+}
+
 async function terapkanOpsiRLRekap() {
   var inputmasa = document.getElementById("filter_rlrekap_masa");
   var selectcabang = document.getElementById("filter_rlrekap_cabang");
