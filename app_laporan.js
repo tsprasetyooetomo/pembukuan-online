@@ -3847,7 +3847,7 @@ async function terapkanOpsiRLLebar() {
         // Pendapatan (3xx) di database biasanya sudah Positif. Untuk Laba/Rugi jadikan Negatif.
         // Beban (4,5,6xx) di database biasanya sudah Negatif. Biarkan apa adanya (Positifkan di sini).
         if (digitSekarang === "3") {
-          akumulasiLabaRugiPerBulan[bsLaba] -= nilaiBulanIni;
+          akumulasiLabaRugiPerBulan[bsLaba] = nilaiBulanIni;
         } else {
           akumulasiLabaRugiPerBulan[bsLaba] += nilaiBulanIni;
         }
