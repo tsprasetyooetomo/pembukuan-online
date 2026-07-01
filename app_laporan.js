@@ -3840,7 +3840,7 @@ async function terapkanOpsiRLLebar() {
       var item = listGol[i];
       var kodeGol = parseInt(item.gol, 10);
       var digit = String(kodeGol).charAt(0);
-
+      console.log(item);
       if (currentDigit !== null && digit !== currentDigit) {
         var arrSub = {};
         var totalSub = 0;
