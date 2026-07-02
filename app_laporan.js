@@ -1757,8 +1757,7 @@ async function terapkanOpsiRLRekap() {
         return (
           cocokGolongan &&
           masaData === kodemasadicari &&
-          cabangData === valcabang &&
-          saldoAkhir !== 0
+          cabangData === valcabang
         );
       })
       .sort(function (a, b) {
