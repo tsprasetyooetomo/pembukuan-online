@@ -1708,7 +1708,9 @@ async function terapkanOpsiRLRekap() {
 
   try {
     // ✅ 1. AMBIL DATA MASTER GOLONGAN (UNTUK NAMA)
-    var rawMasterGol = await db.getAll("golongan"); // Sesuaikan nama store master jika berbeda
+    // ✅ 1. AMBIL DATA MASTER GOLONGAN (DIFILTER CABANG)
+    // Gunakan nama store master yang benar (kemungkinan besar "golongan" tanpa tahun)
+    var rawMasterGol = await db.getAll("golongan");
     var mapMasterGol = {};
 
     if (rawMasterGol) {
@@ -1716,15 +1718,19 @@ async function terapkanOpsiRLRekap() {
         ? rawMasterGol
         : Object.values(rawMasterGol);
       arrMasterGol.forEach(function (m) {
-        // Ambil kode sebagai key, dan nama sebagai value
-        var kode = String(m.gol || m.kode_gol || m.kode || "").trim();
-        var nama = String(m.namaGol || m.nama || m.nama_golongan || "").trim();
-        if (kode) {
+        var kode = String(m.gol || m.kode_gol || "").trim();
+        var nama = String(m.namaGol || m.nama || "").trim();
+
+        // ✅ Ambil kode cabang dari datanya
+        var cabangMaster = String(m.cabang || "").trim();
+
+        // ✅ FILTER: Hanya masukkan ke dictionary jika cabangnya cocok dengan yang dipilih user
+        if (kode && cabangMaster === valcabang) {
           mapMasterGol[kode] = nama;
         }
       });
     }
-
+    console.table(mapMasterGol);
     // ✅ 2. AMBIL DATA BACKUP (UNTUK NILAI DB & CR)
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
@@ -2354,7 +2360,8 @@ async function terapkanOpsiRLDetil() {
   try {
     // ✅ 1. AMBIL DATA MASTER PERKIRAAN (UNTUK NAMA)
     // Sesuaikan "perkiraan_master" dengan nama asli store master di DB Anda
-    var rawMasterPerk = await db.getAll("perkiraan_master");
+    // ✅ 1. AMBIL DATA MASTER PERKIRAAN (DIFILTER CABANG)
+    var rawMasterPerk = await db.getAll("perkiraan"); // Sesuaikan nama store master-nya
     var mapMasterPerk = {};
 
     if (rawMasterPerk) {
@@ -2362,19 +2369,18 @@ async function terapkanOpsiRLDetil() {
         ? rawMasterPerk
         : Object.values(rawMasterPerk);
       arrMasterPerk.forEach(function (m) {
-        var kode = String(
-          m.perkiraan || m.kode_perkiraan || m.kode || "",
-        ).trim();
-        // Sesuaikan "namaPerkiraan" dengan field nama yang ada di master Anda
-        var nama = String(
-          m.namaPerkiraan || m.nama || m.nama_perkiraan || "",
-        ).trim();
-        if (kode) {
+        var kode = String(m.perkiraan || m.kode_perkiraan || "").trim();
+        var nama = String(m.namaPerkiraan || m.nama || "").trim();
+
+        // ✅ Ambil kode cabang dari datanya
+        var cabangMaster = String(m.cabang || "").trim();
+
+        // ✅ FILTER: Hanya masukkan ke dictionary jika cabangnya cocok
+        if (kode && cabangMaster === valcabang) {
           mapMasterPerk[kode] = nama;
         }
       });
     }
-
     // ✅ 2. AMBIL DATA BACKUP PERKIRAAN (UNTUK NILAI DB & CR)
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdataperkiraan = resgolbackup
