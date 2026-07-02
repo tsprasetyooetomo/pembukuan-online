@@ -2251,49 +2251,40 @@ PANEL_MAP.rlDetil = renderRLDetil;
 // 1. FUNGSI RENDER ANTARMUKA RL DETIL (KOSONG)
 // =========================================================================
 function renderRLDetil() {
-  // A. SIAPKAN NILAI DEFAULT SAAT PERTAMA KALI DIBUKA
-  if (typeof window._rlRekapFilterCabang === "undefined") {
-    window._rlRekapFilterCabang =
+  // A. SIAPKAN NILAI DEFAULT (Sudah diganti jadi _rlDetil)
+  if (typeof window._rlDetilFilterCabang === "undefined") {
+    window._rlDetilFilterCabang =
       typeof currentCabang !== "undefined" &&
       currentCabang !== "SEMUA" &&
       currentCabang !== ""
         ? currentCabang
         : "Pusat";
   }
-
-  if (typeof window._rlRekapFilterMasa === "undefined") {
+  if (typeof window._rlDetilFilterMasa === "undefined") {
     var d = new Date();
     var bln = ("0" + (d.getMonth() + 1)).slice(-2);
-    window._rlRekapFilterMasa = bln + "-" + d.getFullYear();
+    window._rlDetilFilterMasa = bln + "-" + d.getFullYear();
   }
 
-  // Pecah Masa untuk kebutuhan format Input HTML
-  var partMasa = window._rlRekapFilterMasa.split("-");
+  var partMasa = window._rlDetilFilterMasa.split("-");
   var filterBulan = partMasa[0];
   var filterTahunFull = partMasa[1];
   var inputMonthValue = filterTahunFull + "-" + filterBulan;
 
-  // B. SIAPKAN OPSI DROPDOWN CABANG
   var rawCabang = DBCache.cabang || [];
   var daftarCabangObj = [];
-
   rawCabang.forEach(function (c) {
     var id = (c.cabang || c.kode || "").trim();
     var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
-    if (id) {
-      daftarCabangObj.push({ id: id, nama: nama });
-    }
+    if (id) daftarCabangObj.push({ id: id, nama: nama });
   });
-
   daftarCabangObj.sort(function (a, b) {
     return a.id.localeCompare(b.id, undefined, { numeric: true });
   });
-
-  if (daftarCabangObj.length === 0) {
+  if (daftarCabangObj.length === 0)
     daftarCabangObj.push({ id: "PUSAT", nama: "PUSAT" });
-  }
 
-  var kodeDefault = window._rlRekapFilterCabang;
+  var kodeDefault = window._rlDetilFilterCabang;
   if (!kodeDefault) kodeDefault = daftarCabangObj[0].id;
 
   var opsiCabangHtml = daftarCabangObj
@@ -2312,61 +2303,50 @@ function renderRLDetil() {
     })
     .join("");
 
-  // C. RENDER HTML ANTARMUKA KOSONG
+  // C. RENDER HTML (✅ ID Sudah diganti jadi rldetil)
   var htmlLaporan =
-    '<div id="area_cetak_rlrekap" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
+    '<div id="area_cetak_rldetil" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
-    // --- JUDUL ---
-    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap (Pendapatan & Beban)</h3>' +
-    // --- FILTER PANEL ---
+    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Detil (Rugi Laba Rinci)</h3>' +
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
     '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
-    '<input type="month" id="filter_rlrekap_masa" value="' +
+    '<input type="month" id="filter_rldetil_masa" value="' +
     inputMonthValue +
     '" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem;">' +
     "</div>" +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Cabang:</label>' +
-    '<select id="filter_rlrekap_cabang" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;">' +
+    '<select id="filter_rldetil_cabang" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;">' +
     opsiCabangHtml +
     "</select>" +
     "</div>" +
-    '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiRLDetil()">' +
-    "Terapkan" +
-    "</button>" +
-    // ✅ TAMBAHKAN TOMBOL DOWNLOAD EXCEL
-    // '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLDetilExcel()">' +
-    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLDetilExcel()">' +
-    '<i class="fa-solid fa-file-excel"></i> Download Excel' +
-    "</button>" +
+    '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiRLDetil()">Terapkan</button>' +
+    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLDetilExcel()"><i class="fa-solid fa-file-excel"></i> Download Excel</button>' +
     "</div>" +
-    // --- WADAH SCROLL UTAMA ---
     '<div class="table-responsive-container" style="width:100%; max-width:100%; height:380px; max-height:380px; overflow:auto; display:block; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box; margin:0 auto; clear:both;">' +
     "<style>" +
-    "#tempat_tabel_rlrekap table { width: 100% !important; min-width: 900px !important; border-collapse: collapse !important; table-layout: auto !important; margin:0 !important; }" +
-    "#tempat_tabel_rlrekap th { padding: 8px 12px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; }" +
-    "#tempat_tabel_rlrekap td { padding: 8px 12px !important; white-space: nowrap !important; border: 1px solid var(--brd); " +
+    "#tempat_tabel_rldetil table { width: 100% !important; min-width: 900px !important; border-collapse: collapse !important; table-layout: auto !important; margin:0 !important; }" +
+    "#tempat_tabel_rldetil th { padding: 8px 12px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; }" +
+    "#tempat_tabel_rldetil td { padding: 8px 12px !important; white-space: nowrap !important; border: 1px solid var(--brd); }" +
     "</style>" +
-    '<div id="tempat_tabel_rlrekap" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
+    '<div id="tempat_tabel_rldetil" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
     "</div>" +
-    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data RL Rekap.</p>' +
-    "</div>" +
-    "</div>";
+    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data RL Detil.</p>' +
+    "</div></div>";
 
   return htmlLaporan;
 }
 
-async function terapkanOpsiRLRDetil() {
-  var inputmasa = document.getElementById("filter_rlrekap_masa");
-  var selectcabang = document.getElementById("filter_rlrekap_cabang");
-
+// ✅ Nama fungsi sudah diperbaiki (tidak ada huruf R kelebihan)
+async function terapkanOpsiRLDetil() {
+  var inputmasa = document.getElementById("filter_rldetil_masa");
+  var selectcabang = document.getElementById("filter_rldetil_cabang");
   if (!inputmasa || !selectcabang) return;
 
   var valmasa = inputmasa.value;
   var valcabang = selectcabang.value;
-
   if (!valmasa) {
     if (typeof toast === "function")
       toast("Silakan pilih masa terlebih dahulu", "err");
@@ -2378,44 +2358,37 @@ async function terapkanOpsiRLRDetil() {
   var filterbulan = part[1];
   var duadigittahunbelakang = filtertahunfull.substring(2, 4);
 
-  window._rlRekapFilterMasa = filterbulan + "-" + filtertahunfull;
-  window._rlRekapFilterCabang = valcabang;
+  window._rlDetilFilterMasa = filterbulan + "-" + filtertahunfull;
+  window._rlDetilFilterCabang = valcabang;
 
   var kodemasadicari = filterbulan + duadigittahunbelakang;
   var namastoregolbackup = "perkiraan" + filtertahunfull;
 
-  var area = document.getElementById("tempat_tabel_rlrekap");
+  var area = document.getElementById("tempat_tabel_rldetil");
   if (area) {
     area.innerHTML =
       '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data master & menghitung akumulasi...</div>';
   }
 
   try {
-    // ✅ 1. AMBIL DATA MASTER GOLONGAN (UNTUK NAMA)
-    // ✅ 1. AMBIL DATA MASTER GOLONGAN (DIFILTER CABANG)
-    // Gunakan nama store master yang benar (kemungkinan besar "golongan" tanpa tahun)
+    // 1. AMBIL MASTER
     var rawMasterGol = await db.getAll("perkiraan");
     var mapMasterGol = {};
-
     if (rawMasterGol) {
       var arrMasterGol = Array.isArray(rawMasterGol)
         ? rawMasterGol
         : Object.values(rawMasterGol);
       arrMasterGol.forEach(function (m) {
-        var kode = String(m.noPerk || m.kode_gol || "").trim();
+        var kode = String(m.noPerk || m.kode_perkiraan || "").trim();
         var nama = String(m.desc || m.nama || "").trim();
-
-        // ✅ Ambil kode cabang dari datanya
         var cabangMaster = String(m.cabang || "").trim();
-
-        // ✅ FILTER: Hanya masukkan ke dictionary jika cabangnya cocok dengan yang dipilih user
         if (kode && cabangMaster === valcabang) {
           mapMasterGol[kode] = nama;
         }
       });
     }
-    console.table(mapMasterGol);
-    // ✅ 2. AMBIL DATA BACKUP (UNTUK NILAI DB & CR)
+
+    // 2. AMBIL BACKUP
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
       ? Array.isArray(resgolbackup)
@@ -2423,21 +2396,15 @@ async function terapkanOpsiRLRDetil() {
         : Object.values(resgolbackup)
       : [];
 
-    // 3. Filter data HANYA untuk bulan yang dipilih
+    // 3. Filter Bulan Ini
     var golBulanIni = rawdatagolongan
       .filter(function (g) {
-        var kodeGolongan = parseInt(
-          g.noPerk || g.golongan || g.kode_golongan || 0,
-          10,
-        );
+        var kodeGolongan = parseInt(g.noPerk || g.kode_perkiraan || 0, 10);
         var cocokGolongan = kodeGolongan >= 300 && kodeGolongan < 700;
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
-
-        var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
-
         return (
           cocokGolongan &&
           masaData === kodemasadicari &&
@@ -2446,16 +2413,16 @@ async function terapkanOpsiRLRDetil() {
       })
       .sort(function (a, b) {
         return (
-          parseInt(a.noPerk || a.golongan || 0, 10) -
-          parseInt(b.noPerk || b.golongan || 0, 10)
+          parseInt(a.noPerk || a.kode_perkiraan || 0, 10) -
+          parseInt(b.noPerk || b.kode_perkiraan || 0, 10)
         );
       });
 
-    // 4. Hitung AKUMULASI SD BULAN LALU secara dinamis dari seluruh data tahun ini
+    // 4. Hitung AKUMULASI SD BULAN LALU
     var mapAkmBulanLalu = {};
     if (parseInt(filterbulan) > 1) {
       var dataSelainBulanIni = rawdatagolongan.filter(function (g) {
-        var kodeGolongan = parseInt(g.noPerk || g.golongan || 0, 10);
+        var kodeGolongan = parseInt(g.noPerk || g.kode_perkiraan || 0, 10);
         var cocokGolongan = kodeGolongan >= 300 && kodeGolongan < 700;
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
@@ -2463,7 +2430,6 @@ async function terapkanOpsiRLRDetil() {
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
         var tahunMasa = masaData.substring(2, 6);
         var bulanMasa = masaData.substring(0, 2);
-
         return (
           cocokGolongan &&
           cabangData === valcabang &&
@@ -2471,11 +2437,9 @@ async function terapkanOpsiRLRDetil() {
           parseInt(bulanMasa) < parseInt(filterbulan)
         );
       });
-
       dataSelainBulanIni.forEach(function (g) {
-        var kodeGol = String(g.noPerk || g.golongan || "");
+        var kodeGol = String(g.noPerk || g.kode_perkiraan || "");
         var saldo = +(g.db || 0) - +(g.cr || 0);
-
         if (!mapAkmBulanLalu[kodeGol]) mapAkmBulanLalu[kodeGol] = 0;
         mapAkmBulanLalu[kodeGol] += saldo;
       });
@@ -2484,31 +2448,24 @@ async function terapkanOpsiRLRDetil() {
     if (golBulanIni.length === 0) {
       if (area)
         area.innerHTML =
-          '<div style="padding:3rem; text-align:center; color:var(--muted);">🔍 Data RL Rekap kosong / tidak ada saldo.</div>';
+          '<div style="padding:3rem; text-align:center; color:var(--muted);">🔍 Data RL Detil kosong / tidak ada saldo.</div>';
       return;
     }
 
-    // ✅ 5. GABUNGKAN: Backup + Nama dari Master + Akumulasi Bulan Lalu
+    // 5. GABUNGKAN & FILTER SALDO 0
     var finalData = golBulanIni
       .map(function (item) {
-        var kodeGol = String(item.noPerk || item.golongan || "");
+        var kodeGol = String(item.noPerk || item.kode_perkiraan || "");
         var akmLalu = mapAkmBulanLalu[kodeGol] || 0;
-
-        // Hitung saldo bulan ini
         var bulanIni = +(item.db || 0) - +(item.cr || 0);
-
-        // Hitung Saldo Total
         var saldoTotal = bulanIni + akmLalu;
-
         return {
           ...item,
-          namaGol: mapMasterGol[kodeGol] || item.namaGol || "-",
+          namaPerkiraan: mapMasterGol[kodeGol] || item.desc || item.nama || "-",
           akmBulanLalu: akmLalu,
-          // Simpan sementara untuk di-filter
           _saldoTotal: saldoTotal,
         };
       })
-      // ✅ FILTER DI SINI: Buang baris jika Total Saldo Akhirnya NOL
       .filter(function (item) {
         return item._saldoTotal !== 0;
       });
@@ -2516,7 +2473,7 @@ async function terapkanOpsiRLRDetil() {
     window.golterfilterrl = finalData;
 
     var html = "";
-    var outerArea = document.getElementById("area_cetak_rlrekap");
+    var outerArea = document.getElementById("area_cetak_rldetil");
     if (outerArea) {
       outerArea.style.height = "auto";
       outerArea.style.maxHeight = "none";
@@ -2528,10 +2485,11 @@ async function terapkanOpsiRLRDetil() {
       area.style.height = "auto";
     }
 
+    // ✅ Nama fungsi generator sudah diperbaiki (hilangkan huruf p)
     html += generateHTMLRLDetil(finalData, kodemasadicari, valcabang, false);
     area.innerHTML = html;
   } catch (error) {
-    console.error("❌ Gagal total RL Rekap:", error);
+    console.error("❌ Gagal total RL Detil:", error);
     if (area)
       area.innerHTML =
         '<div style="padding:3rem; text-align:center; color:darkred;">Error: ' +
@@ -2543,18 +2501,17 @@ async function terapkanOpsiRLRDetil() {
 async function downloadRLDetilExcel() {
   if (!window.golterfilterrl || window.golterfilterrl.length === 0) {
     if (typeof toast === "function")
-      toast("Tidak ada data RL Rekap untuk didownload", "err");
+      toast("Tidak ada data RL Detil untuk didownload", "err");
     return;
   }
-  var htmlContent = generateHTMLRLRekap(
+  var htmlContent = generateHTMLRLDetil(
     window.golterfilterrl,
-    window._rlRekapFilterMasa,
-    window._rlRekapFilterCabang,
+    window._rlDetilFilterMasa,
+    window._rlDetilFilterCabang,
     true,
   );
   var fullHtml =
-    `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-    <head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>RL Rekap</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>` +
+    `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>RL Detil</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>` +
     htmlContent +
     `</body></html>`;
   var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
@@ -2562,32 +2519,30 @@ async function downloadRLDetilExcel() {
   var a = document.createElement("a");
   a.href = url;
   a.download =
-    "Laporan_RL_Rekap_" + (window._rlRekapFilterMasa || "Export") + ".xls";
+    "Laporan_RL_Detil_" + (window._rlDetilFilterMasa || "Export") + ".xls";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   if (typeof toast === "function")
-    toast("File Excel RL Rekap sedang didownload...", "ok");
+    toast("File Excel RL Detil sedang didownload...", "ok");
 }
 
-// ✅ FUNGSI GENERATOR HTML YANG SUDAH DIPERBAIKI (DIGABUNGKAN UNTUK WEB & EXCEL)
-// ✅ FUNGSI GENERATOR HTML YANG SUDAH DIPERBAIKI SEPENUHNYA
-function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
+// ✅ Nama fungsi sudah diperbaiki (tanpa huruf p di belakang)
+function generateHTMLRLDetil(dataRL, kodemasadicari, valcabang, isForExcel) {
   var html = "";
   if (!isForExcel) {
     html +=
       '<div style="margin-bottom:.7rem; font-size:.78rem; color: var(--muted);">3xx = Penjualan &bull; 4xx = HPP &bull; 5xx = By Adm & Umum &bull; 6xx = Beban Lainnya</div>';
   }
-
   html +=
     '<div style="width: 100%; overflow-x: auto; border: 1px solid #ddd;">';
   html +=
     '<table border="1" style="width:100%; min-width: 900px; border-collapse: collapse; text-align:left; color:#000; border: 1px solid #000;">';
-
   html += '<thead style="background:#f4f4f4; font-weight:bold;"><tr>';
-  html += '<th style="padding:10px; border:1px solid #000;">GOL</th>';
-  html += '<th style="padding:10px; border:1px solid #000;">NAMA GOLONGAN</th>';
+  html += '<th style="padding:10px; border:1px solid #000;">PERKIRAAN</th>';
+  html +=
+    '<th style="padding:10px; border:1px solid #000;">NAMA PERKIRAAN</th>';
   html += '<th style="padding:10px; border:1px solid #000;">MASA</th>';
   html +=
     '<th style="padding:10px; border:1px solid #000; text-align:right;">BULAN INI</th>';
@@ -2622,7 +2577,6 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
     var topBorder = isDoubleTop ? "border-top: 3px double #000;" : "";
     var warnaFont = nAkhir >= 0 ? "green" : "red";
     var xNumAttr = isForExcel ? ' x:num="' + nAkhir + '"' : "";
-
     html += "<tr>";
     html +=
       '<td colspan="3" style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
@@ -2669,14 +2623,14 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
     html += "</tr>";
   }
 
-  // Fungsi bantuan untuk mengambil data subtotals agar kode tidak berulang
   function getSub(digit) {
     return subtotals[digit] || { bulanIni: 0, akmLalu: 0, akhir: 0 };
   }
 
   for (var i = 0; i < dataRL.length; i++) {
     var item = dataRL[i];
-    var kodeGol = parseInt(item.gol || item.golongan || 0, 10);
+    // ✅ YANG DIPERBAIKI: Pakai noPerk bukan gol
+    var kodeGol = parseInt(item.noPerk || item.kode_perkiraan || 0, 10);
     var itemDigit = String(kodeGol).charAt(0);
 
     var valBulanIni = num(item.db || 0) - num(item.cr || 0);
@@ -2689,13 +2643,11 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
         akmLalu: sumAkmLalu,
         akhir: sumAkhir,
       };
-
       var ketSubtotal = "SUBTOTAL GOLONGAN " + currentDigit + "xx";
       if (currentDigit === "3") ketSubtotal = "PENJUALAN BERSIH";
       if (currentDigit === "4") ketSubtotal = "TOTAL HPP";
       if (currentDigit === "5") ketSubtotal = "TOTAL BY ADM & UMUM";
       if (currentDigit === "6") ketSubtotal = "TOTAL BEBAN LAINNYA";
-
       buatBarisSubtotal(
         ketSubtotal,
         sumBulanIni,
@@ -2748,7 +2700,6 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
         html +=
           "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
       }
-
       sumBulanIni = 0;
       sumAkmLalu = 0;
       sumAkhir = 0;
@@ -2767,11 +2718,12 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
     sumAkhir += valAkhir;
 
     html += '<tr style="font-size: 0.85rem;">';
+    // ✅ YANG DIPERBAIKI: Ambil nilai noPerk
     var golVal =
-      item.gol !== undefined
-        ? item.gol
-        : item.golongan !== undefined
-          ? item.golongan
+      item.noPerk !== undefined
+        ? item.noPerk
+        : item.kode_perkiraan !== undefined
+          ? item.kode_perkiraan
           : "";
 
     if (isForExcel) {
@@ -2792,9 +2744,10 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
         "</td>";
     }
 
+    // ✅ YANG DIPERBAIKI: Pakai namaPerkiraan
     html +=
       '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
-      (item.namaGol || "") +
+      (item.desc || "-") +
       "</td>";
 
     var textMasa = item.masa || "";
@@ -2839,20 +2792,18 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
     html += "</tr>";
   }
 
-  // ✅ SUBTOTAL DIGIT TERAKHIR (SUDAH DIPERBAIKI KONSISTENSI 3 KOLOMNYA)
+  // SUBTOTAL DIGIT TERAKHIR
   if (currentDigit !== null) {
     subtotals[currentDigit] = {
       bulanIni: sumBulanIni,
       akmLalu: sumAkmLalu,
       akhir: sumAkhir,
     };
-
     var ketAkhir = "SUBTOTAL GOLONGAN " + currentDigit + "xx";
     if (currentDigit === "3") ketAkhir = "PENJUALAN BERSIH";
     if (currentDigit === "4") ketAkhir = "TOTAL HPP";
     if (currentDigit === "5") ketAkhir = "TOTAL BY ADM & UMUM";
     if (currentDigit === "6") ketAkhir = "TOTAL BEBAN LAINNYA";
-
     buatBarisSubtotal(
       ketAkhir,
       sumBulanIni,
@@ -2862,7 +2813,6 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
       false,
     );
 
-    // Logika setelah golongan terakhir selesai
     if (currentDigit === "4") {
       var g3 = getSub("3");
       buatBarisSubtotal(
@@ -2905,7 +2855,7 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
     }
   }
 
-  // ✅ LABA RUGI BERSIH (SUDAH DIPERBAIKI KONSISTENSI 3 KOLOMNYA)
+  // LABA RUGI BERSIH
   var g3 = getSub("3"),
     g4 = getSub("4"),
     g5 = getSub("5"),
@@ -2913,7 +2863,6 @@ function generateHTMLRLDetilp(dataRL, kodemasadicari, valcabang, isForExcel) {
   var lrBulanIni = g3.bulanIni + g4.bulanIni + g5.bulanIni + g6.bulanIni;
   var lrAkmLalu = g3.akmLalu + g4.akmLalu + g5.akmLalu + g6.akmLalu;
   var lrAkhir = g3.akhir + g4.akhir + g5.akhir + g6.akhir;
-
   html +=
     "<tr><td colspan='7' style='border:1px solid #000; padding:6px; background-color:#fff;'></td></tr>";
   buatBarisSubtotal(
