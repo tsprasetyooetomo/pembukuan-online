@@ -1888,7 +1888,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       teks +
       "</td></tr>";
   }
-
   function buatBarisSubtotal(
     teks,
     nBulanIni,
@@ -1902,14 +1901,18 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
     var xNumAttr = isForExcel ? ' x:num="' + nAkhir + '"' : "";
 
     html += "<tr>";
+
+    // KOLOM 1 (Gabungkan GOL, NAMA, MASA) -> colspan="3"
     html +=
-      '<td colspan="5" style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
+      '<td colspan="3" style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
       warnaBg +
       "; color:#000; " +
       topBorder +
       '">' +
       teks +
       "</td>";
+
+    // KOLOM 2 (BULAN INI)
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
       warnaBg +
@@ -1919,6 +1922,7 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       (nBulanIni !== 0 ? formatUang(nBulanIni) : "-") +
       "</td>";
 
+    // KOLOM 3 (AKM SD BLN LALU)
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
       warnaBg +
@@ -1927,6 +1931,8 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       '">' +
       (nAkmLalu !== 0 ? formatUang(nAkmLalu) : "-") +
       "</td>";
+
+    // KOLOM 4 (SALDO AKHIR)
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; white-space:nowrap; background-color:' +
       warnaBg +
@@ -1939,12 +1945,15 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       ">" +
       formatUang(nAkhir) +
       "</td>";
+
+    // KOLOM 5 (CABANG)
     html +=
       '<td style="padding:10px; border:1px solid #000; background-color:' +
       warnaBg +
       "; color:#000; " +
       topBorder +
       '"></td>';
+
     html += "</tr>";
   }
 
