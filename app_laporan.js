@@ -2407,10 +2407,11 @@ async function terapkanOpsiRLDetil() {
     var perkBulanIni = rawdataperkiraan
       .filter(function (g) {
         var kodePerkiraan = parseInt(
-          g.perkiraan || g.kode_perkiraan || g.kode || 0,
+          g.noPerk || g.kode_perkiraan || g.kode || 0,
           10,
         );
-        var cocokPerkiraan = kodePerkiraan > 0 && kodePerkiraan < 300; // Hanya dibawah 300
+
+        var cocokPerkiraan = kodePerkiraan >= 300 && kodePerkiraan < 700; // Hanya dibawah 300
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
