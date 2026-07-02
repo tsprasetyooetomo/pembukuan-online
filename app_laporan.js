@@ -2427,8 +2427,8 @@ async function terapkanOpsiRLDetil() {
       })
       .sort(function (a, b) {
         return (
-          parseInt(a.perkiraan || a.kode_perkiraan || 0, 10) -
-          parseInt(b.perkiraan || b.kode_perkiraan || 0, 10)
+          parseInt(a.noPerk || a.kode_perkiraan || 0, 10) -
+          parseInt(b.noPerk || b.kode_perkiraan || 0, 10)
         );
       });
     console.log("Jumlah total data mentah perkiraan:", perkBulanIni.length);
@@ -2437,7 +2437,7 @@ async function terapkanOpsiRLDetil() {
     var mapAkmBulanLalu = {};
     if (parseInt(filterbulan) > 1) {
       var dataSelainBulanIni = rawdataperkiraan.filter(function (g) {
-        var kodePerkiraan = parseInt(g.perkiraan || g.kode_perkiraan || 0, 10);
+        var kodePerkiraan = parseInt(g.noPerk || g.kode_perkiraan || 0, 10);
         var cocokPerkiraan = kodePerkiraan > 0 && kodePerkiraan < 300;
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
@@ -2455,7 +2455,7 @@ async function terapkanOpsiRLDetil() {
       });
 
       dataSelainBulanIni.forEach(function (g) {
-        var kodePerk = String(g.perkiraan || g.kode_perkiraan || "");
+        var kodePerk = String(g.noPerk || g.kode_perkiraan || "");
         var saldo = +(g.db || 0) - +(g.cr || 0);
         if (!mapAkmBulanLalu[kodePerk]) mapAkmBulanLalu[kodePerk] = 0;
         mapAkmBulanLalu[kodePerk] += saldo;
@@ -2474,7 +2474,7 @@ async function terapkanOpsiRLDetil() {
       .map(function (item) {
         // ⬇️ BEDANYA DI SINI: pakai "perkiraan" atau "kode_perkiraan"
         var kodePerk = String(
-          item.perkiraan || item.kode_perkiraan || item.kode || "",
+          item.noPerk || item.kode_perkiraan || item.kode || "",
         );
         var akmLalu = mapAkmBulanLalu[kodePerk] || 0;
 
@@ -2488,7 +2488,7 @@ async function terapkanOpsiRLDetil() {
           ...item,
           // ⬇️ BEDANYA DI SINI: pakai "mapMasterPerk" dan "namaPerkiraan"
           namaPerkiraan:
-            mapMasterPerk[kodePerk] || item.namaPerkiraan || item.nama || "-",
+            mapMasterPerk[kodePerk] || item.desc || item.nama || "-",
           akmBulanLalu: akmLalu,
           // Simpan sementara untuk di-filter
           _saldoTotal: saldoTotal,
