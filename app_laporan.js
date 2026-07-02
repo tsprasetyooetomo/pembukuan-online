@@ -1633,7 +1633,7 @@ function renderRLRekap() {
     '<div id="area_cetak_rlrekap" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
     // --- JUDUL ---
-    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap (Pendapatan & Beban)</h3>' +
+    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap </h3>' +
     // --- FILTER PANEL ---
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
     '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
