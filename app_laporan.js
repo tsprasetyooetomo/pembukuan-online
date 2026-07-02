@@ -1903,7 +1903,7 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
 
     html += "<tr>";
     html +=
-      '<td colspan="4" style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
+      '<td colspan="5" style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
       warnaBg +
       "; color:#000; " +
       topBorder +
