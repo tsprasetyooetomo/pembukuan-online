@@ -2308,7 +2308,7 @@ function renderRLDetil() {
   var htmlLaporan =
     '<div id="area_cetak_rldetil" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
-    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Detil (Neraca - Aset & Kewajiban)</h3>' +
+    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Detil </h3>' +
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
     '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
     '<div style="display:flex; align-items:center; gap:5px;">' +
