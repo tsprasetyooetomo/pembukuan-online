@@ -1726,7 +1726,7 @@ async function terapkanOpsiRLRekap() {
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
-        // var saldoAkhir = num(g.db-cr || 0);
+
         var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
 
         return (
@@ -1944,7 +1944,7 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
     var kodeGol = parseInt(item.gol || item.golongan || 0, 10);
     var itemDigit = String(kodeGol).charAt(0);
 
-    var valBulanIni = num(item.akhir || 0); // DB - CR bulan ini
+    var valBulanIni = num(item.db || 0) - num(item.cr || 0); // DB - CR bulan ini
     var valAkmLalu = num(item.akmBulanLalu || 0); // Dari hasil hitung frontend
     var valAkhir = valBulanIni + valAkmLalu; // Saldo Akhir = Bulan Ini + Akumulasi Lalu
 
