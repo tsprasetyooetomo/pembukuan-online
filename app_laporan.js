@@ -2213,7 +2213,7 @@ PANEL_MAP.rlDetil = renderRLDetil;
 // 1. FUNGSI RENDER ANTARMUKA RL DETIL (KOSONG)
 // =========================================================================
 function renderRLDetil() {
-  // A. SIAPKAN NILAI DEFAULT SAAT PERTAMA KALI DIBUKA
+  // A. SIAPKAN NILAI DEFAULT
   if (typeof window._rlDetilFilterCabang === "undefined") {
     window._rlDetilFilterCabang =
       typeof currentCabang !== "undefined" &&
@@ -2222,7 +2222,6 @@ function renderRLDetil() {
         ? currentCabang
         : "Pusat";
   }
-
   if (typeof window._rlDetilFilterMasa === "undefined") {
     var d = new Date();
     var bln = ("0" + (d.getMonth() + 1)).slice(-2);
@@ -2234,24 +2233,22 @@ function renderRLDetil() {
   var filterTahunFull = partMasa[1];
   var inputMonthValue = filterTahunFull + "-" + filterBulan;
 
-  // B. SIAPKAN OPSI DROPDOWN CABANG
+  // B. SIAPKAN OPSI DROPDOWN CABANG (Sama seperti RL Rekap)
   var rawCabang = DBCache.cabang || [];
   var daftarCabangObj = [];
-
   rawCabang.forEach(function (c) {
     var id = (c.cabang || c.kode || "").trim();
     var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
     if (id) daftarCabangObj.push({ id: id, nama: nama });
   });
-
   daftarCabangObj.sort(function (a, b) {
     return a.id.localeCompare(b.id, undefined, { numeric: true });
   });
-
   if (daftarCabangObj.length === 0)
     daftarCabangObj.push({ id: "PUSAT", nama: "PUSAT" });
 
-  var kodeDefault = window._rlDetilFilterCabang || daftarCabangObj[0].id;
+  var kodeDefault = window._rlDetilFilterCabang;
+  if (!kodeDefault) kodeDefault = daftarCabangObj[0].id;
 
   var opsiCabangHtml = daftarCabangObj
     .map(function (item) {
@@ -2273,7 +2270,7 @@ function renderRLDetil() {
   var htmlLaporan =
     '<div id="area_cetak_rldetil" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
-    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Detil (Perkiraan)</h3>' +
+    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Detil (Neraca - Aset & Kewajiban)</h3>' +
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
     '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
     '<div style="display:flex; align-items:center; gap:5px;">' +
@@ -2288,12 +2285,8 @@ function renderRLDetil() {
     opsiCabangHtml +
     "</select>" +
     "</div>" +
-    '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiRLDetil()">' +
-    "Terapkan" +
-    "</button>" +
-    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLDetilExcel()">' +
-    '<i class="fa-solid fa-file-excel"></i> Download Excel' +
-    "</button>" +
+    '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiRLDetil()">Terapkan</button>' +
+    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLDetilExcel()"><i class="fa-solid fa-file-excel"></i> Download Excel</button>' +
     "</div>" +
     '<div class="table-responsive-container" style="width:100%; max-width:100%; height:380px; max-height:380px; overflow:auto; display:block; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box; margin:0 auto; clear:both;">' +
     "<style>" +
@@ -2304,28 +2297,24 @@ function renderRLDetil() {
     '<div id="tempat_tabel_rldetil" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
     "</div>" +
     '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data RL Detil.</p>' +
-    "</div>" +
-    "</div>";
+    "</div></div>";
 
   return htmlLaporan;
 }
-
 async function terapkanOpsiRLDetil() {
-  closeModal();
   var inputmasa = document.getElementById("filter_rldetil_masa");
   var selectcabang = document.getElementById("filter_rldetil_cabang");
-
   if (!inputmasa || !selectcabang) return;
 
   var valmasa = inputmasa.value;
   var valcabang = selectcabang.value;
-
   if (!valmasa) {
     if (typeof toast === "function")
       toast("Silakan pilih masa terlebih dahulu", "err");
     return;
   }
 
+  closeModal();
   var part = valmasa.split("-");
   var filtertahunfull = part[0];
   var filterbulan = part[1];
@@ -2335,36 +2324,35 @@ async function terapkanOpsiRLDetil() {
   window._rlDetilFilterCabang = valcabang;
 
   var kodemasadicari = filterbulan + duadigittahunbelakang;
-  var namastoreperkiraanbackup = "perkiraan" + filtertahunfull;
-  console.log(namastoreperkiraanbackup + valcabang);
+  var namastoregolbackup = "perkiraan" + filtertahunfull; // ✅ AMBIL DARI STORE PERKIRAAN
+
   var area = document.getElementById("tempat_tabel_rldetil");
-  if (area) {
+  if (area)
     area.innerHTML =
       '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data perkiraan...</div>';
-  }
 
   try {
-    var resperkiraanbackup = await db.getAll(namastoreperkiraanbackup);
-    var rawdataperkiraan = resperkiraanbackup
-      ? Array.isArray(resperkiraanbackup)
-        ? resperkiraanbackup
-        : Object.values(resperkiraanbackup)
+    var resgolbackup = await db.getAll(namastoregolbackup);
+    var rawdataperkiraan = resgolbackup
+      ? Array.isArray(resgolbackup)
+        ? resgolbackup
+        : Object.values(resgolbackup)
       : [];
 
-    // Filter perkiraan 3xx, 4xx, 5xx, 6xx yang ada saldonya
-    window.perkterfilterrl = rawdataperkiraan
-      .filter(function (p) {
-        var kodePerkiraan = String(
-          p.noPerk || p.kode || p.kode_perkiraan || "0",
-        ).trim();
-        var digitPertama = parseInt(kodePerkiraan.charAt(0), 10);
-        var cocokPerkiraan = digitPertama >= 3 && digitPertama <= 6;
-
+    // 1. Filter data HANYA untuk bulan yang dipilih
+    var perkBulanIni = rawdataperkiraan
+      .filter(function (g) {
+        var kodePerkiraan = parseInt(
+          g.perkiraan || g.kode_perkiraan || g.kode || 0,
+          10,
+        );
+        var cocokPerkiraan = kodePerkiraan > 0 && kodePerkiraan < 300; // ✅ FILTER HANYA DIBAWAH 300
         var cabangData = String(
-          p.cabang || p.cab || p.kode_cabang || "",
+          g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
-        var masaData = String(p.masa || p.periode || p.kode_masa || "").trim();
-        var saldoAkhir = num(p.akhir || 0);
+        var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
+
+        var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
 
         return (
           cocokPerkiraan &&
@@ -2374,17 +2362,55 @@ async function terapkanOpsiRLDetil() {
         );
       })
       .sort(function (a, b) {
-        var kodeA = String(a.noPerk || a.kode || a.kode_perkiraan || "0");
-        var kodeB = String(b.noPerk || b.kode || b.kode_perkiraan || "0");
-        return kodeA.localeCompare(kodeB, undefined, { numeric: true });
+        return (
+          parseInt(a.perkiraan || a.kode_perkiraan || 0, 10) -
+          parseInt(b.perkiraan || b.kode_perkiraan || 0, 10)
+        );
       });
 
-    if (window.perkterfilterrl.length === 0) {
+    // 2. Hitung AKUMULASI SD BULAN LALU
+    var mapAkmBulanLalu = {};
+    if (parseInt(filterbulan) > 1) {
+      var dataSelainBulanIni = rawdataperkiraan.filter(function (g) {
+        var kodePerkiraan = parseInt(g.perkiraan || g.kode_perkiraan || 0, 10);
+        var cocokPerkiraan = kodePerkiraan > 0 && kodePerkiraan < 300; // ✅ FILTER DIBAWAH 300
+        var cabangData = String(
+          g.cabang || g.cab || g.kode_cabang || "",
+        ).trim();
+        var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
+        var tahunMasa = masaData.substring(2, 6);
+        var bulanMasa = masaData.substring(0, 2);
+
+        return (
+          cocokPerkiraan &&
+          cabangData === valcabang &&
+          tahunMasa === duadigittahunbelakang &&
+          parseInt(bulanMasa) < parseInt(filterbulan)
+        );
+      });
+
+      dataSelainBulanIni.forEach(function (g) {
+        var kodePerk = String(g.perkiraan || g.kode_perkiraan || "");
+        var saldo = +(g.db || 0) - +(g.cr || 0);
+        if (!mapAkmBulanLalu[kodePerk]) mapAkmBulanLalu[kodePerk] = 0;
+        mapAkmBulanLalu[kodePerk] += saldo;
+      });
+    }
+
+    if (perkBulanIni.length === 0) {
       if (area)
         area.innerHTML =
           '<div style="padding:3rem; text-align:center; color:var(--muted);">🔍 Data RL Detil kosong / tidak ada saldo.</div>';
       return;
     }
+
+    // 3. Gabungkan data Bulan Ini dengan Akumulasi Bulan Lalu
+    var finalData = perkBulanIni.map(function (item) {
+      var kodePerk = String(item.perkiraan || item.kode_perkiraan || "");
+      return { ...item, akmBulanLalu: mapAkmBulanLalu[kodePerk] || 0 };
+    });
+
+    window.perkterfilterrl = finalData; // Disimpan global untuk keperluan Excel
 
     var html = "";
     var outerArea = document.getElementById("area_cetak_rldetil");
@@ -2399,212 +2425,7 @@ async function terapkanOpsiRLDetil() {
       area.style.height = "auto";
     }
 
-    html +=
-      '<div style="margin-bottom: .7rem; font-size: .78rem; color: var(--muted);">3xx = Penjualan &bull; 4xx = HPP &bull; 5xx = By Adm & Umum &bull; 6xx = Beban Lainnya</div>';
-    html +=
-      '<div style="width: 100%; overflow-x: auto; border: 1px solid #ddd;">';
-    html +=
-      '<table border="1" style="width:100%; min-width: 600px; border-collapse: collapse; text-align:left; color:#000000; border: 1px solid #000;">';
-
-    html += '<thead style="background:#f4f4f4; font-weight:bold;"><tr>';
-    html += '<th style="padding:10px; border:1px solid #000;">PERKIRAAN</th>';
-    html +=
-      '<th style="padding:10px; border:1px solid #000;">NAMA PERKIRAAN</th>';
-    html += '<th style="padding:10px; border:1px solid #000;">MASA</th>';
-    html +=
-      '<th style="padding:10px; border:1px solid #000; text-align:right;">SALDO AKHIR</th>';
-    html += '<th style="padding:10px; border:1px solid #000;">CABANG</th>';
-    html += "</tr></thead><tbody>";
-
-    var currentPrefix = null; // 2 digit pertama (misal 31, 41, 51)
-    var currentDigit1 = null; // 1 digit pertama (misal 3, 4, 5)
-    var sumAkhirPrefix = 0; // Subtotal per prefix (31, 32, dll)
-    var subtotalsDigit1 = {}; // Subtotal per digit utama (3xx, 4xx, dll)
-
-    // Fungsi helper untuk baris
-    function buatBarisKeterangan(teks) {
-      html +=
-        '<tr><td colspan="5" style="padding:10px; border:1px solid #000; font-weight:bold; background-color:#e9ecef; color:#000; font-size: 0.9rem;">' +
-        teks +
-        "</td></tr>";
-    }
-
-    function buatBarisSubtotal(teks, nilai, warnaBg, isDoubleTop) {
-      var topBorder = isDoubleTop ? "border-top: 3px double #000;" : "";
-      html += "<tr>";
-      html +=
-        '<td colspan="3" style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
-        warnaBg +
-        "; color:#000; " +
-        topBorder +
-        '">' +
-        teks +
-        "</td>";
-      html +=
-        '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; white-space:nowrap; background-color:' +
-        warnaBg +
-        "; color:" +
-        (nilai >= 0 ? "green" : "red") +
-        "; " +
-        topBorder +
-        '">' +
-        formatUang(nilai) +
-        "</td>";
-      html +=
-        '<td style="padding:10px; border:1px solid #000; background-color:' +
-        warnaBg +
-        "; color:#000; " +
-        topBorder +
-        '"></td>';
-      html += "</tr>";
-    }
-
-    for (var i = 0; i < window.perkterfilterrl.length; i++) {
-      var item = window.perkterfilterrl[i];
-      var kodePerk = String(
-        item.noPerk || item.kode || item.kode_perkiraan || "0",
-      ).trim();
-      var itemDigit1 = kodePerk.charAt(0); // 3, 4, 5, 6
-      var itemPrefix = kodePerk.substring(0, 2); // 31, 32, 41, 51, dll
-      var valAkhir = num(item.akhir || 0);
-
-      // Jika pindah Digit Utama (misal dari 3xx ke 4xx)
-      if (currentDigit1 !== null && itemDigit1 !== currentDigit1) {
-        var subtotalUtama = subtotalsDigit1[currentDigit1] || 0;
-        var ketSubtotalUtama = "TOTAL GOLONGAN " + currentDigit1 + "xx";
-        if (currentDigit1 === "3") ketSubtotalUtama = "PENJUALAN BERSIH";
-        if (currentDigit1 === "4") ketSubtotalUtama = "TOTAL HPP";
-        if (currentDigit1 === "5")
-          ketSubtotalUtama = "TOTAL BEBAN OPERASIONAL / TOTAL BY ADM & UMUM";
-        if (currentDigit1 === "6") ketSubtotalUtama = "TOTAL BEBAN LAINNYA";
-
-        buatBarisSubtotal(ketSubtotalUtama, subtotalUtama, "#d6d8db", false);
-
-        // Sisipkan Laba/Rugi di antara grup utama
-        if (currentDigit1 === "3") {
-          html +=
-            '<tr><td colspan="5" style="border:1px solid #000; padding:4px; background-color:#fff;"></td></tr>';
-        } else if (currentDigit1 === "4") {
-          var lk = (subtotalsDigit1["3"] || 0) + (subtotalsDigit1["4"] || 0);
-          buatBarisSubtotal(
-            "LABA KOTOR (Penjualan Bersih - HPP)",
-            lk,
-            "#e8f5e9",
-            false,
-          );
-          html +=
-            '<tr><td colspan="5" style="border:1px solid #000; padding:4px; background-color:#fff;"></td></tr>';
-        } else if (currentDigit1 === "5") {
-          var la =
-            (subtotalsDigit1["3"] || 0) +
-            (subtotalsDigit1["4"] || 0) +
-            (subtotalsDigit1["5"] || 0);
-          buatBarisSubtotal(
-            "LABA / RUGI SETELAH BY ADM & UMUM",
-            la,
-            "#b7d4b7",
-            false,
-          );
-          html +=
-            '<tr><td colspan="5" style="border:1px solid #000; padding:4px; background-color:#fff;"></td></tr>';
-        }
-      }
-
-      // Beri Keterangan Header saat pertama kali masuk digit utama
-      if (currentDigit1 !== itemDigit1) {
-        if (itemDigit1 === "3") buatBarisKeterangan("PENJUALAN");
-        if (itemDigit1 === "4")
-          buatBarisKeterangan("HARGA POKOK PENJUALAN (HPP)");
-        if (itemDigit1 === "5")
-          buatBarisKeterangan("BIAYA ADMINISTRASI & UMUM");
-        if (itemDigit1 === "6") buatBarisKeterangan("BEBAN LAINNYA");
-      }
-
-      currentPrefix = itemPrefix;
-      currentDigit1 = itemDigit1;
-      sumAkhirPrefix += valAkhir;
-      if (!subtotalsDigit1[currentDigit1]) subtotalsDigit1[currentDigit1] = 0;
-      subtotalsDigit1[currentDigit1] += valAkhir;
-
-      // Render Baris Detail Perkiraan
-      html += '<tr style="font-size: 0.85rem;">';
-      html +=
-        "<td onclick=\"lihatDetilTransaksi('" +
-        kodePerk +
-        "', '" +
-        kodemasadicari +
-        "', '" +
-        valcabang +
-        "', '" +
-        filtertahunfull +
-        '\')" style="padding:10px; border:1px solid #000; cursor:pointer; color:blue; font-weight:bold; text-decoration:underline;">' +
-        kodePerk +
-        "</td>";
-
-      html +=
-        '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
-        (item.desc || item.nama || "") +
-        "</td>";
-      html +=
-        '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
-        (item.masa || "") +
-        "</td>";
-      html +=
-        '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; white-space:nowrap;">' +
-        formatUang(valAkhir) +
-        "</td>";
-      html +=
-        '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
-        (item.cabang || item.kode_cabang || "") +
-        "</td>";
-      html += "</tr>";
-    }
-
-    // TUTUP SUBTOTAL TERAKHIR (Per Digit 1) & LABA/RUGI BERSIH
-    if (currentDigit1 !== null) {
-      var subUtamaAkhir = subtotalsDigit1[currentDigit1] || 0;
-      var ketSubUtamaAkhir = "TOTAL GOLONGAN " + currentDigit1 + "xx";
-      if (currentDigit1 === "3") ketSubUtamaAkhir = "PENJUALAN BERSIH";
-      if (currentDigit1 === "4") ketSubUtamaAkhir = "TOTAL HPP";
-      if (currentDigit1 === "5")
-        ketSubUtamaAkhir = "TOTAL BEBAN OPERASIONAL / TOTAL BY ADM & UMUM";
-      if (currentDigit1 === "6") ketSubUtamaAkhir = "TOTAL BEBAN LAINNYA";
-
-      buatBarisSubtotal(ketSubUtamaAkhir, subUtamaAkhir, "#d6d8db", false);
-
-      // Laba/Rugi terakhir sesuai digit terakhir
-      if (currentDigit1 === "4") {
-        var lk2 = (subtotalsDigit1["3"] || 0) + (subtotalsDigit1["4"] || 0);
-        buatBarisSubtotal(
-          "LABA KOTOR (Penjualan Bersih - HPP)",
-          lk2,
-          "#e8f5e9",
-          false,
-        );
-      } else if (currentDigit1 === "5") {
-        var la2 =
-          (subtotalsDigit1["3"] || 0) +
-          (subtotalsDigit1["4"] || 0) +
-          (subtotalsDigit1["5"] || 0);
-        buatBarisSubtotal(
-          "LABA / RUGI SETELAH BY ADM & UMUM",
-          la2,
-          "#b7d4b7",
-          false,
-        );
-      } else if (currentDigit1 === "6") {
-        var lrb =
-          (subtotalsDigit1["3"] || 0) +
-          (subtotalsDigit1["4"] || 0) +
-          (subtotalsDigit1["5"] || 0) +
-          (subtotalsDigit1["6"] || 0);
-        html +=
-          '<tr><td colspan="5" style="border:1px solid #000; padding:4px; background-color:#fff;"></td></tr>';
-        buatBarisSubtotal("LABA / RUGI BERSIH", lrb, "#f1f3f5", true);
-      }
-    }
-
-    html += "</tbody></table></div>";
+    html += generateHTMLRLDetil(finalData, kodemasadicari, valcabang, false);
     area.innerHTML = html;
   } catch (error) {
     console.error("❌ Gagal total RL Detil:", error);
@@ -2615,217 +2436,21 @@ async function terapkanOpsiRLDetil() {
         "</div>";
   }
 }
-
-// =========================================================================
-// FUNGSI DOWNLOAD EXCEL RL DETIL (Sesuai Field noPerk & desc)
-// =========================================================================
-function downloadRLDetilExcel() {
+async function downloadRLDetilExcel() {
   if (!window.perkterfilterrl || window.perkterfilterrl.length === 0) {
     if (typeof toast === "function")
       toast("Tidak ada data RL Detil untuk didownload", "err");
     return;
   }
-
-  var html =
-    '<table border="1" style="border-collapse: collapse; font-family: Arial, sans-serif;">';
-  html +=
-    '<tr style="background-color: #f4f4f4; font-weight: bold; text-align: center;">';
-  html += '<td style="padding: 8px; border: 1px solid #000;">PERKIRAAN</td>';
-  html +=
-    '<td style="padding: 8px; border: 1px solid #000;">NAMA PERKIRAAN</td>';
-  html += '<td style="padding: 8px; border: 1px solid #000;">MASA</td>';
-  html +=
-    '<td style="padding: 8px; border: 1px solid #000; text-align: right;">SALDO AKHIR</td>';
-  html += '<td style="padding: 8px; border: 1px solid #000;">CABANG</td>';
-  html += "</tr>";
-
-  var currentPrefix = null;
-  var currentDigit1 = null;
-  var sumAkhirPrefix = 0;
-  var subtotalsDigit1 = {};
-
-  function buatBarisKeteranganExcel(teks) {
-    html +=
-      '<tr><td colspan="5" style="padding:8px; border:1px solid #000; font-weight:bold; background-color:#e9ecef;">' +
-      teks +
-      "</td></tr>";
-  }
-
-  function buatBarisSubtotalExcel(teks, nilai, warnaBg, isDoubleTop) {
-    var topBorder = isDoubleTop ? "border-top: 3px double #000;" : "";
-    html += "<tr>";
-    html +=
-      '<td colspan="3" style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
-      warnaBg +
-      "; " +
-      topBorder +
-      '">' +
-      teks +
-      "</td>";
-    html +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold; white-space:nowrap; background-color:' +
-      warnaBg +
-      "; color:" +
-      (nilai >= 0 ? "green" : "red") +
-      "; " +
-      topBorder +
-      '">' +
-      formatUang(nilai) +
-      "</td>";
-    html +=
-      '<td style="padding:8px; border:1px solid #000; background-color:' +
-      warnaBg +
-      "; " +
-      topBorder +
-      '"></td>';
-    html += "</tr>";
-  }
-
-  for (var i = 0; i < window.perkterfilterrl.length; i++) {
-    var item = window.perkterfilterrl[i];
-    var kodePerk = String(
-      item.noPerk || item.perkiraan || item.kode || "0",
-    ).trim();
-    var itemDigit1 = kodePerk.charAt(0);
-    var itemPrefix = kodePerk.substring(0, 2);
-    var valAkhir = num(item.akhir || 0);
-
-    if (currentDigit1 !== null && itemDigit1 !== currentDigit1) {
-      var subUtama = subtotalsDigit1[currentDigit1] || 0;
-      var ketSubUtama = "TOTAL GOLONGAN " + currentDigit1 + "xx";
-      if (currentDigit1 === "3") ketSubUtama = "PENJUALAN BERSIH";
-      if (currentDigit1 === "4") ketSubUtama = "TOTAL HPP";
-      if (currentDigit1 === "5")
-        ketSubUtama = "TOTAL BEBAN OPERASIONAL / TOTAL BY ADM & UMUM";
-      if (currentDigit1 === "6") ketSubUtama = "TOTAL BEBAN LAINNYA";
-
-      buatBarisSubtotalExcel(ketSubUtama, subUtama, "#d6d8db", false);
-
-      if (currentDigit1 === "4") {
-        var lk = (subtotalsDigit1["3"] || 0) + (subtotalsDigit1["4"] || 0);
-        buatBarisSubtotalExcel(
-          "LABA KOTOR (Penjualan Bersih - HPP)",
-          lk,
-          "#e8f5e9",
-          false,
-        );
-      } else if (currentDigit1 === "5") {
-        var la =
-          (subtotalsDigit1["3"] || 0) +
-          (subtotalsDigit1["4"] || 0) +
-          (subtotalsDigit1["5"] || 0);
-        buatBarisSubtotalExcel(
-          "LABA / RUGI SETELAH BY ADM & UMUM",
-          la,
-          "#b7d4b7",
-          false,
-        );
-      }
-    }
-
-    if (currentDigit1 !== itemDigit1) {
-      if (itemDigit1 === "3") buatBarisKeteranganExcel("PENJUALAN");
-      if (itemDigit1 === "4")
-        buatBarisKeteranganExcel("HARGA POKOK PENJUALAN (HPP)");
-      if (itemDigit1 === "5")
-        buatBarisKeteranganExcel("BIAYA ADMINISTRASI & UMUM");
-      if (itemDigit1 === "6") buatBarisKeteranganExcel("BEBAN LAINNYA");
-    }
-
-    currentPrefix = itemPrefix;
-    currentDigit1 = itemDigit1;
-    sumAkhirPrefix += valAkhir;
-    if (!subtotalsDigit1[currentDigit1]) subtotalsDigit1[currentDigit1] = 0;
-    subtotalsDigit1[currentDigit1] += valAkhir;
-
-    html += "<tr>";
-
-    // ✅ KOLOM 1: PERKIRAAN (Ditambah Tanda Petik Tersembunyi)
-    html +=
-      '<td style="padding: 6px; border: 1px solid #000; text-align: center;">' +
-      '<span style="color:white;">\'</span>' + // Tanda petik agar teks
-      kodePerk +
-      "</td>";
-
-    // KOLOM 2: NAMA PERKIRAAN (Biarkan)
-    html +=
-      '<td style="padding: 6px; border: 1px solid #000;">' +
-      (item.desc || item.nama || "") +
-      "</td>";
-
-    // ✅ KOLOM 3: MASA (Ditambah Tanda Petik Tersembunyi)
-    html +=
-      '<td style="padding: 6px; border: 1px solid #000; text-align: center;">' +
-      '<span style="color:white;">\'</span>' + // Tanda petik agar teks
-      (item.masa || "") +
-      "</td>";
-
-    // KOLOM 4: SALDO AKHIR (Biarkan)
-    html +=
-      '<td style="padding: 6px; border: 1px solid #000; text-align: right; white-space: nowrap;">' +
-      formatUang(valAkhir) +
-      "</td>";
-
-    // ✅ KOLOM 5: CABANG (Ditambah Tanda Petik Tersembunyi)
-    html +=
-      '<td style="padding: 6px; border: 1px solid #000;">' +
-      '<span style="color:white;">\'</span>' + // Tanda petik agar teks
-      (item.cabang || item.kode_cabang || "") +
-      "</td>";
-
-    html += "</tr>";
-  }
-
-  if (currentDigit1 !== null) {
-    var subUtamaAkhir = subtotalsDigit1[currentDigit1] || 0;
-    var ketSubUtamaAkhir = "TOTAL GOLONGAN " + currentDigit1 + "xx";
-    if (currentDigit1 === "3") ketSubUtamaAkhir = "PENJUALAN BERSIH";
-    if (currentDigit1 === "4") ketSubUtamaAkhir = "TOTAL HPP";
-    if (currentDigit1 === "5")
-      ketSubUtamaAkhir = "TOTAL BEBAN OPERASIONAL / TOTAL BY ADM & UMUM";
-    if (currentDigit1 === "6") ketSubUtamaAkhir = "TOTAL BEBAN LAINNYA";
-
-    buatBarisSubtotalExcel(ketSubUtamaAkhir, subUtamaAkhir, "#d6d8db", false);
-
-    if (currentDigit1 === "4") {
-      var lk2 = (subtotalsDigit1["3"] || 0) + (subtotalsDigit1["4"] || 0);
-      buatBarisSubtotalExcel(
-        "LABA KOTOR (Penjualan Bersih - HPP)",
-        lk2,
-        "#e8f5e9",
-        false,
-      );
-    } else if (currentDigit1 === "5") {
-      var la2 =
-        (subtotalsDigit1["3"] || 0) +
-        (subtotalsDigit1["4"] || 0) +
-        (subtotalsDigit1["5"] || 0);
-      buatBarisSubtotalExcel(
-        "LABA / RUGI SETELAH BY ADM & UMUM",
-        la2,
-        "#b7d4b7",
-        false,
-      );
-    } else if (currentDigit1 === "6") {
-      var lrb =
-        (subtotalsDigit1["3"] || 0) +
-        (subtotalsDigit1["4"] || 0) +
-        (subtotalsDigit1["5"] || 0) +
-        (subtotalsDigit1["6"] || 0);
-      buatBarisSubtotalExcel("LABA / RUGI BERSIH", lrb, "#f1f3f5", true);
-    }
-  }
-
-  html += "</table>";
-
+  var htmlContent = generateHTMLRLDetil(
+    window.perkterfilterrl,
+    window._rlDetilFilterMasa,
+    window._rlDetilFilterCabang,
+    true,
+  );
   var fullHtml =
-    `
-    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-    <head><meta charset="UTF-8">
-    <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>RL Detil</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-    </head>
-    <body>` +
-    html +
+    `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>RL Detil</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>` +
+    htmlContent +
     `</body></html>`;
 
   var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
@@ -2838,9 +2463,265 @@ function downloadRLDetilExcel() {
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-
   if (typeof toast === "function")
     toast("File Excel RL Detil sedang didownload...", "ok");
+}
+function generateHTMLRLDetil(dataRL, kodemasadicari, valcabang, isForExcel) {
+  var html = "";
+  if (!isForExcel) {
+    html +=
+      '<div style="margin-bottom:.7rem; font-size:.78rem; color: var(--muted);">1xx = Aset / Harta &bull; 2xx = Kewajiban / Hutang</div>';
+  }
+
+  html +=
+    '<div style="width: 100%; overflow-x: auto; border: 1px solid #ddd;">';
+  html +=
+    '<table border="1" style="width:100%; min-width: 900px; border-collapse: collapse; text-align:left; color:#000; border: 1px solid #000;">';
+
+  html += '<thead style="background:#f4f4f4; font-weight:bold;"><tr>';
+  html += '<th style="padding:10px; border:1px solid #000;">PERKIRAAN</th>';
+  html +=
+    '<th style="padding:10px; border:1px solid #000;">NAMA PERKIRAAN</th>';
+  html += '<th style="padding:10px; border:1px solid #000;">MASA</th>';
+  html +=
+    '<th style="padding:10px; border:1px solid #000; text-align:right;">BULAN INI</th>';
+  html +=
+    '<th style="padding:10px; border:1px solid #000; text-align:right;">AKM SD BLN LALU</th>';
+  html +=
+    '<th style="padding:10px; border:1px solid #000; text-align:right;">SALDO AKHIR</th>';
+  html += '<th style="padding:10px; border:1px solid #000;">CABANG</th>';
+  html += "</tr></thead><tbody>";
+
+  var currentDigit = null;
+  var sumBulanIni = 0,
+    sumAkmLalu = 0,
+    sumAkhir = 0;
+  var subtotals = {};
+
+  function buatBarisKeterangan(teks) {
+    html +=
+      "<tr><td colspan='7' style='padding:10px; border:1px solid #000; font-weight:bold; background-color:#e9ecef; color:#000; font-size: 0.9rem;'>" +
+      teks +
+      "</td></tr>";
+  }
+
+  function buatBarisSubtotal(
+    teks,
+    nBulanIni,
+    nAkmLalu,
+    nAkhir,
+    warnaBg,
+    isDoubleTop,
+  ) {
+    var topBorder = isDoubleTop ? "border-top: 3px double #000;" : "";
+    var warnaFont = nAkhir >= 0 ? "green" : "red";
+    var xNumAttr = isForExcel ? ' x:num="' + nAkhir + '"' : "";
+
+    html += "<tr>";
+    html +=
+      '<td colspan="3" style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
+      warnaBg +
+      "; color:#000; " +
+      topBorder +
+      '">' +
+      teks +
+      "</td>";
+    html +=
+      '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
+      warnaBg +
+      "; color:#000; " +
+      topBorder +
+      '">' +
+      (nBulanIni !== 0 ? formatUang(nBulanIni) : "-") +
+      "</td>";
+    html +=
+      '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
+      warnaBg +
+      "; color:#000; " +
+      topBorder +
+      '">' +
+      (nAkmLalu !== 0 ? formatUang(nAkmLalu) : "-") +
+      "</td>";
+    html +=
+      '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; white-space:nowrap; background-color:' +
+      warnaBg +
+      "; color:" +
+      warnaFont +
+      "; " +
+      topBorder +
+      '"' +
+      xNumAttr +
+      ">" +
+      formatUang(nAkhir) +
+      "</td>";
+    html +=
+      '<td style="padding:10px; border:1px solid #000; background-color:' +
+      warnaBg +
+      "; color:#000; " +
+      topBorder +
+      '"></td>';
+    html += "</tr>";
+  }
+
+  function getSub(digit) {
+    return subtotals[digit] || { bulanIni: 0, akmLalu: 0, akhir: 0 };
+  }
+
+  for (var i = 0; i < dataRL.length; i++) {
+    var item = dataRL[i];
+    // ✅ AMBIL NAMA FIELD PERKIRAAN
+    var kodePerk = parseInt(
+      item.perkiraan || item.kode_perkiraan || item.kode || 0,
+      10,
+    );
+    var itemDigit = String(kodePerk).charAt(0);
+
+    var valBulanIni = num(item.db || 0) - num(item.cr || 0);
+    var valAkmLalu = num(item.akmBulanLalu || 0);
+    var valAkhir = valBulanIni + valAkmLalu;
+
+    if (currentDigit !== null && itemDigit !== currentDigit) {
+      subtotals[currentDigit] = {
+        bulanIni: sumBulanIni,
+        akmLalu: sumAkmLalu,
+        akhir: sumAkhir,
+      };
+
+      var ketSubtotal = "SUBTOTAL PERKIRAAN " + currentDigit + "xx";
+      if (currentDigit === "1") ketSubtotal = "TOTAL ASET (HARTA)";
+      if (currentDigit === "2") ketSubtotal = "TOTAL KEWAJIBAN (HUTANG)";
+
+      buatBarisSubtotal(
+        ketSubtotal,
+        sumBulanIni,
+        sumAkmLalu,
+        sumAkhir,
+        "#fff3cd",
+        false,
+      );
+      html +=
+        "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
+
+      sumBulanIni = 0;
+      sumAkmLalu = 0;
+      sumAkhir = 0;
+    }
+
+    if (currentDigit !== itemDigit) {
+      if (itemDigit === "1") buatBarisKeterangan("ASET / HARTA");
+      if (itemDigit === "2") buatBarisKeterangan("KEWAJIBAN / HUTANG");
+    }
+
+    currentDigit = itemDigit;
+    sumBulanIni += valBulanIni;
+    sumAkmLalu += valAkmLalu;
+    sumAkhir += valAkhir;
+
+    html += '<tr style="font-size: 0.85rem;">';
+    var perkVal =
+      item.perkiraan !== undefined
+        ? item.perkiraan
+        : item.kode_perkiraan !== undefined
+          ? item.kode_perkiraan
+          : item.kode;
+
+    // ✅ TIDAK ADA ONCLICK KARENA INI DETIL TERENDAH
+    html +=
+      '<td style="padding:10px; border:1px solid #000; text-align:center; font-weight:bold;">' +
+      perkVal +
+      "</td>";
+
+    // ✅ AMBIL NAMA PERKIRAAN
+    html +=
+      '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
+      (item.namaPerkiraan || item.nama || "") +
+      "</td>";
+
+    var textMasa = item.masa || "";
+    if (isForExcel)
+      textMasa = '<span style="color:white;">\'</span>' + textMasa;
+    html +=
+      '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
+      textMasa +
+      "</td>";
+
+    var xNumIni = isForExcel ? ' x:num="' + valBulanIni + '"' : "";
+    html +=
+      '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap;"' +
+      xNumIni +
+      ">" +
+      formatUang(valBulanIni) +
+      "</td>";
+
+    var xNumAkm = isForExcel ? ' x:num="' + valAkmLalu + '"' : "";
+    html +=
+      '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap;"' +
+      xNumAkm +
+      ">" +
+      (valAkmLalu !== 0 ? formatUang(valAkmLalu) : "-") +
+      "</td>";
+
+    var xNumAkhir = isForExcel ? ' x:num="' + valAkhir + '"' : "";
+    html +=
+      '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; white-space:nowrap;"' +
+      xNumAkhir +
+      ">" +
+      formatUang(valAkhir) +
+      "</td>";
+
+    var textCabang = item.cabang || item.kode_cabang || "";
+    if (isForExcel)
+      textCabang = '<span style="color:white;">\'</span>' + textCabang;
+    html +=
+      '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
+      textCabang +
+      "</td>";
+    html += "</tr>";
+  }
+
+  // SUBTOTAL DIGIT TERAKHIR
+  if (currentDigit !== null) {
+    subtotals[currentDigit] = {
+      bulanIni: sumBulanIni,
+      akmLalu: sumAkmLalu,
+      akhir: sumAkhir,
+    };
+    var ketAkhir = "SUBTOTAL PERKIRAAN " + currentDigit + "xx";
+    if (currentDigit === "1") ketAkhir = "TOTAL ASET (HARTA)";
+    if (currentDigit === "2") ketAkhir = "TOTAL KEWAJIBAN (HUTANG)";
+
+    buatBarisSubtotal(
+      ketAkhir,
+      sumBulanIni,
+      sumAkmLalu,
+      sumAkhir,
+      "#fff3cd",
+      false,
+    );
+    html +=
+      "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
+  }
+
+  // ✅ SELISIH NERACA (ASET - KEWAJIBAN)
+  var d1 = getSub("1"),
+    d2 = getSub("2");
+  var selisihBulanIni = d1.bulanIni - d2.bulanIni;
+  var selisihAkmLalu = d1.akmLalu - d2.akmLalu;
+  var selisihAkhir = d1.akhir - d2.akhir;
+
+  html +=
+    "<tr><td colspan='7' style='border:1px solid #000; padding:6px; background-color:#fff;'></td></tr>";
+  buatBarisSubtotal(
+    "SELISIH NERACA (ASET - KEWAJIBAN)",
+    selisihBulanIni,
+    selisihAkmLalu,
+    selisihAkhir,
+    "#d1e7dd",
+    true,
+  );
+
+  html += "</tbody></table></div>";
+  return html;
 }
 /* ---------- Buku Besar ---------- */
 PANEL_MAP.bukuBesar = renderBukuBesar;
