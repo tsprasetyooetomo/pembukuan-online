@@ -1703,10 +1703,29 @@ async function terapkanOpsiRLRekap() {
   var area = document.getElementById("tempat_tabel_rlrekap");
   if (area) {
     area.innerHTML =
-      '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data & menghitung akumulasi...</div>';
+      '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data master & menghitung akumulasi...</div>';
   }
 
   try {
+    // ✅ 1. AMBIL DATA MASTER GOLONGAN (UNTUK NAMA)
+    var rawMasterGol = await db.getAll("golongan"); // Sesuaikan nama store master jika berbeda
+    var mapMasterGol = {};
+
+    if (rawMasterGol) {
+      var arrMasterGol = Array.isArray(rawMasterGol)
+        ? rawMasterGol
+        : Object.values(rawMasterGol);
+      arrMasterGol.forEach(function (m) {
+        // Ambil kode sebagai key, dan nama sebagai value
+        var kode = String(m.gol || m.kode_gol || m.kode || "").trim();
+        var nama = String(m.namaGol || m.nama || m.nama_golongan || "").trim();
+        if (kode) {
+          mapMasterGol[kode] = nama;
+        }
+      });
+    }
+
+    // ✅ 2. AMBIL DATA BACKUP (UNTUK NILAI DB & CR)
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
       ? Array.isArray(resgolbackup)
@@ -1714,7 +1733,7 @@ async function terapkanOpsiRLRekap() {
         : Object.values(resgolbackup)
       : [];
 
-    // 1. Filter data HANYA untuk bulan yang dipilih (Untuk ditampilkan di kolom "Bulan Ini")
+    // 3. Filter data HANYA untuk bulan yang dipilih
     var golBulanIni = rawdatagolongan
       .filter(function (g) {
         var kodeGolongan = parseInt(
@@ -1742,11 +1761,10 @@ async function terapkanOpsiRLRekap() {
           parseInt(b.gol || b.golongan || 0, 10)
         );
       });
-    // console.table(golBulanIni);
-    // 2. Hitung AKUMULASI SD BULAN LALU secara dinamis dari seluruh data tahun ini
+
+    // 4. Hitung AKUMULASI SD BULAN LALU secara dinamis dari seluruh data tahun ini
     var mapAkmBulanLalu = {};
     if (parseInt(filterbulan) > 1) {
-      // Jika Bukan Januari (01)
       var dataSelainBulanIni = rawdatagolongan.filter(function (g) {
         var kodeGolongan = parseInt(g.gol || g.golongan || 0, 10);
         var cocokGolongan = kodeGolongan >= 300 && kodeGolongan < 700;
@@ -1754,20 +1772,19 @@ async function terapkanOpsiRLRekap() {
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
-        var tahunMasa = masaData.substring(2, 6); // Ambil 4 digit tahun
-        var bulanMasa = masaData.substring(0, 2); // Ambil 2 digit bulan
+        var tahunMasa = masaData.substring(2, 6);
+        var bulanMasa = masaData.substring(0, 2);
 
         return (
           cocokGolongan &&
           cabangData === valcabang &&
           tahunMasa === duadigittahunbelakang &&
           parseInt(bulanMasa) < parseInt(filterbulan)
-        ); // Ambil bulan sebelumnya
+        );
       });
 
       dataSelainBulanIni.forEach(function (g) {
         var kodeGol = String(g.gol || g.golongan || "");
-        //   var saldo = num(g.akhir || 0);
         var saldo = +(g.db || 0) - +(g.cr || 0);
 
         if (!mapAkmBulanLalu[kodeGol]) mapAkmBulanLalu[kodeGol] = 0;
@@ -1782,11 +1799,13 @@ async function terapkanOpsiRLRekap() {
       return;
     }
 
-    // 3. Gabungkan data Bulan Ini dengan Akumulasi Bulan Lalu
+    // ✅ 5. GABUNGKAN: Backup + Nama dari Master + Akumulasi Bulan Lalu
     var finalData = golBulanIni.map(function (item) {
       var kodeGol = String(item.gol || item.golongan || "");
       return {
         ...item,
+        // ✅ MAGIC DI SINI: Ambil nama dari Master, kalau kosong fallback ke data backup
+        namaGol: mapMasterGol[kodeGol] || item.namaGol || "-",
         akmBulanLalu: mapAkmBulanLalu[kodeGol] || 0,
       };
     });
@@ -2324,14 +2343,39 @@ async function terapkanOpsiRLDetil() {
   window._rlDetilFilterCabang = valcabang;
 
   var kodemasadicari = filterbulan + duadigittahunbelakang;
-  var namastoregolbackup = "perkiraan" + filtertahunfull; // ✅ AMBIL DARI STORE PERKIRAAN
+  var namastoregolbackup = "perkiraan" + filtertahunfull; // Store nilai backup
 
   var area = document.getElementById("tempat_tabel_rldetil");
-  if (area)
+  if (area) {
     area.innerHTML =
-      '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data perkiraan...</div>';
+      '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data master perkiraan & menghitung akumulasi...</div>';
+  }
 
   try {
+    // ✅ 1. AMBIL DATA MASTER PERKIRAAN (UNTUK NAMA)
+    // Sesuaikan "perkiraan_master" dengan nama asli store master di DB Anda
+    var rawMasterPerk = await db.getAll("perkiraan_master");
+    var mapMasterPerk = {};
+
+    if (rawMasterPerk) {
+      var arrMasterPerk = Array.isArray(rawMasterPerk)
+        ? rawMasterPerk
+        : Object.values(rawMasterPerk);
+      arrMasterPerk.forEach(function (m) {
+        var kode = String(
+          m.perkiraan || m.kode_perkiraan || m.kode || "",
+        ).trim();
+        // Sesuaikan "namaPerkiraan" dengan field nama yang ada di master Anda
+        var nama = String(
+          m.namaPerkiraan || m.nama || m.nama_perkiraan || "",
+        ).trim();
+        if (kode) {
+          mapMasterPerk[kode] = nama;
+        }
+      });
+    }
+
+    // ✅ 2. AMBIL DATA BACKUP PERKIRAAN (UNTUK NILAI DB & CR)
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdataperkiraan = resgolbackup
       ? Array.isArray(resgolbackup)
@@ -2339,14 +2383,14 @@ async function terapkanOpsiRLDetil() {
         : Object.values(resgolbackup)
       : [];
 
-    // 1. Filter data HANYA untuk bulan yang dipilih
+    // 3. Filter data HANYA untuk bulan yang dipilih
     var perkBulanIni = rawdataperkiraan
       .filter(function (g) {
         var kodePerkiraan = parseInt(
           g.perkiraan || g.kode_perkiraan || g.kode || 0,
           10,
         );
-        var cocokPerkiraan = kodePerkiraan > 0 && kodePerkiraan < 300; // ✅ FILTER HANYA DIBAWAH 300
+        var cocokPerkiraan = kodePerkiraan > 0 && kodePerkiraan < 300; // Hanya dibawah 300
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
@@ -2368,12 +2412,12 @@ async function terapkanOpsiRLDetil() {
         );
       });
 
-    // 2. Hitung AKUMULASI SD BULAN LALU
+    // 4. Hitung AKUMULASI SD BULAN LALU
     var mapAkmBulanLalu = {};
     if (parseInt(filterbulan) > 1) {
       var dataSelainBulanIni = rawdataperkiraan.filter(function (g) {
         var kodePerkiraan = parseInt(g.perkiraan || g.kode_perkiraan || 0, 10);
-        var cocokPerkiraan = kodePerkiraan > 0 && kodePerkiraan < 300; // ✅ FILTER DIBAWAH 300
+        var cocokPerkiraan = kodePerkiraan > 0 && kodePerkiraan < 300;
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
@@ -2404,10 +2448,18 @@ async function terapkanOpsiRLDetil() {
       return;
     }
 
-    // 3. Gabungkan data Bulan Ini dengan Akumulasi Bulan Lalu
+    // ✅ 5. GABUNGKAN: Data Backup + Nama dari Master + Akumulasi Bulan Lalu
     var finalData = perkBulanIni.map(function (item) {
-      var kodePerk = String(item.perkiraan || item.kode_perkiraan || "");
-      return { ...item, akmBulanLalu: mapAkmBulanLalu[kodePerk] || 0 };
+      var kodePerk = String(
+        item.perkiraan || item.kode_perkiraan || item.kode || "",
+      );
+      return {
+        ...item,
+        // ✅ MAGIC DI SINI: Ambil nama dari Master, kalau kosong fallback ke data backup
+        namaPerkiraan:
+          mapMasterPerk[kodePerk] || item.namaPerkiraan || item.nama || "-",
+        akmBulanLalu: mapAkmBulanLalu[kodePerk] || 0,
+      };
     });
 
     window.perkterfilterrl = finalData; // Disimpan global untuk keperluan Excel
