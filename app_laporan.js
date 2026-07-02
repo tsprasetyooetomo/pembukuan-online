@@ -2382,8 +2382,8 @@ async function terapkanOpsiRLDetil() {
         ? rawMasterPerk
         : Object.values(rawMasterPerk);
       arrMasterPerk.forEach(function (m) {
-        var kode = String(m.perkiraan || m.kode_perkiraan || "").trim();
-        var nama = String(m.namaPerkiraan || m.nama || "").trim();
+        var kode = String(m.noPerk || m.kode_perkiraan || "").trim();
+        var nama = String(m.desc || m.nama || "").trim();
 
         // ✅ Ambil kode cabang dari datanya
         var cabangMaster = String(m.cabang || "").trim();
