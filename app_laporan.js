@@ -1850,6 +1850,7 @@ async function downloadRLRekapExcel() {
 }
 
 // ✅ FUNGSI GENERATOR HTML YANG SUDAH DIPERBAIKI (DIGABUNGKAN UNTUK WEB & EXCEL)
+// ✅ FUNGSI GENERATOR HTML YANG SUDAH DIPERBAIKI SEPENUHNYA
 function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
   var html = "";
   if (!isForExcel) {
@@ -1862,7 +1863,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
   html +=
     '<table border="1" style="width:100%; min-width: 900px; border-collapse: collapse; text-align:left; color:#000; border: 1px solid #000;">';
 
-  // ✅ HEADER BARU (Ditambah 2 Kolom)
   html += '<thead style="background:#f4f4f4; font-weight:bold;"><tr>';
   html += '<th style="padding:10px; border:1px solid #000;">GOL</th>';
   html += '<th style="padding:10px; border:1px solid #000;">NAMA GOLONGAN</th>';
@@ -1888,6 +1888,7 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       teks +
       "</td></tr>";
   }
+
   function buatBarisSubtotal(
     teks,
     nBulanIni,
@@ -1901,8 +1902,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
     var xNumAttr = isForExcel ? ' x:num="' + nAkhir + '"' : "";
 
     html += "<tr>";
-
-    // KOLOM 1 (Gabungkan GOL, NAMA, MASA) -> colspan="3"
     html +=
       '<td colspan="3" style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
       warnaBg +
@@ -1911,8 +1910,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       '">' +
       teks +
       "</td>";
-
-    // KOLOM 2 (BULAN INI)
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
       warnaBg +
@@ -1921,8 +1918,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       '">' +
       (nBulanIni !== 0 ? formatUang(nBulanIni) : "-") +
       "</td>";
-
-    // KOLOM 3 (AKM SD BLN LALU)
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
       warnaBg +
@@ -1931,8 +1926,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       '">' +
       (nAkmLalu !== 0 ? formatUang(nAkmLalu) : "-") +
       "</td>";
-
-    // KOLOM 4 (SALDO AKHIR)
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; white-space:nowrap; background-color:' +
       warnaBg +
@@ -1945,16 +1938,18 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       ">" +
       formatUang(nAkhir) +
       "</td>";
-
-    // KOLOM 5 (CABANG)
     html +=
       '<td style="padding:10px; border:1px solid #000; background-color:' +
       warnaBg +
       "; color:#000; " +
       topBorder +
       '"></td>';
-
     html += "</tr>";
+  }
+
+  // Fungsi bantuan untuk mengambil data subtotals agar kode tidak berulang
+  function getSub(digit) {
+    return subtotals[digit] || { bulanIni: 0, akmLalu: 0, akhir: 0 };
   }
 
   for (var i = 0; i < dataRL.length; i++) {
@@ -1962,9 +1957,9 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
     var kodeGol = parseInt(item.gol || item.golongan || 0, 10);
     var itemDigit = String(kodeGol).charAt(0);
 
-    var valBulanIni = num(item.db || 0) - num(item.cr || 0); // DB - CR bulan ini
-    var valAkmLalu = num(item.akmBulanLalu || 0); // Dari hasil hitung frontend
-    var valAkhir = valBulanIni + valAkmLalu; // Saldo Akhir = Bulan Ini + Akumulasi Lalu
+    var valBulanIni = num(item.db || 0) - num(item.cr || 0);
+    var valAkmLalu = num(item.akmBulanLalu || 0);
+    var valAkhir = valBulanIni + valAkmLalu;
 
     if (currentDigit !== null && itemDigit !== currentDigit) {
       subtotals[currentDigit] = {
@@ -1992,46 +1987,46 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
         html +=
           "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
       } else if (currentDigit === "4") {
-        // 1. Ambil data penjumlahan Gol 3 (Penjualan)
-        var dataGol3 = subtotals["3"] || { bulanIni: 0, akmLalu: 0, akhir: 0 };
-
-        // 2. Hitung LABA KOTOR per kolom secara terpisah
-        var labaKotorBulanIni = dataGol3.bulanIni + sumBulanIni; // Penjualan Bulan Ini + HPP Bulan Ini
-        var labaKotorAkmLalu = dataGol3.akmLalu + sumAkmLalu; // Penjualan Akm Lalu + HPP Akm Lalu
-        var labaKotorAkhir = dataGol3.akhir + sumAkhir; // Penjualan Akhir + HPP Akhir
-
+        var g3 = getSub("3");
         buatBarisSubtotal(
           "LABA KOTOR (Penjualan Bersih - HPP)",
-          sumBulanIni,
-          sumAkmLalu,
-          labaKotorAkhir,
+          g3.bulanIni + sumBulanIni,
+          g3.akmLalu + sumAkmLalu,
+          g3.akhir + sumAkhir,
           "#d4edda",
           false,
         );
         html +=
           "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
       } else if (currentDigit === "5") {
-        var dataGol3 = subtotals["3"] || { bulanIni: 0, akmLalu: 0, akhir: 0 };
-        var dataGol4 = subtotals["4"] || { bulanIni: 0, akmLalu: 0, akhir: 0 };
-
-        // Hitung per kolom
-        var labaStlhByBulanIni =
-          dataGol3.bulanIni + dataGol4.bulanIni + sumBulanIni;
-        var labaStlhByAkmLalu =
-          dataGol3.akmLalu + dataGol4.akmLalu + sumAkmLalu;
-        var labaStlhByAkhir = dataGol3.akhir + dataGol4.akhir + sumAkhir;
+        var g3 = getSub("3"),
+          g4 = getSub("4");
         buatBarisSubtotal(
           "LABA / RUGI SETELAH BY ADM & UMUM",
-          labaStlhByBulanIni,
-          labaStlhByAkmLalu,
-          labaStlhByAkhir,
+          g3.bulanIni + g4.bulanIni + sumBulanIni,
+          g3.akmLalu + g4.akmLalu + sumAkmLalu,
+          g3.akhir + g4.akhir + sumAkhir,
           "#c3e6cb",
           false,
         );
-
+        html +=
+          "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
+      } else if (currentDigit === "6") {
+        var g3 = getSub("3"),
+          g4 = getSub("4"),
+          g5 = getSub("5");
+        buatBarisSubtotal(
+          "LABA / RUGI SETELAH BEBAN LAINNYA",
+          g3.bulanIni + g4.bulanIni + g5.bulanIni + sumBulanIni,
+          g3.akmLalu + g4.akmLalu + g5.akmLalu + sumAkmLalu,
+          g3.akhir + g4.akhir + g5.akhir + sumAkhir,
+          "#cce5ff",
+          false,
+        );
         html +=
           "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
       }
+
       sumBulanIni = 0;
       sumAkmLalu = 0;
       sumAkhir = 0;
@@ -2080,7 +2075,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       (item.namaGol || "") +
       "</td>";
 
-    // Kolom Masa
     var textMasa = item.masa || "";
     if (isForExcel)
       textMasa = '<span style="color:white;">\'</span>' + textMasa;
@@ -2089,7 +2083,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       textMasa +
       "</td>";
 
-    // ✅ Kolom Bulan Ini
     var xNumIni = isForExcel ? ' x:num="' + valBulanIni + '"' : "";
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap;"' +
@@ -2098,7 +2091,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       formatUang(valBulanIni) +
       "</td>";
 
-    // ✅ Kolom Akumulasi sd Bulan Lalu
     var xNumAkm = isForExcel ? ' x:num="' + valAkmLalu + '"' : "";
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap;"' +
@@ -2107,7 +2099,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       (valAkmLalu !== 0 ? formatUang(valAkmLalu) : "-") +
       "</td>";
 
-    // ✅ Kolom Saldo Akhir
     var xNumAkhir = isForExcel ? ' x:num="' + valAkhir + '"' : "";
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; white-space:nowrap;"' +
@@ -2116,7 +2107,6 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       formatUang(valAkhir) +
       "</td>";
 
-    // Kolom Cabang
     var textCabang = item.cabang || item.kode_cabang || "";
     if (isForExcel)
       textCabang = '<span style="color:white;">\'</span>' + textCabang;
@@ -2127,13 +2117,14 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
     html += "</tr>";
   }
 
-  // SUBTOTAL DIGIT TERAKHIR
+  // ✅ SUBTOTAL DIGIT TERAKHIR (SUDAH DIPERBAIKI KONSISTENSI 3 KOLOMNYA)
   if (currentDigit !== null) {
     subtotals[currentDigit] = {
       bulanIni: sumBulanIni,
       akmLalu: sumAkmLalu,
       akhir: sumAkhir,
     };
+
     var ketAkhir = "SUBTOTAL GOLONGAN " + currentDigit + "xx";
     if (currentDigit === "3") ketAkhir = "PENJUALAN BERSIH";
     if (currentDigit === "4") ketAkhir = "TOTAL HPP";
@@ -2149,29 +2140,42 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       false,
     );
 
+    // Logika setelah golongan terakhir selesai
     if (currentDigit === "4") {
-      var labaKotorAkhir = (subtotals["3"] || { akhir: 0 }).akhir + sumAkhir;
+      var g3 = getSub("3");
       buatBarisSubtotal(
         "LABA KOTOR (Penjualan Bersih - HPP)",
-        sumBulanIni,
-        sumAkmLalu,
-        labaKotorAkhir,
+        g3.bulanIni + sumBulanIni,
+        g3.akmLalu + sumAkmLalu,
+        g3.akhir + sumAkhir,
         "#d4edda",
         false,
       );
       html +=
         "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
     } else if (currentDigit === "5") {
-      var labaStlhByAdmAkhir =
-        (subtotals["3"] || { akhir: 0 }).akhir +
-        (subtotals["4"] || { akhir: 0 }).akhir +
-        sumAkhir;
+      var g3 = getSub("3"),
+        g4 = getSub("4");
       buatBarisSubtotal(
         "LABA / RUGI SETELAH BY ADM & UMUM",
-        0,
-        0,
-        labaStlhByAdmAkhir,
+        g3.bulanIni + g4.bulanIni + sumBulanIni,
+        g3.akmLalu + g4.akmLalu + sumAkmLalu,
+        g3.akhir + g4.akhir + sumAkhir,
         "#c3e6cb",
+        false,
+      );
+      html +=
+        "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
+    } else if (currentDigit === "6") {
+      var g3 = getSub("3"),
+        g4 = getSub("4"),
+        g5 = getSub("5");
+      buatBarisSubtotal(
+        "LABA / RUGI SETELAH BEBAN LAINNYA",
+        g3.bulanIni + g4.bulanIni + g5.bulanIni + sumBulanIni,
+        g3.akmLalu + g4.akmLalu + g5.akmLalu + sumAkmLalu,
+        g3.akhir + g4.akhir + g5.akhir + sumAkhir,
+        "#cce5ff",
         false,
       );
       html +=
@@ -2179,19 +2183,22 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
     }
   }
 
-  // LABA RUGI BERSIH
-  var labaRugiBersih =
-    (subtotals["3"] || { akhir: 0 }).akhir +
-    (subtotals["4"] || { akhir: 0 }).akhir +
-    (subtotals["5"] || { akhir: 0 }).akhir +
-    (subtotals["6"] || { akhir: 0 }).akhir;
+  // ✅ LABA RUGI BERSIH (SUDAH DIPERBAIKI KONSISTENSI 3 KOLOMNYA)
+  var g3 = getSub("3"),
+    g4 = getSub("4"),
+    g5 = getSub("5"),
+    g6 = getSub("6");
+  var lrBulanIni = g3.bulanIni + g4.bulanIni + g5.bulanIni + g6.bulanIni;
+  var lrAkmLalu = g3.akmLalu + g4.akmLalu + g5.akmLalu + g6.akmLalu;
+  var lrAkhir = g3.akhir + g4.akhir + g5.akhir + g6.akhir;
+
   html +=
     "<tr><td colspan='7' style='border:1px solid #000; padding:6px; background-color:#fff;'></td></tr>";
   buatBarisSubtotal(
     "LABA / RUGI BERSIH",
-    0,
-    0,
-    labaRugiBersih,
+    lrBulanIni,
+    lrAkmLalu,
+    lrAkhir,
     "#d1e7dd",
     true,
   );
