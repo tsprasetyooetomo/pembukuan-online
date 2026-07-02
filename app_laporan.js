@@ -1887,8 +1887,6 @@ async function downloadRLRekapExcel() {
     toast("File Excel RL Rekap sedang didownload...", "ok");
 }
 
-// ✅ FUNGSI GENERATOR HTML YANG SUDAH DIPERBAIKI (DIGABUNGKAN UNTUK WEB & EXCEL)
-// ✅ FUNGSI GENERATOR HTML YANG SUDAH DIPERBAIKI SEPENUHNYA
 function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
   var html = "";
   if (!isForExcel) {
