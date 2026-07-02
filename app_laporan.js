@@ -2376,7 +2376,7 @@ async function terapkanOpsiRLDetil() {
     // ✅ 1. AMBIL DATA MASTER PERKIRAAN (DIFILTER CABANG)
     var rawMasterPerk = await db.getAll("perkiraan"); // Sesuaikan nama store master-nya
     var mapMasterPerk = {};
-
+    console.log("Jumlah total data mentah perkiraan:", rawmasterkiraan.length);
     if (rawMasterPerk) {
       var arrMasterPerk = Array.isArray(rawMasterPerk)
         ? rawMasterPerk
@@ -2396,6 +2396,7 @@ async function terapkanOpsiRLDetil() {
     }
     // ✅ 2. AMBIL DATA BACKUP PERKIRAAN (UNTUK NILAI DB & CR)
     var resgolbackup = await db.getAll(namastoregolbackup);
+
     var rawdataperkiraan = resgolbackup
       ? Array.isArray(resgolbackup)
         ? resgolbackup
