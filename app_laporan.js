@@ -1805,15 +1805,29 @@ async function terapkanOpsiRLRekap() {
     }
 
     // ✅ 5. GABUNGKAN: Backup + Nama dari Master + Akumulasi Bulan Lalu
-    var finalData = golBulanIni.map(function (item) {
-      var kodeGol = String(item.gol || item.golongan || "");
-      return {
-        ...item,
-        // ✅ MAGIC DI SINI: Ambil nama dari Master, kalau kosong fallback ke data backup
-        namaGol: mapMasterGol[kodeGol] || item.namaGol || "-",
-        akmBulanLalu: mapAkmBulanLalu[kodeGol] || 0,
-      };
-    });
+    var finalData = golBulanIni
+      .map(function (item) {
+        var kodeGol = String(item.gol || item.golongan || "");
+        var akmLalu = mapAkmBulanLalu[kodeGol] || 0;
+
+        // Hitung saldo bulan ini
+        var bulanIni = +(item.db || 0) - +(item.cr || 0);
+
+        // Hitung Saldo Total
+        var saldoTotal = bulanIni + akmLalu;
+
+        return {
+          ...item,
+          namaGol: mapMasterGol[kodeGol] || item.namaGol || "-",
+          akmBulanLalu: akmLalu,
+          // Simpan sementara untuk di-filter
+          _saldoTotal: saldoTotal,
+        };
+      })
+      // ✅ FILTER DI SINI: Buang baris jika Total Saldo Akhirnya NOL
+      .filter(function (item) {
+        return item._saldoTotal !== 0;
+      });
 
     window.golterfilterrl = finalData;
 
