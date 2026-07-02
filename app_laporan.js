@@ -1726,7 +1726,9 @@ async function terapkanOpsiRLRekap() {
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
-        var saldoAkhir = num(g.akhir || 0);
+        // var saldoAkhir = num(g.db-cr || 0);
+        var saldoAkhir = +(g.db || 0) - +(cr || 0);
+
         return (
           cocokGolongan &&
           masaData === kodemasadicari &&
@@ -1765,7 +1767,9 @@ async function terapkanOpsiRLRekap() {
 
       dataSelainBulanIni.forEach(function (g) {
         var kodeGol = String(g.gol || g.golongan || "");
-        var saldo = num(g.akhir || 0);
+        //   var saldo = num(g.akhir || 0);
+        var saldo = +(g.db || 0) - +(cr || 0);
+
         if (!mapAkmBulanLalu[kodeGol]) mapAkmBulanLalu[kodeGol] = 0;
         mapAkmBulanLalu[kodeGol] += saldo;
       });
