@@ -1992,30 +1992,43 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
         html +=
           "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
       } else if (currentDigit === "4") {
-        var labaKotor = (subtotals["3"] || { akhir: 0 }).akhir + sumAkhir;
+        // 1. Ambil data penjumlahan Gol 3 (Penjualan)
+        var dataGol3 = subtotals["3"] || { bulanIni: 0, akmLalu: 0, akhir: 0 };
+
+        // 2. Hitung LABA KOTOR per kolom secara terpisah
+        var labaKotorBulanIni = dataGol3.bulanIni + sumBulanIni; // Penjualan Bulan Ini + HPP Bulan Ini
+        var labaKotorAkmLalu = dataGol3.akmLalu + sumAkmLalu; // Penjualan Akm Lalu + HPP Akm Lalu
+        var labaKotorAkhir = dataGol3.akhir + sumAkhir; // Penjualan Akhir + HPP Akhir
+
         buatBarisSubtotal(
           "LABA KOTOR (Penjualan Bersih - HPP)",
           sumBulanIni,
           sumAkmLalu,
-          labaKotor,
+          labaKotorAkhir,
           "#d4edda",
           false,
         );
         html +=
           "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
       } else if (currentDigit === "5") {
-        var labaStlhByAdm =
-          (subtotals["3"] || { akhir: 0 }).akhir +
-          (subtotals["4"] || { akhir: 0 }).akhir +
-          sumAkhir;
+        var dataGol3 = subtotals["3"] || { bulanIni: 0, akmLalu: 0, akhir: 0 };
+        var dataGol4 = subtotals["4"] || { bulanIni: 0, akmLalu: 0, akhir: 0 };
+
+        // Hitung per kolom
+        var labaStlhByBulanIni =
+          dataGol3.bulanIni + dataGol4.bulanIni + sumBulanIni;
+        var labaStlhByAkmLalu =
+          dataGol3.akmLalu + dataGol4.akmLalu + sumAkmLalu;
+        var labaStlhByAkhir = dataGol3.akhir + dataGol4.akhir + sumAkhir;
         buatBarisSubtotal(
           "LABA / RUGI SETELAH BY ADM & UMUM",
-          0,
-          0,
-          labaStlhByAdm,
+          labaStlhByBulanIni,
+          labaStlhByAkmLalu,
+          labaStlhByAkhir,
           "#c3e6cb",
           false,
         );
+
         html +=
           "<tr><td colspan='7' style='border:1px solid #000; padding:4px; background-color:#fff;'></td></tr>";
       }
