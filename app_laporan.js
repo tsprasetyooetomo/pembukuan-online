@@ -1742,7 +1742,7 @@ async function terapkanOpsiRLRekap() {
           parseInt(b.gol || b.golongan || 0, 10)
         );
       });
-
+    console.table(golBulanIni);
     // 2. Hitung AKUMULASI SD BULAN LALU secara dinamis dari seluruh data tahun ini
     var mapAkmBulanLalu = {};
     if (parseInt(filterbulan) > 1) {
