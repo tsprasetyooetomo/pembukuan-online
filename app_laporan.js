@@ -1916,6 +1916,15 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       "; color:#000; " +
       topBorder +
       '">' +
+      (nBulanIni !== 0 ? formatUang(nBulanIni) : "-") +
+      "</td>";
+
+    html +=
+      '<td style="padding:10px; border:1px solid #000; text-align:right; font-weight:bold; background-color:' +
+      warnaBg +
+      "; color:#000; " +
+      topBorder +
+      '">' +
       (nAkmLalu !== 0 ? formatUang(nAkmLalu) : "-") +
       "</td>";
     html +=
