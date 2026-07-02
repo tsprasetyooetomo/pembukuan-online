@@ -2430,6 +2430,7 @@ async function terapkanOpsiRLDetil() {
           parseInt(b.perkiraan || b.kode_perkiraan || 0, 10)
         );
       });
+    console.log("Jumlah total data mentah perkiraan:", perkbulanini.length);
 
     // 4. Hitung AKUMULASI SD BULAN LALU
     var mapAkmBulanLalu = {};
