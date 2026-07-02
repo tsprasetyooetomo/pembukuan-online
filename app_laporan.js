@@ -1742,7 +1742,7 @@ async function terapkanOpsiRLRekap() {
           parseInt(b.gol || b.golongan || 0, 10)
         );
       });
-    console.table(golBulanIni);
+    // console.table(golBulanIni);
     // 2. Hitung AKUMULASI SD BULAN LALU secara dinamis dari seluruh data tahun ini
     var mapAkmBulanLalu = {};
     if (parseInt(filterbulan) > 1) {
@@ -1977,8 +1977,8 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
         var labaKotor = (subtotals["3"] || { akhir: 0 }).akhir + sumAkhir;
         buatBarisSubtotal(
           "LABA KOTOR (Penjualan Bersih - HPP)",
-          0,
-          0,
+          sumBulanIni,
+          sumAkmLalu,
           labaKotor,
           "#d4edda",
           false,
@@ -2122,8 +2122,8 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
       var labaKotorAkhir = (subtotals["3"] || { akhir: 0 }).akhir + sumAkhir;
       buatBarisSubtotal(
         "LABA KOTOR (Penjualan Bersih - HPP)",
-        0,
-        0,
+        sumBulanIni,
+        sumAkmLalu,
         labaKotorAkhir,
         "#d4edda",
         false,
