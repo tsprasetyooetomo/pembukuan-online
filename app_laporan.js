@@ -2376,7 +2376,7 @@ async function terapkanOpsiRLDetil() {
     // ✅ 1. AMBIL DATA MASTER PERKIRAAN (DIFILTER CABANG)
     var rawMasterPerk = await db.getAll("perkiraan"); // Sesuaikan nama store master-nya
     var mapMasterPerk = {};
-    console.log("Jumlah total data mentah perkiraan:", rawmasterkiraan.length);
+    console.log("Jumlah total data mentah perkiraan:", rawMasterPerk.length);
     if (rawMasterPerk) {
       var arrMasterPerk = Array.isArray(rawMasterPerk)
         ? rawMasterPerk
@@ -2430,7 +2430,7 @@ async function terapkanOpsiRLDetil() {
           parseInt(b.perkiraan || b.kode_perkiraan || 0, 10)
         );
       });
-    console.log("Jumlah total data mentah perkiraan:", perkbulanini.length);
+    console.log("Jumlah total data mentah perkiraan:", perkBulanIni.length);
 
     // 4. Hitung AKUMULASI SD BULAN LALU
     var mapAkmBulanLalu = {};
