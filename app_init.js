@@ -225,8 +225,6 @@ function buildSidebar() {
       group: "LAPORAN KEUANGAN GABUNGAN",
       icon: "fa-chart-pie",
       items: [
-        { id: "neracas", label: "Neraca", icon: "fa-scale-balanced" },
-        { id: "detilNeracas", label: "Detil Neraca", icon: "fa-table-list" },
         { id: "rlRekaps", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
         {
           id: "rlDetils",
@@ -234,8 +232,6 @@ function buildSidebar() {
           icon: "fa-bars-staggered",
         },
         { id: "rlLebars", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
-        { id: "bukuBesars", label: "Buku Besar", icon: "fa-book" },
-        { id: "expXlss", label: "Export XLS", icon: "fa-file-excel" },
       ],
     },
     {
