@@ -2733,7 +2733,7 @@ function generateHTMLRLDetil(dataRL, kodemasadicari, valcabang, isForExcel) {
         "</td>";
     } else {
       html +=
-        "<td onclick=\"lihatDetilPerkiraan('" +
+        "<td onclick=\"lihatDetilTransaksi('" +
         golVal +
         "', '" +
         kodemasadicari +
