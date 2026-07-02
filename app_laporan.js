@@ -2420,8 +2420,7 @@ async function terapkanOpsiRLDetil() {
         return (
           cocokPerkiraan &&
           masaData === kodemasadicari &&
-          cabangData === valcabang &&
-          saldoAkhir !== 0
+          cabangData === valcabang
         );
       })
       .sort(function (a, b) {
@@ -2468,18 +2467,36 @@ async function terapkanOpsiRLDetil() {
     }
 
     // ✅ 5. GABUNGKAN: Data Backup + Nama dari Master + Akumulasi Bulan Lalu
-    var finalData = perkBulanIni.map(function (item) {
-      var kodePerk = String(
-        item.perkiraan || item.kode_perkiraan || item.kode || "",
-      );
-      return {
-        ...item,
-        // ✅ MAGIC DI SINI: Ambil nama dari Master, kalau kosong fallback ke data backup
-        namaPerkiraan:
-          mapMasterPerk[kodePerk] || item.namaPerkiraan || item.nama || "-",
-        akmBulanLalu: mapAkmBulanLalu[kodePerk] || 0,
-      };
-    });
+    var finalData = perkBulanIni
+      .map(function (item) {
+        // ⬇️ BEDANYA DI SINI: pakai "perkiraan" atau "kode_perkiraan"
+        var kodePerk = String(
+          item.perkiraan || item.kode_perkiraan || item.kode || "",
+        );
+        var akmLalu = mapAkmBulanLalu[kodePerk] || 0;
+
+        // Hitung saldo bulan ini
+        var bulanIni = +(item.db || 0) - +(item.cr || 0);
+
+        // Hitung Saldo Total
+        var saldoTotal = bulanIni + akmLalu;
+
+        return {
+          ...item,
+          // ⬇️ BEDANYA DI SINI: pakai "mapMasterPerk" dan "namaPerkiraan"
+          namaPerkiraan:
+            mapMasterPerk[kodePerk] || item.namaPerkiraan || item.nama || "-",
+          akmBulanLalu: akmLalu,
+          // Simpan sementara untuk di-filter
+          _saldoTotal: saldoTotal,
+        };
+      })
+      // ✅ FILTER DI SINI: Buang baris jika Total Saldo Akhirnya NOL
+      .filter(function (item) {
+        return item._saldoTotal !== 0;
+      });
+
+    window.perkterfilterrl = finalData;
 
     window.perkterfilterrl = finalData; // Disimpan global untuk keperluan Excel
 
