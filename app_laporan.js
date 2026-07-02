@@ -2362,21 +2362,19 @@ async function terapkanOpsiRLDetil() {
   window._rlDetilFilterCabang = valcabang;
 
   var kodemasadicari = filterbulan + duadigittahunbelakang;
-  var namastoregolbackup = "perkiraan" + filtertahunfull; // Store nilai backup
+  var namastoregolbackup = "perkiraan" + filtertahunfull; // Contoh: perkiraan2024
 
   var area = document.getElementById("tempat_tabel_rldetil");
   if (area) {
     area.innerHTML =
-      '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data master perkiraan & menghitung akumulasi...</div>';
+      '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data RL Detil...</div>';
   }
 
   try {
-    // ✅ 1. AMBIL DATA MASTER PERKIRAAN (UNTUK NAMA)
-    // Sesuaikan "perkiraan_master" dengan nama asli store master di DB Anda
     // ✅ 1. AMBIL DATA MASTER PERKIRAAN (DIFILTER CABANG)
-    var rawMasterPerk = await db.getAll("perkiraan"); // Sesuaikan nama store master-nya
+    var rawMasterPerk = await db.getAll("perkiraan");
     var mapMasterPerk = {};
-    console.log("Jumlah total data mentah perkiraan:", rawMasterPerk.length);
+
     if (rawMasterPerk) {
       var arrMasterPerk = Array.isArray(rawMasterPerk)
         ? rawMasterPerk
@@ -2384,40 +2382,36 @@ async function terapkanOpsiRLDetil() {
       arrMasterPerk.forEach(function (m) {
         var kode = String(m.noPerk || m.kode_perkiraan || "").trim();
         var nama = String(m.desc || m.nama || "").trim();
-
-        // ✅ Ambil kode cabang dari datanya
         var cabangMaster = String(m.cabang || "").trim();
 
-        // ✅ FILTER: Hanya masukkan ke dictionary jika cabangnya cocok
+        // Hanya masukkan ke dictionary jika cabangnya cocok
         if (kode && cabangMaster === valcabang) {
           mapMasterPerk[kode] = nama;
         }
       });
     }
+
     // ✅ 2. AMBIL DATA BACKUP PERKIRAAN (UNTUK NILAI DB & CR)
     var resgolbackup = await db.getAll(namastoregolbackup);
-
     var rawdataperkiraan = resgolbackup
       ? Array.isArray(resgolbackup)
         ? resgolbackup
         : Object.values(resgolbackup)
       : [];
 
-    // 3. Filter data HANYA untuk bulan yang dipilih
+    // ✅ 3. Filter data HANYA untuk bulan yang dipilih (RL Detil = 3xx s/d 6xx)
     var perkBulanIni = rawdataperkiraan
       .filter(function (g) {
         var kodePerkiraan = parseInt(
           g.noPerk || g.kode_perkiraan || g.kode || 0,
           10,
         );
+        var cocokPerkiraan = kodePerkiraan >= 300 && kodePerkiraan < 700;
 
-        var cocokPerkiraan = kodePerkiraan >= 300 && kodePerkiraan < 700; // Hanya dibawah 300
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
-
-        var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
 
         return (
           cocokPerkiraan &&
@@ -2431,14 +2425,14 @@ async function terapkanOpsiRLDetil() {
           parseInt(b.noPerk || b.kode_perkiraan || 0, 10)
         );
       });
-    console.log("Jumlah total data mentah perkiraan:", perkBulanIni.length);
 
-    // 4. Hitung AKUMULASI SD BULAN LALU
+    // ✅ 4. Hitung AKUMULASI SD BULAN LALU (PASTIKAN KONDISINYA SAMA PERSIS DENGAN LANGKAH 3)
     var mapAkmBulanLalu = {};
     if (parseInt(filterbulan) > 1) {
       var dataSelainBulanIni = rawdataperkiraan.filter(function (g) {
         var kodePerkiraan = parseInt(g.noPerk || g.kode_perkiraan || 0, 10);
-        var cocokPerkiraan = kodePerkiraan > 0 && kodePerkiraan < 300;
+        var cocokPerkiraan = kodePerkiraan >= 300 && kodePerkiraan < 700; // ✅ Sama dengan atas
+
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
@@ -2472,7 +2466,6 @@ async function terapkanOpsiRLDetil() {
     // ✅ 5. GABUNGKAN: Data Backup + Nama dari Master + Akumulasi Bulan Lalu
     var finalData = perkBulanIni
       .map(function (item) {
-        // ⬇️ BEDANYA DI SINI: pakai "perkiraan" atau "kode_perkiraan"
         var kodePerk = String(
           item.noPerk || item.kode_perkiraan || item.kode || "",
         );
@@ -2486,20 +2479,16 @@ async function terapkanOpsiRLDetil() {
 
         return {
           ...item,
-          // ⬇️ BEDANYA DI SINI: pakai "mapMasterPerk" dan "namaPerkiraan"
           namaPerkiraan:
             mapMasterPerk[kodePerk] || item.desc || item.nama || "-",
           akmBulanLalu: akmLalu,
-          // Simpan sementara untuk di-filter
-          _saldoTotal: saldoTotal,
+          _saldoTotal: saldoTotal, // Simpan sementara untuk di-filter
         };
       })
-      // ✅ FILTER DI SINI: Buang baris jika Total Saldo Akhirnya NOL
+      // ✅ FILTER: Buang baris jika Total Saldo Akhirnya NOL
       .filter(function (item) {
         return item._saldoTotal !== 0;
       });
-
-    window.perkterfilterrl = finalData;
 
     window.perkterfilterrl = finalData; // Disimpan global untuk keperluan Excel
 
