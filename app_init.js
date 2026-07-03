@@ -227,11 +227,15 @@ function buildSidebar() {
       items: [
         { id: "rlRekaps", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
         {
-          id: "rlDetils",
-          label: "RL Detil Bulanan",
+          id: "arusKas",
+          label: "Arus Kas Gabungan",
           icon: "fa-bars-staggered",
         },
-        { id: "rlLebars", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
+        {
+          id: "Omset",
+          label: "Detil Omset per Menu",
+          icon: "fa-bars-staggered",
+        },
       ],
     },
     {
