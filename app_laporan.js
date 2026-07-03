@@ -2956,20 +2956,36 @@ function renderBukuBesar() {
     '<div id="bukuBesarTbl" style="margin-top:1rem;"></div>'
   );
 }
-
 window.updatePerkiraanOptions = function () {
   var valcabang = $("bb_cabang").value;
   var selectPerk = $("bb_perk");
   var options = selectPerk.querySelectorAll("option");
-  selectPerk.innerHTML = '<option value="">-- Pilih --</option>';
+
+  // 1. Filter dan tampung option yang cocok ke dalam array
+  var filteredOptions = [];
   options.forEach(function (opt) {
     if (opt.value === "") return;
     var cabangPerk = opt.getAttribute("data-cabang") || "";
     if (valcabang === "ALL" || cabangPerk === valcabang) {
-      selectPerk.appendChild(opt.cloneNode(true));
+      filteredOptions.push(opt.cloneNode(true));
     }
   });
+
+  // 2. Urutkan array berdasarkan teks di dalam option (A-Z)
+  filteredOptions.sort(function (a, b) {
+    return a.textContent.localeCompare(b.textContent, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  });
+
+  // 3. Reset dropdown dan masukkan kembali option yang sudah urut
+  selectPerk.innerHTML = '<option value="">-- Pilih --</option>';
+  filteredOptions.forEach(function (opt) {
+    selectPerk.appendChild(opt);
+  });
 };
+
 async function refreshBukuBesar() {
   var cabang = $("bb_cabang").value || "";
   var pid = $("bb_perk").value;
