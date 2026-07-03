@@ -3174,6 +3174,16 @@ async function refreshBukuBesar() {
     '<span class="tag tag-akhir">' + fmtN(num(pk.awal) + tDb - tCr) + "</span>",
   ];
 
+  window._bbExcelReady = {
+    rows: rows,
+    foot: foot,
+    pk: pk,
+    cabang: cabang,
+    masaDari: masaDari,
+    masaSampai: masaSampai,
+    tahunMulai: tahunMulai,
+  };
+
   var labelMasa = "";
   if (masaDari && masaSampai) labelMasa = masaDari + " s/d " + masaSampai;
   else if (masaDari) labelMasa = "Dari " + masaDari;
@@ -3220,87 +3230,23 @@ async function refreshBukuBesar() {
 // FUNGSI DOWNLOAD EXCEL BUKU BESAR
 // =========================================================================
 async function downloadBukuBesarExcel() {
-  if (!window._bbCurrentData) {
-    toast("Tidak ada data untuk didownload", "err");
+  // ✅ CEK: Apakah data sudah ada (sudah dihitung sebelumnya)?
+  if (!window._bbExcelReady) {
+    toast(
+      "Silakan klik 'Terapkan' terlebih dahulu untuk menampilkan data.",
+      "err",
+    );
     return;
   }
 
-  var pk = window._bbCurrentData.perkiraan;
-  var cabang = window._bbCurrentData.cabang;
-  var masaDari = window._bbCurrentData.masaDari;
-  var masaSampai = window._bbCurrentData.masaSampai;
+  // Langsung ambil data yang sudah disiapkan
+  var r = window._bbExcelReady;
+  var pk = r.pk;
+  var cabang = r.cabang;
+  var rows = r.rows;
+  var foot = r.foot;
 
-  // ============================================================
-  // 1. AMBIL DATA DARI BACKUP
-  // ============================================================
-  var allTransactions = [];
-
-  function getTahunFromMasa(kode4digit) {
-    if (!kode4digit || kode4digit.length < 2) return null;
-    var yy = kode4digit.substring(2, 4);
-    return "20" + yy;
-  }
-
-  var tahunMulai = masaDari ? getTahunFromMasa(masaDari) : null;
-  var tahunAkhir = masaSampai ? getTahunFromMasa(masaSampai) : null;
-
-  if (!tahunMulai && !tahunAkhir) {
-    var tahunNow = new Date().getFullYear();
-    tahunMulai = tahunNow;
-    tahunAkhir = tahunNow;
-  } else if (!tahunAkhir) {
-    tahunAkhir = tahunMulai;
-  } else if (!tahunMulai) {
-    tahunMulai = tahunAkhir;
-  }
-
-  var th = tahunMulai;
-  while (th <= tahunAkhir) {
-    var namaStore = "transaksi" + th;
-
-    // Update teks loading setiap ganti tahun
-    $("bukuBesarTbl").innerHTML =
-      '<div class="empty-msg">' +
-      '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> ' +
-      "Mengambil data transaksi tahun <b>" +
-      th +
-      "</b> untuk Excel...</div>";
-
-    try {
-      var rawData = await db.getAll(namaStore);
-      var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
-      allTransactions = allTransactions.concat(listTh);
-    } catch (e) {
-      console.log("Tabel " + namaStore + " dilewati (belum ada).");
-    }
-    th++;
-  }
-
-  // ============================================================
-  // 2. FILTER DATA
-  // ============================================================
-  var data = allTransactions.filter(function (t) {
-    var tNoPerk = String(t.noperkiraan || "").trim();
-    var pNoPerk = String(pk.noPerk).trim();
-
-    if (tNoPerk !== pNoPerk) return false;
-
-    if (cabang && cabang !== "ALL" && t.cabang !== cabang) return false;
-
-    var masaData = String(t.masa || "").trim();
-    var validMasa = true;
-
-    if (masaDari) {
-      if (masaData < masaDari) validMasa = false;
-    }
-    if (masaSampai) {
-      if (masaData > masaSampai) validMasa = false;
-    }
-    if (!validMasa) return false;
-
-    return true;
-  });
-
+  // Fungsi format tanggal untuk Excel
   function formatTglTransaksi(str) {
     if (!str) return "-";
     if (str instanceof Date) {
@@ -3317,28 +3263,9 @@ async function downloadBukuBesarExcel() {
     return dd + "/" + mm + "/" + yyyy;
   }
 
-  // SORTING AKURAT LINTAS TAHUN
-  data.sort(function (a, b) {
-    var masaA = String(a.masa || "").trim();
-    var masaB = String(b.masa || "").trim();
-    if (masaA < masaB) return -1;
-    if (masaA > masaB) return 1;
-
-    var dA = a.tanggal;
-    var dB = b.tanggal;
-    var timeA = dA instanceof Date ? dA.getTime() : new Date(dA).getTime();
-    var timeB = dB instanceof Date ? dB.getTime() : new Date(dB).getTime();
-
-    if (isNaN(timeA)) timeA = 0;
-    if (isNaN(timeB)) timeB = 0;
-
-    return timeA - timeB;
-  });
-
   // ============================================================
-  // 3. SUSUN HTML EXCEL (HANYA SATU KALI)
+  // SUSUN HTML EXCEL (Langsung dari array rows)
   // ============================================================
-  var sal = num(pk.awal);
   var html =
     '<table border="1" style="border-collapse:collapse; font-family:Arial, sans-serif;">';
 
@@ -3354,93 +3281,83 @@ async function downloadBukuBesarExcel() {
   html += '<td style="padding:8px; border:1px solid #000;">SALDO</td>';
   html += "</tr>";
 
-  // Baris Saldo Awal
-  html += "<tr>";
-  html +=
-    '<td style="padding:6px; border:1px solid #000; font-style:italic;">Saldo Awal</td>';
-  html += '<td style="padding:6px; border:1px solid #000;"></td>';
-  html += '<td style="padding:6px; border:1px solid #000;"></td>';
-  html += '<td style="padding:6px; border:1px solid #000;"></td>';
-  html += '<td style="padding:6px; border:1px solid #000;"></td>';
-  html += '<td style="padding:6px; border:1px solid #000;">-</td>';
-  html +=
-    '<td style="padding:6px; border:1px solid #000; text-align:right; font-weight:bold;">' +
-    fmtN(sal) +
-    "</td>";
-  html += "</tr>";
-
-  var totalDb = 0;
-  var totalCr = 0;
-
-  // Detail Transaksi
-  data.forEach(function (t) {
-    var dbVal = num(t.db);
-    var crVal = num(t.cr);
-    sal += dbVal - crVal;
-    totalDb += dbVal;
-    totalCr += crVal;
-
+  // Looping rows yang sudah jadi
+  rows.forEach(function (row) {
     html += "<tr>";
 
-    // PAKAI FUNGSI formatTglTransaksi() + mso-number-format yang benar
-    html +=
-      "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\\@';text-align:center;\">" +
-      formatTglTransaksi(t.tanggal) +
-      "</td>";
+    // Kolom Tanggal (Baris pertama = "Saldo Awal", selain itu pakai formatTglTransaksi)
+    var isSaldoAwal = row[0] === "Saldo Awal";
 
     html +=
-      "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\\@';\">" +
-      (t.noreff || "-") +
-      "</td>";
-
-    html +=
-      '<td style="padding:6px; border:1px solid #000;">' +
-      (t.dariKePada || "-") +
+      "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\\@';" +
+      (isSaldoAwal ? "font-style:italic;" : "text-align:center;") +
+      '">' +
+      (isSaldoAwal ? row[0] : formatTglTransaksi(row[0])) +
       "</td>";
     html +=
       '<td style="padding:6px; border:1px solid #000;">' +
-      (t.desc || "-") +
+      (row[1] || "") +
+      "</td>";
+    html +=
+      '<td style="padding:6px; border:1px solid #000;">' +
+      (row[2] || "") +
+      "</td>";
+    html +=
+      '<td style="padding:6px; border:1px solid #000;">' +
+      (row[3] || "") +
       "</td>";
     html +=
       '<td style="padding:6px; border:1px solid #000; text-align:right;">' +
-      fmtN(dbVal) +
+      (row[4] || "") +
       "</td>";
     html +=
       '<td style="padding:6px; border:1px solid #000; text-align:right;">' +
-      fmtN(crVal) +
+      (row[5] || "") +
       "</td>";
+
+    // Kolom Saldo (Hapus tag <span> karena tidak bagus di Excel)
+    var saldoText = row[6];
+    if (typeof saldoText === "string") {
+      saldoText = saldoText.replace(/<[^>]*>?/gm, ""); // Buang HTML tag <span class="tag...">
+    }
+
     html +=
       '<td style="padding:6px; border:1px solid #000; text-align:right; font-weight:bold;">' +
-      fmtN(sal) +
+      saldoText +
       "</td>";
     html += "</tr>";
   });
 
-  // Total
+  // Baris Footer (Total)
   html += '<tr style="font-weight:bold; background:#f9f9f9;">';
   html +=
-    '<td colspan="4" style="padding:8px; border:1px solid #000; text-align:right;">TOTAL PERIODE INI</td>';
-  html +=
-    '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
-    fmtN(totalDb) +
+    '<td colspan="4" style="padding:8px; border:1px solid #000; text-align:right;">' +
+    (foot[1] || "TOTAL") +
     "</td>";
   html +=
     '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
-    fmtN(totalCr) +
+    (foot[4] || "") +
     "</td>";
   html +=
     '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
-    fmtN(num(pk.awal) + totalDb - totalCr) +
+    (foot[5] || "") +
+    "</td>";
+
+  var footSaldoText = String(foot[6] || "").replace(/<[^>]*>?/gm, "");
+  html +=
+    '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+    footSaldoText +
     "</td>";
   html += "</tr>";
   html += "</table>";
 
   // Info Akun di Excel
   var labelMasaExl = "";
-  if (masaDari && masaSampai) labelMasaExl = masaDari + " s/d " + masaSampai;
-  else if (masaDari) labelMasaExl = "Dari " + masaDari;
-  else if (masaSampai) labelMasaExl = "S/d " + masaSampai;
-  else labelMasaExl = "Semua (" + tahunMulai + ")";
+  if (r.masaDari && r.masaSampai)
+    labelMasaExl = r.masaDari + " s/d " + r.masaSampai;
+  else if (r.masaDari) labelMasaExl = "Dari " + r.masaDari;
+  else if (r.masaSampai) labelMasaExl = "S/d " + r.masaSampai;
+  else labelMasaExl = "Semua (" + r.tahunMulai + ")";
 
   var infoAkun = "<h3>Buku Besar: " + pk.noPerk + " - " + pk.desc + "</h3>";
   infoAkun +=
@@ -3460,6 +3377,7 @@ async function downloadBukuBesarExcel() {
     html +
     `</body></html>`;
 
+  // Download langsung
   var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
@@ -3471,8 +3389,7 @@ async function downloadBukuBesarExcel() {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
 
-  if (typeof toast === "function")
-    toast("File Excel berhasil diunduh.", "success");
+  toast("File Excel berhasil diunduh.", "success");
 }
 /* ---------- Export XLS ---------- */
 PANEL_MAP.expXls = renderExpXls;
