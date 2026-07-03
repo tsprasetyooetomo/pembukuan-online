@@ -3012,9 +3012,9 @@ async function refreshBukuBesar() {
 
   // Fungsi ambil tahun dari format MMYY (0226 -> 2026)
   function getTahunFromMasa(kode4digit) {
-    if (!kode4digit || kode4digit.length < 2) return null;
+    if (!kode4digit || kode4digit.length < 4) return null;
     var yy = kode4digit.substring(2, 4);
-    return "20" + yy;
+    return parseInt("20" + yy, 10);
   }
 
   var tahunMulai = masaDari ? getTahunFromMasa(masaDari) : null;
@@ -3030,46 +3030,48 @@ async function refreshBukuBesar() {
     tahunMulai = tahunAkhir;
   }
 
-  // Loop ambil data dari Backup per tahun
-  for (var th = tahunMulai; th <= tahunAkhir; th++) {
+  // ✅ PERBAIKAN 1: GANTI FOR LOOP DENGAN WHILE AGAR TIDAK HANG / ERROR jika 1 tahun tidak ada
+  var th = tahunMulai;
+  while (th <= tahunAkhir) {
     var namaStore = "transaksi" + th;
     try {
-      var rawData = await db.getAll(namaStore);
-      var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
-      allTransactions = allTransactions.concat(listTh);
+      if (db.tableNames.contains(namaStore)) {
+        // Cek apakah tabelnya benar-benar ada dulu
+        var rawData = await db.getAll(namaStore);
+        var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
+        if (listTh.length > 0) {
+          allTransactions = allTransactions.concat(listTh);
+        }
+      } else {
+        console.log("Tabel " + namaStore + " tidak ditemukan/skip.");
+      }
     } catch (e) {
-      console.log("Tabel " + namaStore + " tidak ditemukan.");
+      console.log(
+        "Gagal akses tabel " + namaStore + ", dilanjutkan ke tahun berikutnya.",
+      );
     }
+    th++; // Lanjut ke tahun berikutnya
   }
 
   // ============================================================
-  // FILTER DATA (SESUAI INFO: noperkiraan & masa format 4 digit)
+  // FILTER DATA
   // ============================================================
   var data = allTransactions.filter(function (t) {
-    // ✅ PERBAIKAN 1: Gunakan kolom 'noperkiraan' untuk cek No Perkiraan
     var tNoPerk = String(t.noperkiraan || "").trim();
     var pNoPerk = String(pk.noPerk).trim();
 
     if (tNoPerk !== pNoPerk) return false;
 
-    // Filter 2: Cabang
     if (cabang && cabang !== "ALL" && t.cabang !== cabang) return false;
 
-    // ✅ PERBAIKAN 2: Filter Masa
-    // Karena format di DB adalah "0226" (4 digit), kita bisa bandingkan langsung string-nya.
     var masaData = String(t.masa || "").trim();
-
     var validMasa = true;
 
     if (masaDari) {
-      // Cek apakah masa data >= masa dari
-      // Contoh: "0326" >= "0226" -> True
       if (masaData < masaDari) validMasa = false;
     }
 
     if (masaSampai) {
-      // Cek apakah masa data <= masa sampai
-      // Contoh: "0426" <= "0526" -> True
       if (masaData > masaSampai) validMasa = false;
     }
 
@@ -3078,40 +3080,50 @@ async function refreshBukuBesar() {
     return true;
   });
 
-  // ✅ FUNGSI BARU: Format tanggal dari string panjang GMT menjadi DD/MM/YYYY
-
-  // ✅ FUNGSI BARU: Handle jika datanya sudah berupa Objek Date bawaan JS
+  // ✅ Fungsi Tanggal Handle Objek Date
   function formatTglTransaksi(str) {
     if (!str) return "-";
-
-    // Cek apakah ini sudah Objek Date
     if (str instanceof Date) {
       var dd = String(str.getDate()).padStart(2, "0");
       var mm = String(str.getMonth() + 1).padStart(2, "0");
       var yyyy = str.getFullYear();
       return dd + "/" + mm + "/" + yyyy;
     }
-
-    // Jika tetap berupa String (contoh: "Fri Apr 03 2026...")
     var d = new Date(str);
-    if (isNaN(d.getTime())) return "-"; // Kalau string-nya aneh/gagal diparse
-
+    if (isNaN(d.getTime())) return "-";
     var dd = String(d.getDate()).padStart(2, "0");
     var mm = String(d.getMonth() + 1).padStart(2, "0");
     var yyyy = d.getFullYear();
     return dd + "/" + mm + "/" + yyyy;
   }
 
-  // Sort by Tanggal
+  // ✅ PERBAIKAN 2: SORTING LINTAS TAHUN SUPER AMAN
   data.sort(function (a, b) {
-    return (a.tanggal || "").localeCompare(b.tanggal || "");
+    var dA = a.tanggal;
+    var dB = b.tanggal;
+
+    // Prioritas 1: Urutkan berdasarkan kolom "masa" (format "MMYY") secara langsung
+    var masaA = String(a.masa || "").trim();
+    var masaB = String(b.masa || "").trim();
+    if (masaA < masaB) return -1;
+    if (masaA > masaB) return 1;
+
+    // Prioritas 2: Jika masa sama (atau kosong), baru urutkan berdasarkan Tanggal spesifik
+    var timeA = dA instanceof Date ? dA.getTime() : new Date(dA).getTime();
+    var timeB = dB instanceof Date ? dB.getTime() : new Date(dB).getTime();
+
+    // Fallback jika tanggal rusak
+    if (isNaN(timeA)) timeA = 0;
+    if (isNaN(timeB)) timeB = 0;
+
+    return timeA - timeB;
   });
 
   var sal = num(pk.awal);
   var rows = data.map(function (t) {
     sal += num(t.db) - num(t.cr);
     return [
-      t.tanggal || "-",
+      formatTglTransaksi(t.tanggal),
       t.noreff || "-",
       t.dariKePada || "-",
       (t.desc || "-").substring(0, 30),
