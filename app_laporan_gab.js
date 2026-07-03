@@ -206,7 +206,7 @@ function generateHTMLRLGabungan(
 ) {
   var html = "";
   html +=
-    '<div style="width: 100%; overflow-x: auto; border: 1px solid #ddd;">';
+    '<div style="width: 100%; overflow-x: auto; border: 1px solid #131010;">';
   html +=
     '<table border="1" style="width:100%; min-width: 600px; border-collapse: collapse; text-align:left; color:#000; border: 1px solid #000;">';
 
