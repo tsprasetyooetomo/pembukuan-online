@@ -226,7 +226,8 @@ function generateHTMLRLGabungan(
 
   // Tambah Kolom Total
   html +=
-    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:right; background-color:#fff2cc;">TOTAL</th>';
+    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:right; background-color:#000000; color:#ffffff;">TOTAL</th>';
+
   html += "</tr><tr></tr></thead><tbody>";
 
   var currentDigit = null;
