@@ -1168,7 +1168,9 @@ async function renderSaldoKasir() {
     "-",
     '<span style="font-weight:bold;">' + formatUang(totalSaldo) + "</span>",
   ];
+  // ... kode atas tetap sama ...
 
+  // GANTI BAGIAN INI SAJA:
   return (
     bulkBarHTML("saldoKasir", "saldoKasir") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
@@ -1190,8 +1192,18 @@ async function renderSaldoKasir() {
         foot: foot,
         bulkStore: "saldoKasir",
         bulkIds: idsLimit,
+        // ✅ FIX UTAMA: Timpa fungsi actions dengan pemanggilan langsung
         actions: function (r, i) {
-          return crudActions(dataLimit[i].id, "saldoKasir");
+          var id = dataLimit[i].id;
+          // Langsung panggil formSaldoKasir(id) saat tombol edit diklik
+          return (
+            '<button type="button" class="btn btn-y" onclick="formSaldoKasir(\'' +
+            id +
+            '\')" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>' +
+            '<button type="button" class="btn btn-r" onclick="deleteData(\'saldoKasir\', \'' +
+            id +
+            '\')" title="Hapus"><i class="fa-solid fa-trash"></i></button>'
+          );
         },
         emptyMsg: "Belum ada data Saldo Kasir",
       }),
