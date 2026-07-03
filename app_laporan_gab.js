@@ -17,7 +17,7 @@ function renderRLRekapGabungan() {
   var htmlLaporan =
     '<div id="area_cetak_rlgab" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
-    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap Gabungan (Semua Cabang)</h3>' +
+    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap Gabungan</h3>' +
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
     '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
     '<div style="display:flex; align-items:center; gap:5px;">' +
@@ -42,6 +42,7 @@ function renderRLRekapGabungan() {
 
   return htmlLaporan;
 }
+
 async function terapkanOpsiRLGabungan() {
   var inputmasa = document.getElementById("filter_rlgab_masa");
   if (!inputmasa) return;
@@ -79,7 +80,7 @@ async function terapkanOpsiRLGabungan() {
       arrMasterGol.forEach(function (m) {
         var kode = String(m.gol || m.kode_gol || "").trim();
         var nama = String(m.namaGol || m.nama || "").trim();
-        if (kode) mapMasterGol[kode] = nama; // Ambil semua nama, meski beda cabang biasanya namanya sama
+        if (kode) mapMasterGol[kode] = nama;
       });
     }
 
@@ -105,7 +106,6 @@ async function terapkanOpsiRLGabungan() {
         if (!dataByCabang[cabangData][kodeGol])
           dataByCabang[cabangData][kodeGol] = 0;
 
-        // Langsung hitung Saldo Akhir (Db - Cr)
         var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
         dataByCabang[cabangData][kodeGol] += saldoAkhir;
       }
@@ -114,7 +114,6 @@ async function terapkanOpsiRLGabungan() {
     // 4. SUSUN STRUKTUR DATA UNTUK TABLE (Horisontal)
     var daftarCabang = Object.keys(dataByCabang).sort();
 
-    // Kumpulkan semua kode gol unik dari semua cabang
     var setKodeGol = new Set();
     daftarCabang.forEach(function (cab) {
       Object.keys(dataByCabang[cab]).forEach(function (gol) {
@@ -125,7 +124,6 @@ async function terapkanOpsiRLGabungan() {
       return parseInt(a) - parseInt(b);
     });
 
-    // Simpan untuk keperluan excel
     window._rlGabunganData = {
       daftarCabang: daftarCabang,
       arrKodeGol: arrKodeGol,
@@ -163,6 +161,7 @@ async function terapkanOpsiRLGabungan() {
         "</div>";
   }
 }
+
 async function downloadRLGabunganExcel() {
   if (
     !window._rlGabunganData ||
@@ -197,6 +196,7 @@ async function downloadRLGabunganExcel() {
   if (typeof toast === "function")
     toast("File Excel RL Gabungan sedang didownload...", "ok");
 }
+
 function generateHTMLRLGabungan(
   daftarCabang,
   arrKodeGol,
@@ -224,29 +224,29 @@ function generateHTMLRLGabungan(
       "</th>";
   });
 
-  // Tambah Kolom Total
+  // Tambah Kolom Total (DIUBAH: Background Hitam, Tulisan Putih)
   html +=
     '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:right; background-color:#000000; color:#ffffff;">TOTAL</th>';
 
   html += "</tr><tr></tr></thead><tbody>";
 
   var currentDigit = null;
-  var mapSumPerDigit = {}; // Untuk menghitung subtotal per digit golongan
+  var mapSumPerDigit = {};
 
   // 2. ISI BARIS DATA
   arrKodeGol.forEach(function (kodeGol) {
     var digit = kodeGol.charAt(0);
     var namaGol = mapMasterGol[kodeGol] || "-";
 
-    // Buat baris pemisah golongan
     if (currentDigit !== null && digit !== currentDigit) {
       html += buatBarisSubtotalGabungan(
         currentDigit,
         daftarCabang,
         dataByCabang,
         mapSumPerDigit,
+        isForExcel,
       );
-      mapSumPerDigit = {}; // Reset hitungan untuk digit baru
+      mapSumPerDigit = {};
     }
     if (currentDigit !== digit) {
       var namaHeader =
@@ -276,17 +276,16 @@ function generateHTMLRLGabungan(
     html +=
       '<td style="padding:8px; border:1px solid #000;">' + namaGol + "</td>";
 
-    // Looping isi saldo tiap cabang
     daftarCabang.forEach(function (cab) {
       var saldo = dataByCabang[cab][kodeGol] || 0;
       totalRow += saldo;
 
-      // Simpan untuk keperluan subtotal
       if (!mapSumPerDigit[cab]) mapSumPerDigit[cab] = 0;
       mapSumPerDigit[cab] += saldo;
 
       var xNum = isForExcel ? ' x:num="' + saldo + '"' : "";
-      var colorStyle = saldo < 0 ? "color:red;" : "";
+      // DIUBAH: Warna minus dijadikan putih (jika kurang dari 0)
+      var colorStyle = saldo < 0 ? "color: white;" : "";
       html +=
         '<td style="padding:8px; border:1px solid #000; text-align:right; ' +
         colorStyle +
@@ -297,12 +296,11 @@ function generateHTMLRLGabungan(
         "</td>";
     });
 
-    // Kolom Total Akhir
+    // Kolom Total Akhir (DIUBAH: Background Hitam, Tulisan Putih, Termasuk angka minus)
     var xNumTotal = isForExcel ? ' x:num="' + totalRow + '"' : "";
-    var colorTotal =
-      totalRow < 0 ? "color:red; font-weight:bold;" : "font-weight:bold;";
+    var colorTotal = "color:#ffffff; font-weight:bold;"; // Selalu putih
     html +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right; background-color:#fff2cc; ' +
+      '<td style="padding:8px; border:1px solid #000; text-align:right; background-color:#000000; ' +
       colorTotal +
       '"' +
       xNumTotal +
@@ -320,6 +318,7 @@ function generateHTMLRLGabungan(
       daftarCabang,
       dataByCabang,
       mapSumPerDigit,
+      isForExcel,
     );
   }
 
@@ -327,12 +326,13 @@ function generateHTMLRLGabungan(
   return html;
 }
 
-// FUNGSI BANTUAN UNTUK Membuat Baris Subtotal
+// FUNGSI BANTUAN UNTUK Membuat Baris Subtotal (DIUBAH: Background Biru/Hijau, Tulisan Putih)
 function buatBarisSubtotalGabungan(
   digit,
   daftarCabang,
   dataByCabang,
   mapSumPerDigit,
+  isForExcel,
 ) {
   var html = "";
   var ketSubtotal =
@@ -344,30 +344,42 @@ function buatBarisSubtotalGabungan(
           ? "TOTAL BY ADM & UMUM"
           : "TOTAL BEBAN LAINNYA";
 
+  // DIUBAH: Menentukan warna background berdasarkan golongan (Hijau untuk Penjualan, Biru untuk yang lain)
+  var bgColor = digit === "3" ? "#1f7a43" : "#0d6efd";
   var totalSub = 0;
-  html += '<tr style="font-weight:bold; background-color:#fff3cd;">';
+
   html +=
-    '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right;">' +
+    '<tr style="font-weight:bold; background-color:' +
+    bgColor +
+    '; color:#ffffff;">';
+  html +=
+    '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right; color:#ffffff;">' +
     ketSubtotal +
     "</td>";
 
   daftarCabang.forEach(function (cab) {
     var saldo = mapSumPerDigit[cab] || 0;
     totalSub += saldo;
-    var colorStyle = saldo < 0 ? "color:red;" : "";
+    // DIUBAH: Angka minus tetap berwarna putih
+    var colorStyle = "color:#ffffff;";
     html +=
       '<td style="padding:8px; border:1px solid #000; text-align:right; ' +
       colorStyle +
-      '">' +
+      '"' +
+      (isForExcel ? ' x:num="' + saldo + '"' : "") +
+      ">" +
       formatUang(saldo) +
       "</td>";
   });
 
-  var colorTotalSub = totalSub < 0 ? "color:red;" : "";
+  // DIUBAH: Total Subtotal juga ikut background dan tulisan putih
+  var colorTotalSub = "color:#ffffff;";
   html +=
-    '<td style="padding:8px; border:1px solid #000; text-align:right; background-color:#fff2cc; ' +
+    '<td style="padding:8px; border:1px solid #000; text-align:right; background-color:#000000; ' +
     colorTotalSub +
-    '">' +
+    '"' +
+    (isForExcel ? ' x:num="' + totalSub + '"' : "") +
+    ">" +
     formatUang(totalSub) +
     "</td>";
   html += "</tr>";
