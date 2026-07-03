@@ -12,8 +12,9 @@ function renderRLRekapGabungan() {
   var filterTahunFull = partMasa[1];
   var inputMonthValue = filterTahunFull + "-" + filterBulan;
 
+  // UBAH: height dan maxHeight dihapus, overflow dijadikan visible agar bisa menyesuaikan tinggi
   var htmlLaporan =
-    '<div id="area_cetak_rlgab" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:auto; max-height:none; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
+    '<div id="area_cetak_rlgab" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:visible;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
     '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap Gabungan (Semua Cabang)</h3>' +
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
@@ -27,20 +28,12 @@ function renderRLRekapGabungan() {
     '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiRLGabungan()">Terapkan</button>' +
     '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLGabunganExcel()"><i class="fa-solid fa-file-excel"></i> Download Excel</button>' +
     "</div>" +
-    '<div class="table-responsive-container" style="width:100%; max-width:100%; height:500px; max-height:500px; overflow:auto; display:block; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box; margin:0 auto; clear:both;">' +
-    "<style>" +
-    "#tempat_tabel_rlgab table { width: 100% !important; min-width: 600px !important; border-collapse: collapse !important; table-layout: auto !important; margin:0 !important; }" +
-    "#tempat_tabel_rlgab th { padding: 8px 12px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; }" +
-    "#tempat_tabel_rlgab td { padding: 8px 12px !important; white-space: nowrap !important; border: 1px solid var(--brd); }" +
-    ".link-cabang-rl { cursor: pointer; text-decoration: underline; color: #0056b3; font-weight: bold; }" +
-    ".link-cabang-rl:hover { color: #00a8ff; }" +
-    "</style>" +
+    // UBAH: Area ini menjadi dinamis (bisa menampung tabel gabungan atau rl lebar)
     '<div id="tempat_tabel_rlgab" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
-    "</div>" +
     '<div id="area_grafik_rlgab" class="no-print" style="width:100%; max-width:1000px; height:400px; margin:2rem auto 0 auto; background:var(--bg2); border:1px solid var(--brd); border-radius:var(--r); padding:1rem; box-sizing:border-box; display:none;">' +
     '<canvas id="chart_rlgab_cabang"></canvas>' +
     "</div>" +
-    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data. <i>(Klik kode golongan di popup detail untuk melihat transaksi 12 bulan)</i></p>' +
+    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data. <i>(Klik nama cabang untuk melihat RL Lebar 12 Bulan)</i></p>' +
     "</div></div>";
 
   return htmlLaporan;
@@ -118,7 +111,6 @@ async function terapkanOpsiRLGabungan() {
         if (!dataByCabang[cabangData]) dataByCabang[cabangData] = {};
         if (!dataByCabang[cabangData][kodeGol])
           dataByCabang[cabangData][kodeGol] = 0;
-
         var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
         dataByCabang[cabangData][kodeGol] += saldoAkhir;
       }
@@ -219,23 +211,18 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
           total += dataByCabang[cab][kodeGol];
         }
       });
-
-      // Jika Penjualan, kalikan -1 agar jadi Positif
       if (isPenjualan) {
         total = total * -1;
       }
-
       return total;
     });
   }
 
-  // 1. Ambil data keempat komponen
   var dataPenjualan = hitungSubTotalPerCabang("3", true);
   var dataHPP = hitungSubTotalPerCabang("4", false);
   var dataAdmUmum = hitungSubTotalPerCabang("5", false);
   var dataLain2 = hitungSubTotalPerCabang("6", false);
 
-  // 2. HITUNG DATA RL (LABA/RUGI BERSIH)
   var dataRL = dataPenjualan.map(function (val, index) {
     return val - dataHPP[index] - dataAdmUmum[index] - dataLain2[index];
   });
@@ -247,7 +234,6 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
     window.myRlGabChart.destroy();
   }
 
-  // 3. MASUKKAN dataRL KE DALAM DATASETS GRAFIK
   window.myRlGabChart = new Chart(ctx, {
     type: "line",
     data: {
@@ -289,14 +275,13 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
           tension: 0.3,
           fill: false,
         },
-        // ---> DATASET BARU UNTUK RL <---
         {
           label: "LABA / RUGI BERSIH (RL)",
           data: dataRL,
-          borderColor: "#FFD700", // Warna Kuning Emas
+          borderColor: "#FFD700",
           backgroundColor: "rgba(255, 215, 0, 0.2)",
-          borderWidth: 4, // Dibuat sedikit lebih tebal
-          borderDash: [5, 5], // Dibuat garis putus-putus agar mudah dibedakan
+          borderWidth: 4,
+          borderDash: [5, 5],
           tension: 0.3,
           fill: false,
         },
@@ -331,10 +316,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
           },
           grid: { color: "rgba(0,0,0,0.05)" },
         },
-        x: {
-          ticks: { color: "#333" },
-          grid: { display: false },
-        },
+        x: { ticks: { color: "#333" }, grid: { display: false } },
       },
     },
   });
@@ -385,7 +367,7 @@ function generateHTMLRLGabungan(
   isForExcel,
 ) {
   var html =
-    '<div style="width: 100%; overflow-x: auto; border: 1px solid #131010;"><table border="1" style="width:100%; min-width: 600px; border-collapse: collapse; text-align:left; color:#000; border: 1px solid #000;">';
+    '<div id="area_tabel_gabungan" style="width: 100%; overflow-x: auto; border: 1px solid #131010;"><table border="1" style="width:100%; min-width: 600px; border-collapse: collapse; text-align:left; color:#000; border: 1px solid #000;">';
   html += '<thead style="background:#f4f4f4; font-weight:bold;"><tr>';
   html +=
     '<th rowspan="2" style="padding:10px; border:1px solid #000;">GOL</th>';
@@ -655,7 +637,30 @@ function hitungBarisLaba(
 }
 
 // ==========================================
-// FUNGSI DETAIL: MENGGUNAKAN LOGIKA RL LEBAR
+// FUNGSI BARU: KEMBALIKAN KE TAMPILAN GABUNGAN
+// ==========================================
+function kembaliKeRLGabungan() {
+  var area = document.getElementById("tempat_tabel_rlgab");
+  var grafik = document.getElementById("area_grafik_rlgab");
+
+  if (area && window._rlGabunganData) {
+    var d = window._rlGabunganData;
+    area.innerHTML = generateHTMLRLGabungan(
+      d.daftarCabang,
+      d.arrKodeGol,
+      d.dataByCabang,
+      d.mapMasterGol,
+      d.mapMasterCab,
+      false,
+    );
+  }
+  if (grafik) {
+    grafik.style.display = "block"; // Tampilkan kembali grafiknya
+  }
+}
+
+// ==========================================
+// FUNGSI DETAIL: DITAMPILKAN DI ATAS, LEBAR, TANPA POPUP
 // ==========================================
 async function tampilkanRLPerCabangSD(kodeCabang) {
   if (!window._rlGabFilterMasa) return;
@@ -672,20 +677,16 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
   var filterBulan = partMasa[0];
   var filterTahunFull = partMasa[1];
 
-  // Buka Modal
-  var modalContent =
-    '<div id="area_modal_rl_cabang" style="padding:1rem; min-height:200px; background:#000; color:#fff;"><div style="text-align:center; padding:2rem; color:#aaa;"><span class="spinner"></span> Memuat RL Lebar 12 Bulan...</div></div>';
+  var area = document.getElementById("tempat_tabel_rlgab");
+  var grafik = document.getElementById("area_grafik_rlgab");
 
-  if (typeof openModal === "function") {
-    openModal(
-      "RL Lebar Cabang: " + namaCab + " - Tahun " + filterTahunFull,
-      modalContent,
-      "95%",
-      "95%",
-    );
-  } else {
-    alert("Fungsi modal tidak ditemukan di sistem.");
-    return;
+  // Sembunyikan grafik sementara
+  if (grafik) grafik.style.display = "none";
+
+  // Tampilkan Loading di area yang sama
+  if (area) {
+    area.innerHTML =
+      '<div style="padding:3rem; text-align:center; color:var(--muted); background:#000; border-radius:8px;"><span class="spinner"></span> Memuat RL Lebar 12 Bulan...</div>';
   }
 
   try {
@@ -713,7 +714,6 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
     ];
     var mapGolongan = {};
 
-    // Looping 12 bulan untuk mencari datanya
     for (var bln = 1; bln <= 12; bln++) {
       var blnStr = ("0" + bln).slice(-2);
       var duaDigitTahun = String(filterTahunFull).slice(-2);
@@ -754,19 +754,27 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       .filter((g) => g.total !== 0)
       .sort((a, b) => parseInt(a.gol) - parseInt(b.gol));
 
-    var areaRender = document.getElementById("area_modal_rl_cabang");
-    if (!areaRender) return;
-
     if (listGol.length === 0) {
-      areaRender.innerHTML =
-        '<div style="padding:3rem;text-align:center;color:#888;">Data kosong untuk cabang ini di tahun ' +
+      area.innerHTML =
+        '<div style="padding:3rem;text-align:center;color:#888; background:#000; border-radius:8px;">Data kosong untuk cabang ini di tahun ' +
         filterTahunFull +
         "</div>";
       return;
     }
 
+    // TAMBAHAN: Header dengan tombol kembali
     var html =
-      '<div style="overflow-x:auto; border:1px solid #444;"><table border="1" style="width:100%;border-collapse:collapse;color:#fff;border:1px solid #444;background:#000;">';
+      '<div style="margin-bottom: 1rem; display:flex; justify-content:space-between; align-items:center;">' +
+      '<h4 style="margin:0; color:#fff; font-size:1.1rem;">RL Lebar: ' +
+      namaCab +
+      " - Tahun " +
+      filterTahunFull +
+      "</h4>" +
+      '<button class="btn btn-b" style="background:#333; color:#fff; border:1px solid #555; font-size:.8rem; padding:5px 15px;" onclick="kembaliKeRLGabungan()"><i class="fa-solid fa-arrow-left"></i> Kembali ke RL Gabungan</button>' +
+      "</div>";
+
+    html +=
+      '<div style="overflow-x:auto; border:1px solid #444; border-radius:8px;"><table border="1" style="width:100%;border-collapse:collapse;color:#fff;border:1px solid #444;background:#000; min-width:1200px;">';
 
     html +=
       '<thead><tr style="background:#1a1a1a;font-weight:bold;color:#fff;">';
@@ -882,7 +890,6 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
 
       currentDigit = digit;
       html += "<tr>";
-      // TAMBAHAN ONCLICK UNTUK MEMBUKA DETIL TRANSAKSI DARI POPUP INI
       html += `<td onclick="lihatDetilTransaksiRLLebar('${item.gol}', 'YTD${filterTahunFull}', '${kodeCabang}')" style="padding:6px;border:1px solid #3e0a93;cursor:pointer;color:#4da3ff;font-weight:bold;text-decoration:underline;">${item.gol}</td>
       <td style="padding:6px;border:1px solid #444;color:#fff;text-align: left;">${item.namaGol}</td>`;
 
@@ -899,7 +906,6 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       html += `<td style="padding:6px;border:1px solid #444;text-align:right;font-weight:bold;color:${item.total >= 0 ? "#fff" : "#ff6b6b"}">${formatUang(item.total)}</td></tr>`;
     }
 
-    // Subtotal Terakhir
     if (currentDigit !== null) {
       var arrSubAkhir = {};
       var totalSubAkhir = 0;
@@ -917,7 +923,6 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       prosesAkumulasiYTD(currentDigit, subTotalPerBulan);
     }
 
-    // Laba Rugi YTD
     html +=
       '<tr><td colspan="15" style="border:1px solid #444;padding:4px;background-color:#ffc107;"></td></tr>';
     var arrTotalBulan = {};
@@ -936,21 +941,21 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
     );
 
     html += "</tbody></table></div>";
-    areaRender.innerHTML = html;
+
+    // Render langsung di area utama
+    area.innerHTML = html;
   } catch (error) {
     console.error("Error load detail RL Cabang:", error);
-    var areaErr = document.getElementById("area_modal_rl_cabang");
-    if (areaErr)
-      areaErr.innerHTML =
-        '<div style="padding:2rem; text-align:center; color:red;">Gagal memuat data: ' +
+    if (area)
+      area.innerHTML =
+        '<div style="padding:2rem; text-align:center; color:red; background:#000; border-radius:8px;">Gagal memuat data: ' +
         error.message +
         "</div>";
   }
 }
 
 // ==========================================
-// FUNGSI DETAIL TRANSAKSI YANG DIPANGGIL DARI POPUP DI ATAS
-// (Saya sesuaikan agar tidak error jika mencari selain PUSAT)
+// FUNGSI DETAIL TRANSAKSI TETAP MENGGUNAKAN POPUP KEcil
 // ==========================================
 function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
   var duadigittahun = masa.substring(2, 4);
@@ -959,8 +964,6 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
 
   var popupId = "popup_transaksi_" + Date.now();
 
-  // MODIFIKASI: Jika user klik dari RL Gabungan, kode cabang sudah benar (bukan PUSAT).
-  // Jika dari RL Lebar biasa dan memilih PUSAT, maka diubah ke 00.
   var cabFilter = String(cabang || "")
     .trim()
     .toUpperCase();
@@ -994,7 +997,7 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
   db.getAll(namaStore)
     .then(function (rawData) {
       var listTrans = Array.isArray(rawData) ? rawData : [];
-      var masaCari = masa; // Format YTD2024
+      var masaCari = masa;
 
       var detilTrans = listTrans.filter(function (t) {
         var tNo = String(t.noperkiraan || "").trim();
