@@ -862,7 +862,7 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
         "', '" +
         cabang + // ← tambahkan parameter cabang di sini
         "')\" " +
-        'style="border:1px solid #ccc; padding:6px; cursor:pointer; color:blue; font-weight:bold; text-decoration:underline;">' +
+        'style="border:1px solid #ccc; padding:6px; cursor:pointer; color:green; font-weight:bold; text-decoration:underline;">' +
         no +
         "</td>" +
         '<td style="border:1px solid #ccc; padding:6px;">' +
