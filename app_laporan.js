@@ -2101,7 +2101,7 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
         kodemasadicari +
         "', '" +
         valcabang +
-        "')\" style='padding:10px; border:1px solid #000; cursor:pointer; color:blue; font-weight:bold; text-decoration:underline;'>" +
+        "')\" style='padding:10px; border:1px solid #000; cursor:pointer; color:green font-weight:bold; text-decoration:underline;'>" +
         golVal +
         "</td>";
     }
