@@ -4101,7 +4101,6 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
 
         return "-";
       }
-
       // 5. Render Tabel
       var tableHtml =
         '<div style="overflow-x:auto; background-color:#000000; color:#ffffff;">' +
