@@ -211,7 +211,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
     return mapMasterCab[cab] || cab;
   });
 
-  function hitungSubTotalPerCabang(digitTarget) {
+  function hitungSubTotalPerCabang(digitTarget, isPenjualan) {
     return daftarCabang.map(function (cab) {
       var total = 0;
       Object.keys(dataByCabang[cab] || {}).forEach(function (kodeGol) {
@@ -220,7 +220,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
         }
       });
 
-      // TAMBAHAN LOGIKA: Jika ini Penjualan (Digit 3), dikalikan -1 agar jadi Positif
+      // Jika Penjualan, kalikan -1 agar jadi Positif
       if (isPenjualan) {
         total = total * -1;
       }
@@ -229,10 +229,16 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
     });
   }
 
-  var dataPenjualan = hitungSubTotalPerCabang("3");
-  var dataHPP = hitungSubTotalPerCabang("4");
-  var dataAdmUmum = hitungSubTotalPerCabang("5");
-  var dataLain2 = hitungSubTotalPerCabang("6");
+  // 1. Ambil data keempat komponen
+  var dataPenjualan = hitungSubTotalPerCabang("3", true);
+  var dataHPP = hitungSubTotalPerCabang("4", false);
+  var dataAdmUmum = hitungSubTotalPerCabang("5", false);
+  var dataLain2 = hitungSubTotalPerCabang("6", false);
+
+  // 2. HITUNG DATA RL (LABA/RUGI BERSIH)
+  var dataRL = dataPenjualan.map(function (val, index) {
+    return val - dataHPP[index] - dataAdmUmum[index] - dataLain2[index];
+  });
 
   areaGrafik.style.display = "block";
   var ctx = document.getElementById("chart_rlgab_cabang").getContext("2d");
@@ -241,6 +247,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
     window.myRlGabChart.destroy();
   }
 
+  // 3. MASUKKAN dataRL KE DALAM DATASETS GRAFIK
   window.myRlGabChart = new Chart(ctx, {
     type: "line",
     data: {
@@ -282,6 +289,17 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
           tension: 0.3,
           fill: false,
         },
+        // ---> DATASET BARU UNTUK RL <---
+        {
+          label: "LABA / RUGI BERSIH (RL)",
+          data: dataRL,
+          borderColor: "#FFD700", // Warna Kuning Emas
+          backgroundColor: "rgba(255, 215, 0, 0.2)",
+          borderWidth: 4, // Dibuat sedikit lebih tebal
+          borderDash: [5, 5], // Dibuat garis putus-putus agar mudah dibedakan
+          tension: 0.3,
+          fill: false,
+        },
       ],
     },
     options: {
@@ -313,7 +331,10 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
           },
           grid: { color: "rgba(0,0,0,0.05)" },
         },
-        x: { ticks: { color: "#333" }, grid: { display: false } },
+        x: {
+          ticks: { color: "#333" },
+          grid: { display: false },
+        },
       },
     },
   });
