@@ -3962,36 +3962,38 @@ async function terapkanOpsiRLLebar() {
 }
 
 function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
-  // ← TAMBAH PARAMETER cabang
-
-  // 1. Parsing Tahun dari format MMYY (karena dikirim dari lihatDetilPerkiraan sudah bentuk MMYY)
-  var duadigittahun = masa.substring(2, 4);
-  var tahun = "20" + duadigittahun;
-  var namaStore = "transaksi" + tahun;
+  // 1. Parse tahun dari format "YTD2024"
+  var tahunFull = masa.replace("YTD", ""); // Hasil: "2024"
+  var namaStore = "transaksi" + tahunFull;
 
   var popupId = "popup_transaksi_" + Date.now();
 
-  // ✅ CEK NILAI TERIMA
-  console.log("📥 [TERIMA] Masa:", masa, "| Cabang:", cabang);
+  var cabFilter = String(cabang || "")
+    .trim()
+    .toUpperCase();
+  if (cabFilter === "PUSAT") {
+    cabFilter = "00";
+  }
 
   var popupHtml =
     '<div id="' +
     popupId +
-    '" style="position:fixed; top:20px; right:20px; width:45%; max-width:650px; max-height:90vh; background:white; border:1px solid #aaa; box-shadow:0 5px 15px rgba(0,0,0,0.5); z-index:10001; display:flex; flex-direction:column; border-radius:6px;">' +
-    '<div style="padding:10px; background:#f0f0f0; border-bottom:1px solid #ccc; display:flex; justify-content:space-between; align-items:center; border-radius:6px 6px 0 0;">' +
-    '<strong style="font-size:0.9rem; color:#333;">Detil Transaksi: ' +
+    '" style="position:fixed; top:20px; right:20px; width:50%; max-width:700px; max-height:90vh; background:#000; border:2px solid #4da3ff; box-shadow:0 0 20px rgba(77, 163, 255, 0.5); z-index:10001; display:flex; flex-direction:column; border-radius:8px;">' +
+    '<div style="padding:12px; background:#1a1a1a; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; border-radius:8px 8px 0 0;">' +
+    '<strong style="font-size:0.9rem; color:#4da3ff;">Detil Transaksi YTD: ' +
     noPerkiraan +
+    " | Cabang: " +
+    cabFilter +
     "</strong>" +
     "<button onclick=\"document.getElementById('" +
     popupId +
-    '\').remove()" style="background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:#555;">&times;</button>' +
+    '\').remove()" style="background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:#fff;">&times;</button>' +
     "</div>" +
     '<div id="' +
     popupId +
-    '_body" style="padding:10px; overflow-y:auto; flex:1; font-size:0.8rem;">' +
-    '<div style="text-align:center; padding:20px; color:#666;">Loading...</div>' +
-    "</div>" +
-    "</div>";
+    '_body" style="padding:10px; overflow-y:auto; flex:1; font-size:0.8rem; color:#fff;">' +
+    '<div style="text-align:center; padding:20px; color:#888;">Loading data transaksi 12 bulan...</div>' +
+    "</div></div>";
 
   document.body.insertAdjacentHTML("beforeend", popupHtml);
   var container = document.getElementById(popupId + "_body");
@@ -4000,34 +4002,20 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
     .then(function (rawData) {
       var listTrans = Array.isArray(rawData) ? rawData : [];
 
-      // Masa sudah dalam format MMYY, jadi langsung gunakan
-      var masaCari = masa;
-      console.log("🔢 [HASIL] Masa Dicari di DB:", masaCari);
-
-      // ✅ GUNAKAN PARAMETER CABANG YANG DITERIMA DARI ONCLICK
-      var cabInput = String(cabang || "")
-        .trim()
-        .toUpperCase();
-
-      // ✅ PERBAIKAN LOGIKA MAPPING CABANG
-      var cabFilter = cabInput;
-      if (cabInput === "PUSAT") {
-        cabFilter = "00"; // Jika user pilih PUSAT, cari kode 00
+      // 2. Siapkan array 12 bulan untuk mencocokkan (0101 s/d 1224 jika tahun 2024)
+      var duaDigitTahun = tahunFull.substring(2, 4);
+      var setMasaValid = new Set();
+      for (var b = 1; b <= 12; b++) {
+        var blnStr = ("0" + b).slice(-2);
+        setMasaValid.add(blnStr + duaDigitTahun); // Contoh: "0124", "0224", dst...
       }
 
-      console.log(
-        "🔍 Mencori Cabang Input:",
-        cabInput,
-        "-> Dikonversi ke Kode DB:",
-        cabFilter,
-      );
-
-      // Filter Data
-      // 1. Ambil 3 digit depan dari parameter yang dicari (misal "300" tetap "300")
+      // 3. Ambil 3 digit depan no perkiraan
       var prefixNoPerkiraan = String(noPerkiraan || "")
         .trim()
         .substring(0, 3);
 
+      // 4. Filter Data
       var detilTrans = listTrans.filter(function (t) {
         var tNo = String(t.noperkiraan || "").trim();
         var tCab = String(t.cabang || "")
@@ -4035,28 +4023,28 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
           .toUpperCase();
         var tMasa = String(t.masa || "").trim();
 
-        // 2. Ambil 3 digit depan dari data di database (misal "3001000" jadi "300")
         var tNoPrefix = tNo.substring(0, 3);
-
-        // 3. Cocokkan 3 digit depannya
         var cocokPerkiraan = tNoPrefix === prefixNoPerkiraan;
+
+        // Cek apakah masanya ada di dalam 12 bulan tahun tersebut
+        var cocokMasa = setMasaValid.has(tMasa);
 
         var cocokCabang = true;
         if (cabFilter !== "ALL" && cabFilter !== "") {
           cocokCabang = tCab === cabFilter;
         }
 
-        // 4. Gunakan variabel cocokPerkiraan
-        return cocokPerkiraan && tMasa === masaCari && cocokCabang;
+        return cocokPerkiraan && cocokMasa && cocokCabang;
       });
+
       if (detilTrans.length === 0) {
         container.innerHTML =
-          '<div style="text-align:center; padding:20px; color:orange;">' +
+          '<div style="text-align:center; padding:20px; color:#ffc107;">' +
           "Data tidak ditemukan.<br><br>" +
-          "<small>Dicari No Perkiraan: " +
-          noPerkiraan +
-          " | Masa: " +
-          masaCari +
+          "<small>Dicari No Perkiraan (3 digit depan): " +
+          prefixNoPerkiraan +
+          " | Tahun: " +
+          tahunFull +
           " | Cabang Kode: " +
           cabFilter +
           "</small>" +
@@ -4064,11 +4052,20 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
         return;
       }
 
-      // Render Tabel
+      // Urutkan berdasarkan masa dan tanggal agar kronologis
+      detilTrans.sort(function (a, b) {
+        var masaA = String(a.masa || "");
+        var masaB = String(b.masa || "");
+        if (masaA !== masaB) return masaA.localeCompare(masaB);
+        return String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
+      });
+
+      // 5. Render Tabel
       var tableHtml =
         '<div style="overflow-x:auto; background-color:#000000; color:#ffffff;">' +
         '<table style="width:100%; border-collapse:collapse; font-size:0.75rem; min-width:500px; background-color:#000000; color:#ffffff;">' +
         '<thead style="background:#1a1a1a; position:sticky; top:0; color:#ffffff;"><tr>' +
+        '<th style="border:1px solid #444; padding:5px;">MASA</th>' +
         '<th style="border:1px solid #444; padding:5px;">TANGGAL</th>' +
         '<th style="border:1px solid #444; padding:5px;">NOREFF</th>' +
         '<th style="border:1px solid #444; padding:5px;">DESC</th>' +
@@ -4080,6 +4077,7 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
       var totalCr = 0;
 
       detilTrans.forEach(function (t) {
+        var msa = t.masa || "-";
         var tgl = t.tanggal || "-";
         var ref = t.noreff || "-";
         var ket = t.desc || "-";
@@ -4091,32 +4089,34 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
 
         tableHtml +=
           "<tr>" +
-          '<td style="border:1px solid #ddd; padding:4px;">' +
+          '<td style="border:1px solid #444; padding:4px; text-align:center; color:#4da3ff;">' +
+          msa +
+          "</td>" +
+          '<td style="border:1px solid #444; padding:4px;">' +
           tgl +
           "</td>" +
-          '<td style="border:1px solid #ddd; padding:4px;">' +
+          '<td style="border:1px solid #444; padding:4px;">' +
           ref +
           "</td>" +
-          '<td style="border:1px solid #ddd; padding:4px;">' +
+          '<td style="border:1px solid #444; padding:4px;">' +
           ket +
           "</td>" +
-          '<td style="border:1px solid #ddd; padding:4px; text-align:right;">' +
+          '<td style="border:1px solid #444; padding:4px; text-align:right;">' +
           fmtN(dbVal) +
           "</td>" +
-          '<td style="border:1px solid #ddd; padding:4px; text-align:right;">' +
+          '<td style="border:1px solid #444; padding:4px; text-align:right;">' +
           fmtN(crVal) +
           "</td>" +
           "</tr>";
       });
 
-      // ✅ TAMBAHAN: Baris Total di bawah tabel
       tableHtml +=
-        '<tr style="background:#f4f4f4; font-weight:bold;">' +
-        '<td colspan="3" style="border:1px solid #ccc; padding:5px; text-align:right;">TOTAL</td>' +
-        '<td style="border:1px solid #ccc; padding:5px; text-align:right;">' +
+        '<tr style="background:#1b5e20; font-weight:bold;">' +
+        '<td colspan="4" style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">TOTAL YTD</td>' +
+        '<td style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">' +
         fmtN(totalDb) +
         "</td>" +
-        '<td style="border:1px solid #ccc; padding:5px; text-align:right;">' +
+        '<td style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">' +
         fmtN(totalCr) +
         "</td>" +
         "</tr>";
@@ -4127,7 +4127,7 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
     .catch(function (err) {
       console.error(err);
       container.innerHTML =
-        '<div style="text-align:center; padding:20px; color:red;">Error: ' +
+        '<div style="text-align:center; padding:20px; color:#ff6b6b;">Error: ' +
         err.message +
         "</div>";
     });
