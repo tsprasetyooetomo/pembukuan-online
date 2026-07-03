@@ -3231,7 +3231,7 @@ async function downloadBukuBesarExcel() {
   var masaSampai = window._bbCurrentData.masaSampai;
 
   // ============================================================
-  // 1. AMBIL DATA DARI BACKUP (Sama Logic dengan Refresh)
+  // 1. AMBIL DATA DARI BACKUP
   // ============================================================
   var allTransactions = [];
 
@@ -3264,7 +3264,7 @@ async function downloadBukuBesarExcel() {
       '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> ' +
       "Mengambil data transaksi tahun <b>" +
       th +
-      "</b>...</div>";
+      "</b> untuk Excel...</div>";
 
     try {
       var rawData = await db.getAll(namaStore);
@@ -3277,10 +3277,9 @@ async function downloadBukuBesarExcel() {
   }
 
   // ============================================================
-  // 2. FILTER DATA (Sama dengan Refresh)
+  // 2. FILTER DATA
   // ============================================================
   var data = allTransactions.filter(function (t) {
-    // ✅ GUNAKAN noperkiraan
     var tNoPerk = String(t.noperkiraan || "").trim();
     var pNoPerk = String(pk.noPerk).trim();
 
@@ -3317,48 +3316,8 @@ async function downloadBukuBesarExcel() {
     var yyyy = d.getFullYear();
     return dd + "/" + mm + "/" + yyyy;
   }
-  data.sort(function (a, b) {
-    return (a.tanggal || "").localeCompare(b.tanggal || "");
-  });
 
-  // ============================================================
-  // 3. SUSUN HTML EXCEL
-  // ============================================================
-  var sal = num(pk.awal);
-  var html =
-    '<table border="1" style="border-collapse:collapse; font-family:Arial, sans-serif;">';
-
-  // Header
-  html +=
-    '<tr style="background:#f4f4f4; font-weight:bold; text-align:center;">';
-  html += '<td style="padding:8px; border:1px solid #000;">TANGGAL</td>';
-  html += '<td style="padding:8px; border:1px solid #000;">NO REFF</td>';
-  html += '<td style="padding:8px; border:1px solid #000;">DARI/KEPADA</td>';
-  html += '<td style="padding:8px; border:1px solid #000;">KETERANGAN</td>';
-  html += '<td style="padding:8px; border:1px solid #000;">DEBET</td>';
-  html += '<td style="padding:8px; border:1px solid #000;">KREDIT</td>';
-  html += '<td style="padding:8px; border:1px solid #000;">SALDO</td>';
-  html += "</tr>";
-
-  // Baris Saldo Awal
-  html += "<tr>";
-  html +=
-    '<td style="padding:6px; border:1px solid #000; font-style:italic;">Saldo Awal</td>';
-  html += '<td style="padding:6px; border:1px solid #000;"></td>';
-  html += '<td style="padding:6px; border:1px solid #000;"></td>';
-  html += '<td style="padding:6px; border:1px solid #000;"></td>';
-  html += '<td style="padding:6px; border:1px solid #000;"></td>';
-  html += '<td style="padding:6px; border:1px solid #000;">-</td>';
-  html +=
-    '<td style="padding:6px; border:1px solid #000; text-align:right; font-weight:bold;">' +
-    fmtN(sal) +
-    "</td>";
-  html += "</tr>";
-
-  var totalDb = 0;
-  var totalCr = 0;
-
-  // ✅ 1. GANTI SORTING AGAR AKURAT LINTAS TAHUN
+  // SORTING AKURAT LINTAS TAHUN
   data.sort(function (a, b) {
     var masaA = String(a.masa || "").trim();
     var masaB = String(b.masa || "").trim();
@@ -3377,7 +3336,7 @@ async function downloadBukuBesarExcel() {
   });
 
   // ============================================================
-  // 3. SUSUN HTML EXCEL
+  // 3. SUSUN HTML EXCEL (HANYA SATU KALI)
   // ============================================================
   var sal = num(pk.awal);
   var html =
@@ -3413,6 +3372,7 @@ async function downloadBukuBesarExcel() {
   var totalDb = 0;
   var totalCr = 0;
 
+  // Detail Transaksi
   data.forEach(function (t) {
     var dbVal = num(t.db);
     var crVal = num(t.cr);
@@ -3422,16 +3382,17 @@ async function downloadBukuBesarExcel() {
 
     html += "<tr>";
 
-    // ✅ 2. PAKAI FUNGSI formatTglTransaksi() DI SINI
+    // PAKAI FUNGSI formatTglTransaksi() + mso-number-format yang benar
     html +=
-      "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\/\@'\">" +
+      "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\\@';text-align:center;\">" +
       formatTglTransaksi(t.tanggal) +
       "</td>";
 
     html +=
-      "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\/\@'\">" +
+      "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\\@';\">" +
       (t.noreff || "-") +
       "</td>";
+
     html +=
       '<td style="padding:6px; border:1px solid #000;">' +
       (t.dariKePada || "-") +
