@@ -2090,7 +2090,7 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
 
     if (isForExcel) {
       html +=
-        '<td style="padding:10px; border:1px solid #000; text-align:center; font-weight:bold;">' +
+        '<td style="padding:10px; border:1px solid #000; text-align:center; color:green font-weight:bold;">' +
         golVal +
         "</td>";
     } else {
