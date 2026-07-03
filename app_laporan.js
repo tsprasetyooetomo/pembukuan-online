@@ -280,7 +280,7 @@ async function terapkanOpsiNeraca() {
         return golA - golB;
       });
 
-    console.log("📊 Jumlah baris yang dipaksa muncul:", golterfilter.length);
+    // console.log("📊 Jumlah baris yang dipaksa muncul:", golterfilter.length);
 
     if (golterfilter.length === 0) {
       if (area) {
@@ -389,7 +389,7 @@ async function terapkanOpsiNeraca() {
                 : "";
           // ✅ TAMBAHKAN STYLE LINK DAN EVENT ONCLICK DI SINI
           styleTambahan =
-            "cursor: pointer; color: blue; font-weight: bold; text-decoration: underline;";
+            "cursor: pointer; color: yellow; font-weight: bold; text-decoration: underline;";
         } else if (h === "namaGol")
           val = item.namaGol !== undefined ? item.namaGol : "";
         else if (h === "masa") val = item.masa !== undefined ? item.masa : "";
@@ -506,7 +506,7 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
   var popupId = "popup_transaksi_" + Date.now();
 
   // ✅ CEK NILAI TERIMA
-  console.log("📥 [TERIMA] Masa:", masa, "| Cabang:", cabang);
+  // console.log("📥 [TERIMA] Masa:", masa, "| Cabang:", cabang);
 
   var popupHtml =
     '<div id="' +
@@ -536,7 +536,7 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
 
       // Masa sudah dalam format MMYY, jadi langsung gunakan
       var masaCari = masa;
-      console.log("🔢 [HASIL] Masa Dicari di DB:", masaCari);
+      //  console.log("🔢 [HASIL] Masa Dicari di DB:", masaCari);
 
       // ✅ GUNAKAN PARAMETER CABANG YANG DITERIMA DARI ONCLICK
       var cabInput = String(cabang || "")
@@ -862,7 +862,7 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
         "', '" +
         cabang + // ← tambahkan parameter cabang di sini
         "')\" " +
-        'style="border:1px solid #ccc; padding:6px; cursor:pointer; color:blue; font-weight:bold; text-decoration:underline;">' +
+        'style="border:1px solid #ccc; padding:6px; cursor:pointer; color:yellow; font-weight:bold; text-decoration:underline;">' +
         no +
         "</td>" +
         '<td style="border:1px solid #ccc; padding:6px;">' +
@@ -1178,23 +1178,23 @@ async function terapkanOpsiDetilNeraca() {
       ) {
         html += '<tr style="font-weight:bold; background:#f9f9f9;">';
         html +=
-          '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right;color:blue;">TOTAL KELOMPOK ' +
+          '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right;color:yellow;">TOTAL KELOMPOK ' +
           current3DigitPrefix +
           "</td>";
         html +=
-          '<td style="padding:8px; border:1px solid #000; text-align:right;color:blue;">' +
+          '<td style="padding:8px; border:1px solid #000; text-align:right;color:yellow;">' +
           formatUang(subAwal) +
           "</td>";
         html +=
-          '<td style="padding:8px; border:1px solid #000; text-align:right;color:blue;">' +
+          '<td style="padding:8px; border:1px solid #000; text-align:right;color:yellow;">' +
           formatUang(subDb) +
           "</td>";
         html +=
-          '<td style="padding:8px; border:1px solid #000; text-align:right;color:blue;">' +
+          '<td style="padding:8px; border:1px solid #000; text-align:right;color:yellow;">' +
           formatUang(subCr) +
           "</td>";
         html +=
-          '<td style="padding:8px; border:1px solid #000; text-align:right; color:blue;">' +
+          '<td style="padding:8px; border:1px solid #000; text-align:right; color:yellow;">' +
           formatUang(subAwal + subDb - subCr) +
           "</td>";
         html += '<td style="padding:2px; border:1px solid #000;"></td></tr>';
@@ -1225,7 +1225,7 @@ async function terapkanOpsiDetilNeraca() {
         "', '" +
         valcabang +
         "')\" " +
-        'style="padding:6px; border:1px solid #000; cursor:pointer; color:blue; text-decoration:underline; font-weight:bold;">' +
+        'style="padding:6px; border:1px solid #000; cursor:pointer; color:yellow; text-decoration:underline; font-weight:bold;">' +
         noPerk +
         "</td>";
       html +=
@@ -1265,23 +1265,23 @@ async function terapkanOpsiDetilNeraca() {
     if (current3DigitPrefix !== "") {
       html += '<tr style="font-weight:bold; background:#f9f9f9;">';
       html +=
-        '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right;color:blue;">TOTAL KELOMPOK ' +
+        '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right;color:yellow;">TOTAL KELOMPOK ' +
         current3DigitPrefix +
         "</td>";
       html +=
-        '<td style="padding:8px; border:1px solid #000; text-align:right;color:blue;">' +
+        '<td style="padding:8px; border:1px solid #000; text-align:right;color:yellow;">' +
         formatUang(subAwal) +
         "</td>";
       html +=
-        '<td style="padding:8px; border:1px solid #000; text-align:right;color:blue;">' +
+        '<td style="padding:8px; border:1px solid #000; text-align:right;color:yellow;">' +
         formatUang(subDb) +
         "</td>";
       html +=
-        '<td style="padding:8px; border:1px solid #000; text-align:right;color:blue;">' +
+        '<td style="padding:8px; border:1px solid #000; text-align:right;color:yellow;">' +
         formatUang(subCr) +
         "</td>";
       html +=
-        '<td style="padding:8px; border:1px solid #000; text-align:right; color:blue;">' +
+        '<td style="padding:8px; border:1px solid #000; text-align:right; color:yellow;">' +
         formatUang(subAwal + subDb - subCr) +
         "</td>";
       html += '<td style="padding:2px; border:1px solid #000;"></td></tr>';
@@ -1465,13 +1465,13 @@ function lihatBukuBesar(noPerkiraan, masa, cabang) {
       tableHtml +=
         '<tr style="background:#f4f4f4; font-weight:bold; border-top:2px solid #333;">' +
         '<td colspan="3" style="padding:8px; text-align:right;">TOTAL PERIODE INI</td>' +
-        '<td style="padding:8px; text-align:right;color:blue;">' +
+        '<td style="padding:8px; text-align:right;color:yellow;">' +
         fmtN(totalDb) +
         "</td>" +
-        '<td style="padding:8px; text-align:right;color:blue;">' +
+        '<td style="padding:8px; text-align:right;color:yellow;">' +
         fmtN(totalCr) +
         "</td>" +
-        '<td style="padding:8px; text-align:right; color:blue;">' +
+        '<td style="padding:8px; text-align:right; color:yellow;">' +
         fmtN(totalDb - totalCr) +
         "</td>" +
         "</tr>";
@@ -1730,7 +1730,7 @@ async function terapkanOpsiRLRekap() {
         }
       });
     }
-    console.table(mapMasterGol);
+    //  console.table(mapMasterGol);
     // ✅ 2. AMBIL DATA BACKUP (UNTUK NILAI DB & CR)
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
@@ -2101,7 +2101,7 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
         kodemasadicari +
         "', '" +
         valcabang +
-        "')\" style='padding:10px; border:1px solid #000; cursor:pointer; color:blue; font-weight:bold; text-decoration:underline;'>" +
+        "')\" style='padding:10px; border:1px solid #000; cursor:pointer; color:yellow; font-weight:bold; text-decoration:underline;'>" +
         golVal +
         "</td>";
     }
