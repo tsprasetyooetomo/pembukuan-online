@@ -4060,29 +4060,32 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
         return String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
       });
       // ✅ FUNGSI BARU: Parser untuk mengambil HANYA ANGKA TANGGAL
+      // ✅ FUNGSI BARU: Parser untuk mengambil HANYA ANGKA TANGGAL
       function ambilTanggalSaja(rawTgl) {
         if (!rawTgl) return "-";
         var strTgl = String(rawTgl).trim();
 
-        // Jika format "Senin, 15/01/2024 10:30:00" atau "15/01/2024 10:30:00"
-        if (strTgl.indexOf("/") > -1) {
-          var parts = strTgl.split(" ")[0]; // Ambil "15/01/2024"
-          var tglParts = parts.split("/"); // Pisah jadi ["15", "01", "2024"]
-          return tglParts[0] || "-"; // Ambil hanya index 0 (angka tanggalnya)
+        // ✅ 1. Jika format "Mon Feb 23 2026 00:00:00 GMT+0" (Format Date JS)
+        // Split pakai spasi, tanggalnya ada di urutan ke-3 (index 2)
+        var parts = strTgl.split(" ");
+        if (parts.length >= 3 && !isNaN(parts[2])) {
+          return parts[2]; // Akan mengembalikan "23"
         }
 
-        // Jika format ISO "2024-01-15T10:30:00.000Z"
+        // 2. Jika format "Senin, 15/01/2024 10:30:00" atau "15/01/2024 10:30:00"
+        if (strTgl.indexOf("/") > -1) {
+          var partsSlash = strTgl.split(" ")[0];
+          var tglParts = partsSlash.split("/");
+          return tglParts[0] || "-";
+        }
+
+        // 3. Jika format ISO "2024-01-15T10:30:00.000Z"
         if (strTgl.indexOf("-") > -1 && strTgl.indexOf("T") > -1) {
           var dateObj = new Date(strTgl);
-          return dateObj.getDate() || "-"; // Ambil hanya tanggal (1-31)
+          return dateObj.getDate() || "-";
         }
 
-        // Fallback: coba ambil 2 karakter pertama jika pola tidak dikenali
-        if (!isNaN(strTgl.substring(0, 2))) {
-          return strTgl.substring(0, 2);
-        }
-
-        return strTgl; // Kembalikan asli jika tidak ada pola yang cocok
+        return "-";
       }
 
       // 5. Render Tabel
