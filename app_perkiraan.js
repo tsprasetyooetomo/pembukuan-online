@@ -1129,12 +1129,11 @@ async function renderSaldoKasir() {
   var rawData = DBCache.saldoKasir || [];
   var data = filterByCabang(rawData);
 
-  // ✅ FIX: Tambahkan return agar sorting berjalan
   data.sort(function (a, b) {
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
 
-    if (tglA < tglB) return 1; // Terbaru duluan (descending)
+    if (tglA < tglB) return 1;
     if (tglA > tglB) return -1;
     return 0;
   });
@@ -1156,7 +1155,6 @@ async function renderSaldoKasir() {
     return str;
   }
 
-  // ✅ TAMBAH: r.cabang pada rows
   var rows = dataLimit.map(function (r) {
     return [r.cabang || "-", formatTgl(r.tgl_awal), formatUang(r.akhir || 0)];
   });
@@ -1165,11 +1163,9 @@ async function renderSaldoKasir() {
     return s + (num(r.akhir) || 0);
   }, 0);
 
-  // ✅ TAMBAH: "-" pada posisi cabang di footer
   var foot = [
     "Total: " + data.length + " record",
     "-",
-
     '<span style="font-weight:bold;">' + formatUang(totalSaldo) + "</span>",
   ];
 
@@ -1190,7 +1186,6 @@ async function renderSaldoKasir() {
     '<button type="button" class="btn btn-a" onclick="formSaldoKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
-      // ✅ TAMBAH: "Cabang" di header tabel
       buildTable(["Cabang", "Tanggal", "Saldo Awal"], rows, {
         foot: foot,
         bulkStore: "saldoKasir",
@@ -1212,6 +1207,9 @@ function formSaldoKasir(id) {
       }) || {}
     : {};
 
+  // ✅ FIX 1: Saat edit, ambil nilai "akhir" sebagai nilai yang ditampilkan di form, bukan "awal" (karena awal selalu 0)
+  var displaySaldo = isEdit ? data.akhir || 0 : 0;
+
   var html =
     '<div class="fg"><label>Cabang</label><select id="fSkCab" class="in"' +
     (isEdit ? " disabled" : "") +
@@ -1221,8 +1219,8 @@ function formSaldoKasir(id) {
     '<div class="fg"><label>Tanggal Saldo</label><input id="fSkTgl" type="date" class="in" value="' +
     esc(data.tgl_awal || "") +
     '"></div>' +
-    '<div class="fg"><label>Saldo Awal</label><input id="fSkAwal" type="number" class="in" value="' +
-    esc(data.awal || 0) +
+    '<div class="fg"><label>Saldo</label><input id="fSkAwal" type="number" class="in" value="' +
+    esc(displaySaldo) +
     '"></div>';
 
   var foot =
@@ -1244,11 +1242,12 @@ async function saveSaldoKasir(e, editId) {
     var tgl_awal = $("fSkTgl").value;
     var vdb = 0;
     var vcr = 0;
-    var akhir = num($("fSkAwal").value);
+    var akhir = num($("fSkAwal").value); // Nilai dari input form
     var awal = 0;
 
+    // ✅ FIX 2: Perbaiki pesan error agar sesuai dengan field yang ada di form
     if (!tgl_awal) {
-      return toast("Tanggal dan Kode Kasir wajib diisi", "err");
+      return toast("Tanggal wajib diisi", "err");
     }
 
     if (editId) {
