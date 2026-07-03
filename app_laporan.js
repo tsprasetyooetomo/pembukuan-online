@@ -389,7 +389,7 @@ async function terapkanOpsiNeraca() {
                 : "";
           // ✅ TAMBAHKAN STYLE LINK DAN EVENT ONCLICK DI SINI
           styleTambahan =
-            "cursor: pointer; color: blue; font-weight: bold; text-decoration: underline;";
+            "cursor: pointer; color: green; font-weight: bold; text-decoration: underline;";
         } else if (h === "namaGol")
           val = item.namaGol !== undefined ? item.namaGol : "";
         else if (h === "masa") val = item.masa !== undefined ? item.masa : "";
