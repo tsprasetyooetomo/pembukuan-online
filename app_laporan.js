@@ -3030,21 +3030,47 @@ async function refreshBukuBesar() {
     tahunMulai = tahunAkhir;
   }
 
-  // ✅ PERBAIKAN 1: GANTI FOR LOOP DENGAN WHILE AGAR TIDAK HANG / ERROR jika 1 tahun tidak ada
+  // ✅ 1. TAMPILKAN INDIKATOR PROGRES AWAL
+  $("bukuBesarTbl").innerHTML =
+    '<div class="empty-msg">' +
+    '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> ' +
+    "Mengambil data transaksi tahun <b>" +
+    tahunMulai +
+    "</b>...</div>";
+
+  // ✅ 2. LOOP DENGAN UPDATE PROGRES
   var th = tahunMulai;
   while (th <= tahunAkhir) {
     var namaStore = "transaksi" + th;
+
+    // Update teks loading setiap ganti tahun
+    $("bukuBesarTbl").innerHTML =
+      '<div class="empty-msg">' +
+      '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> ' +
+      "Mengambil data transaksi tahun <b>" +
+      th +
+      "</b>...</div>";
+
     try {
-      // ✅ KEMBALIKAN KE CARA ANDA SEMULA (Langsung getAll tanpa .contains)
       var rawData = await db.getAll(namaStore);
       var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
       allTransactions = allTransactions.concat(listTh);
     } catch (e) {
-      // Jika tahun itu memang belum di-import, dia akan masuk sini dan lanjut
       console.log("Tabel " + namaStore + " dilewati (belum ada).");
     }
     th++;
   }
+
+  // ✅ 3. UBAH PROGRES MENJADI "MEMPROSES DATA"
+  $("bukuBesarTbl").innerHTML =
+    '<div class="empty-msg">' +
+    '<i class="fa-solid fa-calculator fa-spin" style="margin-right:8px;"></i> ' +
+    "Menyusun " +
+    allTransactions.length +
+    " data transaksi...</div>";
+
+  // Beri jeda 50ms agar browser sempat merender teks "Menyusun data" sebelum proses berat dimulai
+  await new Promise((resolve) => setTimeout(resolve, 50));
 
   // ============================================================
   // FILTER DATA
@@ -3073,7 +3099,7 @@ async function refreshBukuBesar() {
     return true;
   });
 
-  // ✅ Fungsi Tanggal Handle Objek Date
+  // Fungsi Tanggal Handle Objek Date
   function formatTglTransaksi(str) {
     if (!str) return "-";
     if (str instanceof Date) {
@@ -3090,22 +3116,18 @@ async function refreshBukuBesar() {
     return dd + "/" + mm + "/" + yyyy;
   }
 
-  // ✅ PERBAIKAN 2: SORTING LINTAS TAHUN SUPER AMAN
+  // SORTING LINTAS TAHUN SUPER AMAN
   data.sort(function (a, b) {
-    var dA = a.tanggal;
-    var dB = b.tanggal;
-
-    // Prioritas 1: Urutkan berdasarkan kolom "masa" (format "MMYY") secara langsung
     var masaA = String(a.masa || "").trim();
     var masaB = String(b.masa || "").trim();
     if (masaA < masaB) return -1;
     if (masaA > masaB) return 1;
 
-    // Prioritas 2: Jika masa sama (atau kosong), baru urutkan berdasarkan Tanggal spesifik
+    var dA = a.tanggal;
+    var dB = b.tanggal;
     var timeA = dA instanceof Date ? dA.getTime() : new Date(dA).getTime();
     var timeB = dB instanceof Date ? dB.getTime() : new Date(dB).getTime();
 
-    // Fallback jika tanggal rusak
     if (isNaN(timeA)) timeA = 0;
     if (isNaN(timeB)) timeB = 0;
 
@@ -3158,6 +3180,7 @@ async function refreshBukuBesar() {
   else if (masaSampai) labelMasa = "S/d " + masaSampai;
   else labelMasa = "Semua (" + tahunMulai + ")";
 
+  // ✅ 4. RENDER TABEL AKHIR (INI AKAN MENIMPA TEKS LOADING)
   $("bukuBesarTbl").innerHTML =
     '<div style="margin-bottom:.5rem; display:flex; justify-content:space-between; align-items:center; font-size:.82rem;font-weight:600">' +
     "<div>" +
@@ -3231,15 +3254,26 @@ async function downloadBukuBesarExcel() {
     tahunMulai = tahunAkhir;
   }
 
-  for (var th = tahunMulai; th <= tahunAkhir; th++) {
+  var th = tahunMulai;
+  while (th <= tahunAkhir) {
     var namaStore = "transaksi" + th;
+
+    // Update teks loading setiap ganti tahun
+    $("bukuBesarTbl").innerHTML =
+      '<div class="empty-msg">' +
+      '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> ' +
+      "Mengambil data transaksi tahun <b>" +
+      th +
+      "</b>...</div>";
+
     try {
-      var rawData = await db.getAll(namaStore); // Karena ini di dalam fungsi async, await bekerja
+      var rawData = await db.getAll(namaStore);
       var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
       allTransactions = allTransactions.concat(listTh);
     } catch (e) {
-      console.log("Tabel " + namaStore + " tidak ditemukan saat download.");
+      console.log("Tabel " + namaStore + " dilewati (belum ada).");
     }
+    th++;
   }
 
   // ============================================================
@@ -3324,6 +3358,61 @@ async function downloadBukuBesarExcel() {
   var totalDb = 0;
   var totalCr = 0;
 
+  // ✅ 1. GANTI SORTING AGAR AKURAT LINTAS TAHUN
+  data.sort(function (a, b) {
+    var masaA = String(a.masa || "").trim();
+    var masaB = String(b.masa || "").trim();
+    if (masaA < masaB) return -1;
+    if (masaA > masaB) return 1;
+
+    var dA = a.tanggal;
+    var dB = b.tanggal;
+    var timeA = dA instanceof Date ? dA.getTime() : new Date(dA).getTime();
+    var timeB = dB instanceof Date ? dB.getTime() : new Date(dB).getTime();
+
+    if (isNaN(timeA)) timeA = 0;
+    if (isNaN(timeB)) timeB = 0;
+
+    return timeA - timeB;
+  });
+
+  // ============================================================
+  // 3. SUSUN HTML EXCEL
+  // ============================================================
+  var sal = num(pk.awal);
+  var html =
+    '<table border="1" style="border-collapse:collapse; font-family:Arial, sans-serif;">';
+
+  // Header
+  html +=
+    '<tr style="background:#f4f4f4; font-weight:bold; text-align:center;">';
+  html += '<td style="padding:8px; border:1px solid #000;">TANGGAL</td>';
+  html += '<td style="padding:8px; border:1px solid #000;">NO REFF</td>';
+  html += '<td style="padding:8px; border:1px solid #000;">DARI/KEPADA</td>';
+  html += '<td style="padding:8px; border:1px solid #000;">KETERANGAN</td>';
+  html += '<td style="padding:8px; border:1px solid #000;">DEBET</td>';
+  html += '<td style="padding:8px; border:1px solid #000;">KREDIT</td>';
+  html += '<td style="padding:8px; border:1px solid #000;">SALDO</td>';
+  html += "</tr>";
+
+  // Baris Saldo Awal
+  html += "<tr>";
+  html +=
+    '<td style="padding:6px; border:1px solid #000; font-style:italic;">Saldo Awal</td>';
+  html += '<td style="padding:6px; border:1px solid #000;"></td>';
+  html += '<td style="padding:6px; border:1px solid #000;"></td>';
+  html += '<td style="padding:6px; border:1px solid #000;"></td>';
+  html += '<td style="padding:6px; border:1px solid #000;"></td>';
+  html += '<td style="padding:6px; border:1px solid #000;">-</td>';
+  html +=
+    '<td style="padding:6px; border:1px solid #000; text-align:right; font-weight:bold;">' +
+    fmtN(sal) +
+    "</td>";
+  html += "</tr>";
+
+  var totalDb = 0;
+  var totalCr = 0;
+
   data.forEach(function (t) {
     var dbVal = num(t.db);
     var crVal = num(t.cr);
@@ -3332,15 +3421,17 @@ async function downloadBukuBesarExcel() {
     totalCr += crVal;
 
     html += "<tr>";
+
+    // ✅ 2. PAKAI FUNGSI formatTglTransaksi() DI SINI
     html +=
-      '<td style="padding:6px; border:1px solid #000;">' +
-      (t.tanggal || "-") +
+      "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\/\@'\">" +
+      formatTglTransaksi(t.tanggal) +
       "</td>";
+
     html +=
-      '<td style="padding:6px; border:1px solid #000;">' +
-      '<span style="color:white;">\'</span>' +
+      "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\/\@'\">" +
       (t.noreff || "-") +
-      "</td>"; // No Reff Text
+      "</td>";
     html +=
       '<td style="padding:6px; border:1px solid #000;">' +
       (t.dariKePada || "-") +
