@@ -1225,7 +1225,7 @@ async function terapkanOpsiDetilNeraca() {
         "', '" +
         valcabang +
         "')\" " +
-        'style="padding:6px; border:1px solid #000; cursor:pointer; color:blue; text-decoration:underline; font-weight:bold;">' +
+        'style="padding:6px; border:1px solid #000; cursor:pointer; color:green text-decoration:underline; font-weight:bold;">' +
         noPerk +
         "</td>";
       html +=
