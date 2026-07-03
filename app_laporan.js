@@ -3268,6 +3268,21 @@ async function downloadBukuBesarExcel() {
     return true;
   });
 
+  function formatTglTransaksi(str) {
+    if (!str) return "-";
+    if (str instanceof Date) {
+      var dd = String(str.getDate()).padStart(2, "0");
+      var mm = String(str.getMonth() + 1).padStart(2, "0");
+      var yyyy = str.getFullYear();
+      return dd + "/" + mm + "/" + yyyy;
+    }
+    var d = new Date(str);
+    if (isNaN(d.getTime())) return "-";
+    var dd = String(d.getDate()).padStart(2, "0");
+    var mm = String(d.getMonth() + 1).padStart(2, "0");
+    var yyyy = d.getFullYear();
+    return dd + "/" + mm + "/" + yyyy;
+  }
   data.sort(function (a, b) {
     return (a.tanggal || "").localeCompare(b.tanggal || "");
   });
