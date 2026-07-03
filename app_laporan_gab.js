@@ -17,7 +17,7 @@ function renderRLRekapGabungan() {
   var htmlLaporan =
     '<div id="area_cetak_rlgab" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
-    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap Gabungan</h3>' +
+    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap Gabungan (Semua Cabang)</h3>' +
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
     '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
     '<div style="display:flex; align-items:center; gap:5px;">' +
@@ -34,10 +34,12 @@ function renderRLRekapGabungan() {
     "#tempat_tabel_rlgab table { width: 100% !important; min-width: 600px !important; border-collapse: collapse !important; table-layout: auto !important; margin:0 !important; }" +
     "#tempat_tabel_rlgab th { padding: 8px 12px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; }" +
     "#tempat_tabel_rlgab td { padding: 8px 12px !important; white-space: nowrap !important; border: 1px solid var(--brd); }" +
+    ".link-cabang-rl { cursor: pointer; text-decoration: underline; color: #0056b3; font-weight: bold; }" +
+    ".link-cabang-rl:hover { color: #00a8ff; }" +
     "</style>" +
     '<div id="tempat_tabel_rlgab" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
     "</div>" +
-    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data RL Gabungan.</p>' +
+    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data RL Gabungan. <i>(Klik nama cabang di tabel untuk melihat detail RL-nya)</i></p>' +
     "</div></div>";
 
   return htmlLaporan;
@@ -218,15 +220,26 @@ function generateHTMLRLGabungan(
     '<th rowspan="2" style="padding:10px; border:1px solid #000;">NAMA GOLONGAN</th>';
 
   daftarCabang.forEach(function (cab) {
-    html +=
-      '<th style="padding:10px; border:1px solid #000; text-align:right; background-color:#d9e1f2;">' +
-      cab +
-      "</th>";
+    // DIUBAH: Jika bukan untuk Excel, buat nama cabang bisa diklik
+    if (!isForExcel) {
+      html +=
+        '<th style="padding:10px; border:1px solid #000; text-align:right; background-color:#d9e1f2;">' +
+        '<span class="link-cabang-rl" onclick="tampilkanRLPerCabangSD(\'' +
+        cab.replace(/'/g, "\\'") +
+        "')\">" +
+        cab +
+        "</span></th>";
+    } else {
+      html +=
+        '<th style="padding:10px; border:1px solid #000; text-align:right; background-color:#d9e1f2;">' +
+        cab +
+        "</th>";
+    }
   });
 
-  // Tambah Kolom Total (DIUBAH: Background Hitam, Tulisan Putih)
+  // Tambah Kolom Total
   html +=
-    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:right; background-color:#000000; color:#ffffff;">TOTAL</th>';
+    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:right; background-color:#d9e1f2; font-weight:bold;">TOTAL</th>';
 
   html += "</tr><tr></tr></thead><tbody>";
 
@@ -284,7 +297,6 @@ function generateHTMLRLGabungan(
       mapSumPerDigit[cab] += saldo;
 
       var xNum = isForExcel ? ' x:num="' + saldo + '"' : "";
-      // DIUBAH: Warna minus dijadikan putih (jika kurang dari 0)
       var colorStyle = saldo < 0 ? "color: white;" : "";
       html +=
         '<td style="padding:8px; border:1px solid #000; text-align:right; ' +
@@ -296,9 +308,8 @@ function generateHTMLRLGabungan(
         "</td>";
     });
 
-    // Kolom Total Akhir (DIUBAH: Background Hitam, Tulisan Putih, Termasuk angka minus)
     var xNumTotal = isForExcel ? ' x:num="' + totalRow + '"' : "";
-    var colorTotal = "color:#ffffff; font-weight:bold;"; // Selalu putih
+    var colorTotal = "color:#ffffff; font-weight:bold;";
     html +=
       '<td style="padding:8px; border:1px solid #000; text-align:right; background-color:#000000; ' +
       colorTotal +
@@ -326,7 +337,6 @@ function generateHTMLRLGabungan(
   return html;
 }
 
-// FUNGSI BANTUAN UNTUK Membuat Baris Subtotal (DIUBAH: Background Biru/Hijau, Tulisan Putih)
 function buatBarisSubtotalGabungan(
   digit,
   daftarCabang,
@@ -344,7 +354,6 @@ function buatBarisSubtotalGabungan(
           ? "TOTAL BY ADM & UMUM"
           : "TOTAL BEBAN LAINNYA";
 
-  // DIUBAH: Menentukan warna background berdasarkan golongan (Hijau untuk Penjualan, Biru untuk yang lain)
   var bgColor = digit === "3" ? "#1f7a43" : "#0d6efd";
   var totalSub = 0;
 
@@ -360,7 +369,6 @@ function buatBarisSubtotalGabungan(
   daftarCabang.forEach(function (cab) {
     var saldo = mapSumPerDigit[cab] || 0;
     totalSub += saldo;
-    // DIUBAH: Angka minus tetap berwarna putih
     var colorStyle = "color:#ffffff;";
     html +=
       '<td style="padding:8px; border:1px solid #000; text-align:right; ' +
@@ -372,7 +380,6 @@ function buatBarisSubtotalGabungan(
       "</td>";
   });
 
-  // DIUBAH: Total Subtotal juga ikut background dan tulisan putih
   var colorTotalSub = "color:#ffffff;";
   html +=
     '<td style="padding:8px; border:1px solid #000; text-align:right; background-color:#000000; ' +
@@ -385,4 +392,183 @@ function buatBarisSubtotalGabungan(
   html += "</tr>";
 
   return html;
+}
+
+// ==========================================
+// FUNGSI BARU: DETAIL RL PER CABANG (SD)
+// ==========================================
+async function tampilkanRLPerCabangSD(kodeCabang) {
+  if (!window._rlGabFilterMasa) return;
+
+  var partMasa = window._rlGabFilterMasa.split("-");
+  var filterBulan = partMasa[0];
+  var filterTahunFull = partMasa[1];
+  var duadigittahunbelakang = filterTahunFull.substring(2, 4);
+  var kodemasadicari = filterBulan + duadigittahunbelakang;
+  var namastoregolbackup = "golongan" + filterTahunFull;
+
+  // Buat konten modal dengan loading
+  var modalContent =
+    '<div id="area_modal_rl_cabang" style="padding:1rem; min-height:200px;">' +
+    '<div style="text-align:center; padding:2rem; color:var(--muted);"><span class="spinner"></span> Memuat detail RL Cabang ' +
+    kodeCabang +
+    "...</div></div>";
+
+  // Buka modal (menggunakan fungsi openModal yang sudah ada di sistem)
+  if (typeof openModal === "function") {
+    openModal(
+      "Detail RL Cabang: " +
+        kodeCabang +
+        " (" +
+        filterBulan +
+        "-" +
+        filterTahunFull +
+        ")",
+      modalContent,
+      "90%",
+      "90%",
+    );
+  } else {
+    // Fallback jika openModal tidak ada di sistem Anda
+    alert("Fungsi modal tidak ditemukan di sistem.");
+    return;
+  }
+
+  try {
+    // 1. Ambil data transaksi sub di hari (sd) dari store backup
+    var resBackup = await db.getAll(namastoregolbackup);
+    var rawTransaksi = resBackup
+      ? Array.isArray(resBackup)
+        ? resBackup
+        : Object.values(resBackup)
+      : [];
+
+    // 2. Filter HANYA data cabang ini, masa ini, dan golongan 3-6
+    var dataFiltered = rawTransaksi.filter(function (t) {
+      var cab = String(t.cabang || t.cab || t.kode_cabang || "").trim();
+      var masa = String(t.masa || t.periode || t.kode_masa || "").trim();
+      var gol = String(t.gol || t.golongan || "").trim();
+      return (
+        cab === kodeCabang && masa === kodemasadicari && gol >= 300 && gol < 700
+      );
+    });
+
+    var areaRender = document.getElementById("area_modal_rl_cabang");
+    if (!areaRender) return;
+
+    if (dataFiltered.length === 0) {
+      areaRender.innerHTML =
+        '<div style="text-align:center; padding:2rem; color:var(--muted);">Tidak ada data transaksi sub detail untuk cabang ini pada masa tersebut.</div>';
+      return;
+    }
+
+    // 3. Urutkan berdasarkan tanggal/tgl
+    dataFiltered.sort(function (a, b) {
+      var tglA = String(a.tgl || a.tanggal || "").trim();
+      var tglB = String(b.tgl || b.tanggal || "").trim();
+      return tglA.localeCompare(tglB);
+    });
+
+    // 4. Render Tabel Detail
+    var html =
+      '<div style="overflow-x:auto; max-height:70vh; overflow-y:auto;">';
+    html +=
+      '<table border="1" style="width:100%; border-collapse:collapse; font-size:.8rem; color:#000; border:1px solid #000;">';
+    html +=
+      '<thead><tr style="background:#d9e1f2; font-weight:bold; position:sticky; top:0; z-index:2;">';
+    html += '<th style="padding:6px; border:1px solid #000;">TANGGAL</th>';
+    html += '<th style="padding:6px; border:1px solid #000;">NO BUKTI</th>';
+    html += '<th style="padding:6px; border:1px solid #000;">KET</th>';
+    html +=
+      '<th style="padding:6px; border:1px solid #000; text-align:center;">GOL</th>';
+    html +=
+      '<th style="padding:6px; border:1px solid #000; text-align:right;">DEBET</th>';
+    html +=
+      '<th style="padding:6px; border:1px solid #000; text-align:right;">KREDIT</th>';
+    html += "</tr></thead><tbody>";
+
+    var totalDb = 0,
+      totalCr = 0;
+
+    dataFiltered.forEach(function (d) {
+      var tgl = String(d.tgl || d.tanggal || "-").trim();
+      var nobukti = String(d.nobukti || d.no_bukti || d.ket || "-").trim();
+      var ket = String(d.ket || d.keterangan || d.uraian || "-").trim();
+      var gol = String(d.gol || d.golongan || "-").trim();
+      var db = parseFloat(d.db || d.debet || 0) || 0;
+      var cr = parseFloat(d.cr || d.kredit || 0) || 0;
+
+      totalDb += db;
+      totalCr += cr;
+
+      html += "<tr>";
+      html +=
+        '<td style="padding:6px; border:1px solid #000; white-space:nowrap;">' +
+        tgl +
+        "</td>";
+      html +=
+        '<td style="padding:6px; border:1px solid #000; white-space:nowrap;">' +
+        nobukti +
+        "</td>";
+      html +=
+        '<td style="padding:6px; border:1px solid #000; max-width:250px; overflow:hidden; text-overflow:ellipsis;">' +
+        ket +
+        "</td>";
+      html +=
+        '<td style="padding:6px; border:1px solid #000; text-align:center; font-weight:bold;">' +
+        gol +
+        "</td>";
+      html +=
+        '<td style="padding:6px; border:1px solid #000; text-align:right;">' +
+        formatUang(db) +
+        "</td>";
+      html +=
+        '<td style="padding:6px; border:1px solid #000; text-align:right;">' +
+        formatUang(cr) +
+        "</td>";
+      html += "</tr>";
+    });
+
+    html += "</tbody>";
+
+    // Footer Total
+    var saldoAkhir = totalDb - totalCr;
+    var colorSaldo =
+      saldoAkhir < 0 ? "color:red; font-weight:bold;" : "font-weight:bold;";
+    html += '<tfoot><tr style="font-weight:bold; background:#e9ecef;">';
+    html +=
+      '<td colspan="4" style="padding:8px; border:1px solid #000; text-align:right;">TOTAL</td>';
+    html +=
+      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+      formatUang(totalDb) +
+      "</td>";
+    html +=
+      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+      formatUang(totalCr) +
+      "</td>";
+    html += "</tr>";
+    html += '<tr style="font-weight:bold; background:#fff2cc;">';
+    html +=
+      '<td colspan="4" style="padding:8px; border:1px solid #000; text-align:right;">SALDO AKHIR (Db - Cr)</td>';
+    html +=
+      '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right; ' +
+      colorSaldo +
+      '">' +
+      formatUang(saldoAkhir) +
+      "</td>";
+    html += "</tr></tfoot>";
+
+    html += "</table></div>";
+
+    areaRender.innerHTML = html;
+  } catch (error) {
+    console.error("Error load detail RL Cabang:", error);
+    var areaErr = document.getElementById("area_modal_rl_cabang");
+    if (areaErr) {
+      areaErr.innerHTML =
+        '<div style="padding:2rem; text-align:center; color:red;">Gagal memuat data: ' +
+        error.message +
+        "</div>";
+    }
+  }
 }
