@@ -3079,16 +3079,26 @@ async function refreshBukuBesar() {
   });
 
   // ✅ FUNGSI BARU: Format tanggal dari string panjang GMT menjadi DD/MM/YYYY
+
+  // ✅ FUNGSI BARU: Handle jika datanya sudah berupa Objek Date bawaan JS
   function formatTglTransaksi(str) {
     if (!str) return "-";
+
+    // Cek apakah ini sudah Objek Date
+    if (str instanceof Date) {
+      var dd = String(str.getDate()).padStart(2, "0");
+      var mm = String(str.getMonth() + 1).padStart(2, "0");
+      var yyyy = str.getFullYear();
+      return dd + "/" + mm + "/" + yyyy;
+    }
+
+    // Jika tetap berupa String (contoh: "Fri Apr 03 2026...")
     var d = new Date(str);
-    // Cek apakah konversi ke Date menghasilkan nilai yang valid (bukan NaN)
-    if (isNaN(d.getTime())) return "-";
+    if (isNaN(d.getTime())) return "-"; // Kalau string-nya aneh/gagal diparse
 
     var dd = String(d.getDate()).padStart(2, "0");
-    var mm = String(d.getMonth() + 1).padStart(2, "0"); // Bulan dimulai dari 0
+    var mm = String(d.getMonth() + 1).padStart(2, "0");
     var yyyy = d.getFullYear();
-
     return dd + "/" + mm + "/" + yyyy;
   }
 
