@@ -70,6 +70,7 @@ async function terapkanOpsiRLGabungan() {
   }
 
   try {
+    // 1. AMBIL MASTER GOLONGAN
     var rawMasterGol = await db.getAll("golongan");
     var mapMasterGol = {};
     if (rawMasterGol) {
@@ -83,6 +84,21 @@ async function terapkanOpsiRLGabungan() {
       });
     }
 
+    // 2. AMBIL MASTER CABANG (UNTUK KONVERSI KODE JADI NAMA)
+    var rawMasterCab = await db.getAll("cabang");
+    var mapMasterCab = {};
+    if (rawMasterCab) {
+      var arrMasterCab = Array.isArray(rawMasterCab)
+        ? rawMasterCab
+        : Object.values(rawMasterCab);
+      arrMasterCab.forEach(function (c) {
+        var kode = String(c.kode_cabang || c.kode || c.cab || "").trim();
+        var nama = String(c.nama_cabang || c.nama || c.cabang || "").trim();
+        if (kode && nama) mapMasterCab[kode] = nama;
+      });
+    }
+
+    // 3. AMBIL DATA BACKUP GOLONGAN
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
       ? Array.isArray(resgolbackup)
@@ -90,6 +106,7 @@ async function terapkanOpsiRLGabungan() {
         : Object.values(resgolbackup)
       : [];
 
+    // 4. KELOMPOKKAN DATA BERDASARKAN CABANG
     var dataByCabang = {};
     rawdatagolongan.forEach(function (g) {
       var kodeGol = String(g.gol || g.golongan || "").trim();
@@ -108,6 +125,7 @@ async function terapkanOpsiRLGabungan() {
       }
     });
 
+    // 5. SUSUN STRUKTUR DATA
     var daftarCabang = Object.keys(dataByCabang).sort();
 
     var setKodeGol = new Set();
@@ -120,11 +138,21 @@ async function terapkanOpsiRLGabungan() {
       return parseInt(a) - parseInt(b);
     });
 
+    // 6. HAPUS GOLONGAN YANG TOTALNYA 0 DI SEMUA CABANG
+    arrKodeGol = arrKodeGol.filter(function (kodeGol) {
+      var totalSemuaCabang = 0;
+      daftarCabang.forEach(function (cab) {
+        totalSemuaCabang += dataByCabang[cab][kodeGol] || 0;
+      });
+      return totalSemuaCabang !== 0;
+    });
+
     window._rlGabunganData = {
       daftarCabang: daftarCabang,
       arrKodeGol: arrKodeGol,
       dataByCabang: dataByCabang,
       mapMasterGol: mapMasterGol,
+      mapMasterCab: mapMasterCab, // Simpan juga mapping cabangnya
     };
 
     var html = "";
@@ -145,6 +173,7 @@ async function terapkanOpsiRLGabungan() {
       arrKodeGol,
       dataByCabang,
       mapMasterGol,
+      mapMasterCab,
       false,
     );
     area.innerHTML = html;
@@ -173,6 +202,7 @@ async function downloadRLGabunganExcel() {
     d.arrKodeGol,
     d.dataByCabang,
     d.mapMasterGol,
+    d.mapMasterCab,
     true,
   );
   var fullHtml =
@@ -192,11 +222,13 @@ async function downloadRLGabunganExcel() {
   if (typeof toast === "function")
     toast("File Excel RL Gabungan sedang didownload...", "ok");
 }
+
 function generateHTMLRLGabungan(
   daftarCabang,
   arrKodeGol,
   dataByCabang,
   mapMasterGol,
+  mapMasterCab,
   isForExcel,
 ) {
   var html =
@@ -209,17 +241,22 @@ function generateHTMLRLGabungan(
     '<th rowspan="2" style="padding:10px; border:1px solid #000;">NAMA GOLONGAN</th>';
 
   daftarCabang.forEach(function (cab) {
+    // AMBIL NAMA CABANG DARI MAPMaster, JIKA TIDAK ADA PAKAI KODE ASLINYA
+    var namaTampil = mapMasterCab[cab] || cab;
+
     if (!isForExcel) {
+      // CENTER UNTUK HTML
       html +=
-        '<th style="padding:10px; border:1px solid #000; text-align:right; background-color:#d9e1f2;"><span class="link-cabang-rl" onclick="tampilkanRLPerCabangSD(\'' +
+        '<th style="padding:10px; border:1px solid #000; text-align:center; background-color:#d9e1f2;"><span class="link-cabang-rl" onclick="tampilkanRLPerCabangSD(\'' +
         cab.replace(/'/g, "\\'") +
         "')\">" +
-        cab +
+        namaTampil +
         "</span></th>";
     } else {
+      // CENTER UNTUK EXCEL
       html +=
-        '<th style="padding:10px; border:1px solid #000; text-align:right; background-color:#d9e1f2;">' +
-        cab +
+        '<th style="padding:10px; border:1px solid #000; text-align:center; background-color:#d9e1f2;">' +
+        namaTampil +
         "</th>";
     }
   });
@@ -244,7 +281,6 @@ function generateHTMLRLGabungan(
         isForExcel,
       );
 
-      // PERBAIKAN: Urutan parameter sudah disesuaikan (namaBaris, digit1, digit2, dst, daftarCabang, dataByCabang, bgColor, isForExcel)
       if (currentDigit === "4") {
         html += hitungBarisLaba(
           "LABA KOTOR",
@@ -345,7 +381,6 @@ function generateHTMLRLGabungan(
     html += "</tr>";
   });
 
-  // SUBTOTAL TERAKHIR & LABA/RUGI BERSIH AKHIR
   if (currentDigit !== null) {
     html += buatBarisSubtotalGabungan(
       currentDigit,
@@ -355,7 +390,6 @@ function generateHTMLRLGabungan(
       isForExcel,
     );
     if (currentDigit === "6") {
-      // PERBAIKAN: Urutan parameter sudah disesuaikan
       html += hitungBarisLaba(
         "LABA / RUGI BERSIH",
         "3",
@@ -374,7 +408,6 @@ function generateHTMLRLGabungan(
   return html;
 }
 
-// FUNGSI BANTUAN SUBTOTAL
 function buatBarisSubtotalGabungan(
   digit,
   daftarCabang,
@@ -426,8 +459,6 @@ function buatBarisSubtotalGabungan(
   return html;
 }
 
-// FUNGSI BARU: MENGHITUNG DAN MEMBUAT BARIS LABA
-// PARAMETER SUDAH DIPERBAIKI URUTANNYA
 function hitungBarisLaba(
   namaBaris,
   digit1,
@@ -453,13 +484,11 @@ function hitungBarisLaba(
 
   daftarCabang.forEach(function (cab) {
     var saldoCab = 0;
-    // Looping digit yang diperlukan (bisa 2 digit atau 4 digit)
     var arrDigit = [digit1, digit2, digit3, digit4].filter(function (d) {
       return d !== undefined;
     });
 
     arrDigit.forEach(function (dig) {
-      // Cari semua kode golongan yang dimiliki cabang ini sesuai digitnya
       Object.keys(dataByCabang[cab] || {}).forEach(function (kodeGol) {
         if (String(kodeGol).charAt(0) === dig) {
           saldoCab += dataByCabang[cab][kodeGol];
@@ -489,61 +518,18 @@ function hitungBarisLaba(
   return html;
 }
 
-// FUNGSI BANTUAN SUBTOTAL
-function buatBarisSubtotalGabungan(
-  digit,
-  daftarCabang,
-  dataByCabang,
-  mapSumPerDigit,
-  isForExcel,
-) {
-  var html = "";
-  var ketSubtotal =
-    digit === "3"
-      ? "PENJUALAN BERSIH"
-      : digit === "4"
-        ? "TOTAL HPP"
-        : digit === "5"
-          ? "TOTAL BY ADM & UMUM"
-          : "TOTAL BEBAN LAINNYA";
-  var bgColor = digit === "3" ? "#1f7a43" : "#0d6efd";
-  var totalSub = 0;
-
-  html +=
-    '<tr style="font-weight:bold; background-color:' +
-    bgColor +
-    '; color:#ffffff;">';
-  html +=
-    '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right; color:#ffffff;">' +
-    ketSubtotal +
-    "</td>";
-
-  daftarCabang.forEach(function (cab) {
-    var saldo = mapSumPerDigit[cab] || 0;
-    totalSub += saldo;
-    html +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right; color:#ffffff;"' +
-      (isForExcel ? ' x:num="' + saldo + '"' : "") +
-      ">" +
-      formatUang(saldo) +
-      "</td>";
-  });
-
-  html +=
-    '<td style="padding:8px; border:1px solid #000; text-align:right; background-color:' +
-    bgColor +
-    '; color:#ffffff; font-weight:bold;"' +
-    (isForExcel ? ' x:num="' + totalSub + '"' : "") +
-    ">" +
-    formatUang(totalSub) +
-    "</td>";
-  html += "</tr>";
-  return html;
-}
-
-// FUNGSI DETAIL RL PER CABANG (SD) - TETAP SAMA SEPERTI SEBELUMNYA
+// FUNGSI DETAIL RL PER CABANG (TETAP SAMA)
 async function tampilkanRLPerCabangSD(kodeCabang) {
   if (!window._rlGabFilterMasa) return;
+
+  // Mengambil Nama Cabang untuk judul Modal
+  var namaCab = kodeCabang;
+  if (
+    window._rlGabunganData &&
+    window._rlGabunganData.mapMasterCab[kodeCabang]
+  ) {
+    namaCab = window._rlGabunganData.mapMasterCab[kodeCabang];
+  }
 
   var partMasa = window._rlGabFilterMasa.split("-");
   var filterBulan = partMasa[0];
@@ -554,13 +540,13 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
 
   var modalContent =
     '<div id="area_modal_rl_cabang" style="padding:1rem; min-height:200px;"><div style="text-align:center; padding:2rem; color:var(--muted);"><span class="spinner"></span> Memuat detail RL Cabang ' +
-    kodeCabang +
+    namaCab +
     "...</div></div>";
 
   if (typeof openModal === "function") {
     openModal(
       "Detail RL Cabang: " +
-        kodeCabang +
+        namaCab +
         " (" +
         filterBulan +
         "-" +
