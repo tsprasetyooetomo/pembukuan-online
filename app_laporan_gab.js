@@ -192,7 +192,6 @@ async function downloadRLGabunganExcel() {
   if (typeof toast === "function")
     toast("File Excel RL Gabungan sedang didownload...", "ok");
 }
-
 function generateHTMLRLGabungan(
   daftarCabang,
   arrKodeGol,
@@ -245,12 +244,14 @@ function generateHTMLRLGabungan(
         isForExcel,
       );
 
-      // TAMBAHAN: LOGIKA LABA SETIAP GANTI DIGIT
+      // PERBAIKAN: Urutan parameter sudah disesuaikan (namaBaris, digit1, digit2, dst, daftarCabang, dataByCabang, bgColor, isForExcel)
       if (currentDigit === "4") {
         html += hitungBarisLaba(
           "LABA KOTOR",
           "3",
           "4",
+          undefined,
+          undefined,
           daftarCabang,
           dataByCabang,
           "#4a4a4a",
@@ -262,6 +263,7 @@ function generateHTMLRLGabungan(
           "3",
           "4",
           "5",
+          undefined,
           daftarCabang,
           dataByCabang,
           "#4a4a4a",
@@ -319,7 +321,7 @@ function generateHTMLRLGabungan(
       mapSumPerDigit[cab] += saldo;
 
       var xNum = isForExcel ? ' x:num="' + saldo + '"' : "";
-      var colorStyle = saldo < 0 ? "color: red;" : ""; // minus merah di data biasa
+      var colorStyle = saldo < 0 ? "color: red;" : "";
       html +=
         '<td style="padding:8px; border:1px solid #000; text-align:right; ' +
         colorStyle +
@@ -353,6 +355,7 @@ function generateHTMLRLGabungan(
       isForExcel,
     );
     if (currentDigit === "6") {
+      // PERBAIKAN: Urutan parameter sudah disesuaikan
       html += hitungBarisLaba(
         "LABA / RUGI BERSIH",
         "3",
@@ -424,6 +427,7 @@ function buatBarisSubtotalGabungan(
 }
 
 // FUNGSI BARU: MENGHITUNG DAN MEMBUAT BARIS LABA
+// PARAMETER SUDAH DIPERBAIKI URUTANNYA
 function hitungBarisLaba(
   namaBaris,
   digit1,
@@ -482,6 +486,58 @@ function hitungBarisLaba(
     "</td>";
   html += "</tr>";
 
+  return html;
+}
+
+// FUNGSI BANTUAN SUBTOTAL
+function buatBarisSubtotalGabungan(
+  digit,
+  daftarCabang,
+  dataByCabang,
+  mapSumPerDigit,
+  isForExcel,
+) {
+  var html = "";
+  var ketSubtotal =
+    digit === "3"
+      ? "PENJUALAN BERSIH"
+      : digit === "4"
+        ? "TOTAL HPP"
+        : digit === "5"
+          ? "TOTAL BY ADM & UMUM"
+          : "TOTAL BEBAN LAINNYA";
+  var bgColor = digit === "3" ? "#1f7a43" : "#0d6efd";
+  var totalSub = 0;
+
+  html +=
+    '<tr style="font-weight:bold; background-color:' +
+    bgColor +
+    '; color:#ffffff;">';
+  html +=
+    '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right; color:#ffffff;">' +
+    ketSubtotal +
+    "</td>";
+
+  daftarCabang.forEach(function (cab) {
+    var saldo = mapSumPerDigit[cab] || 0;
+    totalSub += saldo;
+    html +=
+      '<td style="padding:8px; border:1px solid #000; text-align:right; color:#ffffff;"' +
+      (isForExcel ? ' x:num="' + saldo + '"' : "") +
+      ">" +
+      formatUang(saldo) +
+      "</td>";
+  });
+
+  html +=
+    '<td style="padding:8px; border:1px solid #000; text-align:right; background-color:' +
+    bgColor +
+    '; color:#ffffff; font-weight:bold;"' +
+    (isForExcel ? ' x:num="' + totalSub + '"' : "") +
+    ">" +
+    formatUang(totalSub) +
+    "</td>";
+  html += "</tr>";
   return html;
 }
 
