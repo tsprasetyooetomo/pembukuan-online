@@ -4007,22 +4007,32 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
       );
 
       // Filter Data
+      // 1. Ambil 3 digit depan dari parameter yang dicari (misal "300" tetap "300")
+      var prefixNoPerkiraan = String(noPerkiraan || "")
+        .trim()
+        .substring(0, 3);
+
       var detilTrans = listTrans.filter(function (t) {
         var tNo = String(t.noperkiraan || "").trim();
         var tCab = String(t.cabang || "")
           .trim()
-          .toUpperCase(); // Pastikan uppercase
+          .toUpperCase();
         var tMasa = String(t.masa || "").trim();
 
-        // ✅ LOGIKA CABANG: Jika "ALL", abaikan filter cabang. Jika spesifik, harus cocok.
+        // 2. Ambil 3 digit depan dari data di database (misal "3001000" jadi "300")
+        var tNoPrefix = tNo.substring(0, 3);
+
+        // 3. Cocokkan 3 digit depannya
+        var cocokPerkiraan = tNoPrefix === prefixNoPerkiraan;
+
         var cocokCabang = true;
         if (cabFilter !== "ALL" && cabFilter !== "") {
           cocokCabang = tCab === cabFilter;
         }
 
-        return tNo === noPerkiraan && tMasa === masaCari && cocokCabang;
+        // 4. Gunakan variabel cocokPerkiraan
+        return cocokPerkiraan && tMasa === masaCari && cocokCabang;
       });
-
       if (detilTrans.length === 0) {
         container.innerHTML =
           '<div style="text-align:center; padding:20px; color:orange;">' +
