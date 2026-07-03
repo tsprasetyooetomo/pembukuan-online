@@ -3035,22 +3035,15 @@ async function refreshBukuBesar() {
   while (th <= tahunAkhir) {
     var namaStore = "transaksi" + th;
     try {
-      if (db.tableNames.contains(namaStore)) {
-        // Cek apakah tabelnya benar-benar ada dulu
-        var rawData = await db.getAll(namaStore);
-        var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
-        if (listTh.length > 0) {
-          allTransactions = allTransactions.concat(listTh);
-        }
-      } else {
-        console.log("Tabel " + namaStore + " tidak ditemukan/skip.");
-      }
+      // ✅ KEMBALIKAN KE CARA ANDA SEMULA (Langsung getAll tanpa .contains)
+      var rawData = await db.getAll(namaStore);
+      var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
+      allTransactions = allTransactions.concat(listTh);
     } catch (e) {
-      console.log(
-        "Gagal akses tabel " + namaStore + ", dilanjutkan ke tahun berikutnya.",
-      );
+      // Jika tahun itu memang belum di-import, dia akan masuk sini dan lanjut
+      console.log("Tabel " + namaStore + " dilewati (belum ada).");
     }
-    th++; // Lanjut ke tahun berikutnya
+    th++;
   }
 
   // ============================================================
