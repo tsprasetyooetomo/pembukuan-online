@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Dashboard Utama — Sistem Bisnis</title>
+
+    <!-- Gunakan Font yang sama dengan Pembukuan -->
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+
+    <style>
+      /* --- AMBIL VARIABEL CSS DARI STYLE.CSS ANDA --- */
+      :root {
+        --bg: #080c14;
+        --bg2: #0f1623;
+        --card: #141c2e;
+        --card2: #192340;
+        --brd: #1c2844;
+        --fg: #eaeef6;
+        --muted: #6b7fa0;
+        --accent: #f59e0b;
+        --accent-dim: rgba(245, 158, 11, 0.1);
+        --accent-glow: rgba(245, 158, 11, 0.3);
+        --danger: #ef4444;
+        --success: #22c55e;
+        --info: #38bdf8;
+        --r: 12px;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Space Grotesk", sans-serif;
+        background: var(--bg);
+        color: var(--fg);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        overflow-y: auto;
+        /* Matikan pull to refresh di HP */
+        overscroll-behavior-y: contain;
+      }
+
+      /* --- AMBIL EFEK BACKGROUND GRID DARI STYLE.CSS ANDA --- */
+      .bg-g {
+        position: fixed;
+        inset: 0;
+        z-index: 0;
+        pointer-events: none;
+      }
+      .bg-g::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          radial-gradient(
+            circle at 15% 15%,
+            rgba(245, 158, 11, 0.04) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 85% 85%,
+            rgba(56, 189, 248, 0.03) 0%,
+            transparent 50%
+          );
+      }
+      .bg-g::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image:
+          linear-gradient(rgba(245, 158, 11, 0.012) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(245, 158, 11, 0.012) 1px, transparent 1px);
+        background-size: 40px 40px;
+        animation: gd 30s linear infinite;
+      }
+      @keyframes gd {
+        to {
+          transform: translate(40px, 40px);
+        }
+      }
+
+      /* --- STYLE KHUSUS DASHBOARD --- */
+      .dashboard-container {
+        position: relative;
+        z-index: 1;
+        text-align: center;
+        padding: 2rem;
+        width: 100%;
+        max-width: 900px;
+        animation: fu 0.5s ease;
+      }
+
+      @keyframes fu {
+        from {
+          opacity: 0;
+          transform: translateY(15px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .dashboard-container h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        background: linear-gradient(to right, var(--accent), var(--info));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .dashboard-container p {
+        color: var(--muted);
+        font-size: 0.9rem;
+        margin-bottom: 3rem;
+      }
+
+      .menu-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1.5rem;
+      }
+
+      .menu-card {
+        background: var(--card);
+        border: 1px solid var(--brd);
+        border-radius: 16px;
+        padding: 2.5rem 1.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        text-decoration: none;
+        color: var(--fg);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        overflow: hidden;
+      }
+
+      /* Efek cahaya saat di-hover */
+      .menu-card::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        height: 3px;
+        background: var(--accent);
+        transform: scaleX(0);
+        transition: transform 0.3s ease;
+      }
+
+      .menu-card:hover {
+        transform: translateY(-8px);
+        border-color: var(--accent);
+        box-shadow:
+          0 10px 40px rgba(0, 0, 0, 0.4),
+          0 0 20px var(--accent-dim);
+      }
+
+      .menu-card:hover::before {
+        transform: scaleX(1);
+      }
+
+      .menu-card:active {
+        transform: translateY(-2px);
+      }
+
+      .card-icon {
+        font-size: 3rem;
+        margin-bottom: 1.2rem;
+      }
+
+      .card-title {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-bottom: 0.8rem;
+      }
+
+      .card-status {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .status-online {
+        background: rgba(34, 197, 94, 0.12);
+        color: var(--success);
+        border: 1px solid rgba(34, 197, 94, 0.3);
+      }
+
+      .status-offline {
+        background: rgba(245, 158, 11, 0.12);
+        color: var(--accent);
+        border: 1px solid rgba(245, 158, 11, 0.3);
+      }
+
+      /* Footer kecil */
+      .footer-info {
+        position: relative;
+        z-index: 1;
+        margin-top: 4rem;
+        font-size: 0.7rem;
+        color: var(--muted);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .footer-info .db-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--success);
+        animation: pls 2s infinite;
+      }
+      @keyframes pls {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.3;
+        }
+      }
+
+      /* Tap highlight mati untuk HP */
+      * {
+        -webkit-tap-highlight-color: transparent;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="bg-g"></div>
+
+    <div class="dashboard-container">
+      <h1>Sistem Bisnis Utama</h1>
+      <p>Pilih modul aplikasi yang ingin Anda kelola</p>
+
+      <div class="menu-grid">
+        <!-- MENU 1: PEMBUKUAN (SUDAH ONLINE) -->
+        <!-- GANTI "pembukuan.html" DENGAN NAMA FILE HTML PEMBUKUAN ANDA YANG DIATAS -->
+        <a href="pembukuan.html" class="menu-card">
+          <div class="card-icon">💰</div>
+          <div class="card-title">Pembukuan & Kasir</div>
+          <span class="card-status status-online">Online & Aktif</span>
+        </a>
+
+        <!-- MENU 2: KARYAWAN (BELUM ONLINE) -->
+        <a href="karyawan.html" class="menu-card" id="cardKaryawan">
+          <div class="card-icon">👥</div>
+          <div class="card-title">Data Karyawan</div>
+          <span class="card-status status-offline">Segera Hadir</span>
+        </a>
+
+        <!-- MENU 3: STOK (BELUM ONLINE) -->
+        <a href="stok.html" class="menu-card" id="cardStok">
+          <div class="card-icon">📦</div>
+          <div class="card-title">Stok Barang</div>
+          <span class="card-status status-offline">Segera Hadir</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="footer-info">
+      <span class="db-dot"></span>
+      <span>Powered by Supabase & Railway</span>
+    </div>
+
+    <script>
+      // Script untuk mencegah error 404 jika file Karyawan & Stok belum diupload
+      document
+        .getElementById("cardKaryawan")
+        .addEventListener("click", function (e) {
+          e.preventDefault();
+          alert(
+            "Modul Karyawan belum diupload. File ini akan aktif setelah Anda menguploadnya ke GitHub.",
+          );
+        });
+
+      document
+        .getElementById("cardStok")
+        .addEventListener("click", function (e) {
+          e.preventDefault();
+          alert(
+            "Modul Stok belum diupload. File ini akan aktif setelah Anda menguploadnya ke GitHub.",
+          );
+        });
+    </script>
+  </body>
+</html>
