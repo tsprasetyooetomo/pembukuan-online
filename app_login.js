@@ -97,29 +97,21 @@ async function loadTransaksi() {
 }
 
 function doLogout() {
+  // 1. Hapus semua data session dari localStorage
   localStorage.removeItem("token");
   localStorage.removeItem("nama");
   localStorage.removeItem("cabang");
   localStorage.removeItem("role");
 
-  if (typeof toast === "function")
-    toast("Berhasil logout, mengalihkan...", "ok");
+  // 2. Tampilkan notifikasi toast (jika fungsi toast ada)
+  if (typeof toast === "function") {
+    toast("Berhasil logout, mengalihkan ke Dashboard...", "ok");
+  }
 
-  if (document.getElementById("sidebar"))
-    document.getElementById("sidebar").classList.add("hidden-menu");
-  if (document.getElementById("tbTitle"))
-    document.getElementById("tbTitle").style.display = "none";
-  if (document.getElementById("btnLogout"))
-    document.getElementById("btnLogout").style.display = "none";
-
-  const clockEl =
-    document.getElementById("clockEl") || document.querySelector(".clockEl");
-  if (clockEl) clockEl.style.display = "none";
-
-  if (document.getElementById("loginBox"))
-    document.getElementById("loginBox").style.display = "block";
-
+  // 3. LANGSUNG ARAHKAN KE INDEX.HTML (DASHBOARD)
+  // Kita tidak perlu sembunyikan sidebar atau reload lagi,
+  // karena halaman akan langsung berpindah total.
   setTimeout(() => {
-    window.location.reload();
-  }, 500);
+    window.location.href = "index.html";
+  }, 800); // Diberi delay 0.8 detik agar toast "Berhasil logout"nya terlihat dulu
 }
