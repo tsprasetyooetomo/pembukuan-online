@@ -218,7 +218,7 @@ function buildSidebar() {
         { id: "rlDetil", label: "RL Detil Bulanan", icon: "fa-bars-staggered" },
         { id: "rlLebar", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
         { id: "bukuBesar", label: "Buku Besar", icon: "fa-book" },
-      //  { id: "expXls", label: "Export XLS", icon: "fa-file-excel" },
+        //  { id: "expXls", label: "Export XLS", icon: "fa-file-excel" },
       ],
     },
     {
@@ -276,7 +276,7 @@ function buildSidebar() {
           "USER",
         ].includes(grp.group)
       )
-        itemsBolehTampil = grp.items;
+        itemsBolehTampil = grp.items.filter((item) => item.id !== "cbg");
     } else if (userRole === "KASIR") {
       itemsBolehTampil = grp.items.filter((item) =>
         ["saldoKasir", "mutasikasir", "kaskasir"].includes(item.id),
