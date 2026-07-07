@@ -373,44 +373,34 @@ var DBCache = {};
 async function refreshCache() {
   try {
     const cabangSaya = localStorage.getItem("cabang") || "";
-    console.log("Cache: Memuat data untuk cabang:", cabangSaya);
+    console.log("Cache: Memuat data secara paralel...");
 
-    // 1. Data Master Global (Tidak bisa difilter SQL karena strukturnya beda)
-    DBCache.users = await db.getAll("users");
-    DBCache.formatRL = await db.getAll("formatRL");
-    DBCache.formatNeraca = await db.getAll("formatNeraca");
-    DBCache.postedMonths = await db.getAll("postedMonths");
+    // Mengambil 5 tabel secara bersamaan (jauh lebih cepat)
+    const [users, formatRL, formatNeraca, postedMonths, allCabang] =
+      await Promise.all([
+        db.getAll("users"),
+        db.getAll("formatRL"),
+        db.getAll("formatNeraca"),
+        db.getAll("postedMonths"),
+        db.getAll("cabang"),
+      ]);
 
-    // ✅ LOGIKA KHUSUS CABANG: Ambil semua, lalu filter manual di JS
-    // Supaya dropdown hanya berisi 1 cabang sesuai user yang login
-    let allCabang = await db.getAll("cabang");
+    // Simpan ke Cache setelah semua data selesai diambil
+    DBCache.users = users;
+    DBCache.formatRL = formatRL;
+    DBCache.formatNeraca = formatNeraca;
+    DBCache.postedMonths = postedMonths;
+
+    // ✅ LOGIKA KHUSUS CABANG tetap sama
     if (cabangSaya && cabangSaya.toUpperCase() !== "PUSAT") {
       DBCache.cabang = allCabang.filter((c) => (c.kode || c.id) === cabangSaya);
     } else {
-      DBCache.cabang = allCabang; // Admin/Pusat lihat semua
+      DBCache.cabang = allCabang;
     }
-    console.log("Data:", allCabang);
 
-    // 2. Data Transaksi & Operasional (Difilter oleh Backend SQL)
-    DBCache.golongan = await db.getAll("golongan", cabangSaya);
-    DBCache.perkiraan = await db.getAll("perkiraan", cabangSaya);
-    DBCache.kodeBank = await db.getAll("kodeBank", cabangSaya);
-    DBCache.saldoKasir = await db.getAll("saldoKasir", cabangSaya);
-    DBCache.mutasikasir = await db.getAll("mutasikasir", cabangSaya);
-
-    console.log("golongan:", DBCache.golongan);
-    console.log(
-      "✅ Cache master berhasil dimuat. Data cabang ditemukan:",
-      DBCache.cabang.length,
-    );
+    console.log("Cache Berhasil Dimuat!");
   } catch (error) {
-    console.error("❌ Gagal memuat cache master:", error);
-  }
-}
-async function refreshCache2(onlyStore) {
-  if (onlyStore) {
-    DBCache[onlyStore] = await db.getAll(onlyStore);
-    return;
+    console.error("Gagal memuat cache:", error);
   }
 }
 
