@@ -397,7 +397,7 @@ async function refreshCache() {
     // ✅ LOGIKA FILTER DROPDOWN CABANG
     if (
       cabangSaya &&
-      cabangSaya !== "00" &&
+      cabangSaya !== "PUSAT" &&
       cabangSaya.toUpperCase() !== "PUSAT"
     ) {
       // Jika BUKAN Pusat (misal 05), kunci dropdown hanya ke cabangnya sendiri
