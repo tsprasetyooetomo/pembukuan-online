@@ -1197,6 +1197,8 @@ async function renderSaldoKasir() {
     '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasir\', \'Data_SaldoKasir\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasir\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasir\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
+    // ✅ TAMBAHKAN TOMBOL INI (Warna Oranye, Diletakkan sebelum tombol Tambah)
+    '<button type="button" class="btn btn-s" style="background:#f59e0b;color:#fff;border-color:#f59e0b" onclick="promptHapusSeReff(\'saldoKasir\')"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
     '<button type="button" class="btn btn-a" onclick="formSaldoKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
@@ -1446,5 +1448,123 @@ async function saveSaldoKasir(e, editId) {
   } catch (err) {
     console.error("❌ ERROR TERDETEKSI:", err);
     toast("Gagal simpan: " + err.message, "err");
+  }
+}
+// ========================================================
+// FUNGSI HAPUS SEKALIGUS BERDASARKAN NOREFF
+// ========================================================
+async function deleteByNoReff(storeName, noreff) {
+  if (!noreff) {
+    return toast("Tidak ada No Reff yang dipilih", "err");
+  }
+
+  // 1. Cari semua data di cache yang memiliki noreff sama
+  var dataStore = DBCache[storeName] || [];
+  var dataHapus = dataStore.filter(function (item) {
+    return (item.noreff || "") === noreff;
+  });
+
+  if (dataHapus.length === 0) {
+    return toast("Data tidak ditemukan di cache", "err");
+  }
+
+  // 2. Tampilkan Modal Konfirmasi
+  var listHtml = dataHapus
+    .map(function (d, i) {
+      return (
+        '<div style="padding:.3rem .5rem; border-bottom:1px solid var(--brd); font-size:.75rem; display:flex; justify-content:space-between;">' +
+        "<span>" +
+        (i + 1) +
+        ". " +
+        esc(d.noperkiraan || d.desc || d.id) +
+        "</span>" +
+        '<span style="color:var(--accent); font-weight:bold;">' +
+        formatUang(d.total || d.db || 0) +
+        "</span>" +
+        "</div>"
+      );
+    })
+    .join("");
+
+  var totalNominal = dataHapus.reduce(function (sum, d) {
+    return sum + num(d.total || d.db || 0);
+  }, 0);
+
+  openModal(
+    "Hapus Transaksi Se-Reff",
+    '<div class="confirm-box">' +
+      '<div style="padding:.8rem; background:rgba(220,53,69,.1); border:1px solid rgba(220,53,69,.3); border-radius:8px; margin-bottom:1rem; display:flex; align-items:center; gap:.6rem;">' +
+      '<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger); font-size:1.2rem;"></i>' +
+      "<div>" +
+      '<strong style="color:var(--danger)">Hapus ' +
+      dataHapus.length +
+      " data dengan No Reff: " +
+      noreff +
+      "?</strong>" +
+      '<div style="font-size:.78rem; color:var(--muted); margin-top:.2rem;">Total Nilai: <strong>' +
+      formatUang(totalNominal) +
+      "</strong></div>" +
+      "</div></div>" +
+      '<div style="max-height:200px; overflow-y:auto; background:var(--bg2); border:1px solid var(--brd); border-radius:8px; padding:.5rem; font-family:JetBrains Mono, monospace;">' +
+      listHtml +
+      "</div>" +
+      '<div class="cb-btns" style="margin-top:1rem;">' +
+      '<button class="btn btn-g" onclick="closeModal()">Batal</button>' +
+      '<button class="btn btn-r" onclick="executeDeleteNoReff(\'' +
+      storeName +
+      "', '" +
+      esc(noreff) +
+      '\')"><i class="fa-solid fa-trash-can"></i> Ya, Hapus Semua (' +
+      dataHapus.length +
+      ")</button>" +
+      "</div></div>",
+  );
+}
+
+// Fungsi Eksekusi Penghapusan yang Sesungguhnya
+async function executeDeleteNoReff(storeName, noreff) {
+  try {
+    var dataStore = DBCache[storeName] || [];
+    var dataHapus = dataStore.filter(function (item) {
+      return (item.noreff || "") === noreff;
+    });
+
+    var berhasilHapus = 0;
+    var gagalHapus = 0;
+
+    // Looping hapus satu per satu ke server
+    for (var i = 0; i < dataHapus.length; i++) {
+      try {
+        await db.del(storeName, dataHapus[i].id);
+        berhasilHapus++;
+      } catch (err) {
+        console.error("Gagal hapus ID:", dataHapus[i].id, err);
+        gagalHapus++;
+      }
+    }
+
+    // Bersihkan data dari DBCache
+    DBCache[storeName] = dataStore.filter(function (item) {
+      return (item.noreff || "") !== noreff;
+    });
+
+    closeModal();
+
+    var msg = "Berhasil dihapus: " + berhasilHapus + " data.";
+    if (gagalHapus > 0) msg += " (Gagal: " + gagalHapus + ")";
+
+    toast(msg, gagalHapus > 0 ? "wrn" : "ok");
+
+    // Refresh tampilan tabel
+    if (typeof renderCurrentPanel === "function") {
+      await renderCurrentPanel();
+    } else if (typeof safeRenderCurrentPanel === "function") {
+      await safeRenderCurrentPanel();
+    } else {
+      navigate(currentPanel);
+    }
+  } catch (err) {
+    closeModal();
+    toast("Gagal menghapus: " + err.message, "err");
   }
 }
