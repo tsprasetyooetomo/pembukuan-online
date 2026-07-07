@@ -1125,6 +1125,9 @@ function getCabangFilterHTML() {
 }
 
 PANEL_MAP.saldoKasir = renderSaldoKasir;
+// ========================================================
+// 1. RENDER SALDO KASIR (Termasuk Pencarian Saldo Awal Otomatis)
+// ========================================================
 async function renderSaldoKasir() {
   var rawData = DBCache.saldoKasir || [];
   var data = filterByCabang(rawData);
@@ -1132,7 +1135,6 @@ async function renderSaldoKasir() {
   data.sort(function (a, b) {
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
-
     if (tglA < tglB) return 1;
     if (tglA > tglB) return -1;
     return 0;
@@ -1168,10 +1170,20 @@ async function renderSaldoKasir() {
     "-",
     '<span style="font-weight:bold;">' + formatUang(totalSaldo) + "</span>",
   ];
-  // ... kode atas tetap sama ...
 
-  // GANTI BAGIAN INI SAJA:
+  // ✅ PENCARIAN SALDO AWAL OTOMATIS UNTUK DITAMPILKAN DI HEADER
+  var myCabang = localStorage.getItem("cabang") || "";
+  var todayStr = new Date().toISOString().split("T")[0]; // Hari ini format YYYY-MM-DD
+  var saldoAwalTampil = await cariSaldoAwalKeMundur(myCabang, todayStr);
+  var saldoAwalHtml =
+    typeof saldoAwalTampil === "number"
+      ? '<div style="background:rgba(16,124,65,0.1); border:1px solid rgba(16,124,65,0.3); color:#107c41; padding:8px 15px; border-radius:8px; font-weight:bold; font-size:.9rem;">Saldo Awal Terakhir: ' +
+        formatUang(saldoAwalTampil) +
+        "</div>"
+      : "";
+
   return (
+    saldoAwalHtml + // Tampilkan di bagian paling atas
     bulkBarHTML("saldoKasir", "saldoKasir") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
@@ -1188,14 +1200,12 @@ async function renderSaldoKasir() {
     '<button type="button" class="btn btn-a" onclick="formSaldoKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
-      buildTable(["Cabang", "Tanggal", "Saldo Awal"], rows, {
+      buildTable(["Cabang", "Tanggal", "Saldo Akhir"], rows, {
         foot: foot,
         bulkStore: "saldoKasir",
         bulkIds: idsLimit,
-        // ✅ FIX UTAMA: Timpa fungsi actions dengan pemanggilan langsung
         actions: function (r, i) {
           var id = dataLimit[i].id;
-          // Langsung panggil formSaldoKasir(id) saat tombol edit diklik
           return (
             '<button type="button" class="btn btn-y" onclick="formSaldoKasir(\'' +
             id +
@@ -1211,6 +1221,61 @@ async function renderSaldoKasir() {
   );
 }
 
+// ========================================================
+// 2. FUNGSI PENCARIAN SALDO AWAL KE MUNDUR (CORE LOGIC)
+// ========================================================
+async function cariSaldoAwalKeMundur(cabang, tanggalPilih) {
+  if (!cabang || !tanggalPilih) return 0;
+
+  // 1. Ambil semua data saldoKasir untuk cabang ini (sudah difilter di cache)
+  var dataSk = (DBCache.saldoKasir || []).filter(function (item) {
+    return (item.cabang || "") === cabang;
+  });
+
+  // 2. Ubah tanggal pilih ke objek Date
+  var tglTarget = new Date(tanggalPilih);
+  tglTarget.setDate(tglTarget.getDate() - 1); // Kurangi 1 hari (mencari hari sebelumnya)
+
+  var maxIterasi = 365; // Maksimal mencari mundur 1 tahun ke belakang
+  var ditemukan = false;
+  var saldoAwal = 0;
+  var tglDitemukan = "";
+
+  // 3. Looping mengurangi tanggal sampai ketemu
+  for (var i = 0; i < maxIterasi; i++) {
+    var tglStr = tglTarget.toISOString().split("T")[0]; // Format kembali ke YYYY-MM-DD
+
+    // Cari di array apakah ada yang tanggalnya sama
+    var cocok = dataSk.find(function (sk) {
+      return (sk.tgl_awal || "") === tglStr;
+    });
+
+    if (cocok) {
+      saldoAwal = num(cocok.akhir) || 0;
+      tglDitemukan = tglStr;
+      ditemukan = true;
+      console.log(
+        `✅ Saldo awal ditemukan di tanggal ${tglStr} sebesar ${saldoAwal}`,
+      );
+      break; // Berhenti mencari
+    }
+
+    // Jika belum ketemu, kurangi lagi 1 hari
+    tglTarget.setDate(tglTarget.getDate() - 1);
+  }
+
+  if (!ditemukan) {
+    console.log(
+      "⚠️ Tidak ditemukan saldo di tanggal sebelumnya. Menggunakan 0.",
+    );
+  }
+
+  return saldoAwal;
+}
+
+// ========================================================
+// 3. FORM SALDO KASIR (Dengan Pemicu Pencarian Otomatis)
+// ========================================================
 function formSaldoKasir(id) {
   var isEdit = !!id;
   var data = isEdit
@@ -1219,7 +1284,6 @@ function formSaldoKasir(id) {
       }) || {}
     : {};
 
-  // ✅ FIX 1: Saat edit, ambil nilai "akhir" sebagai nilai yang ditampilkan di form, bukan "awal" (karena awal selalu 0)
   var displaySaldo = isEdit ? data.akhir || 0 : 0;
 
   var html =
@@ -1230,10 +1294,12 @@ function formSaldoKasir(id) {
     "</select></div>" +
     '<div class="fg"><label>Tanggal Saldo</label><input id="fSkTgl" type="date" class="in" value="' +
     esc(data.tgl_awal || "") +
-    '"></div>' +
-    '<div class="fg"><label>Saldo</label><input id="fSkAwal" type="number" class="in" value="' +
+    '" onchange="onTglSaldoChange()">' + // ✅ TRIGGER PENCARIAN OTOMATIS
+    "</div>" +
+    '<div class="fg"><label>Saldo Awal (Otomatis)</label><input id="fSkAwalAuto" type="text" class="in" value="0" disabled style="background:#f0f0f0; color:#333; font-weight:bold;"></div>' +
+    '<div class="fg"><label>Saldo yang Disimpan</label><input id="fSkAkhir" type="number" class="in" value="' +
     esc(displaySaldo) +
-    '"></div>';
+    '" title="Isi saldo akhir terbaru untuk tanggal ini"></div>';
 
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
@@ -1244,75 +1310,108 @@ function formSaldoKasir(id) {
     "</button>";
 
   openModal(isEdit ? "Edit Saldo Kasir" : "Tambah Saldo Kasir", html, foot);
+
+  // Jika edit, panggil sekali saat form dibuka
+  if (isEdit) {
+    setTimeout(function () {
+      onTglSaldoChange();
+    }, 50);
+  }
 }
 
+// ✅ FUNGSI YANG DIPANGGIL SAAT TANGGAL DIUBAH
+async function onTglSaldoChange() {
+  var cabang = $("fSkCab").value;
+  var tglPilih = $("fSkTgl").value;
+
+  if (!cabang || !tglPilih) return;
+
+  // Tampilkan loading kecil di input
+  $("fSkAwalAuto").value = "Mencari...";
+
+  // Cari saldo ke mundur
+  var saldo = await cariSaldoAwalKeMundur(cabang, tglPilih);
+
+  // Tampilkan hasilnya
+  $("fSkAwalAuto").value = formatUang(saldo);
+}
+
+// ========================================================
+// 4. SAVE SALDO KASIR (Menghitung DB/CR Transaksi)
+// ========================================================
 async function saveSaldoKasir(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
   try {
     var cabang = $("fSkCab").value;
     var tgl_awal = $("fSkTgl").value;
-    var vdb = 0;
-    var vcr = 0;
-    var akhir = num($("fSkAwal").value); // Nilai dari input form
-    var awal = 0;
+    var akhirInput = num($("fSkAkhir").value);
 
-    // ✅ FIX 2: Perbaiki pesan error agar sesuai dengan field yang ada di form
-    if (!tgl_awal) {
-      return toast("Tanggal wajib diisi", "err");
-    }
+    if (!tgl_awal) return toast("Tanggal wajib diisi", "err");
 
-    if (editId) {
-      var r = await db.get("saldoKasir", editId);
-      if (r) {
-        var updated = Object.assign({}, r, {
-          cabang: cabang,
-          tgl_awal: tgl_awal,
-          db: vdb,
-          cr: vcr,
-          akhir: akhir,
-          awal: awal,
-        });
+    // 1. Cari Saldo Awal dari tanggal sebelumnya
+    var saldoAwal = await cariSaldoAwalKeMundur(cabang, tgl_awal);
 
-        var response = await fetch(
-          API_BASE_URL + "/api/data/saldoKasir/" + editId,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(updated),
-          },
-        );
+    // 2. Ambil data transaksi kasir (mutasikasir) di tanggal ini
+    var trxHariIni = (DBCache.mutasikasir || []).filter(function (t) {
+      return (t.cabang || "") === cabang && (t.tanggal || "") === tgl_awal;
+    });
 
-        if (!response.ok) {
-          var errJson = await response.json();
-          throw new Error(errJson.error || "Gagal update ke server backend");
-        }
+    // 3. Hitung DB dan CR berdasarkan KODE TRANSAKSI
+    var totalDB = 0;
+    var totalCR = 0;
 
-        await db.put("saldoKasir", updated);
+    trxHariIni.forEach(function (trx) {
+      var kode = (trx.kodeTrans || trx.kode || "").toUpperCase();
+      var nominal = num(trx.total || trx.nominal || 0);
 
-        var idx = DBCache.saldoKasir.findIndex((x) => x.id === editId);
-        if (idx !== -1) {
-          DBCache.saldoKasir[idx] = updated;
-        }
+      if (["PJ", "TK", "KT"].indexOf(kode) !== -1) {
+        totalDB += nominal; // Masuk ke Debit
       } else {
-        throw new Error("Data lama tidak ditemukan di DB lokal!");
+        totalCR += nominal; // Selain itu masuk ke Kredit
       }
+    });
+
+    // 4. Hitung Saldo Akhir (Untuk disimpan ke tabel saldoKasir)
+    // Rumus: Saldo Awal + DB - CR
+    var saldoAkhirFix = saldoAwal + totalDB - totalCR;
+
+    // 5. Siapkan objek yang akan disimpan
+    var objSave = {
+      cabang: cabang,
+      tgl_awal: tgl_awal,
+      awal: saldoAwal, // Saldo dari hari sebelumnya
+      db: totalDB, // Total kode PJ, TK, KT hari ini
+      cr: totalCR, // Total kode lainnya hari ini
+      akhir: saldoAkhirFix, // HASIL AKHIR YANG DISIMPAN
+    };
+
+    // 6. Eksekusi ke Database (Tambah atau Update)
+    if (editId) {
+      objSave.id = editId;
+      var response = await fetch(
+        API_BASE_URL + "/api/data/saldoKasir/" + editId,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(objSave),
+        },
+      );
+
+      if (!response.ok) {
+        var errJson = await response.json();
+        throw new Error(errJson.error || "Gagal update ke server backend");
+      }
+
+      var idx = DBCache.saldoKasir.findIndex((x) => x.id === editId);
+      if (idx !== -1) DBCache.saldoKasir[idx] = objSave;
     } else {
-      var newId = uid();
-      var newObj = {
-        id: newId,
-        cabang: cabang,
-        tgl_awal: tgl_awal,
-        db: vdb,
-        cr: vcr,
-        akhir: akhir,
-        awal: awal,
-      };
+      objSave.id = uid();
 
       var response = await fetch(API_BASE_URL + "/api/data/saldoKasir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newObj),
+        body: JSON.stringify(objSave),
       });
 
       if (!response.ok) {
@@ -1322,13 +1421,21 @@ async function saveSaldoKasir(e, editId) {
         );
       }
 
-      await db.add("saldoKasir", newObj);
-      DBCache.saldoKasir.push(newObj);
+      DBCache.saldoKasir.push(objSave);
     }
 
     setTimeout(async function () {
       closeModal();
-      toast(editId ? "Diperbarui" : "Ditambahkan", "ok");
+      toast(
+        "Tersimpan! (DB:" +
+          formatUang(totalDB) +
+          ", CR:" +
+          formatUang(totalCR) +
+          " | Akhir: " +
+          formatUang(saldoAkhirFix) +
+          ")",
+        "ok",
+      );
 
       if (typeof renderCurrentPanel === "function") {
         await renderCurrentPanel();
