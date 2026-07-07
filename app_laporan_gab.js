@@ -27,6 +27,8 @@ function renderRLRekapGabungan() {
     "</div>" +
     '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiRLGabungan()">Terapkan</button>' +
     '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLGabunganExcel()"><i class="fa-solid fa-file-excel"></i> Download Excel</button>' +
+    '<button type="button" class="btn btn-s" style="font-size:.75rem; padding:4px 12px; background:#6f42c1; border-color:#6f42c1; color:#fff;" onclick="lihatGrafikRLGabungan()"><i class="fa-solid fa-chart-line"></i> Lihat Grafik</button>' +
+    "</div>" +
     "</div>" +
     // UBAH: Area ini menjadi dinamis (bisa menampung tabel gabungan atau rl lebar)
     '<div id="tempat_tabel_rlgab" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
@@ -1155,4 +1157,28 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
         err.message +
         "</div>";
     });
+}
+// ==========================================
+// FUNGSI AKSI TOMBOL LIHAT GRAFIK
+// ==========================================
+function lihatGrafikRLGabungan() {
+  if (
+    !window._rlGabunganData ||
+    !window._rlGabunganData.daftarCabang ||
+    window._rlGabunganData.daftarCabang.length === 0
+  ) {
+    toast("Silakan klik 'Terapkan' terlebih dahulu untuk memuat data", "wrn");
+    return;
+  }
+
+  var areaGrafik = document.getElementById("area_grafik_rlgab");
+  if (areaGrafik) {
+    // Tampilkan area grafik
+    areaGrafik.style.display = "block";
+
+    // Scroll halaman secara halus ke arah grafik
+    areaGrafik.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
+    toast("Area grafik tidak ditemukan", "err");
+  }
 }
