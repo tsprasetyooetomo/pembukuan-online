@@ -502,11 +502,20 @@ class PembukuanDB {
   }
 
   _getAllBrowser(s) {
-    return fetch(API_BASE_URL + "/api/data/" + s).then(function (r) {
+    const cabang = localStorage.getItem("cabang") || "";
+
+    // Jika kosong atau PUSAT, hapus filter (kirim URL polos)
+    const safeCabang =
+      !cabang || cabang.toUpperCase() === "PUSAT" ? "" : cabang;
+
+    const url = safeCabang
+      ? API_BASE_URL + "/api/data/" + s + "?cabang=" + safeCabang
+      : API_BASE_URL + "/api/data/" + s;
+
+    return fetch(url).then(function (r) {
       return r.json();
     });
   }
-
   _delBrowser(s, id) {
     return fetch(API_BASE_URL + "/api/data/" + s + "/" + id, {
       method: "DELETE",
