@@ -1127,7 +1127,6 @@ function getCabangFilterHTML() {
 PANEL_MAP.saldoKasir = renderSaldoKasir;
 // ========================================================
 // 1. RENDER SALDO KASIR (Termasuk Pencarian Saldo Awal Otomatis)
-// ========================================================
 async function renderSaldoKasir() {
   var rawData = DBCache.saldoKasir || [];
   var data = filterByCabang(rawData);
@@ -1135,6 +1134,7 @@ async function renderSaldoKasir() {
   data.sort(function (a, b) {
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
+
     if (tglA < tglB) return 1;
     if (tglA > tglB) return -1;
     return 0;
@@ -1170,20 +1170,10 @@ async function renderSaldoKasir() {
     "-",
     '<span style="font-weight:bold;">' + formatUang(totalSaldo) + "</span>",
   ];
+  // ... kode atas tetap sama ...
 
-  // ✅ PENCARIAN SALDO AWAL OTOMATIS UNTUK DITAMPILKAN DI HEADER
-  var myCabang = localStorage.getItem("cabang") || "";
-  var todayStr = new Date().toISOString().split("T")[0]; // Hari ini format YYYY-MM-DD
-  var saldoAwalTampil = await cariSaldoAwalKeMundur(myCabang, todayStr);
-  var saldoAwalHtml =
-    typeof saldoAwalTampil === "number"
-      ? '<div style="background:rgba(16,124,65,0.1); border:1px solid rgba(16,124,65,0.3); color:#107c41; padding:8px 15px; border-radius:8px; font-weight:bold; font-size:.9rem;">Saldo Awal Terakhir: ' +
-        formatUang(saldoAwalTampil) +
-        "</div>"
-      : "";
-
+  // GANTI BAGIAN INI SAJA:
   return (
-    saldoAwalHtml + // Tampilkan di bagian paling atas
     bulkBarHTML("saldoKasir", "saldoKasir") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
@@ -1197,17 +1187,17 @@ async function renderSaldoKasir() {
     '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasir\', \'Data_SaldoKasir\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasir\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasir\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
-    // ✅ TAMBAHKAN TOMBOL INI (Warna Oranye, Diletakkan sebelum tombol Tambah)
-    '<button type="button" class="btn btn-s" style="background:#f59e0b;color:#fff;border-color:#f59e0b" onclick="promptHapusSeReff(\'saldoKasir\')"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
     '<button type="button" class="btn btn-a" onclick="formSaldoKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
-      buildTable(["Cabang", "Tanggal", "Saldo Akhir"], rows, {
+      buildTable(["Cabang", "Tanggal", "Saldo Awal"], rows, {
         foot: foot,
         bulkStore: "saldoKasir",
         bulkIds: idsLimit,
+        // ✅ FIX UTAMA: Timpa fungsi actions dengan pemanggilan langsung
         actions: function (r, i) {
           var id = dataLimit[i].id;
+          // Langsung panggil formSaldoKasir(id) saat tombol edit diklik
           return (
             '<button type="button" class="btn btn-y" onclick="formSaldoKasir(\'' +
             id +
@@ -1223,61 +1213,6 @@ async function renderSaldoKasir() {
   );
 }
 
-// ========================================================
-// 2. FUNGSI PENCARIAN SALDO AWAL KE MUNDUR (CORE LOGIC)
-// ========================================================
-async function cariSaldoAwalKeMundur(cabang, tanggalPilih) {
-  if (!cabang || !tanggalPilih) return 0;
-
-  // 1. Ambil semua data saldoKasir untuk cabang ini (sudah difilter di cache)
-  var dataSk = (DBCache.saldoKasir || []).filter(function (item) {
-    return (item.cabang || "") === cabang;
-  });
-
-  // 2. Ubah tanggal pilih ke objek Date
-  var tglTarget = new Date(tanggalPilih);
-  tglTarget.setDate(tglTarget.getDate() - 1); // Kurangi 1 hari (mencari hari sebelumnya)
-
-  var maxIterasi = 365; // Maksimal mencari mundur 1 tahun ke belakang
-  var ditemukan = false;
-  var saldoAwal = 0;
-  var tglDitemukan = "";
-
-  // 3. Looping mengurangi tanggal sampai ketemu
-  for (var i = 0; i < maxIterasi; i++) {
-    var tglStr = tglTarget.toISOString().split("T")[0]; // Format kembali ke YYYY-MM-DD
-
-    // Cari di array apakah ada yang tanggalnya sama
-    var cocok = dataSk.find(function (sk) {
-      return (sk.tgl_awal || "") === tglStr;
-    });
-
-    if (cocok) {
-      saldoAwal = num(cocok.akhir) || 0;
-      tglDitemukan = tglStr;
-      ditemukan = true;
-      console.log(
-        `✅ Saldo awal ditemukan di tanggal ${tglStr} sebesar ${saldoAwal}`,
-      );
-      break; // Berhenti mencari
-    }
-
-    // Jika belum ketemu, kurangi lagi 1 hari
-    tglTarget.setDate(tglTarget.getDate() - 1);
-  }
-
-  if (!ditemukan) {
-    console.log(
-      "⚠️ Tidak ditemukan saldo di tanggal sebelumnya. Menggunakan 0.",
-    );
-  }
-
-  return saldoAwal;
-}
-
-// ========================================================
-// 3. FORM SALDO KASIR (Dengan Pemicu Pencarian Otomatis)
-// ========================================================
 function formSaldoKasir(id) {
   var isEdit = !!id;
   var data = isEdit
@@ -1286,6 +1221,7 @@ function formSaldoKasir(id) {
       }) || {}
     : {};
 
+  // ✅ FIX 1: Saat edit, ambil nilai "akhir" sebagai nilai yang ditampilkan di form, bukan "awal" (karena awal selalu 0)
   var displaySaldo = isEdit ? data.akhir || 0 : 0;
 
   var html =
@@ -1296,12 +1232,10 @@ function formSaldoKasir(id) {
     "</select></div>" +
     '<div class="fg"><label>Tanggal Saldo</label><input id="fSkTgl" type="date" class="in" value="' +
     esc(data.tgl_awal || "") +
-    '" onchange="onTglSaldoChange()">' + // ✅ TRIGGER PENCARIAN OTOMATIS
-    "</div>" +
-    '<div class="fg"><label>Saldo Awal (Otomatis)</label><input id="fSkAwalAuto" type="text" class="in" value="0" disabled style="background:#f0f0f0; color:#333; font-weight:bold;"></div>' +
-    '<div class="fg"><label>Saldo yang Disimpan</label><input id="fSkAkhir" type="number" class="in" value="' +
+    '"></div>' +
+    '<div class="fg"><label>Saldo</label><input id="fSkAwal" type="number" class="in" value="' +
     esc(displaySaldo) +
-    '" title="Isi saldo akhir terbaru untuk tanggal ini"></div>';
+    '"></div>';
 
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
@@ -1312,108 +1246,75 @@ function formSaldoKasir(id) {
     "</button>";
 
   openModal(isEdit ? "Edit Saldo Kasir" : "Tambah Saldo Kasir", html, foot);
-
-  // Jika edit, panggil sekali saat form dibuka
-  if (isEdit) {
-    setTimeout(function () {
-      onTglSaldoChange();
-    }, 50);
-  }
 }
 
-// ✅ FUNGSI YANG DIPANGGIL SAAT TANGGAL DIUBAH
-async function onTglSaldoChange() {
-  var cabang = $("fSkCab").value;
-  var tglPilih = $("fSkTgl").value;
-
-  if (!cabang || !tglPilih) return;
-
-  // Tampilkan loading kecil di input
-  $("fSkAwalAuto").value = "Mencari...";
-
-  // Cari saldo ke mundur
-  var saldo = await cariSaldoAwalKeMundur(cabang, tglPilih);
-
-  // Tampilkan hasilnya
-  $("fSkAwalAuto").value = formatUang(saldo);
-}
-
-// ========================================================
-// 4. SAVE SALDO KASIR (Menghitung DB/CR Transaksi)
-// ========================================================
 async function saveSaldoKasir(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
   try {
     var cabang = $("fSkCab").value;
     var tgl_awal = $("fSkTgl").value;
-    var akhirInput = num($("fSkAkhir").value);
+    var vdb = 0;
+    var vcr = 0;
+    var akhir = num($("fSkAwal").value); // Nilai dari input form
+    var awal = 0;
 
-    if (!tgl_awal) return toast("Tanggal wajib diisi", "err");
+    // ✅ FIX 2: Perbaiki pesan error agar sesuai dengan field yang ada di form
+    if (!tgl_awal) {
+      return toast("Tanggal wajib diisi", "err");
+    }
 
-    // 1. Cari Saldo Awal dari tanggal sebelumnya
-    var saldoAwal = await cariSaldoAwalKeMundur(cabang, tgl_awal);
-
-    // 2. Ambil data transaksi kasir (mutasikasir) di tanggal ini
-    var trxHariIni = (DBCache.mutasikasir || []).filter(function (t) {
-      return (t.cabang || "") === cabang && (t.tanggal || "") === tgl_awal;
-    });
-
-    // 3. Hitung DB dan CR berdasarkan KODE TRANSAKSI
-    var totalDB = 0;
-    var totalCR = 0;
-
-    trxHariIni.forEach(function (trx) {
-      var kode = (trx.kodeTrans || trx.kode || "").toUpperCase();
-      var nominal = num(trx.total || trx.nominal || 0);
-
-      if (["PJ", "TK", "KT"].indexOf(kode) !== -1) {
-        totalDB += nominal; // Masuk ke Debit
-      } else {
-        totalCR += nominal; // Selain itu masuk ke Kredit
-      }
-    });
-
-    // 4. Hitung Saldo Akhir (Untuk disimpan ke tabel saldoKasir)
-    // Rumus: Saldo Awal + DB - CR
-    var saldoAkhirFix = saldoAwal + totalDB - totalCR;
-
-    // 5. Siapkan objek yang akan disimpan
-    var objSave = {
-      cabang: cabang,
-      tgl_awal: tgl_awal,
-      awal: saldoAwal, // Saldo dari hari sebelumnya
-      db: totalDB, // Total kode PJ, TK, KT hari ini
-      cr: totalCR, // Total kode lainnya hari ini
-      akhir: saldoAkhirFix, // HASIL AKHIR YANG DISIMPAN
-    };
-
-    // 6. Eksekusi ke Database (Tambah atau Update)
     if (editId) {
-      objSave.id = editId;
-      var response = await fetch(
-        API_BASE_URL + "/api/data/saldoKasir/" + editId,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(objSave),
-        },
-      );
+      var r = await db.get("saldoKasir", editId);
+      if (r) {
+        var updated = Object.assign({}, r, {
+          cabang: cabang,
+          tgl_awal: tgl_awal,
+          db: vdb,
+          cr: vcr,
+          akhir: akhir,
+          awal: awal,
+        });
 
-      if (!response.ok) {
-        var errJson = await response.json();
-        throw new Error(errJson.error || "Gagal update ke server backend");
+        var response = await fetch(
+          API_BASE_URL + "/api/data/saldoKasir/" + editId,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updated),
+          },
+        );
+
+        if (!response.ok) {
+          var errJson = await response.json();
+          throw new Error(errJson.error || "Gagal update ke server backend");
+        }
+
+        await db.put("saldoKasir", updated);
+
+        var idx = DBCache.saldoKasir.findIndex((x) => x.id === editId);
+        if (idx !== -1) {
+          DBCache.saldoKasir[idx] = updated;
+        }
+      } else {
+        throw new Error("Data lama tidak ditemukan di DB lokal!");
       }
-
-      var idx = DBCache.saldoKasir.findIndex((x) => x.id === editId);
-      if (idx !== -1) DBCache.saldoKasir[idx] = objSave;
     } else {
-      objSave.id = uid();
+      var newId = uid();
+      var newObj = {
+        id: newId,
+        cabang: cabang,
+        tgl_awal: tgl_awal,
+        db: vdb,
+        cr: vcr,
+        akhir: akhir,
+        awal: awal,
+      };
 
       var response = await fetch(API_BASE_URL + "/api/data/saldoKasir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(objSave),
+        body: JSON.stringify(newObj),
       });
 
       if (!response.ok) {
@@ -1423,21 +1324,13 @@ async function saveSaldoKasir(e, editId) {
         );
       }
 
-      DBCache.saldoKasir.push(objSave);
+      await db.add("saldoKasir", newObj);
+      DBCache.saldoKasir.push(newObj);
     }
 
     setTimeout(async function () {
       closeModal();
-      toast(
-        "Tersimpan! (DB:" +
-          formatUang(totalDB) +
-          ", CR:" +
-          formatUang(totalCR) +
-          " | Akhir: " +
-          formatUang(saldoAkhirFix) +
-          ")",
-        "ok",
-      );
+      toast(editId ? "Diperbarui" : "Ditambahkan", "ok");
 
       if (typeof renderCurrentPanel === "function") {
         await renderCurrentPanel();
@@ -1448,123 +1341,5 @@ async function saveSaldoKasir(e, editId) {
   } catch (err) {
     console.error("❌ ERROR TERDETEKSI:", err);
     toast("Gagal simpan: " + err.message, "err");
-  }
-}
-// ========================================================
-// FUNGSI HAPUS SEKALIGUS BERDASARKAN NOREFF
-// ========================================================
-async function deleteByNoReff(storeName, noreff) {
-  if (!noreff) {
-    return toast("Tidak ada No Reff yang dipilih", "err");
-  }
-
-  // 1. Cari semua data di cache yang memiliki noreff sama
-  var dataStore = DBCache[storeName] || [];
-  var dataHapus = dataStore.filter(function (item) {
-    return (item.noreff || "") === noreff;
-  });
-
-  if (dataHapus.length === 0) {
-    return toast("Data tidak ditemukan di cache", "err");
-  }
-
-  // 2. Tampilkan Modal Konfirmasi
-  var listHtml = dataHapus
-    .map(function (d, i) {
-      return (
-        '<div style="padding:.3rem .5rem; border-bottom:1px solid var(--brd); font-size:.75rem; display:flex; justify-content:space-between;">' +
-        "<span>" +
-        (i + 1) +
-        ". " +
-        esc(d.noperkiraan || d.desc || d.id) +
-        "</span>" +
-        '<span style="color:var(--accent); font-weight:bold;">' +
-        formatUang(d.total || d.db || 0) +
-        "</span>" +
-        "</div>"
-      );
-    })
-    .join("");
-
-  var totalNominal = dataHapus.reduce(function (sum, d) {
-    return sum + num(d.total || d.db || 0);
-  }, 0);
-
-  openModal(
-    "Hapus Transaksi Se-Reff",
-    '<div class="confirm-box">' +
-      '<div style="padding:.8rem; background:rgba(220,53,69,.1); border:1px solid rgba(220,53,69,.3); border-radius:8px; margin-bottom:1rem; display:flex; align-items:center; gap:.6rem;">' +
-      '<i class="fa-solid fa-triangle-exclamation" style="color:var(--danger); font-size:1.2rem;"></i>' +
-      "<div>" +
-      '<strong style="color:var(--danger)">Hapus ' +
-      dataHapus.length +
-      " data dengan No Reff: " +
-      noreff +
-      "?</strong>" +
-      '<div style="font-size:.78rem; color:var(--muted); margin-top:.2rem;">Total Nilai: <strong>' +
-      formatUang(totalNominal) +
-      "</strong></div>" +
-      "</div></div>" +
-      '<div style="max-height:200px; overflow-y:auto; background:var(--bg2); border:1px solid var(--brd); border-radius:8px; padding:.5rem; font-family:JetBrains Mono, monospace;">' +
-      listHtml +
-      "</div>" +
-      '<div class="cb-btns" style="margin-top:1rem;">' +
-      '<button class="btn btn-g" onclick="closeModal()">Batal</button>' +
-      '<button class="btn btn-r" onclick="executeDeleteNoReff(\'' +
-      storeName +
-      "', '" +
-      esc(noreff) +
-      '\')"><i class="fa-solid fa-trash-can"></i> Ya, Hapus Semua (' +
-      dataHapus.length +
-      ")</button>" +
-      "</div></div>",
-  );
-}
-
-// Fungsi Eksekusi Penghapusan yang Sesungguhnya
-async function executeDeleteNoReff(storeName, noreff) {
-  try {
-    var dataStore = DBCache[storeName] || [];
-    var dataHapus = dataStore.filter(function (item) {
-      return (item.noreff || "") === noreff;
-    });
-
-    var berhasilHapus = 0;
-    var gagalHapus = 0;
-
-    // Looping hapus satu per satu ke server
-    for (var i = 0; i < dataHapus.length; i++) {
-      try {
-        await db.del(storeName, dataHapus[i].id);
-        berhasilHapus++;
-      } catch (err) {
-        console.error("Gagal hapus ID:", dataHapus[i].id, err);
-        gagalHapus++;
-      }
-    }
-
-    // Bersihkan data dari DBCache
-    DBCache[storeName] = dataStore.filter(function (item) {
-      return (item.noreff || "") !== noreff;
-    });
-
-    closeModal();
-
-    var msg = "Berhasil dihapus: " + berhasilHapus + " data.";
-    if (gagalHapus > 0) msg += " (Gagal: " + gagalHapus + ")";
-
-    toast(msg, gagalHapus > 0 ? "wrn" : "ok");
-
-    // Refresh tampilan tabel
-    if (typeof renderCurrentPanel === "function") {
-      await renderCurrentPanel();
-    } else if (typeof safeRenderCurrentPanel === "function") {
-      await safeRenderCurrentPanel();
-    } else {
-      navigate(currentPanel);
-    }
-  } catch (err) {
-    closeModal();
-    toast("Gagal menghapus: " + err.message, "err");
   }
 }
