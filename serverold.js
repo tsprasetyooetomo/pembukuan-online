@@ -1,4 +1,18 @@
 // ============================================================================
+// IMPORT YANG WAJIB ADA DI PALING ATAS
+// ============================================================================
+const express = require("express");
+const path = require("path");
+const { Pool } = require("pg");
+
+// Inisialisasi Express
+const app = express();
+
+// Middleware wajib untuk membaca body request
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// ============================================================================
 // 5. LOGIC APLIKASI (ROUTES & DATABASE)
 // ============================================================================
 
@@ -39,6 +53,8 @@ function isValidTable(name) {
 //`);
 //});
 // Route Utama (Otomatis buka HTML)
+
+const path = require("path");
 app.get("/", (req, res) => {
   try {
     // Arahkan langsung ke file HTML utama
