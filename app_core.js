@@ -372,25 +372,35 @@ var DBCache = {};
 
 async function refreshCache() {
   try {
-    // 1. Ambil kode cabang user yang sedang login SEKARANG
     const cabangSaya = localStorage.getItem("cabang") || "";
     console.log("Cache: Memuat data untuk cabang:", cabangSaya);
 
-    // 2. Kirimkan parameter cabangSaya ke setiap pemanggilan db.getAll
-    // Jika user PUSAT ("00"), backend akan otomatis menarik semua data.
+    // 1. Data Master Global (Tidak bisa difilter SQL karena strukturnya beda)
+    DBCache.users = await db.getAll("users");
+    DBCache.formatRL = await db.getAll("formatRL");
+    DBCache.formatNeraca = await db.getAll("formatNeraca");
+    DBCache.postedMonths = await db.getAll("postedMonths");
 
+    // ✅ LOGIKA KHUSUS CABANG: Ambil semua, lalu filter manual di JS
+    // Supaya dropdown hanya berisi 1 cabang sesuai user yang login
+    let allCabang = await db.getAll("cabang");
+    if (cabangSaya && cabangSaya.toUpperCase() !== "PUSAT") {
+      DBCache.cabang = allCabang.filter((c) => (c.kode || c.id) === cabangSaya);
+    } else {
+      DBCache.cabang = allCabang; // Admin/Pusat lihat semua
+    }
+
+    // 2. Data Transaksi & Operasional (Difilter oleh Backend SQL)
     DBCache.golongan = await db.getAll("golongan", cabangSaya);
     DBCache.perkiraan = await db.getAll("perkiraan", cabangSaya);
-    DBCache.users = await db.getAll("users", cabangSaya);
-    DBCache.formatRL = await db.getAll("formatRL", cabangSaya);
-    DBCache.formatNeraca = await db.getAll("formatNeraca", cabangSaya);
-    DBCache.postedMonths = await db.getAll("postedMonths", cabangSaya);
     DBCache.kodeBank = await db.getAll("kodeBank", cabangSaya);
-    DBCache.cabang = await db.getAll("cabang", cabangSaya);
     DBCache.saldoKasir = await db.getAll("saldoKasir", cabangSaya);
     DBCache.mutasikasir = await db.getAll("mutasikasir", cabangSaya);
 
-    console.log("✅ Cache master berhasil dimuat sesuai cabang.");
+    console.log(
+      "✅ Cache master berhasil dimuat. Data cabang ditemukan:",
+      DBCache.cabang.length,
+    );
   } catch (error) {
     console.error("❌ Gagal memuat cache master:", error);
   }
