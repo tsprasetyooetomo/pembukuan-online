@@ -398,6 +398,7 @@ async function refreshCache() {
     DBCache.saldoKasir = await db.getAll("saldoKasir", cabangSaya);
     DBCache.mutasikasir = await db.getAll("mutasikasir", cabangSaya);
 
+    console.log("golongan:", DBCache.golongan);
     console.log(
       "✅ Cache master berhasil dimuat. Data cabang ditemukan:",
       DBCache.cabang.length,
