@@ -502,24 +502,37 @@ class PembukuanDB {
   }
 
   // ✅ KODE BARU (Bisa menerima 1 atau 2 parameter)
+
   _getAllBrowser(s, cabangParam) {
-    // Jika ada cabangParam yang dikirim dari app_core.js, pakai itu
-    // Jika tidak ada (kosong/undefined), ambil dari localStorage
-    let cabang = cabangParam || localStorage.getItem("cabang") || "";
+    // 1. Tentukan filter cabang
+    // Jika ada parameter kedua (dari refreshCache), gunakan itu.
+    // Jika tidak ada, ambil dari localStorage.
+    let cabang = "";
+    if (
+      cabangParam !== undefined &&
+      cabangParam !== null &&
+      cabangParam !== ""
+    ) {
+      cabang = cabangParam;
+    } else {
+      cabang = localStorage.getItem("cabang") || "";
+    }
 
-    // Jika PUSAT atau kosong, jangan kirim filter
-    const safeCabang =
-      !cabang || cabang.toUpperCase() === "PUSAT" ? "" : cabang;
+    // 2. Jika PUSAT atau kosong, hapus filternya (biar backend kirim semua data)
+    if (!cabang || cabang.toUpperCase() === "PUSAT") {
+      cabang = "";
+    }
 
-    const url = safeCabang
-      ? API_BASE_URL + "/api/data/" + s + "?cabang=" + safeCabang
+    // 3. Bangun URL
+    const url = cabang
+      ? API_BASE_URL + "/api/data/" + s + "?cabang=" + cabang
       : API_BASE_URL + "/api/data/" + s;
 
+    // 4. Fetch data
     return fetch(url).then(function (r) {
       return r.json();
     });
   }
-
   _delBrowser(s, id) {
     return fetch(API_BASE_URL + "/api/data/" + s + "/" + id, {
       method: "DELETE",
