@@ -1817,3 +1817,248 @@ function resetKasirNewTransaction() {
 /* ================================================================
    PRINT MUTASI KASIR & SIMPAN SALDO OTOMATIS
    ================================================================ */
+/* ================================================================
+   PRINT MUTASI KASIR & SIMPAN SALDO OTOMATIS
+   ================================================================ */
+async function printMutasiKasir() {
+  var noreff = _kasirSession.noreff;
+  if (!noreff) return toast("Pilih transaksi terlebih dahulu", "wrn");
+
+  var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
+  var detilData = data.filter(function (t) {
+    return t.noreff === noreff;
+  });
+  if (detilData.length === 0)
+    return toast("Tidak ada detil untuk No Ref ini", "wrn");
+
+  var header = detilData[0];
+  var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
+  var tanggal = header.tanggal || "-";
+  var cabang = header.cabang || "Pusat";
+
+  // 1. Kelompokkan data berdasarkan kode
+  var dataKode = { BE: [], PJ: [], CS: [], KK: [], KT: [], TK: [], LAIN: [] };
+  var totalBE = 0,
+    totalPJ = 0,
+    totalCS = 0,
+    totalKK = 0,
+    totalKT = 0,
+    totalTK = 0;
+
+  detilData.forEach(function (t) {
+    var k = t.kodeTrans || "";
+    var nominal = num(t.total);
+    if (k === "BE") {
+      dataKode.BE.push(t);
+      totalBE += nominal;
+    } else if (k === "PJ") {
+      dataKode.PJ.push(t);
+      totalPJ += nominal;
+    } else if (k === "CS") {
+      dataKode.CS.push(t);
+      totalCS += nominal;
+    } else if (k === "KK") {
+      dataKode.KK.push(t);
+      totalKK += nominal;
+    } else if (k === "KT") {
+      dataKode.KT.push(t);
+      totalKT += nominal;
+    } else if (k === "TK") {
+      dataKode.TK.push(t);
+      totalTK += nominal;
+    } else {
+      dataKode.LAIN.push(t);
+    }
+  });
+
+  // 2. Cari Saldo Awal (Mengurangi 1 hari)
+  var saldoAwalKasir = await cariSaldoAwalKasir(cabang, tanggal);
+
+  // 3. Hitung DB & CR
+  // RULE: PJ, TK, KT masuk DB. Selebihnya masuk CR.
+  var totalDB = totalPJ + totalTK + totalKT;
+  var totalCR = totalBE + totalCS + totalKK; // Jika ada kode LAIN selain ketiga itu, masukkan ke CR juga
+  dataKode.LAIN.forEach(function (l) {
+    totalCR += num(l.total);
+  });
+
+  var saldoAkhirKasir = saldoAwalKasir + totalDB - totalCR;
+
+  // ====================================================================
+  // 4. SIMPAN HASIL PERHITUNGAN KE TABEL saldoKasir
+  // ====================================================================
+  try {
+    var existingSaldo = (DBCache.saldoKasir || []).find(function (s) {
+      return (s.cabang || "") === cabang && (s.tgl_awal || "") === tanggal;
+    });
+
+    var objSaldo = {
+      cabang: cabang,
+      tgl_awal: tanggal,
+      awal: saldoAwalKasir,
+      db: totalDB,
+      cr: totalCR,
+      akhir: saldoAkhirKasir,
+    };
+
+    if (existingSaldo) {
+      // Jika sudah ada, UPDATE
+      objSaldo.id = existingSaldo.id;
+      await db.put("saldoKasir", objSaldo);
+      var idx = DBCache.saldoKasir.findIndex((s) => s.id === existingSaldo.id);
+      if (idx !== -1) DBCache.saldoKasir[idx] = objSaldo;
+    } else {
+      // Jika belum ada, TAMBAH BARU
+      objSaldo.id = uid();
+      await db.add("saldoKasir", objSaldo);
+      if (!DBCache.saldoKasir) DBCache.saldoKasir = [];
+      DBCache.saldoKasir.push(objSaldo);
+    }
+    console.log("✅ Saldo kasir berhasil disimpan ke database:", objSaldo);
+  } catch (errSaldo) {
+    console.error("Gagal simpan saldo kasir:", errSaldo);
+    toast("Peringatan: Gagal simpan saldo ke database", "wrn");
+  }
+
+  // 5. Lanjut Format Rupiah & HTML Print
+  function fmtRp(val) {
+    return num(val).toLocaleString("id-ID");
+  }
+
+  function rowHtml(kodeArr) {
+    var html = "";
+    kodeArr.forEach(function (d) {
+      html +=
+        "<tr><td style='padding-left:20px;'>" +
+        esc(d.desc || "-") +
+        "</td><td style='text-align:right'>" +
+        fmtRp(d.total) +
+        "</td></tr>";
+    });
+    return html;
+  }
+
+  var penjualanTunai = totalPJ - totalCS;
+  var saldoTersedia = saldoAwalKasir + penjualanTunai + totalTK;
+  var saldoKas = saldoTersedia - totalBE;
+
+  var printHtml =
+    "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Print Kasir - " +
+    esc(noreff) +
+    "</title>" +
+    "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;padding:15px;color:#000}" +
+    "h2{text-align:center;margin-bottom:10px}table{width:100%;border-collapse:collapse;margin-bottom:10px}" +
+    "th,td{padding:4px 4px;text-align:left}td.rp{text-align:right}.bold{font-weight:bold}.total{border-top:1px solid #000;border-bottom:1px solid #000;font-weight:bold}</style></head><body>" +
+    "<h2>LAPORAN KAS HARIAN KASIR</h2>" +
+    "<p>Cabang : " +
+    esc(cabangLabel) +
+    "<br>Tanggal : " +
+    esc(tanggal) +
+    "<br>No Ref : " +
+    esc(noreff) +
+    "</p><hr>" +
+    "<table>" +
+    "<tr class='bold'><td>BELANJA</td><td style='text-align:right'>Rp</td></tr>" +
+    rowHtml(dataKode.BE) +
+    "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
+    fmtRp(totalBE) +
+    "</td></tr>" +
+    "<tr><td colspan='2'>&nbsp;</td></tr>" +
+    "<tr class='bold'><td>(+)</td><td style='text-align:right'>Rp</td></tr>" +
+    rowHtml(dataKode.PJ) +
+    "<tr><td colspan='2'>&nbsp;</td></tr>" +
+    "<tr class='bold'><td>(-)</td><td style='text-align:right'>Rp</td></tr>" +
+    rowHtml(dataKode.CS) +
+    "<tr class='total'><td>PENJUALAN TUNAI</td><td style='text-align:right; border-top: 1px solid #000;'>" +
+    fmtRp(penjualanTunai) +
+    "</td></tr>" +
+    "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right;'>" +
+    fmtRp(saldoAwalKasir) +
+    "</td></tr>" +
+    rowHtml(dataKode.TK) +
+    "<tr class='bold' style='border-top: 1px solid #000;'><td>SALDO KAS TERSEDIA</td><td style='text-align:right;'>" +
+    fmtRp(saldoTersedia) +
+    "</td></tr>" +
+    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right;'>" +
+    fmtRp(saldoKas) +
+    "</td></tr>" +
+    "<tr class='bold'><td>KOREKSI(+)</td><td style='text-align:right'>Rp</td></tr>" +
+    rowHtml(dataKode.KT) +
+    "<tr><td colspan='1'>&nbsp;</td></tr>" +
+    "<tr class='bold'><td>KOREKSI(-)</td><td style='text-align:right'>Rp</td></tr>" +
+    rowHtml(dataKode.KK) +
+    "<tr class='total'><td>SALDO AKHIR KAS</td><td style='text-align:right; border-top: 1px solid #000;'>" +
+    fmtRp(saldoAkhirKasir) +
+    "</td></tr>" +
+    "</table></body></html>";
+
+  var printWindow = window.open("", "_blank", "width=800,height=600");
+  if (!printWindow)
+    return toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
+
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+  printWindow.onload = function () {
+    setTimeout(function () {
+      printWindow.print();
+    }, 300);
+  };
+}
+
+function editKasirDetil(idYangDiedit) {
+  if (!DBCache.mutasikasir) return;
+  var dataLama = DBCache.mutasikasir.find(function (item) {
+    return item.id === idYangDiedit;
+  });
+  if (!dataLama) return toast("Data tidak ditemukan!", "err");
+
+  openModal(
+    "Edit Detil Kasir",
+    '<div class="fg"><label>Kode</label><input id="ed_mk_kode" value="' +
+      esc(dataLama.kodeTrans || "") +
+      '"></div>' +
+      '<div class="fg"><label>Penjelasan</label><input id="ed_mk_penjelasan" value="' +
+      esc(dataLama.desc || "") +
+      '"></div>' +
+      '<div class="fg"><label>Rp</label><input type="number" id="ed_mk_rp" value="' +
+      dataLama.total +
+      '"></div>',
+    '<button class="btn btn-g" onclick="closeModal()">Batal</button>' +
+      '<button class="btn btn-a" onclick="event.preventDefault(); event.stopPropagation(); simpanPerubahanKasirDetil(\'' +
+      idYangDiedit +
+      "')\">Update</button>",
+  );
+}
+
+async function simpanPerubahanKasirDetil(idYangDiedit) {
+  var r = await db.get("mutasikasir", idYangDiedit);
+  if (!r) return toast("Data tidak ditemukan di database!", "err");
+
+  var kode = $("ed_mk_kode").value.toUpperCase();
+  var penjelasan = $("ed_mk_penjelasan").value.trim().toUpperCase();
+  var rp = num($("ed_mk_rp").value);
+
+  if (!kode || !penjelasan || rp <= 0)
+    return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
+
+  try {
+    await db.put(
+      "mutasikasir",
+      Object.assign({}, r, {
+        kodeTrans: kode,
+        desc: penjelasan,
+        total: rp,
+        db: rp,
+      }),
+    );
+    closeModal();
+    await refreshCache("mutasikasir");
+    renderKasirDetilTable();
+    updateKasirHeaderNominal();
+    await hitungSaldoOtomatis();
+    renderKasirNoreffList();
+    toast("Detil kasir berhasil diperbarui", "ok");
+  } catch (error) {
+    toast("Gagal edit: " + error.message, "err");
+  }
+}
