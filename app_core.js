@@ -389,16 +389,14 @@ async function refreshCache() {
     DBCache.formatRL = formatRL;
     DBCache.formatNeraca = formatNeraca;
     DBCache.postedMonths = postedMonths;
-
+    console.log("User:", users);
+    console.log("Data Cabang Asli:", allCabang);
     // ✅ LOGIKA KHUSUS CABANG: Filter manual di JS
     if (cabangSaya && cabangSaya.toUpperCase() !== "PUSAT") {
       DBCache.cabang = allCabang.filter((c) => (c.kode || c.id) === cabangSaya);
     } else {
       DBCache.cabang = allCabang; // Admin/Pusat lihat semua
     }
-
-    console.log("User:", users);
-    console.log("Data Cabang Asli:", allCabang);
 
     // 🚀 KELOMPOK 2: Ambil Data Transaksi & Operasional Cabang secara bersamaan (Paralel)
     const [golongan, perkiraan, kodeBank, saldoKasir, mutasikasir] =
