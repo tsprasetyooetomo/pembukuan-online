@@ -374,31 +374,29 @@ async function refreshCache() {
     const cabangSaya = localStorage.getItem("cabang") || "";
     console.log("Cache: Memuat data secara paralel untuk cabang:", cabangSaya);
 
-    // 🚀 KELOMPOK 1: Ambil Data Master Global secara bersamaan (Paralel)
+    const baseUrl = window.location.origin + "/api/data/";
+
+    // 🚀 KELOMPOK 1: Data Master INDUK (WAJIB GLOBAL, TIDAK BOLEH DIFILTER)
+    // Kita pakai fetch() murni untuk mem-bypass kode lama di db_pbukuan.js
+    // Supaya daftar User & Daftar Cabang selalu lengkap untuk dropdown.
     const [users, formatRL, formatNeraca, postedMonths, allCabang] =
       await Promise.all([
-        db.getAll("users"),
-        db.getAll("formatRL"),
-        db.getAll("formatNeraca"),
-        db.getAll("postedMonths"),
-        db.getAll("cabang"),
+        fetch(baseUrl + "users").then((r) => r.json()),
+        fetch(baseUrl + "formatRL").then((r) => r.json()),
+        fetch(baseUrl + "formatNeraca").then((r) => r.json()),
+        fetch(baseUrl + "postedMonths").then((r) => r.json()),
+        fetch(baseUrl + "cabang").then((r) => r.json()),
       ]);
 
-    // Simpan hasil Kelompok 1 ke dalam Cache
+    // Simpan Master Induk
     DBCache.users = users;
     DBCache.formatRL = formatRL;
     DBCache.formatNeraca = formatNeraca;
     DBCache.postedMonths = postedMonths;
-    console.log("User:", users);
-    console.log("Data Cabang Asli:", allCabang);
-    // ✅ LOGIKA KHUSUS CABANG: Filter manual di JS
-    if (cabangSaya && cabangSaya.toUpperCase() !== "PUSAT") {
-      DBCache.cabang = allCabang.filter((c) => (c.kode || c.id) === cabangSaya);
-    } else {
-      DBCache.cabang = allCabang; // Admin/Pusat lihat semua
-    }
+    DBCache.cabang = allCabang; // Sekarang pasti berisi 7 data
 
-    // 🚀 KELOMPOK 2: Ambil Data Transaksi & Operasional Cabang secara bersamaan (Paralel)
+    // 🚀 KELOMPOK 2: Data Operasional/Transaksi (DIFILTER SESUAI CABANG USER)
+    // Golongan, Perkiraan, dll tetap memakai db.getAll karena kodenya sudah benar
     const [golongan, perkiraan, kodeBank, saldoKasir, mutasikasir] =
       await Promise.all([
         db.getAll("golongan", cabangSaya),
@@ -408,15 +406,13 @@ async function refreshCache() {
         db.getAll("mutasikasir", cabangSaya),
       ]);
 
-    // Simpan hasil Kelompok 2 ke dalam Cache
+    // Simpan Data Operasional
     DBCache.golongan = golongan;
     DBCache.perkiraan = perkiraan;
     DBCache.kodeBank = kodeBank;
     DBCache.saldoKasir = saldoKasir;
     DBCache.mutasikasir = mutasikasir;
 
-    // Log informasi keberhasilan
-    console.log("golongan:", DBCache.golongan);
     console.log(
       "✅ Cache master berhasil dimuat. Data cabang ditemukan:",
       DBCache.cabang.length,
