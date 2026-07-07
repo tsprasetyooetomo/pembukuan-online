@@ -54,7 +54,6 @@ function isValidTable(name) {
 //});
 // Route Utama (Otomatis buka HTML)
 
-const path = require("path");
 app.get("/", (req, res) => {
   try {
     // Arahkan langsung ke file HTML utama
