@@ -941,3 +941,11 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     res.end();
   }
 });
+// ============================================================================
+// JALANKAN SERVER - WAJIB DI PALING BAWAH
+// ============================================================================
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server berjalan di port ${PORT}`);
+});
