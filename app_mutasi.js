@@ -1395,7 +1395,8 @@ function renderMutasiKasir() {
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)"><i class="fa-solid fa-file-circle-plus"></i> Header Transaksi Kasir</div>' +
     '<div style="display:flex; gap:.4rem;">' +
-    '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan Saldo</button>' +
+    '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan</button>' +
+    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Baru</button>' +
     "</div>" +
     "</div>" +
@@ -2060,5 +2061,140 @@ async function simpanPerubahanKasirDetil(idYangDiedit) {
     toast("Detil kasir berhasil diperbarui", "ok");
   } catch (error) {
     toast("Gagal edit: " + error.message, "err");
+  }
+}
+// ========================================================
+// HAPUS SE-REFF KHUSUS MUTASI KASIR
+// ========================================================
+function promptHapusSeReffKasir() {
+  var noreffAktif = _kasirSession.noreff;
+
+  var html =
+    '<div class="fg">' +
+    "<label>Masukkan No Reff yang ingin dihapus:</label>" +
+    '<input id="inputCariReffKasir" class="in" placeholder="Contoh: KASIR-00-..." style="margin-top:.5rem; font-weight:bold; font-size:1rem;" value="' +
+    esc(noreffAktif) +
+    '">' +
+    "</div>" +
+    '<div id="previewReffKasirContainer" style="margin-top:1rem; display:none;"></div>';
+
+  var foot =
+    '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
+    '<button type="button" class="btn btn-r" id="btnExecHapusReffKasir" onclick="executeHapusSeReffKasir()" disabled><i class="fa-solid fa-trash-can"></i> Hapus Data</button>';
+
+  openModal("Hapus Transaksi Kasir Berdasarkan No Reff", html, foot);
+
+  setTimeout(function () {
+    var inputEl = $("inputCariReffKasir");
+    if (inputEl) {
+      inputEl.focus();
+      inputEl.select(); // Biar langsung terblok semua teksnya, tinggal enter
+
+      inputEl.oninput = function () {
+        var val = inputEl.value.trim();
+        var container = $("previewReffKasirContainer");
+        var btnExec = $("btnExecHapusReffKasir");
+
+        if (!val) {
+          container.style.display = "none";
+          btnExec.disabled = true;
+          return;
+        }
+
+        // Cari di cache
+        var dataStore = Array.isArray(DBCache.mutasikasir)
+          ? DBCache.mutasikasir
+          : [];
+        var dataCocok = dataStore.filter(function (item) {
+          return (item.noreff || "").toLowerCase() === val.toLowerCase();
+        });
+
+        if (dataCocok.length > 0) {
+          btnExec.disabled = false;
+          container.style.display = "block";
+
+          var totalNominal = dataCocok.reduce(function (sum, d) {
+            return sum + num(d.total || 0);
+          }, 0);
+
+          var listHtml = dataCocok
+            .map(function (d, i) {
+              return (
+                '<div style="padding:.4rem .5rem; border-bottom:1px solid var(--brd); font-size:.75rem; display:flex; justify-content:space-between;">' +
+                "<span>" +
+                (d.kodeTrans || "-") +
+                " - " +
+                esc(d.desc || "-") +
+                "</span>" +
+                '<span style="color:var(--accent); font-weight:bold;">' +
+                formatUang(d.total || 0) +
+                "</span>" +
+                "</div>"
+              );
+            })
+            .join("");
+
+          container.innerHTML =
+            '<div style="padding:.6rem; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.3); border-radius:8px; margin-bottom:.5rem; font-size:.8rem; color:var(--fg);">' +
+            "<strong>🔍 Ditemukan: " +
+            dataCocok.length +
+            " transaksi</strong> (Total: <strong>" +
+            formatUang(totalNominal) +
+            "</strong>)</div>" +
+            '<div style="max-height:200px; overflow-y:auto; background:var(--bg2); border:1px solid var(--brd); border-radius:8px; padding:.5rem; font-family:JetBrains Mono, monospace;">' +
+            listHtml +
+            "</div>";
+        } else {
+          btnExec.disabled = true;
+          container.style.display = "block";
+          container.innerHTML =
+            '<div style="color:var(--muted); font-size:.8rem; text-align:center; padding:1rem;">Tidak ada transaksi dengan No Reff ini.</div>';
+        }
+      };
+    }
+  }, 100);
+}
+
+async function executeHapusSeReffKasir() {
+  var val = $("inputCariReffKasir").value.trim();
+  if (!val) return toast("No Reff kosong", "err");
+
+  try {
+    var dataStore = Array.isArray(DBCache.mutasikasir)
+      ? DBCache.mutasikasir
+      : [];
+    var dataHapus = dataStore.filter(function (item) {
+      return (item.noreff || "").toLowerCase() === val.toLowerCase();
+    });
+
+    var berhasilHapus = 0;
+    for (var i = 0; i < dataHapus.length; i++) {
+      try {
+        await db.del("mutasikasir", dataHapus[i].id);
+        berhasilHapus++;
+      } catch (err) {
+        console.error("Gagal hapus:", err);
+      }
+    }
+
+    // Hapus dari cache lokal
+    DBCache.mutasikasir = dataStore.filter(function (item) {
+      return (item.noreff || "").toLowerCase() !== val.toLowerCase();
+    });
+
+    closeModal();
+    toast("Berhasil menghapus " + berhasilHapus + " data se-Reff!", "ok");
+
+    // Cek jika noreff yang dihapus adalah noreff yang sedang aktif di layar
+    if (val.toLowerCase() === _kasirSession.noreff.toLowerCase()) {
+      resetKasirNewTransaction(); // Reset layar karena yang aktif dihapus
+    } else {
+      renderKasirDetilTable();
+      updateKasirHeaderNominal();
+      renderKasirNoreffList();
+    }
+  } catch (err) {
+    closeModal();
+    toast("Gagal menghapus: " + err.message, "err");
   }
 }
