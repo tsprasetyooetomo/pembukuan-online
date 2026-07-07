@@ -1351,8 +1351,7 @@ async function clearAllDataMutasi2(storeName) {
 PANEL_MAP.mutasikasir = renderMutasiKasir;
 AFTER_RENDER.mutasikasir = initMutasiKasirState;
 
-var _kasirSession = { noreff: "", isLocked: false };
-
+//var _kasirSession = { noreff: "", isLocked: false };
 function generateKasirKodeOpts(selectedKode) {
   var kodeList = ["PJ", "BE", "CS", "KK", "KL", "TK", "SK", "KT"];
   var opts = '<option value="">-- Pilih --</option>';
@@ -1380,7 +1379,6 @@ function renderMutasiKasir() {
   return (
     "<style>" +
     ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
-    /* ✅ CSS TABEL EXCEL-LIKE */
     ".tbl-excel { width: 100%; border-collapse: collapse; border: 1px solid var(--brd); border-radius: 6px; overflow: hidden; }" +
     ".tbl-excel th, .tbl-excel td { border: 1px solid var(--brd); padding: 6px 8px; font-size: .8rem; }" +
     ".tbl-excel thead th { background: var(--bg2); text-align: center; }" +
@@ -1397,7 +1395,7 @@ function renderMutasiKasir() {
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)"><i class="fa-solid fa-file-circle-plus"></i> Header Transaksi Kasir</div>' +
     '<div style="display:flex; gap:.4rem;">' +
-    '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print</button>' +
+    '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan Saldo</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Baru</button>' +
     "</div>" +
     "</div>" +
@@ -1415,7 +1413,12 @@ function renderMutasiKasir() {
     '<div class="fg" style="flex:1"><label>No Ref</label><input id="mk_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
     '<div class="fg" style="flex:1"><label>Total Rp</label><input id="mk_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
     "</div>" +
-    /* ✅ TABEL INPUT EXCEL DI ATAS */
+    /* ✅ BARIS SALDO AWAL OTOMATIS DI SEBELAH KANAN */
+    '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
+    '<div class="fg" style="flex:1"><label>Saldo Awal (Otomatis)</label><input id="mk_saldo_awal" class="in" readonly style="background:var(--bg);color:var(--accent);font-weight:700;" value="Mencari..."></div>' +
+    '<div class="fg" style="flex:1"><label>Saldo Akhir (Auto-Hitung)</label><input id="mk_saldo_akhir" class="in" readonly style="background:var(--bg);color:var(--danger);font-weight:700;" value="0"></div>' +
+    "</div>" +
+    /* TABEL INPUT EXCEL DI ATAS */
     '<div style="margin-top:.8rem;">' +
     '<table class="tbl-excel">' +
     "<thead>" +
@@ -1433,11 +1436,11 @@ function renderMutasiKasir() {
     "</tbody>" +
     "</table>" +
     "</div>" +
-    /* ✅ TABEL RIWAYAT DETIL DI BAWAHNYA */
+    /* TABEL RIWAYAT DETIL DI BAWAHNYA */
     '<div style="font-size:.85rem;font-weight:700;margin-top:1rem;margin-bottom:.4rem">Riwayat Detil Transaksi Kasir</div>' +
     '<div id="mutKasirDetilTbl" class="tw"></div>' +
     "</div>" +
-    /* ✅ KOLOM KANAN (RIWAYAT NOREF DIPERTAHANKAN) */
+    /* KOLOM KANAN (RIWAYAT NOREF) */
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
     '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="mk_filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
@@ -1462,11 +1465,10 @@ function initMutasiKasirState() {
   if (!cabEl) return;
 
   cabEl.addEventListener("change", onKasirCabangChange);
-  tglEl.addEventListener("change", onKasirHeaderChange);
+  tglEl.addEventListener("change", onKasirHeaderChange); // ✅ Saat tanggal ganti, cari saldo awal
   $("mk_filter_bulan").addEventListener("change", renderKasirNoreffList);
   $("mk_filter_tahun").addEventListener("change", renderKasirNoreffList);
 
-  // Bind Enter key pada input Excel
   ["mk_penjelasan", "mk_rp"].forEach(function (id) {
     var el = $(id);
     if (el)
@@ -1478,7 +1480,7 @@ function initMutasiKasirState() {
       });
   });
 
-  onKasirHeaderChange();
+  onKasirHeaderChange(); // ✅ Panggil saat pertama kali buka menu
   renderKasirDetilTable();
   renderKasirNoreffList();
 }
@@ -1490,7 +1492,7 @@ function onKasirCabangChange() {
   onKasirHeaderChange();
 }
 
-function onKasirHeaderChange() {
+async function onKasirHeaderChange() {
   if (_kasirSession.isLocked) return;
   var cab = $("mk_cab").value;
   var tgl = $("mk_tgl").value;
@@ -1504,6 +1506,76 @@ function onKasirHeaderChange() {
     Math.random().toString(36).substr(2, 4).toUpperCase();
   $("mk_noref").value = newNoref;
   _kasirSession.noreff = newNoref;
+
+  // ✅ LOGIKA BARU: Cari saldo awal secara otomatis saat tanggal dipilih
+  await hitungSaldoOtomatis();
+}
+
+// ✅ FUNGSI PENCARIAN SALDO AWAL KE MUNDUR KHUSUS KASIR
+async function cariSaldoAwalKasir(cabang, tanggalPilih) {
+  if (!cabang || !tanggalPilih) return 0;
+
+  var dataSk = (DBCache.saldoKasir || []).filter(function (item) {
+    return (item.cabang || "") === cabang;
+  });
+
+  var tglTarget = new Date(tanggalPilih);
+  tglTarget.setDate(tglTarget.getDate() - 1); // Mulai cari dari hari sebelumnya
+
+  var maxIterasi = 365;
+  for (var i = 0; i < maxIterasi; i++) {
+    var tglStr = tglTarget.toISOString().split("T")[0];
+
+    var cocok = dataSk.find(function (sk) {
+      return (sk.tgl_awal || "") === tglStr;
+    });
+
+    if (cocok) {
+      console.log("✅ Saldo kasir awal ditemukan di tanggal " + tglStr);
+      return num(cocok.akhir) || 0;
+    }
+    tglTarget.setDate(tglTarget.getDate() - 1);
+  }
+  console.log("⚠️ Tidak ditemukan saldo kasir. Menggunakan 0.");
+  return 0;
+}
+
+// ✅ FUNGSI HITUNG DB/CR & UPDATE TAMPILAN
+async function hitungSaldoOtomatis() {
+  var cab = $("mk_cab").value;
+  var tgl = $("mk_tgl").value;
+  var noreff = _kasirSession.noreff;
+
+  // 1. Cari Saldo Awal
+  $("mk_saldo_awal").value = "Mencari...";
+  var saldoAwal = await cariSaldoAwalKasir(cab, tgl);
+  $("mk_saldo_awal").value = fmtN(saldoAwal);
+
+  // 2. Hitung DB & CR berdasarkan Kode Transaksi di noreff ini
+  var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
+  var detilNoreff = data.filter(function (t) {
+    return t.noreff === noreff && (t.tanggal || "") === tgl;
+  });
+
+  var totalDB = 0;
+  var totalCR = 0;
+
+  detilNoreff.forEach(function (trx) {
+    var kode = (trx.kodeTrans || "").toUpperCase();
+    var nominal = num(trx.total || 0);
+
+    // PJ, TK, KT masuk DB
+    if (kode === "PJ" || kode === "TK" || kode === "KT") {
+      totalDB += nominal;
+    } else {
+      // BE, CS, KK, dll masuk CR
+      totalCR += nominal;
+    }
+  });
+
+  // 3. Hitung Saldo Akhir = Saldo Awal + DB - CR
+  var saldoAkhir = saldoAwal + totalDB - totalCR;
+  $("mk_saldo_akhir").value = fmtN(saldoAkhir);
 }
 
 async function addKasirDetil() {
@@ -1538,7 +1610,6 @@ async function addKasirDetil() {
     if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
     DBCache.mutasikasir.push(newDetil);
 
-    // Kosongkan input di baris Excel
     $("mk_kode").value = "";
     $("mk_penjelasan").value = "";
     $("mk_rp").value = "";
@@ -1546,6 +1617,7 @@ async function addKasirDetil() {
 
     renderKasirDetilTable();
     updateKasirHeaderNominal();
+    await hitungSaldoOtomatis(); // ✅ Update hitungan saldo setelah tambah detil
     renderKasirNoreffList();
     toast("Detil kasir ditambahkan", "ok");
   } catch (error) {
@@ -1565,12 +1637,10 @@ function updateKasirHeaderNominal() {
   $("mk_nominal").value = fmtN(totalRp);
 }
 
-/* ✅ FUNGSI RENDER TABEL RIWAYAT DETIL DI BAWAH INPUT */
 function renderKasirDetilTable() {
   var noreff = _kasirSession.noreff;
   var tblEl = $("mutKasirDetilTbl");
   if (!tblEl) return;
-  // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
   var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
 
   var detilData = data.filter(function (t) {
@@ -1641,6 +1711,7 @@ async function hapusKasirDetil(id) {
   }
   renderKasirDetilTable();
   updateKasirHeaderNominal();
+  await hitungSaldoOtomatis(); // ✅ Update hitungan saldo setelah hapus detil
   renderKasirNoreffList();
 }
 
@@ -1652,7 +1723,6 @@ function renderKasirNoreffList() {
   var filterTahun = $("mk_filter_tahun") ? $("mk_filter_tahun").value : "";
   var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
 
-  // ✅ FIX: Tambahkan padStart agar "6" menjadi "06"
   var safeBulan = filterBulan ? filterBulan.padStart(2, "0") : "";
 
   var filtered = data.filter(function (t) {
@@ -1729,6 +1799,7 @@ function onKasirNoreffClicked(noreffTarget) {
   $("mk_tgl").disabled = true;
 
   updateKasirHeaderNominal();
+  hitungSaldoOtomatis(); // ✅ Hitung ulang saat klik riwayat noreff
   renderKasirDetilTable();
   renderKasirNoreffList();
 }
@@ -1742,250 +1813,7 @@ function resetKasirNewTransaction() {
   renderKasirDetilTable();
   renderKasirNoreffList();
 }
+
 /* ================================================================
-   PRINT MUTASI KASIR (TOTAL BELANJA DIKASIH GARIS ATAS)
+   PRINT MUTASI KASIR & SIMPAN SALDO OTOMATIS
    ================================================================ */
-function printMutasiKasir() {
-  var noreff = _kasirSession.noreff;
-  if (!noreff) return toast("Pilih transaksi terlebih dahulu", "wrn");
-  // ✅ TAMBAHKAN VALIDASI Array.isArray AGAR TIDAK CRASH
-  var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
-
-  var detilData = data.filter(function (t) {
-    return t.noreff === noreff;
-  });
-  if (detilData.length === 0)
-    return toast("Tidak ada detil untuk No Ref ini", "wrn");
-
-  var header = detilData[0];
-  var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
-  var tanggal = header.tanggal || "-";
-  var cabang = header.cabang || "Pusat";
-
-  // 1. Kelompokkan data berdasarkan kode
-  var dataKode = { BE: [], PJ: [], CS: [], KK: [], KT: [], TK: [], LAIN: [] };
-  var totalBE = 0,
-    totalPJ = 0,
-    totalCS = 0,
-    totalKK = 0,
-    totalKT = 0;
-  totalTK = 0;
-
-  detilData.forEach(function (t) {
-    var k = t.kodeTrans || "";
-    if (k === "BE") {
-      dataKode.BE.push(t);
-      totalBE += num(t.total);
-    } else if (k === "PJ") {
-      dataKode.PJ.push(t);
-      totalPJ += num(t.total);
-    } else if (k === "CS") {
-      dataKode.CS.push(t);
-      totalCS += num(t.total);
-    } else if (k === "KK") {
-      dataKode.KK.push(t);
-      totalKK += num(t.total);
-    } else if (k === "KT") {
-      dataKode.KT.push(t);
-      totalKT += num(t.total);
-    } else if (k === "TK") {
-      dataKode.TK.push(t);
-      totalTK += num(t.total);
-    } else {
-      dataKode.LAIN.push(t);
-    }
-  });
-
-  // 2. Ambil Saldo Awal Kasir dari DBCache.saldoKasir
-  var saldoAwalKasir = 0;
-  var kasirData = DBCache.saldoKasir || [];
-  var kasirMatch = kasirData.find(function (k) {
-    return (
-      String(k.cabang || "").toLowerCase() === String(cabang).toLowerCase()
-    );
-  });
-  if (kasirMatch) saldoAwalKasir = num(kasirMatch.awal);
-
-  // 3. Hitung Rumus Matematika Kas
-  var penjualanTunai = totalPJ - totalCS;
-  var saldoTersedia = saldoAwalKasir + penjualanTunai + totalTK;
-  var saldoKas = saldoTersedia - totalBE;
-  var saldoAkhirKas = saldoKas + totalKT - totalKK;
-
-  // Format Rupiah
-  function fmtRp(val) {
-    return num(val).toLocaleString("id-ID");
-  }
-
-  // Fungsi rowHtml (Tanpa kode di depan penjelasan)
-  function rowHtml(kodeArr) {
-    var html = "";
-    kodeArr.forEach(function (d) {
-      html +=
-        "<tr><td style='padding-left:20px;'>" +
-        esc(d.desc || "-") +
-        "</td><td style='text-align:right'>" +
-        fmtRp(d.total) +
-        "</td></tr>";
-    });
-    return html;
-  }
-
-  // 4. Rangkai HTML
-  var printHtml =
-    "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Print Kasir - " +
-    esc(noreff) +
-    "</title>" +
-    "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;padding:15px;color:#000}" +
-    "h2{text-align:center;margin-bottom:10px}table{width:100%;border-collapse:collapse;margin-bottom:10px}" +
-    "th,td{padding:4px 4px;text-align:left}td.rp{text-align:right}.bold{font-weight:bold}.total{border-top:1px solid #000;border-bottom:1px solid #000;font-weight:bold}</style></head><body>" +
-    "<h2>LAPORAN KAS HARIAN KASIR</h2>" +
-    "<p>Cabang : " +
-    esc(cabangLabel) +
-    "<br>Tanggal : " +
-    esc(tanggal) +
-    "<br>No Ref : " +
-    esc(noreff) +
-    "</p><hr>" +
-    "<table>" +
-    // Bagian Belanja (BE)
-    "<tr class='bold'><td>BELANJA</td><td style='text-align:right'>Rp</td></tr>" +
-    rowHtml(dataKode.BE) +
-    // TOTAL BELANJA DIBERI GARIS ATAS (border-top)
-    "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
-    fmtRp(totalBE) +
-    "</td></tr>" +
-    "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
-    // Pemasukan (PJ)
-    "<tr class='bold'><td>(+)</td><td style='text-align:right'>Rp</td></tr>" +
-    rowHtml(dataKode.PJ) +
-    "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
-    // Pengeluaran (CS)
-    "<tr class='bold'><td>(-)</td><td style='text-align:right'>Rp</td></tr>" +
-    rowHtml(dataKode.CS) +
-    // Penjualan Tunai
-    "<tr class='total'>" +
-    "<td>PENJUALAN TUNAI</td>" +
-    "<td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 1: Di atas Penjualan Tunai
-    fmtRp(penjualanTunai) +
-    "</td>" +
-    "</tr>" +
-    // "<tr><td colspan='2'>&nbsp;</td></tr>" + // Spasi
-    // Ringkasan Saldo
-    "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right;'>" +
-    fmtRp(saldoAwalKasir) +
-    "</td></tr>" +
-    rowHtml(dataKode.TK) +
-    // SALDO KAS TERSEDIA
-    "<tr class='bold' style='border-top: 1px solid #000;'>" +
-    "<td>SALDO KAS TERSEDIA</td>" +
-    "<td style='text-align:right;'>" +
-    fmtRp(saldoTersedia) +
-    "</td></tr>" +
-    // PERBAIKAN UTAMA: String disambung kembali dengan tanda +
-    // Hapus duplikasi TOTAL BELANJA (sudah ditulis di atas)
-    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right;'>" +
-    fmtRp(saldoKas) +
-    "</td></tr>" +
-    // Kode KT
-    "<tr class='bold'><td>KOREKSI(+)</td><td style='text-align:right'>Rp</td></tr>" +
-    rowHtml(dataKode.KT) +
-    "<tr><td colspan='1'>&nbsp;</td></tr>" +
-    // Kode KK
-    "<tr class='bold'><td>KOREKSI(-)</td><td style='text-align:right'>Rp</td></tr>" +
-    rowHtml(dataKode.KK) +
-    //"<tr><td colspan='2'>&nbsp;</td></tr>" +
-    // Saldo Akhir
-    "<tr class='total'><td>SALDO AKHIR KAS</td><td style='text-align:right; border-top: 1px solid #000;'>" + // GARIS 3: Di atas Saldo Akhir Kas
-    fmtRp(saldoAkhirKas) +
-    "</td></tr>" +
-    "</table>" +
-    "</body></html>";
-  // 5. Eksekusi Print
-  var printWindow = window.open("", "_blank", "width=800,height=600");
-  if (!printWindow)
-    return toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
-
-  printWindow.document.write(printHtml);
-  printWindow.document.close();
-  printWindow.onload = function () {
-    setTimeout(function () {
-      printWindow.print();
-    }, 300);
-  };
-}
-function editKasirDetil(idYangDiedit) {
-  // 1. Cari data lama berdasarkan ID di dalam DBCache
-  if (!DBCache.mutasikasir) return;
-  var dataLama = DBCache.mutasikasir.find(function (item) {
-    return item.id === idYangDiedit;
-  });
-
-  if (!dataLama) {
-    return toast("Data tidak ditemukan!", "err");
-  }
-
-  // 2. Munculkan Jendela Popup (Modal) dengan Form Kasir di dalamnya
-  openModal(
-    "Edit Detil Kasir",
-    // Isi Formulir di dalam Popup
-    '<div class="fg"><label>Kode</label><input id="ed_mk_kode" value="' +
-      esc(dataLama.kodeTrans || "") +
-      '"></div>' +
-      '<div class="fg"><label>Penjelasan</label><input id="ed_mk_penjelasan" value="' +
-      esc(dataLama.desc || "") +
-      '"></div>' +
-      '<div class="fg"><label>Rp</label><input type="number" id="ed_mk_rp" value="' +
-      dataLama.total +
-      '"></div>',
-
-    // Tombol Aksi di bagian bawah Popup
-    '<button class="btn btn-g" onclick="closeModal()">Batal</button>' +
-      '<button class="btn btn-a" onclick="event.preventDefault(); event.stopPropagation(); simpanPerubahanKasirDetil(\'' +
-      idYangDiedit +
-      "')\">Update</button>",
-  );
-}
-async function simpanPerubahanKasirDetil(idYangDiedit) {
-  // 1. Ambil data lama dari database menggunakan db.get (seperti jurnal)
-  var r = await db.get("mutasikasir", idYangDiedit);
-  if (!r) return toast("Data tidak ditemukan di database!", "err");
-
-  // 2. Ambil input dari modal popup dan paksa ke HURUF BESAR SEMUA
-  var kode = $("ed_mk_kode").value.toUpperCase();
-  var penjelasan = $("ed_mk_penjelasan").value.trim().toUpperCase();
-  var rp = num($("ed_mk_rp").value);
-
-  // 3. Validasi input wajib
-  if (!kode || !penjelasan || rp <= 0) {
-    return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
-  }
-
-  try {
-    // 4. Perbarui data ke database menggunakan db.put & Object.assign (persis seperti jurnal)
-    await db.put(
-      "mutasikasir",
-      Object.assign({}, r, {
-        kodeTrans: kode,
-        desc: penjelasan,
-        total: rp,
-        db: rp,
-      }),
-    );
-
-    // 5. Tutup jendela popup modal
-    closeModal();
-
-    // 6. Refresh memory cache khusus untuk tabel "mutasikasir"
-    await refreshCache("mutasikasir");
-
-    // 7. Segarkan seluruh komponen tampilan UI di layar utama
-    renderKasirDetilTable();
-    updateKasirHeaderNominal();
-    renderKasirNoreffList();
-
-    toast("Detil kasir berhasil diperbarui", "ok");
-  } catch (error) {
-    toast("Gagal edit: " + error.message, "err");
-  }
-}
