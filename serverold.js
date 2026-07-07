@@ -353,13 +353,24 @@ app.get("/api/data/:storeName", async (req, res) => {
       );
     } else if (tabelWajibFilter.includes(lowerStoreName)) {
       // Selain itu (misalnya: 01, 02, 03, termasuk 00), maka DIFILTER
+
+      if (!/^[a-zA-Z0-9\-_ ]+$/.test(filterCabang)) {
+        return res.status(400).json({ error: "Kode cabang tidak valid" });
+      }
+
       const queryStr = `
         SELECT data FROM ${lowerStoreName} 
-        WHERE COALESCE(data->>'kode_cabang', '')::text = $1 
-           OR COALESCE(data->>'cabang', '')::text = $1
+        WHERE data LIKE $1 OR data LIKE $2 OR data LIKE $3 OR data LIKE $4
       `;
 
-      result = await db.query(queryStr, [filterCabang]);
+      // Contoh filterCabang = "03"
+      const param1 = `%"cabang":"${filterCabang}"%`; // Tanpa spasi
+      const param2 = `%"cabang": "${filterCabang}"%`; // Dengan spasi
+      const param3 = `%"kode_cabang":"${filterCabang}"%`; // Tanpa spasi
+      const param4 = `%"kode_cabang": "${filterCabang}"%`; // Dengan spasi
+
+      result = await db.query(queryStr, [param1, param2, param3, param4]);
+
       console.log(
         `System: SQL Fetch TERFILTER cabang ${filterCabang} | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
       );
