@@ -501,10 +501,13 @@ class PembukuanDB {
     });
   }
 
-  _getAllBrowser(s) {
-    const cabang = localStorage.getItem("cabang") || "";
+  // ✅ KODE BARU (Bisa menerima 1 atau 2 parameter)
+  _getAllBrowser(s, cabangParam) {
+    // Jika ada cabangParam yang dikirim dari app_core.js, pakai itu
+    // Jika tidak ada (kosong/undefined), ambil dari localStorage
+    let cabang = cabangParam || localStorage.getItem("cabang") || "";
 
-    // Jika kosong atau PUSAT, hapus filter (kirim URL polos)
+    // Jika PUSAT atau kosong, jangan kirim filter
     const safeCabang =
       !cabang || cabang.toUpperCase() === "PUSAT" ? "" : cabang;
 
@@ -516,6 +519,7 @@ class PembukuanDB {
       return r.json();
     });
   }
+
   _delBrowser(s, id) {
     return fetch(API_BASE_URL + "/api/data/" + s + "/" + id, {
       method: "DELETE",
