@@ -393,8 +393,21 @@ async function refreshCache() {
     DBCache.formatRL = formatRL;
     DBCache.formatNeraca = formatNeraca;
     DBCache.postedMonths = postedMonths;
-    DBCache.cabang = allCabang; // Sekarang pasti berisi 7 data
 
+    // ✅ LOGIKA FILTER DROPDOWN CABANG
+    if (
+      cabangSaya &&
+      cabangSaya !== "00" &&
+      cabangSaya.toUpperCase() !== "PUSAT"
+    ) {
+      // Jika BUKAN Pusat (misal 05), kunci dropdown hanya ke cabangnya sendiri
+      DBCache.cabang = allCabang.filter(
+        (c) => String(c.kode) === String(cabangSaya),
+      );
+    } else {
+      // Jika Pusat (00), tampilkan semua cabang
+      DBCache.cabang = allCabang;
+    }
     // 🚀 KELOMPOK 2: Data Operasional/Transaksi (DIFILTER SESUAI CABANG USER)
     // Golongan, Perkiraan, dll tetap memakai db.getAll karena kodenya sudah benar
     const [golongan, perkiraan, kodeBank, saldoKasir, mutasikasir] =
