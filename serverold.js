@@ -7,6 +7,10 @@ const { Pool } = require("pg");
 
 // Inisialisasi Express
 const app = express();
+// ============================================
+// TAMBAHKAN INI - Untuk melayani file CSS & JS
+// ============================================
+app.use(express.static(__dirname));
 
 // Middleware wajib untuk membaca body request
 app.use(express.json());
