@@ -780,11 +780,19 @@ async function navigate(id) {
     return x.id === id;
   });
 
+  const namaUser = localStorage.getItem("nama") || "User";
+  const cabangUser = localStorage.getItem("cabang") || "--";
+
   $("tbTitle").innerHTML =
     '<i class="fa-solid ' +
     (m ? m.icon : "fa-home") +
     '"></i> ' +
-    (m ? m.label : "Dashboard");
+    (m ? m.label : "Dashboard") +
+    " <span style=\"font-size:0.7rem; opacity:0.7; margin-left:10px; font-family:'JetBrains Mono',monospace;\">| " +
+    namaUser +
+    " - Cab." +
+    cabangUser +
+    "</span>";
 
   $("sidebar").classList.remove("open");
 
