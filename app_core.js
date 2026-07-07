@@ -396,6 +396,8 @@ async function refreshCache() {
     } else {
       DBCache.cabang = allCabang; // Admin/Pusat lihat semua
     }
+
+    console.log("User:", users);
     console.log("Data Cabang Asli:", allCabang);
 
     // 🚀 KELOMPOK 2: Ambil Data Transaksi & Operasional Cabang secara bersamaan (Paralel)
