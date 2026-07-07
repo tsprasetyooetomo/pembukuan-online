@@ -389,6 +389,7 @@ async function refreshCache() {
     } else {
       DBCache.cabang = allCabang; // Admin/Pusat lihat semua
     }
+    console.log("Data:", allCabang);
 
     // 2. Data Transaksi & Operasional (Difilter oleh Backend SQL)
     DBCache.golongan = await db.getAll("golongan", cabangSaya);
