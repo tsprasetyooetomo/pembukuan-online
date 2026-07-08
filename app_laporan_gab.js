@@ -68,6 +68,9 @@ async function terapkanOpsiRLGabungan() {
   }
 
   try {
+    // ==========================================
+    // 1. AMBIL MASTER GOLONGAN (untuk lookup nama)
+    // ==========================================
     var rawMasterGol = await db.getAll("golongan");
     var mapMasterGol = {};
     if (rawMasterGol) {
@@ -81,8 +84,13 @@ async function terapkanOpsiRLGabungan() {
       });
     }
 
+    // ==========================================
+    // 2. AMBIL MASTER CABANG & BUAT DAFTAR KODE YANG VALID
+    // ==========================================
     var rawMasterCab = await db.getAll("cabang");
     var mapMasterCab = {};
+    var setValidCabang = new Set(); // ✅ KUNCI UTAMA: Menampung kode cabang yang boleh diproses
+
     if (rawMasterCab) {
       var arrMasterCab = Array.isArray(rawMasterCab)
         ? rawMasterCab
@@ -90,10 +98,16 @@ async function terapkanOpsiRLGabungan() {
       arrMasterCab.forEach(function (c) {
         var kode = String(c.kode_cabang || c.kode || c.cab || "").trim();
         var nama = String(c.nama_cabang || c.nama || c.cabang || "").trim();
-        if (kode && nama) mapMasterCab[kode] = nama;
+        if (kode && nama) {
+          mapMasterCab[kode] = nama;
+          setValidCabang.add(kode); // ✅ Masukkan ke daftar putih
+        }
       });
     }
 
+    // ==========================================
+    // 3. AMBIL DATA GOLONGAN TAHUNAN
+    // ==========================================
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
       ? Array.isArray(resgolbackup)
@@ -102,22 +116,31 @@ async function terapkanOpsiRLGabungan() {
       : [];
 
     var dataByCabang = {};
+
+    // ==========================================
+    // 4. PROSES DATA (HANYA YANG KODE CABANGNYA ADA DI DAFTAR VALID)
+    // ==========================================
     rawdatagolongan.forEach(function (g) {
       var kodeGol = String(g.gol || g.golongan || "").trim();
-      var cabangData = String(
-        g.cabang || g.cab || g.kode_cabang || "TANPA CABANG",
-      ).trim();
+      var cabangData = String(g.cabang || g.cab || g.kode_cabang || "").trim();
       var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
+
+      // ✅ FILTER BARU: Skip langsung jika cabangnya tidak ada di master
+      if (!setValidCabang.has(cabangData)) return;
 
       if (kodeGol >= 300 && kodeGol < 700 && masaData === kodemasadicari) {
         if (!dataByCabang[cabangData]) dataByCabang[cabangData] = {};
         if (!dataByCabang[cabangData][kodeGol])
           dataByCabang[cabangData][kodeGol] = 0;
+
         var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
         dataByCabang[cabangData][kodeGol] += saldoAkhir;
       }
     });
 
+    // ==========================================
+    // 5. SUSUN BARIS DAN KOLOM TABEL
+    // ==========================================
     var daftarCabang = Object.keys(dataByCabang).sort();
 
     var setKodeGol = new Set();
@@ -126,10 +149,12 @@ async function terapkanOpsiRLGabungan() {
         setKodeGol.add(gol);
       });
     });
+
     var arrKodeGol = Array.from(setKodeGol).sort(function (a, b) {
       return parseInt(a) - parseInt(b);
     });
 
+    // Hilangkan golongan yang totalnya 0
     arrKodeGol = arrKodeGol.filter(function (kodeGol) {
       var totalSemuaCabang = 0;
       daftarCabang.forEach(function (cab) {
@@ -146,6 +171,7 @@ async function terapkanOpsiRLGabungan() {
       mapMasterCab: mapMasterCab,
     };
 
+    // Render UI
     var html = "";
     var outerArea = document.getElementById("area_cetak_rlgab");
     if (outerArea) {
@@ -172,11 +198,12 @@ async function terapkanOpsiRLGabungan() {
     renderGrafikRLGabungan(daftarCabang, dataByCabang, mapMasterCab);
   } catch (error) {
     console.error("❌ Gagal total RL Gabungan:", error);
-    if (area)
+    if (area) {
       area.innerHTML =
         '<div style="padding:3rem; text-align:center; color:darkred;">Error: ' +
         error.message +
         "</div>";
+    }
   }
 }
 
