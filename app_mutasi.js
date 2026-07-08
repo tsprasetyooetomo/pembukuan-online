@@ -1401,7 +1401,8 @@ function renderMutasiKasir() {
     // ✅ TAMBAHAN TOMBOL IMPORT DBF + OPSI HAPUS
     '<label class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff; margin:0; cursor:pointer;">' +
     '<i class="fa-solid fa-file-import"></i> Import DBF' +
-    '<input type="file" accept=".dbf" onclick="promptImportDBF() " style="display:none;">' +
+    // ✅ TOMBOL IMPORT (MENJALANKAN PROMPT POPUP)
+    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     "</label>" +
     // -- Opsi Tambahan Muncul Di Samping Tombol Import --
     '<div style="display:flex; align-items:center; gap:5px; margin-left:5px; font-size:.6rem; color:var(--fg)">' +
