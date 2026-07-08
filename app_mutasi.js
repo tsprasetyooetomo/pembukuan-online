@@ -2533,7 +2533,7 @@ async function executeHapusMutasiPerCabang() {
     // 2. Hapus dari Database satu per satu
     for (var d = 0; d < dataDihapus.length; d++) {
       // Sesuaikan dengan perintah delete yang work di sistem kamu (db.delete / db.remove)
-      await db.delete("mutasikasir", function (row) {
+      await db.del("mutasikasir", function (row) {
         return row.id === dataDihapus[d].id;
       });
     }
