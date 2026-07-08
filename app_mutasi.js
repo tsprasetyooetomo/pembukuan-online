@@ -2401,7 +2401,7 @@ async function handleImportDBF(event) {
         if (dataDihapus.length > 0) {
           for (var d = 0; d < dataDihapus.length; d++) {
             // ✅ GANTI DENGAN CARA DELETE PAKE FILTER ID (Cara paling aman)
-            await db.delete("mutasikasir", function (row) {
+            await db.del("mutasikasir", function (row) {
               return row.id === dataDihapus[d].id;
             });
           }
