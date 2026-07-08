@@ -2199,51 +2199,146 @@ async function executeHapusSeReffKasir() {
   }
 }
 // Variable sementara untuk menampung data DBF sebelum dikirim ke tabel
-// Variable sementara untuk menampung data DBF
-// Variable sementara untuk menampung data DBF
 var tempDetilKasirDBF = [];
+
+// ✅ FUNGSI PARSER DBF NATIVE (TANPA LIBRARY LUAR)
+function parseDBFNative(buffer) {
+  var data = new DataView(buffer);
+  var rows = [];
+  var fieldCount = 0;
+  var fields = [];
+
+  // 1. Baca Header (byte ke-8 sampai ke-11 berisi jumlah kolom)
+  fieldCount = data.getUint8(8) | (data.getUint8(9) << 8);
+
+  // 2. Baca Nama Kolom & Tipe Data (Dimulai dari byte ke-32)
+  for (var i = 0; i < fieldCount; i++) {
+    var offset = 32 + i * 32;
+    var name = "";
+    for (var j = 0; j < 11; j++) {
+      var ch = data.getUint8(offset + j);
+      if (ch === 0) break;
+      name += String.fromCharCode(ch);
+    }
+    var type = String.fromCharCode(data.getUint8(offset + 11));
+    var len = data.getUint8(offset + 16);
+    var dec = data.getUint8(offset + 17);
+    fields.push({
+      name: name.trim().toUpperCase(),
+      type: type,
+      len: len,
+      dec: dec,
+    });
+  }
+
+  // 3. Hitung di byte mana data baris dimulai
+  var headerSize = data.getUint8(8) | (data.getUint8(9) << 8);
+  var rowSize = data.getUint8(10) | (data.getUint8(11) << 8);
+  var dataStart = 32 + fieldCount * 32 + 1; // +1 untuk terminator header
+
+  // 4. Looping Baca Setiap Baris Data
+  var pos = dataStart;
+  while (pos < buffer.byteLength) {
+    // Byte pertama tiap baris adalah tanda hapus (biasanya 0x20 jika tidak dihapus)
+    var delFlag = data.getUint8(pos);
+    if (delFlag === 0x1a) break; // EOF (End of File)
+
+    pos++;
+    var row = {};
+    var isRowEmpty = true;
+
+    for (var f = 0; f < fields.length; f++) {
+      var val = "";
+      for (var k = 0; k < fields[f].len; k++) {
+        val += String.fromCharCode(data.getUint8(pos + k));
+      }
+      val = val.trim();
+
+      // Konversi tipe data Number jika tipenya N (Numeric) atau F (Float)
+      if ((fields[f].type === "N" || fields[f].type === "F") && val !== "") {
+        row[fields[f].name] = parseFloat(val);
+      } else {
+        row[fields[f].name] = val;
+      }
+
+      if (val !== "") isRowEmpty = false;
+      pos += fields[f].len;
+    }
+
+    if (!isRowEmpty) {
+      rows.push(row);
+    }
+  }
+  return rows;
+}
 
 function handleImportDBF(event) {
   var file = event.target.files[0];
   if (!file) return;
 
-  event.target.value = ""; // Reset input file
+  event.target.value = ""; // Reset agar bisa pilih file yg sama lagi
 
   var reader = new FileReader();
   reader.onload = async function (e) {
     try {
       var buffer = e.target.result;
-      var dbf = new DBF(buffer);
-      var records = dbf.getRecords();
+
+      // Panggil fungsi parser native
+      var records = parseDBFNative(buffer);
 
       tempDetilKasirDBF = [];
 
-      // ✅ SESUAIKAN NAMA KOLOM DBF KAMU (r.KODE, r.DESC, r.TOTAL)
+      // ✅ PEMETAAN FIELD DBF YANG SUDAH PASTI
       for (var i = 0; i < records.length; i++) {
         var r = records[i];
 
-        var kodeTrans = (r.KODE || r.kode || "")
-          .toString()
+        // 1. Ambil Kode Transaksi
+        var kodeTrans = String(r.N_KODE || "")
           .trim()
           .toUpperCase();
-        var desc = (r.DESC || r.desc || r.KETERANGAN || r.PENJELASAN || "")
-          .toString()
+
+        // 2. Ambil Penjelasan
+        var desc = String(r.PENJELASAN || "")
           .trim()
           .toUpperCase();
-        var total = num(r.TOTAL || r.total || r.NOMINAL || r.RP || 0);
+
+        // 3. Ambil Nominal
+        var total = parseFloat(r.N_RUPIAH || 0);
+
+        // 4. Ambil Cabang
+        var cabangDBF = String(r.N_CABANG || "00").trim();
+
+        // 5. Ambil & Format Tanggal dari DBF
+        // (DBF biasanya simpan tanggal sebagai angka 20260708, ini diubah jadi 2026-07-08)
+        var tglDBF = r.TANGGAL;
+        var tanggalFix = $("mk_tgl").value; // Fallback ke form jika gagal baca
+        if (tglDBF) {
+          var tglStr = String(tglDBF).trim();
+          // Cek jika formatnya angka panjang (contoh: 20260708)
+          if (tglStr.length === 8 && !isNaN(tglStr)) {
+            tanggalFix =
+              tglStr.substring(0, 4) +
+              "-" +
+              tglStr.substring(4, 6) +
+              "-" +
+              tglStr.substring(6, 8);
+          } else {
+            tanggalFix = tglStr; // Jika sudah format teks biasa
+          }
+        }
 
         if (total <= 0 || kodeTrans === "") continue;
 
-        // ✅ PERBAIKAN ID DI SINI: Menggunakan crypto.randomUUID()
+        // 6. Masukkan ke array dengan data lengkap dari DBF
         tempDetilKasirDBF.push({
           id: crypto.randomUUID(),
           noreff: _kasirSession.noreff,
-          tanggal: $("mk_tgl").value,
-          cabang: $("mk_cab").value,
-          kodeTrans: kodeTrans,
+          tanggal: tanggalFix, // ✅ Ambil dari DBF
+          cabang: cabangDBF, // ✅ Ambil dari DBF
+          kodeTrans: kodeTrans, // ✅ Ambil dari DBF (N_KODE)
           noperkiraan: "",
-          desc: desc,
-          total: total,
+          desc: desc, // ✅ Ambil dari DBF (PENJELASAN)
+          total: total, // ✅ Ambil dari DBF (N_RUPIAH)
           db: total,
           cr: 0,
         });
@@ -2255,22 +2350,20 @@ function handleImportDBF(event) {
 
       toast("Memproses import " + tempDetilKasirDBF.length + " data...", "inf");
 
-      // Kunci form
       _kasirSession.isLocked = true;
       $("mk_cab").disabled = true;
       $("mk_tgl").disabled = true;
 
-      // Simpan ke DB satu per satu
+      // Simpan ke DB
       for (var j = 0; j < tempDetilKasirDBF.length; j++) {
         var newDetil = tempDetilKasirDBF[j];
-
         await db.add("mutasikasir", newDetil);
 
         if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
         DBCache.mutasikasir.push(newDetil);
       }
 
-      // Update UI setelah semua selesai
+      // Update UI
       renderKasirDetilTable();
       updateKasirHeaderNominal();
       await hitungSaldoOtomatis();
@@ -2282,11 +2375,12 @@ function handleImportDBF(event) {
       );
     } catch (err) {
       console.error(err);
-      toast("Gagal import DBF: " + err.message, "err");
+      toast("Gagal baca file DBF: " + err.message, "err");
       _kasirSession.isLocked = false;
       $("mk_cab").disabled = false;
       $("mk_tgl").disabled = false;
     }
   };
+  // Baca file sebagai ArrayBuffer untuk dibaca oleh parser binary
   reader.readAsArrayBuffer(file);
 }
