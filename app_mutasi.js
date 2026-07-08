@@ -1392,33 +1392,19 @@ function renderMutasiKasir() {
     "#mutKasirNoreffList { max-height: 450px !important; overflow-y: auto !important; }" +
     "</style>" +
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
+    // BARIS HEADER ATAS
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
-    '<div style="font-size:.8rem;font-weight:700;color:var(--accent)"><i class="fa-solid fa-file-circle-plus"></i>Transaksi Kasir</div>' +
+    '<div style="font-size:.8rem;font-weight:700;color:var(--accent)"><i class="fa-solid fa-file-circle-plus"></i> Transaksi Kasir</div>' +
+    // KELOMPOK TOMBOL (DIBUNGKUS DALAM 1 DIV FLEX)
+    '<div style="display:flex; gap:.4rem; align-items:center;">' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Tambah Header Baru</button>' +
-    '<div style="display:flex; gap:.4rem;">' +
     '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
-    // ✅ TAMBAHAN TOMBOL IMPORT DBF + OPSI HAPUS
-    '<label class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff; margin:0; cursor:pointer;">' +
-    '<i class="fa-solid fa-file-import"></i> Import DBF' +
-    // ✅ TOMBOL IMPORT (MENJALANKAN PROMPT POPUP)
+    // ✅ TOMBOL IMPORT DBF YANG SUDAH DIPERBAIKI (MENJALANKAN POPUP)
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
-    "</label>" +
-    // -- Opsi Tambahan Muncul Di Samping Tombol Import --
-    '<div style="display:flex; align-items:center; gap:5px; margin-left:5px; font-size:.6rem; color:var(--fg)">' +
-    '<select id="mk_import_bulan" class="in" style="width:auto; padding:1px 4px; font-size:.6rem;">' +
-    generateBulanOpts("") +
-    "</select>" +
-    '<select id="mk_import_tahun" class="in" style="width:auto; padding:1px 4px; font-size:.6rem;">' +
-    generateTahunOpts("") +
-    "</select>" +
-    '<label style="display:flex; align-items:center; gap:3px; cursor:pointer; white-space:nowrap;">' +
-    '<input type="checkbox" id="mk_import_hapus" style="margin:0; accent-color:var(--danger);"> Hapus Data Periode Ini?' +
-    "</label>" +
-    "</div>" +
-    "</div>" +
-    "</div>" +
-    /* --- SISANYA TETAP SAMA SEPERTI KODE ASLI KAMU --- */
+    "</div>" + // <-- Penutup div kelompok tombol
+    "</div>" + // <-- Penutup div baris header atas
+    // BARIS INPUT DETAIL DAN TABEL
     '<div style="display:flex;gap:1rem">' +
     '<div style="flex:3">' +
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
@@ -1455,6 +1441,7 @@ function renderMutasiKasir() {
     '<div style="font-size:.85rem;font-weight:700;margin-top:1rem;margin-bottom:.4rem">Riwayat Detil Transaksi Kasir</div>' +
     '<div id="mutKasirDetilTbl" class="tw"></div>' +
     "</div>" +
+    // KOLOM KANAN (NOREFF LIST)
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
     '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="mk_filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
@@ -1470,7 +1457,6 @@ function renderMutasiKasir() {
     "</div>"
   );
 }
-
 function initMutasiKasirState() {
   _kasirSession = { noreff: "", isLocked: false };
 
