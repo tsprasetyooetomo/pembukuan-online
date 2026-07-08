@@ -1124,7 +1124,7 @@ function getCabangFilterHTML() {
   return html;
 }
 
-PANEL_MAP.saldoKasir = renderSaldoKasir;
+PANEL_MAP.saldoKasirawal = renderSaldoKasir;
 
 // ========================================================
 // 1. RENDER SALDO KASIR
