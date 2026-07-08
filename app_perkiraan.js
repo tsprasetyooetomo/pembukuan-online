@@ -1186,7 +1186,7 @@ async function renderSaldoKasirawal() {
     '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasirawal\', \'Data_SaldoKasirawal\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasirawal\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasirawal\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
-    '<button type="button" class="btn btn-a" onclick="formSaldoKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
+    '<button type="button" class="btn btn-a" onclick="formSaldoKasirawal()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
       buildTable(["Cabang", "Tanggal", "Saldo Awal"], rows, {
@@ -1231,7 +1231,7 @@ function formSaldoKasirawal(id) {
 
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
-    '<button type="button" class="btn btn-a" onclick="saveSaldoKasir(event, \'' +
+    '<button type="button" class="btn btn-a" onclick="saveSaldoKasirawal(event, \'' +
     (id || "") +
     "')\">" +
     (isEdit ? "Update" : "Simpan") +
