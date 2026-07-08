@@ -2281,8 +2281,8 @@ function handleImportDBF(event) {
         var desc = String(r.Penjelasan || "")
           .trim()
           .toUpperCase();
-        var total = parseFloat(r.N_Rupiah || 0);
-        var cabangDBF = String(r.N_Cabang || "00").trim();
+        var total = parseFloat(r.N_Rupiah_ || 0);
+        var cabangDBF = String(r.N_Cabang_ || "00").trim();
 
         // Handle tanggal (Jika format teks biasa langsung pakai, jika angka 20260708 dipecah)
         var tglDBF = r.Tanggal;
