@@ -773,6 +773,7 @@ async function navigate(id) {
     "users",
     "kodeBank",
     "saldoKasir",
+    "saldoKasirawal",
     "cabang",
   ].forEach(function (s) {
     bulkCleanup(s);
