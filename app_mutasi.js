@@ -1399,7 +1399,7 @@ function renderMutasiKasir() {
     '<div style="display:flex; gap:.4rem; align-items:center;">' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Tambah Header Baru</button>' +
     '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan</button>' +
-    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="executeHapusMutasiPerCabang()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
+    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick=" promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
     // ✅ TOMBOL IMPORT DBF YANG SUDAH DIPERBAIKI (MENJALANKAN POPUP)
     "</div>" + // <-- Penutup div kelompok tombol
     "</div>" + // <-- Penutup div baris header atas
@@ -1423,7 +1423,7 @@ function renderMutasiKasir() {
     '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.3rem;">' +
     '<div style="font-size:.85rem;font-weight:700">Riwayat Detil Transaksi Kasir</div>' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
-    '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="promptHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data Per Cabang</button>' +
+    '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="executeHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data Per Cabang</button>' +
     "</div>" +
     '<div style="margin-top:.8rem;">' +
     '<table class="tbl-excel">' +
@@ -2069,7 +2069,7 @@ async function simpanPerubahanKasirDetil(idYangDiedit) {
 // ========================================================
 // HAPUS SE-REFF KHUSUS MUTASI KASIR
 // ========================================================
-function promptHapusSeReffKasir() {
+function {
   var noreffAktif = _kasirSession.noreff;
 
   var html =
