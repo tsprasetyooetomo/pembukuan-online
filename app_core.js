@@ -425,7 +425,7 @@ async function refreshCache() {
     DBCache.perkiraan = perkiraan;
     DBCache.kodeBank = kodeBank;
     DBCache.saldoKasir = saldoKasir;
-    DBCache.saldoKasirawal = saldoKasirawal
+    DBCache.saldoKasirawal = saldoKasirawal;
     DBCache.mutasikasir = mutasikasir;
 
     console.log(
