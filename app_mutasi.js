@@ -2386,17 +2386,14 @@ async function handleImportDBF(event) {
         return toast("Tidak ada data valid di file DBF.", "err");
       }
 
-      toast(
-        "Tahap 1: Menyimpan " +
-          tempDetilKasirDBF.length +
-          " data ke database...",
-        "inf",
-      );
+      // ✅ AKTIFKAN INDIKATOR LOADING
+      showImportLoader(true, "Menyiapkan database...");
       if ($("mk_cab")) $("mk_cab").disabled = true;
       if ($("mk_tgl")) $("mk_tgl").disabled = true;
 
       // --- LOGIKA HAPUS DATA SESUAI KRITERIA ---
       if (isHapus) {
+        updateLoaderText("Menghapus data lama...");
         var dataDihapus = DBCache.mutasikasir.filter(function (item) {
           if (item.cabang !== cabTerpilih) return false;
           if (bulan === "" && tahun === "") return true;
@@ -2408,9 +2405,8 @@ async function handleImportDBF(event) {
 
         if (dataDihapus.length > 0) {
           for (var d = 0; d < dataDihapus.length; d++) {
-            await db.delete("mutasikasir", function (row) {
-              return row.id === dataDihapus[d].id;
-            });
+            // Pastikan pakai perintah delete yang benar di sistemmu (db.remove atau db.delete)
+            await db.remove("mutasikasir", dataDihapus[d].id);
           }
           DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
             if (item.cabang !== cabTerpilih) return true;
@@ -2423,10 +2419,12 @@ async function handleImportDBF(event) {
         }
       }
 
-      // --- TAHAP 1: SIMPAN KE DATABASE DAN CACHE DALAM KELOMPOK KECIL ---
+      // --- PROSES IMPORT KE DATABASE ---
       var totalData = tempDetilKasirDBF.length;
-      var batchSize = 500; // Simpan 500 data dulu ke DB
       var berhasilDisimpan = 0;
+      var batchSize = 500;
+
+      updateLoaderText("Menyimpan ke database...");
 
       for (var i = 0; i < totalData; i += batchSize) {
         var batch = tempDetilKasirDBF.slice(i, i + batchSize);
@@ -2436,31 +2434,36 @@ async function handleImportDBF(event) {
           berhasilDisimpan++;
         }
 
-        // Masukkan ke cache memori
         if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
         DBCache.mutasikasir = DBCache.mutasikasir.concat(batch);
 
-        // Beri jeda 10ms HANYA untuk bernapas, biar database tidak dianggap hang oleh browser
+        // ✅ UPDATE ANGKA PROGRESS DI INDIKATOR
+        updateLoaderText(
+          "Menyimpan data... (" + berhasilDisimpan + " / " + totalData + ")",
+        );
+
+        // Beri jeda 10ms agar browser tidak dianggap "Not Responding" oleh OS
         await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
-      // --- TAHAP 2: REFRESH UI (DILAKUKAN SEKALI SAJA DI AKHIR) ---
-      toast("Tahap 2: Me-render tampilan...", "inf");
+      // --- REFRESH UI ---
+      updateLoaderText("Selesai! Merender tampilan...");
 
-      // Paksa browser menunda rendering sebentar, supaya toast "Tahap 2" bisa muncul duluan ke layar
+      // Jeda 100ms biar layar sempat refresh sebelum rendering berat dimulai
       await new Promise((resolve) => setTimeout(resolve, 100));
 
       renderKasirDetilTable();
       updateKasirHeaderNominal();
       await hitungSaldoOtomatis();
 
-      // Rebuild daftar No Ref
       if (typeof buildGroupedNoreff === "function") {
         buildGroupedNoreff();
       }
       renderKasirNoreffList();
 
-      // Buka kunci form
+      // ✅ MATIKAN INDIKATOR LOADING
+      showImportLoader(false);
+
       if ($("mk_cab")) $("mk_cab").disabled = false;
       if ($("mk_tgl")) $("mk_tgl").disabled = false;
 
@@ -2470,6 +2473,8 @@ async function handleImportDBF(event) {
       );
     } catch (err) {
       console.error(err);
+      // ✅ PASTIKAN LOADER MATI JIKA TERJADI ERROR
+      showImportLoader(false);
       toast("Gagal import: " + err.message, "err");
       if ($("mk_cab")) $("mk_cab").disabled = false;
       if ($("mk_tgl")) $("mk_tgl").disabled = false;
@@ -2559,4 +2564,30 @@ async function executeHapusMutasiPerCabang() {
     console.error(err);
     toast("Gagal menghapus data: " + err.message, "err");
   }
+}
+// ✅ FUNGSI UNTUK MENAMPILKAN/MENGHILANGKAN INDIKATOR PROSES
+function showImportLoader(show, text = "Sedang Memproses Data...") {
+  var existing = document.getElementById("global_import_loader");
+  if (show) {
+    if (existing) existing.remove();
+    var div = document.createElement("div");
+    div.id = "global_import_loader";
+    div.innerHTML = `
+      <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:99999;display:flex;flex-direction:column;justify-content:center;align-items:center;">
+        <i class="fa-solid fa-database" style="font-size:3rem;color:#6366f1;margin-bottom:1rem;animation: spin 1s linear infinite;"></i>
+        <div style="color:#fff;font-size:1.2rem;font-weight:bold;" id="loader_text">${text}</div>
+        <div style="color:#ccc;font-size:.8rem;margin-top:.5rem;">Mohon jangan tutup halaman ini</div>
+      </div>
+      <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
+    `;
+    document.body.appendChild(div);
+  } else {
+    if (existing) existing.remove();
+  }
+}
+
+// Fungsi kecil untuk mengupdate angka di dalam loader tanpa membuat lag
+function updateLoaderText(newText) {
+  var el = document.getElementById("loader_text");
+  if (el) el.innerText = newText;
 }
