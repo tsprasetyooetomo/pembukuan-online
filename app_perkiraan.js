@@ -1260,7 +1260,7 @@ async function saveSaldoKasir(e, editId) {
     }
 
     if (editId) {
-      var r = await db.get("saldoKasir", editId);
+      var r = await db.get("saldoKasirawal", editId);
       if (r) {
         var updated = Object.assign({}, r, {
           cabang: cabang,
@@ -1272,7 +1272,7 @@ async function saveSaldoKasir(e, editId) {
         });
 
         var response = await fetch(
-          API_BASE_URL + "/api/data/saldoKasir/" + editId,
+          API_BASE_URL + "/api/data/saldoKasirawal/" + editId,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -1306,7 +1306,7 @@ async function saveSaldoKasir(e, editId) {
         awal: awal,
       };
 
-      var response = await fetch(API_BASE_URL + "/api/data/saldoKasir", {
+      var response = await fetch(API_BASE_URL + "/api/data/saldoKasirawal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newObj),
@@ -1319,7 +1319,7 @@ async function saveSaldoKasir(e, editId) {
         );
       }
 
-      await db.add("saldoKasir", newObj);
+      await db.add("saldoKasirawal", newObj);
       DBCache.saldoKasir.push(newObj);
     }
 
