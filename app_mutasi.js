@@ -2390,32 +2390,25 @@ async function handleImportDBF(event) {
       if ($("mk_tgl")) $("mk_tgl").disabled = true;
 
       // --- LOGIKA HAPUS DATA SESUAI KRITERIA ---
+      // --- LOGIKA HAPUS DATA SESUAI KRITERIA ---
       if (isHapus) {
         var dataDihapus = DBCache.mutasikasir.filter(function (item) {
-          // Filter 1: Harus cabang yang dipilih
           if (item.cabang !== cabTerpilih) return false;
-
-          // Filter 2: Logika Bulan & Tahun
-          if (bulan === "" && tahun === "") {
-            return true; // Hapus semua untuk cabang ini
-          } else if (bulan === "" && tahun !== "") {
-            return item.tanggal && item.tanggal.startsWith(tahun); // Hapus berdasarkan tahun saja
-          } else {
-            var prefix = tahun + "-" + bulan;
-            return item.tanggal && item.tanggal.startsWith(prefix); // Hapus berdasarkan bulan & tahun
-          }
+          if (bulan === "" && tahun === "") return true;
+          if (bulan === "" && tahun !== "")
+            return item.tanggal && item.tanggal.startsWith(tahun);
+          var prefix = tahun + "-" + bulan;
+          return item.tanggal && item.tanggal.startsWith(prefix);
         });
+
         if (dataDihapus.length > 0) {
-          // ✅ GUNAKAN CARA DELETE DEXIE.JS (db.namatabel.delete)
-          var tableMutasi = db.mutasikasir;
+          // ✅ GUNAKAN db.delete("namatabel", id) PERSIS SEPERTI db.add() DI KODEMU
           for (var d = 0; d < dataDihapus.length; d++) {
-            await tableMutasi.delete(dataDihapus[d].id);
+            await db.delete("mutasikasir", dataDihapus[d].id);
           }
 
-          // Hapus dari Cache Memory
           DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
             if (item.cabang !== cabTerpilih) return true;
-
             if (bulan === "" && tahun === "") return false;
             if (bulan === "" && tahun !== "")
               return !(item.tanggal && item.tanggal.startsWith(tahun));
@@ -2435,7 +2428,10 @@ async function handleImportDBF(event) {
       // --- MASUKKAN DATA BARU ---
       for (var j = 0; j < tempDetilKasirDBF.length; j++) {
         var newDetil = tempDetilKasirDBF[j];
+
+        // ✅ SUDAH PERSIS DENGAN KODE ASLIMU
         await db.add("mutasikasir", newDetil);
+
         if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
         DBCache.mutasikasir.push(newDetil);
       }
