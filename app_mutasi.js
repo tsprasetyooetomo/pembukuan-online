@@ -2275,17 +2275,17 @@ function handleImportDBF(event) {
         var r = records[i];
 
         // ✅ LANGSUNG MAP KE FIELD TELAGA
-        var kodeTrans = String(r.N_KODE || "")
+        var kodeTrans = String(r.N_Kode || "")
           .trim()
           .toUpperCase();
-        var desc = String(r.PENJELASAN || "")
+        var desc = String(r.Penjelasan || "")
           .trim()
           .toUpperCase();
-        var total = parseFloat(r.N_RUPIAH || 0);
-        var cabangDBF = String(r.N_CABANG || "00").trim();
+        var total = parseFloat(r.N_Rupiah || 0);
+        var cabangDBF = String(r.N_Cabang || "00").trim();
 
         // Handle tanggal (Jika format teks biasa langsung pakai, jika angka 20260708 dipecah)
-        var tglDBF = r.TANGGAL;
+        var tglDBF = r.Tanggal;
         var tanggalFix = $("mk_tgl")
           ? $("mk_tgl").value
           : new Date().toISOString().split("T")[0];
