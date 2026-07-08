@@ -1136,19 +1136,39 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
               const cabDBF = getStr(row.N_CABANG_) || cabang;
 
               // Format Tanggal
+              // Format Tanggal (UNIVERSAL PARSER)
               let tglStr = getStr(row.TANGGAL);
-              let tanggalFix = new Date().toISOString().split("T")[0];
-              if (tglStr.length === 8 && !isNaN(tglStr)) {
-                tanggalFix =
-                  tglStr.substring(0, 4) +
-                  "-" +
-                  tglStr.substring(4, 6) +
-                  "-" +
-                  tglStr.substring(6, 8);
-              } else if (tglStr.length >= 10) {
-                tanggalFix = tglStr;
-              }
+              let tanggalFix = new Date().toISOString().split("T")[0]; // Default hari ini
 
+              if (tglStr) {
+                // 1. Coba bersihkan jika ada karakter aneh (seperti hasil convert Excel/DBF aneh)
+                let cleanTgl = tglStr.replace(/[^0-9\-\/]/g, "").trim();
+
+                let parsedDate;
+
+                if (cleanTgl.length === 8 && !isNaN(cleanTgl)) {
+                  // Jika formatnya 20260106
+                  parsedDate = new Date(
+                    cleanTgl.substring(0, 4) +
+                      "-" +
+                      cleanTgl.substring(4, 6) +
+                      "-" +
+                      cleanTgl.substring(6, 8),
+                  );
+                } else if (cleanTgl.includes("-") || cleanTgl.includes("/")) {
+                  // Jika formatnya 2026-01-06 atau 2026/01/06
+                  parsedDate = new Date(cleanTgl.replace(/\//g, "-"));
+                } else {
+                  // Fallback: Biarkan JavaScript yang mengartikan string aslinya (menangani format Tue Jan 06...)
+                  parsedDate = new Date(tglStr);
+                }
+
+                // Validasi apakah hasil parse benar-benar tanggal yang valid
+                if (!isNaN(parsedDate.getTime())) {
+                  // Gunakan toISOString() untuk memastikan hasilnya PASTI "YYYY-MM-DD"
+                  tanggalFix = parsedDate.toISOString().split("T")[0];
+                }
+              }
               const cabShort = (cabDBF || "PUSAT")
                 .substring(0, 3)
                 .toUpperCase();
