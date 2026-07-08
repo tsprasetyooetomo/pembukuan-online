@@ -1466,6 +1466,21 @@ function renderMutasiKasir() {
     "</div>" +
     "</div>"
   );
+  // ✅ EVENT LISTENER UNTUK COMBOBOX FILTER (LETAKKAN DI PALING BAWAH SEBELUM TUTUP KURUNG renderMutasiKasir)
+  setTimeout(function () {
+    if ($("mk_filter_cab"))
+      $("mk_filter_cab").onchange = function () {
+        renderKasirNoreffList();
+      };
+    if ($("mk_filter_bulan"))
+      $("mk_filter_bulan").onchange = function () {
+        renderKasirNoreffList();
+      };
+    if ($("mk_filter_tahun"))
+      $("mk_filter_tahun").onchange = function () {
+        renderKasirNoreffList();
+      };
+  }, 100);
 }
 function initMutasiKasirState() {
   _kasirSession = { noreff: "", isLocked: false };
@@ -1729,18 +1744,29 @@ function renderKasirNoreffList() {
   var box = $("mutKasirNoreffList");
   if (!box) return;
 
+  // ✅ 1. AMBIL NILAI DARI KETIGA COMBOBOX
+  var filterCabang = $("mk_filter_cab") ? $("mk_filter_cab").value : "";
   var filterBulan = $("mk_filter_bulan") ? $("mk_filter_bulan").value : "";
   var filterTahun = $("mk_filter_tahun") ? $("mk_filter_tahun").value : "";
-  var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
 
+  var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
   var safeBulan = filterBulan ? filterBulan.padStart(2, "0") : "";
 
   var filtered = data.filter(function (t) {
-    if (!t.tanggal) return false;
-    var ym = t.tanggal.substring(0, 7);
+    // ✅ 2. PENGAMAN: Pastikan tanggal ada dan formatnya benar sebelum di-substring
+    if (!t.tanggal || typeof t.tanggal !== "string" || t.tanggal.length < 7)
+      return false;
+
+    var ym = t.tanggal.substring(0, 7); // Aman sekarang
+
+    // ✅ 3. TAMBAHKAN FILTER CABANG
+    if (filterCabang && t.cabang !== filterCabang) return false;
+
+    // Filter Bulan & Tahun
     if (safeBulan && filterTahun) return ym === filterTahun + "-" + safeBulan;
     if (safeBulan) return ym.substring(5, 7) === safeBulan;
     if (filterTahun) return ym.substring(0, 4) === filterTahun;
+
     return true;
   });
 
