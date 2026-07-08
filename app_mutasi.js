@@ -2514,7 +2514,6 @@ function promptHapusMutasiPerCabang() {
   else alert("Fungsi Modal tidak ditemukan.");
 }
 
-// ✅ FUNGSI EKSEKUSI HAPUS DATA
 // ✅ FUNGSI EKSEKUSI HAPUS DATA (SUDAH DIPERBAIKI ID DAN PERINTAH DB-NYA)
 async function executeHapusMutasiPerCabang() {
   // 1. PERBAIKAN ID: Harus sama persis dengan id di dalam HTML promptHapusMutasiPerCabang
@@ -2551,7 +2550,7 @@ async function executeHapusMutasiPerCabang() {
     // 3. Hapus dari Database satu per satu
     for (var d = 0; d < dataDihapus.length; d++) {
       // ✅ PERBAIKAN KEDUA: GANTI db.delete MENJADI db.remove (SESUAI SISTEMMU)
-      await db.remove("mutasikasir", dataDihapus[d].id);
+      await db.del("mutasikasir", dataDihapus[d].id);
     }
 
     // 4. Hapus dari Cache Memory
