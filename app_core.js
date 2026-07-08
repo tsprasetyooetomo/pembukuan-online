@@ -430,8 +430,9 @@ async function refreshCache() {
     DBCache.golongan = golongan;
     DBCache.perkiraan = perkiraan;
     DBCache.kodeBank = kodeBank;
-    DBCache.saldoKasir = saldoKasir;
     DBCache.saldoKasirawal = saldoKasirawal;
+    DBCache.saldoKasir = saldoKasir;
+
     DBCache.mutasikasir = mutasikasir;
 
     console.log(
