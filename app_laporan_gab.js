@@ -407,7 +407,7 @@ function generateHTMLRLGabungan(
     var namaTampil = mapMasterCab[cab] || cab;
     if (!isForExcel) {
       html +=
-        '<th style="padding:10px; border:1px solid #000; text-align:center; background-color:#d9e1f2;"><span class="link-cabang-rl" onclick="tampilkanRLPerCabangSD(\'' +
+        '<th style="padding:10px; border:1px solid #000; text-align:center; background-color:#4DA8FF;"><span class="link-cabang-rl" onclick="tampilkanRLPerCabangSD(\'' +
         cab.replace(/'/g, "\\'") +
         "')\">" +
         namaTampil +
