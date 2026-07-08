@@ -2310,19 +2310,18 @@ function parseDBFCorrect(buffer) {
   }
   return rows;
 }
+
 async function handleImportDBF(event) {
   var file = event.target.files[0];
   if (!file) return;
   event.target.value = "";
-  if (typeof closeModal === "function") closeModal(); // Tutup popup setelah pilih file
+  if (typeof closeModal === "function") closeModal();
 
-  // --- AMBIL NILAI DARI POPUP ---
   var cabTerpilih = $("opt_imp_cab") ? $("opt_imp_cab").value : "";
   var bulan = $("opt_imp_bulan") ? $("opt_imp_bulan").value : "";
   var tahun = $("opt_imp_tahun") ? $("opt_imp_tahun").value : "";
   var isHapus = $("opt_imp_hapus") ? $("opt_imp_hapus").checked : false;
 
-  // --- VALIDASI LOGIKA ---
   if (isHapus) {
     if (bulan !== "" && tahun === "") {
       return toast("Jika memilih Bulan, Tahun wajib diisi!", "err");
@@ -2333,10 +2332,9 @@ async function handleImportDBF(event) {
   reader.onload = async function (e) {
     try {
       var buffer = e.target.result;
-      var records = parseDBFCorrect(buffer); // Memanggil parser DBF sebelumnya
+      var records = parseDBFCorrect(buffer);
       tempDetilKasirDBF = [];
 
-      // --- PARSING DATA DBF ---
       for (var i = 0; i < records.length; i++) {
         var r = records[i];
 
@@ -2347,7 +2345,7 @@ async function handleImportDBF(event) {
           .trim()
           .toUpperCase();
         var total = parseFloat(r.N_RUPIAH_ || 0);
-        var cabangDBF = String(r.N_CABANG_ || cabTerpilih).trim(); // Fallback ke cabang terpilih
+        var cabangDBF = String(r.N_CABANG_ || cabTerpilih).trim();
 
         var tglDBF = r.TANGGAL;
         var tanggalFix = new Date().toISOString().split("T")[0];
@@ -2380,6 +2378,7 @@ async function handleImportDBF(event) {
           cr: 0,
         });
       }
+
       if (tempDetilKasirDBF.length === 0) {
         return toast("Tidak ada data valid di file DBF.", "err");
       }
@@ -2388,7 +2387,7 @@ async function handleImportDBF(event) {
       if ($("mk_cab")) $("mk_cab").disabled = true;
       if ($("mk_tgl")) $("mk_tgl").disabled = true;
 
-      // --- LOGIKA HAPUS DATA SESUAI KRITERIA ---
+      // --- LOGIKA HAPUS DATA ---
       if (isHapus) {
         var dataDihapus = DBCache.mutasikasir.filter(function (item) {
           if (item.cabang !== cabTerpilih) return false;
@@ -2401,8 +2400,10 @@ async function handleImportDBF(event) {
 
         if (dataDihapus.length > 0) {
           for (var d = 0; d < dataDihapus.length; d++) {
-            await db.delete("mutasikasir", dataDihapus[d].id);
+            // ✅ PERBAIKAN: GANTI db.delete MENJADI db.remove
+            await db.remove("mutasikasir", dataDihapus[d].id);
           }
+
           DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
             if (item.cabang !== cabTerpilih) return true;
             if (bulan === "" && tahun === "") return false;
@@ -2421,7 +2422,7 @@ async function handleImportDBF(event) {
         }
       }
 
-      // ✅ PERBAIKAN: PROSES IMPORT DENGAN BATCHING (DIPECAH 100 DATA PER 0.5 DETIK)
+      // --- PROSES IMPORT BATCHING ---
       var batchSize = 100;
       var totalData = tempDetilKasirDBF.length;
       var berhasilDisimpan = 0;
@@ -2431,10 +2432,6 @@ async function handleImportDBF(event) {
 
         for (var j = 0; j < batch.length; j++) {
           var newDetil = batch[j];
-
-          // ✅ PASTIKAN MEMAKAI TANGGAL DARI DBF, BUKAN TANGGAL HARI INI
-          // (Karena di langkah sebelumnya sudah diformat, tinggal pakai saja)
-
           await db.add("mutasikasir", newDetil);
 
           if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
@@ -2442,7 +2439,6 @@ async function handleImportDBF(event) {
           berhasilDisimpan++;
         }
 
-        // ✅ KASIH JEDA 500ms SETIAP 100 DATA AGAR DATABASE TIDAK HANG/FREEZE
         toast(
           "Menyimpan data... (" + berhasilDisimpan + " / " + totalData + ")",
           "inf",
@@ -2454,6 +2450,11 @@ async function handleImportDBF(event) {
       renderKasirDetilTable();
       updateKasirHeaderNominal();
       await hitungSaldoOtomatis();
+
+      // ✅ PERBAIKAN NOREF: Paksa sistem untuk me-rebuild ulang daftar NoRef berdasarkan cache baru
+      if (typeof buildGroupedNoreff === "function") {
+        buildGroupedNoreff(); // Fungsi yang mengelompokkan noreff di sistem kamu
+      }
       renderKasirNoreffList();
 
       toast(
@@ -2462,7 +2463,7 @@ async function handleImportDBF(event) {
       );
     } catch (err) {
       console.error(err);
-      toast("Gagal import di tengah jalan: " + err.message, "err");
+      toast("Gagal import: " + err.message, "err");
       if ($("mk_cab")) $("mk_cab").disabled = false;
       if ($("mk_tgl")) $("mk_tgl").disabled = false;
     }
