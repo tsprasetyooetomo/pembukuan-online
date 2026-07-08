@@ -1401,7 +1401,7 @@ function renderMutasiKasir() {
     // ✅ TAMBAHAN TOMBOL IMPORT DBF + OPSI HAPUS
     '<label class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff; margin:0; cursor:pointer;">' +
     '<i class="fa-solid fa-file-import"></i> Import DBF' +
-    '<input type="file" accept=".dbf" onchange="handleImportDBF(event)" style="display:none;">' +
+    '<input type="file" accept=".dbf" onclick="promptImportDBF() " style="display:none;">' +
     "</label>" +
     // -- Opsi Tambahan Muncul Di Samping Tombol Import --
     '<div style="display:flex; align-items:center; gap:5px; margin-left:5px; font-size:.6rem; color:var(--fg)">' +
@@ -2210,34 +2210,85 @@ async function executeHapusSeReffKasir() {
     toast("Gagal menghapus: " + err.message, "err");
   }
 }
+// ✅ 1. FUNGSI MENAMPILKAN POPUP OPTIONS
+function promptImportDBF() {
+  var cabOpts = getCabangOpts($("mk_cab") ? $("mk_cab").value : "");
+  var bulanOpts = generateBulanOpts("");
+  var tahunOpts = generateTahunOpts("");
+
+  var html = `
+    <div style="padding:1rem; font-size:.85rem;">
+      <div style="margin-bottom:1rem; font-weight:700; color:var(--accent);">Opsi Import DBF</div>
+      
+      <div class="fg" style="margin-bottom:.8rem;">
+        <label>Cabang Target</label>
+        <select id="opt_imp_cab" class="in">${cabOpts}</select>
+      </div>
+
+      <div style="display:flex; gap:.5rem; margin-bottom:.8rem;">
+        <div class="fg" style="flex:1;">
+          <label>Bulan (Opsional)</label>
+          <select id="opt_imp_bulan" class="in">${bulanOpts}</select>
+        </div>
+        <div class="fg" style="flex:1;">
+          <label>Tahun (Opsional)</label>
+          <select id="opt_imp_tahun" class="in">${tahunOpts}</select>
+        </div>
+      </div>
+
+      <div class="fg" style="margin-bottom:1rem;">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="opt_imp_hapus" style="width:18px; height:18px; accent-color:var(--danger);">
+          <span>Hapus data lama berdasarkan filter di atas sebelum import?</span>
+        </label>
+      </div>
+
+      <div style="display:flex; gap:.5rem; justify-content:flex-end;">
+        <button class="btn btn-sm" onclick="closeModal()">Batal</button>
+        <label class="btn btn-sm btn-a" style="cursor:pointer;">
+          <i class="fa-solid fa-folder-open"></i> Pilih File DBF
+          <input type="file" accept=".dbf" onchange="handleImportDBF(event)" style="display:none;">
+        </label>
+      </div>
+    </div>
+  `;
+
+  // Menggunakan fungsi modal bawaan sistem kamu (biasanya showModal atau openModal)
+  if (typeof showModal === "function") showModal("Import Data DBF", html);
+  else if (typeof openModal === "function") openModal("Import Data DBF", html);
+  else alert("Fungsi Modal tidak ditemukan di sistem.");
+}
+
+// ✅ 2. FUNGSI UTAMA IMPORT (SUDAH DENGAN LOGIKA HAPUS)
 var tempDetilKasirDBF = [];
 
-function handleImportDBF(event) {
+async function handleImportDBF(event) {
   var file = event.target.files[0];
   if (!file) return;
   event.target.value = "";
+  if (typeof closeModal === "function") closeModal(); // Tutup popup setelah pilih file
 
-  // ✅ 1. AMBIL NILAI DARI OPSI YANG BARU DITAMBAHKAN
-  var filterBulan = $("mk_import_bulan") ? $("mk_import_bulan").value : "";
-  var filterTahun = $("mk_import_tahun") ? $("mk_import_tahun").value : "";
-  var isHapusDulu = $("mk_import_hapus") ? $("mk_import_hapus").checked : false;
+  // --- AMBIL NILAI DARI POPUP ---
+  var cabTerpilih = $("opt_imp_cab") ? $("opt_imp_cab").value : "";
+  var bulan = $("opt_imp_bulan") ? $("opt_imp_bulan").value : "";
+  var tahun = $("opt_imp_tahun") ? $("opt_imp_tahun").value : "";
+  var isHapus = $("opt_imp_hapus") ? $("opt_imp_hapus").checked : false;
 
-  // Validasi: Jika centang hapus, wajib pilih bulan & tahun
-  if (isHapusDulu && (!filterBulan || !filterTahun)) {
-    return toast(
-      "Jika centang 'Hapus Data Sebelum Import', Bulan & Tahun wajib dipilih!",
-      "err",
-    );
+  // --- VALIDASI LOGIKA ---
+  if (isHapus) {
+    if (bulan !== "" && tahun === "") {
+      return toast("Jika memilih Bulan, Tahun wajib diisi!", "err");
+    }
   }
 
   var reader = new FileReader();
   reader.onload = async function (e) {
     try {
       var buffer = e.target.result;
-      var records = parseDBFCorrect(buffer);
+      var records = parseDBFCorrect(buffer); // Memanggil parser DBF sebelumnya
       tempDetilKasirDBF = [];
 
-      // 2. PROSES PARSING DATA DBF (Sudah sesuai fieldmu)
+      // --- PARSING DATA DBF ---
       for (var i = 0; i < records.length; i++) {
         var r = records[i];
 
@@ -2248,12 +2299,10 @@ function handleImportDBF(event) {
           .trim()
           .toUpperCase();
         var total = parseFloat(r.N_RUPIAH_ || 0);
-        var cabangDBF = String(r.N_CABANG_ || "00").trim();
+        var cabangDBF = String(r.N_CABANG_ || cabTerpilih).trim(); // Fallback ke cabang terpilih
 
         var tglDBF = r.TANGGAL;
-        var tanggalFix = $("mk_tgl")
-          ? $("mk_tgl").value
-          : new Date().toISOString().split("T")[0];
+        var tanggalFix = new Date().toISOString().split("T")[0];
         if (tglDBF) {
           var tglStr = String(tglDBF).trim();
           if (tglStr.length === 8 && !isNaN(tglStr)) {
@@ -2289,60 +2338,63 @@ function handleImportDBF(event) {
       }
 
       toast("Memproses import " + tempDetilKasirDBF.length + " data...", "inf");
-
       if ($("mk_cab")) $("mk_cab").disabled = true;
       if ($("mk_tgl")) $("mk_tgl").disabled = true;
 
-      // ✅ 3. LOGIKA HAPUS DATA LAMA BERDASARKAN BULAN & TAHUN
-      if (isHapusDulu) {
-        var targetPrefix = filterTahun + "-" + filterBulan; // Contoh: "2024-08"
-
-        // Cari di cache data yang tanggalnya cocok dengan target
+      // --- LOGIKA HAPUS DATA SESUAI KRITERIA ---
+      if (isHapus) {
         var dataDihapus = DBCache.mutasikasir.filter(function (item) {
-          return item.tanggal && item.tanggal.startsWith(targetPrefix);
+          // Filter 1: Harus cabang yang dipilih
+          if (item.cabang !== cabTerpilih) return false;
+
+          // Filter 2: Logika Bulan & Tahun
+          if (bulan === "" && tahun === "") {
+            return true; // Hapus semua untuk cabang ini
+          } else if (bulan === "" && tahun !== "") {
+            return item.tanggal && item.tanggal.startsWith(tahun); // Hapus berdasarkan tahun saja
+          } else {
+            var prefix = tahun + "-" + bulan;
+            return item.tanggal && item.tanggal.startsWith(prefix); // Hapus berdasarkan bulan & tahun
+          }
         });
 
         if (dataDihapus.length > 0) {
-          // Hapus dari IndexedDB satu per satu
           for (var d = 0; d < dataDihapus.length; d++) {
             await db.delete("mutasikasir", dataDihapus[d].id);
           }
-          // Hapus dari Cache Memory
           DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
-            return !(item.tanggal && item.tanggal.startsWith(targetPrefix));
+            if (item.cabang !== cabTerpilih) return true; // Tetap simpan yang bukan cabang ini
+
+            if (bulan === "" && tahun === "") return false;
+            if (bulan === "" && tahun !== "")
+              return !(item.tanggal && item.tanggal.startsWith(tahun));
+            var prefix = tahun + "-" + bulan;
+            return !(item.tanggal && item.tanggal.startsWith(prefix));
           });
           toast(
-            "Berhasil menghapus " +
+            "Dihapus " +
               dataDihapus.length +
-              " data lama (Bulan " +
-              filterBulan +
-              " " +
-              filterTahun +
-              ")",
+              " data lama cabang " +
+              cabTerpilih,
             "inf",
           );
         }
       }
 
-      // ✅ 4. MASUKKAN DATA BARU
+      // --- MASUKKAN DATA BARU ---
       for (var j = 0; j < tempDetilKasirDBF.length; j++) {
         var newDetil = tempDetilKasirDBF[j];
         await db.add("mutasikasir", newDetil);
-
         if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
         DBCache.mutasikasir.push(newDetil);
       }
 
-      // ✅ 5. REFRESH UI
+      // --- REFRESH UI ---
       renderKasirDetilTable();
       updateKasirHeaderNominal();
       await hitungSaldoOtomatis();
       renderKasirNoreffList();
-
-      toast(
-        "Import selesai! Total data baru: " + tempDetilKasirDBF.length,
-        "ok",
-      );
+      toast("Berhasil import " + tempDetilKasirDBF.length + " data!", "ok");
     } catch (err) {
       console.error(err);
       toast("Gagal baca file DBF: " + err.message, "err");
