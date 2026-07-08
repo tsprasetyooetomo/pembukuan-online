@@ -1399,7 +1399,7 @@ function renderMutasiKasir() {
     '<div style="display:flex; gap:.4rem; align-items:center;">' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Tambah Header Baru</button>' +
     '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan</button>' +
-    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
+    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="executeHapusMutasiPerCabang()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
     // ✅ TOMBOL IMPORT DBF YANG SUDAH DIPERBAIKI (MENJALANKAN POPUP)
     "</div>" + // <-- Penutup div kelompok tombol
     "</div>" + // <-- Penutup div baris header atas
@@ -2163,30 +2163,39 @@ async function executeHapusSeReffKasir() {
   if (!val) return toast("No Reff kosong", "err");
 
   try {
+    // ====================================================================
+    // 1. HAPUS DI SUPABASE DULU LEWAT API
+    // ====================================================================
+    var response = await fetch("/api/clear-all-data", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        storeName: "mutasikasir",
+        noreff: val, // Kirim parameter noreff ke server
+      }),
+    });
+
+    var result = await response.json();
+    if (!response.ok || !result.success) {
+      throw new Error(result.message || "Gagal menghubungi server");
+    }
+
+    // ====================================================================
+    // 2. HAPUS DARI CACHE LOKAL (BIAR TAMPILAN LANGSUNG HILANG)
+    // ====================================================================
     var dataStore = Array.isArray(DBCache.mutasikasir)
       ? DBCache.mutasikasir
       : [];
-    var dataHapus = dataStore.filter(function (item) {
-      return (item.noreff || "").toLowerCase() === val.toLowerCase();
-    });
 
-    var berhasilHapus = 0;
-    for (var i = 0; i < dataHapus.length; i++) {
-      try {
-        await db.del("mutasikasir", dataHapus[i].id);
-        berhasilHapus++;
-      } catch (err) {
-        console.error("Gagal hapus:", err);
-      }
-    }
-
-    // Hapus dari cache lokal
     DBCache.mutasikasir = dataStore.filter(function (item) {
       return (item.noreff || "").toLowerCase() !== val.toLowerCase();
     });
 
     closeModal();
-    toast("Berhasil menghapus " + berhasilHapus + " data se-Reff!", "ok");
+    toast(
+      `✅ Berhasil menghapus ${result.changes} data se-Reff ${val} dari Server!`,
+      "ok",
+    );
 
     // Cek jika noreff yang dihapus adalah noreff yang sedang aktif di layar
     if (val.toLowerCase() === _kasirSession.noreff.toLowerCase()) {
@@ -2194,6 +2203,11 @@ async function executeHapusSeReffKasir() {
     } else {
       renderKasirDetilTable();
       updateKasirHeaderNominal();
+      await hitungSaldoOtomatis();
+
+      if (typeof buildGroupedNoreff === "function") {
+        buildGroupedNoreff();
+      }
       renderKasirNoreffList();
     }
   } catch (err) {
@@ -2635,9 +2649,9 @@ async function executeHapusMutasiPerCabang() {
           body: JSON.stringify({
             storeName: "mutasikasir",
             cabang: cbg,
+            // ✅ GANTI NAMA PARAMETER MENJADI 'tahun' DAN 'bulan' (SESUAI SERVER)
             tahun: thn,
             bulan: bln,
-            // Tidak mengirim 'masa' karena mutasikasir tidak pakai kolom fisik masa
           }),
         });
 
