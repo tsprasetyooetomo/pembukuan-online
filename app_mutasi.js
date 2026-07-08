@@ -2400,8 +2400,10 @@ async function handleImportDBF(event) {
 
         if (dataDihapus.length > 0) {
           for (var d = 0; d < dataDihapus.length; d++) {
-            // ✅ PERBAIKAN: GANTI db.delete MENJADI db.remove
-            await db.remove("mutasikasir", dataDihapus[d].id);
+            // ✅ GANTI DENGAN CARA DELETE PAKE FILTER ID (Cara paling aman)
+            await db.delete("mutasikasir", function (row) {
+              return row.id === dataDihapus[d].id;
+            });
           }
 
           DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
