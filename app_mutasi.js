@@ -2405,13 +2405,16 @@ async function handleImportDBF(event) {
             return item.tanggal && item.tanggal.startsWith(prefix); // Hapus berdasarkan bulan & tahun
           }
         });
-
         if (dataDihapus.length > 0) {
+          // ✅ GUNAKAN CARA DELETE DEXIE.JS (db.namatabel.delete)
+          var tableMutasi = db.mutasikasir;
           for (var d = 0; d < dataDihapus.length; d++) {
-            await db.delete("mutasikasir", dataDihapus[d].id);
+            await tableMutasi.delete(dataDihapus[d].id);
           }
+
+          // Hapus dari Cache Memory
           DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
-            if (item.cabang !== cabTerpilih) return true; // Tetap simpan yang bukan cabang ini
+            if (item.cabang !== cabTerpilih) return true;
 
             if (bulan === "" && tahun === "") return false;
             if (bulan === "" && tahun !== "")
