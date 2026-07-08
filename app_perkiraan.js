@@ -1173,6 +1173,8 @@ async function renderSaldoKasir() {
   // ... kode atas tetap sama ...
 
   // GANTI BAGIAN INI SAJA:
+  // ... kode atas tetap sama ...
+
   return (
     bulkBarHTML("saldoKasir", "saldoKasir") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
@@ -1194,19 +1196,12 @@ async function renderSaldoKasir() {
         foot: foot,
         bulkStore: "saldoKasir",
         bulkIds: idsLimit,
-        // ✅ FIX UTAMA: Timpa fungsi actions dengan pemanggilan langsung
+
+        // ✅ PERBAIKAN: Ganti dengan memanggil crudActions() persis seperti di halaman Cabang
         actions: function (r, i) {
-          var id = dataLimit[i].id;
-          // Langsung panggil formSaldoKasir(id) saat tombol edit diklik
-          return (
-            '<button type="button" class="btn btn-y" onclick="formSaldoKasir(\'' +
-            id +
-            '\')" title="Edit"><i class="fa-solid fa-pen-to-square"></i></button>' +
-            '<button type="button" class="btn btn-r" onclick="deleteData(\'saldoKasir\', \'' +
-            id +
-            '\')" title="Hapus"><i class="fa-solid fa-trash"></i></button>'
-          );
+          return crudActions(dataLimit[i].id, "saldoKasir");
         },
+
         emptyMsg: "Belum ada data Saldo Kasir",
       }),
     )
