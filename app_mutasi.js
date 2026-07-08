@@ -1421,6 +1421,10 @@ function renderMutasiKasir() {
     '<div class="fg" style="flex:1"><label>Saldo Awal (Otomatis)</label><input id="mk_saldo_awal" class="in" readonly style="background:var(--bg);color:var(--accent);font-weight:700;" value="Mencari..."></div>' +
     '<div class="fg" style="flex:1"><label>Saldo Akhir (Auto-Hitung)</label><input id="mk_saldo_akhir" class="in" readonly style="background:var(--bg);color:var(--danger);font-weight:700;" value="0"></div>' +
     "</div>" +
+    '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.3rem;">' +
+    '<div style="font-size:.85rem;font-weight:700">Riwayat Detil Transaksi Kasir</div>' +
+    '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="promptHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data Per Cabang</button>' +
+    "</div>" +
     '<div style="margin-top:.8rem;">' +
     '<table class="tbl-excel">' +
     "<thead>" +
@@ -2472,4 +2476,87 @@ async function handleImportDBF(event) {
     }
   };
   reader.readAsArrayBuffer(file);
+}
+// ✅ FUNGSI POPUP HAPUS DATA MUTASI KASIR PER CABANG
+function promptHapusMutasiPerCabang() {
+  var cabOpts = getCabangOpts($("mk_cab") ? $("mk_cab").value : "");
+
+  var html = `
+    <div style="padding:1rem; font-size:.85rem;">
+      <div style="margin-bottom:1rem; color:var(--danger); font-weight:700;">
+        <i class="fa-solid fa-triangle-exclamation"></i> Peringatan: Hapus Seluruh Data Kasir
+      </div>
+      <p style="margin-bottom:1rem; font-size:.8rem; color:var(--muted);">Tindakan ini akan menghapus <b>SELURUH</b> riwayat transaksi kasir pada cabang yang dipilih secara permanen dari database.</p>
+      
+      <div class="fg" style="margin-bottom:1.2rem;">
+        <label>Pilih Cabang yang akan dikosongkan:</label>
+        <select id="opt_hapus_cab" class="in">${cabOpts}</select>
+      </div>
+
+      <div style="display:flex; gap:.5rem; justify-content:flex-end;">
+        <button class="btn btn-sm" onclick="closeModal()">Batal</button>
+        <button class="btn btn-sm" style="background:var(--danger); color:#fff; border-color:var(--danger);" onclick="executeHapusMutasiPerCabang()">
+          <i class="fa-solid fa-trash-can"></i> Ya, Hapus Sekarang
+        </button>
+      </div>
+    </div>
+  `;
+
+  if (typeof showModal === "function")
+    showModal("Hapus Data Mutasi Kasir", html);
+  else if (typeof openModal === "function")
+    openModal("Hapus Data Mutasi Kasir", html);
+  else alert("Fungsi Modal tidak ditemukan.");
+}
+
+// ✅ FUNGSI EKSEKUSI HAPUS DATA
+async function executeHapusMutasiPerCabang() {
+  var cabDihapus = $("opt_hapus_cab") ? $("opt_hapus_cab").value : "";
+  if (!cabDihapus) return toast("Pilih cabang terlebih dahulu!", "err");
+
+  try {
+    // 1. Cari data di cache yang cabangnya cocok
+    var dataDihapus = DBCache.mutasikasir.filter(function (item) {
+      return item.cabang === cabDihapus;
+    });
+
+    if (dataDihapus.length === 0) {
+      if (typeof closeModal === "function") closeModal();
+      return toast("Tidak ada data kasir untuk cabang " + cabDihapus, "ok");
+    }
+
+    // 2. Hapus dari Database satu per satu
+    for (var d = 0; d < dataDihapus.length; d++) {
+      // Sesuaikan dengan perintah delete yang work di sistem kamu (db.delete / db.remove)
+      await db.delete("mutasikasir", function (row) {
+        return row.id === dataDihapus[d].id;
+      });
+    }
+
+    // 3. Hapus dari Cache Memory
+    DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
+      return item.cabang !== cabDihapus;
+    });
+
+    // 4. Tutup Modal & Refresh Tampilan
+    if (typeof closeModal === "function") closeModal();
+
+    renderKasirDetilTable();
+    updateKasirHeaderNominal();
+    await hitungSaldoOtomatis();
+
+    if (typeof buildGroupedNoreff === "function") buildGroupedNoreff();
+    renderKasirNoreffList();
+
+    toast(
+      "Berhasil menghapus " +
+        dataDihapus.length +
+        " data kasir cabang " +
+        cabDihapus,
+      "ok",
+    );
+  } catch (err) {
+    console.error(err);
+    toast("Gagal menghapus data: " + err.message, "err");
+  }
 }
