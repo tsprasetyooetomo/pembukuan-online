@@ -1125,16 +1125,17 @@ function getCabangFilterHTML() {
 }
 
 PANEL_MAP.saldoKasir = renderSaldoKasir;
+
 // ========================================================
-// 1. RENDER SALDO KASIR (Termasuk Pencarian Saldo Awal Otomatis)
+// 1. RENDER SALDO KASIR
 async function renderSaldoKasir() {
-  var rawData = DBCache.saldoKasir || [];
+  // ✅ FIX 1: Standarisasi pakai "saldoKasirawal" agar sesuai dengan API & IndexedDB
+  var rawData = DBCache.saldoKasirawal || [];
   var data = filterByCabang(rawData);
 
   data.sort(function (a, b) {
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
-
     if (tglA < tglB) return 1;
     if (tglA > tglB) return -1;
     return 0;
@@ -1170,10 +1171,6 @@ async function renderSaldoKasir() {
     "-",
     '<span style="font-weight:bold;">' + formatUang(totalSaldo) + "</span>",
   ];
-  // ... kode atas tetap sama ...
-
-  // GANTI BAGIAN INI SAJA:
-  // ... kode atas tetap sama ...
 
   return (
     bulkBarHTML("saldoKasirawal", "saldoKasirawal") +
@@ -1186,9 +1183,9 @@ async function renderSaldoKasir() {
     " record" +
     "</div>" +
     '<div style="display:flex;gap:.4rem">' +
-    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasir\', \'Data_SaldoKasir\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
-    '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasir\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
-    '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasir\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
+    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasirawal\', \'Data_SaldoKasir\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
+    '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasirawal\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
+    '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasirawal\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
     '<button type="button" class="btn btn-a" onclick="formSaldoKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
@@ -1196,27 +1193,27 @@ async function renderSaldoKasir() {
         foot: foot,
         bulkStore: "saldoKasirawal",
         bulkIds: idsLimit,
-
-        // ✅ PERBAIKAN: Ganti dengan memanggil crudActions() persis seperti di halaman Cabang
         actions: function (r, i) {
           return crudActions(dataLimit[i].id, "saldoKasirawal");
         },
-
         emptyMsg: "Belum ada data Saldo Kasir awal",
       }),
     )
   );
 }
 
+// ========================================================
+// 2. FORM SALDO KASIR
 function formSaldoKasir(id) {
   var isEdit = !!id;
+
+  // ✅ FIX 2: Cari data dari DBCache yang sudah distandarisasi
   var data = isEdit
-    ? (DBCache.saldoKasir || []).find(function (d) {
+    ? (DBCache.saldoKasirawal || []).find(function (d) {
         return d.id === id;
       }) || {}
     : {};
 
-  // ✅ FIX 1: Saat edit, ambil nilai "akhir" sebagai nilai yang ditampilkan di form, bukan "awal" (karena awal selalu 0)
   var displaySaldo = isEdit ? data.akhir || 0 : 0;
 
   var html =
@@ -1243,23 +1240,25 @@ function formSaldoKasir(id) {
   openModal(isEdit ? "Edit Saldo Kasir" : "Tambah Saldo Kasir", html, foot);
 }
 
+// ========================================================
+// 3. SAVE SALDO KASIR
 async function saveSaldoKasir(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
   try {
     var cabang = $("fSkCab").value;
     var tgl_awal = $("fSkTgl").value;
+    var akhir = num($("fSkAwal").value);
+    var awal = 0;
     var vdb = 0;
     var vcr = 0;
-    var akhir = num($("fSkAwal").value); // Nilai dari input form
-    var awal = 0;
 
-    // ✅ FIX 2: Perbaiki pesan error agar sesuai dengan field yang ada di form
     if (!tgl_awal) {
       return toast("Tanggal wajib diisi", "err");
     }
 
     if (editId) {
+      // ✅ FIX 3: Ambil data dari IndexedDB "saldoKasirawal" (bukan saldoKasir)
       var r = await db.get("saldoKasirawal", editId);
       if (r) {
         var updated = Object.assign({}, r, {
@@ -1285,11 +1284,13 @@ async function saveSaldoKasir(e, editId) {
           throw new Error(errJson.error || "Gagal update ke server backend");
         }
 
-        await db.put("saldoKasir", updated);
+        // ✅ FIX 4: Put ke IndexedDB "saldoKasirawal"
+        await db.put("saldoKasirawal", updated);
 
-        var idx = DBCache.saldoKasir.findIndex((x) => x.id === editId);
+        // ✅ FIX 5: Update cache "saldoKasirawal"
+        var idx = DBCache.saldoKasirawal.findIndex((x) => x.id === editId);
         if (idx !== -1) {
-          DBCache.saldoKasir[idx] = updated;
+          DBCache.saldoKasirawal[idx] = updated;
         }
       } else {
         throw new Error("Data lama tidak ditemukan di DB lokal!");
@@ -1319,8 +1320,9 @@ async function saveSaldoKasir(e, editId) {
         );
       }
 
+      // ✅ FIX 6: Tambah ke IndexedDB & Cache "saldoKasirawal"
       await db.add("saldoKasirawal", newObj);
-      DBCache.saldoKasir.push(newObj);
+      DBCache.saldoKasirawal.push(newObj);
     }
 
     setTimeout(async function () {
