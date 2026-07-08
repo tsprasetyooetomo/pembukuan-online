@@ -1376,7 +1376,8 @@ function renderMutasiKasir() {
       ? DBCache.cabang[0].kode || "Pusat"
       : "Pusat";
 
-  return (
+  // ✅ SIMPAN HTML KE VARIABLE DULU (AGAR EVENT LISTENER BISA DIJALANKAN)
+  var html =
     "<style>" +
     ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
     ".tbl-excel { width: 100%; border-collapse: collapse; border: 1px solid var(--brd); border-radius: 6px; overflow: hidden; }" +
@@ -1395,14 +1396,12 @@ function renderMutasiKasir() {
     // BARIS HEADER ATAS
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)"><i class="fa-solid fa-file-circle-plus"></i> Transaksi Kasir</div>' +
-    // KELOMPOK TOMBOL (DIBUNGKUS DALAM 1 DIV FLEX)
     '<div style="display:flex; gap:.4rem; align-items:center;">' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Tambah Header Baru</button>' +
     '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan</button>' +
-    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick=" promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
-    // ✅ TOMBOL IMPORT DBF YANG SUDAH DIPERBAIKI (MENJALANKAN POPUP)
-    "</div>" + // <-- Penutup div kelompok tombol
-    "</div>" + // <-- Penutup div baris header atas
+    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
+    "</div>" +
+    "</div>" +
     // BARIS INPUT DETAIL DAN TABEL
     '<div style="display:flex;gap:1rem">' +
     '<div style="flex:3">' +
@@ -1420,11 +1419,16 @@ function renderMutasiKasir() {
     '<div class="fg" style="flex:1"><label>Saldo Awal (Otomatis)</label><input id="mk_saldo_awal" class="in" readonly style="background:var(--bg);color:var(--accent);font-weight:700;" value="Mencari..."></div>' +
     '<div class="fg" style="flex:1"><label>Saldo Akhir (Auto-Hitung)</label><input id="mk_saldo_akhir" class="in" readonly style="background:var(--bg);color:var(--danger);font-weight:700;" value="0"></div>' +
     "</div>" +
+    // JUDUL TABEL + TOMBOL AKSI
     '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.3rem;">' +
     '<div style="font-size:.85rem;font-weight:700">Riwayat Detil Transaksi Kasir</div>' +
+    '<div style="display:flex; gap:.4rem;">' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportKasirDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
-    '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="executeHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data Per Cabang</button>' +
+    // ✅ DIPERBAIKI: executeHapus... DIUBAH JADI promptHapus...
+    '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="promptHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data</button>' +
     "</div>" +
+    "</div>" +
+    // TABEL INPUT EXCEL
     '<div style="margin-top:.8rem;">' +
     '<table class="tbl-excel">' +
     "<thead>" +
@@ -1442,17 +1446,14 @@ function renderMutasiKasir() {
     "</tbody>" +
     "</table>" +
     "</div>" +
-    '<div style="font-size:.85rem;font-weight:700;margin-top:1rem;margin-bottom:.4rem">Riwayat Detil Transaksi Kasir</div>' +
+    // ✅ YANG DUPLIKAT DIHAPUS (Tidak ada tulisan "Riwayat Detil" kedua kalinya di sini)
     '<div id="mutKasirDetilTbl" class="tw"></div>' +
     "</div>" +
     // KOLOM KANAN (NOREFF LIST)
-
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
-    // ✅ TAMBAHKAN FILTER CABANG DI ATAS SINI (BARIS BARU)
     '<div class="fg" style="margin-bottom:.4rem"><label style="font-size:.65rem">Cabang</label><select id="mk_filter_cab" class="in" style="font-size:.75rem;padding:3px 5px">' +
     getCabangOpts(firstCab) +
     "</select></div>" +
-    // LANJUTAN BULAN & TAHUN DI BAWAHNYA
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
     '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="mk_filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
     generateBulanOpts("") +
@@ -1464,9 +1465,10 @@ function renderMutasiKasir() {
     '<div id="mutKasirNoreffList" style="height:180px;overflow-y:auto;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px"><div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div></div>' +
     "</div>" +
     "</div>" +
-    "</div>"
-  );
-  // ✅ EVENT LISTENER UNTUK COMBOBOX FILTER (LETAKKAN DI PALING BAWAH SEBELUM TUTUP KURUNG renderMutasiKasir)
+    "</div>";
+
+  // ✅ PERBAIKAN: RETURN HTML DULU, BARU JALANKAN EVENT LISTENER
+  // Dengan cara ini, kode setTimeout pasti akan dijalankan!
   setTimeout(function () {
     if ($("mk_filter_cab"))
       $("mk_filter_cab").onchange = function () {
@@ -1481,6 +1483,8 @@ function renderMutasiKasir() {
         renderKasirNoreffList();
       };
   }, 100);
+
+  return html;
 }
 function initMutasiKasirState() {
   _kasirSession = { noreff: "", isLocked: false };
