@@ -658,7 +658,7 @@ var MENUS = [
     group: "LAPORAN KAS",
     icon: "fa-cash-register",
     items: [
-      { id: "kaskasir", label: "Kas Harian Kasir", icon: "fa-calendar-day" },
+      { id: "saldoKasir", label: "Kas Harian Kasir", icon: "fa-calendar-day" },
       { id: "kasHarian", label: "Kas Harian", icon: "fa-calendar-day" },
       { id: "inputHarian", label: "Input Harian", icon: "fa-keyboard" },
     ],
