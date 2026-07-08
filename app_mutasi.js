@@ -2513,17 +2513,14 @@ function promptHapusMutasiPerCabang() {
     openModal("Hapus Data Mutasi Kasir", html);
   else alert("Fungsi Modal tidak ditemukan.");
 }
-
-// ✅ FUNGSI EKSEKUSI HAPUS DATA (SUDAH DIPERBAIKI ID DAN PERINTAH DB-NYA)
+// ✅ FUNGSI EKSEKUSI HAPUS YANG SUDAH DIPERBAIKI (ANTI GAGAL REFRESH)
 async function executeHapusMutasiPerCabang() {
-  // 1. PERBAIKAN ID: Harus sama persis dengan id di dalam HTML promptHapusMutasiPerCabang
   var cabDihapus = $("opt_hapus_cab") ? $("opt_hapus_cab").value : "";
 
   if (!cabDihapus) {
     return toast("Pilih cabang terlebih dahulu!", "err");
   }
 
-  // Tanya konfirmasi sekali lagi untuk keamanan
   if (
     !confirm(
       "APAKAH ANDA YAKIN?\n\nSemua riwayat transaksi kasir untuk cabang [" +
@@ -2531,36 +2528,59 @@ async function executeHapusMutasiPerCabang() {
         "] akan dihapus PERMANEN.",
     )
   ) {
-    return; // Batal jika tidak klik OK
+    return;
   }
 
   try {
+    if (typeof closeModal === "function") closeModal();
     toast("Menghapus data cabang " + cabDihapus + "...", "inf");
 
-    // 2. Cari data di cache yang cabangnya cocok
+    // 1. Cari data di cache (Dibuat longgar, antara "04" atau 4 akan ketemu)
     var dataDihapus = DBCache.mutasikasir.filter(function (item) {
-      return item.cabang === cabDihapus;
+      return String(item.cabang).trim() === String(cabDihapus).trim();
     });
 
     if (dataDihapus.length === 0) {
-      if (typeof closeModal === "function") closeModal();
-      return toast("Tidak ada data kasir untuk cabang " + cabDihapus, "ok");
+      return toast(
+        "Tidak ada data kasir untuk cabang " + cabDihapus + " di memori.",
+        "ok",
+      );
     }
 
-    // 3. Hapus dari Database satu per satu
+    // 2. Hapus dari Database satu per satu
     for (var d = 0; d < dataDihapus.length; d++) {
-      // ✅ PERBAIKAN KEDUA: GANTI db.delete MENJADI db.remove (SESUAI SISTEMMU)
-      await db.del("mutasikasir", dataDihapus[d].id);
+      var idTarget = dataDihapus[d].id;
+
+      // Coba 3 metode hapus yang umum di sistem custom, biar pasti kehapus
+      if (typeof db.delete === "function") {
+        await db.delete("mutasikasir", function (row) {
+          return row.id === idTarget;
+        });
+      } else if (typeof db.remove === "function") {
+        await db.remove("mutasikasir", function (row) {
+          return row.id === idTarget;
+        });
+      } else if (typeof db.del === "function") {
+        await db.del("mutasikasir", function (row) {
+          return row.id === idTarget;
+        });
+      }
     }
 
-    // 4. Hapus dari Cache Memory
+    // 3. Bersihkan Cache Memori
     DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
-      return item.cabang !== cabDihapus;
+      return String(item.cabang).trim() !== String(cabDihapus).trim();
     });
 
-    // 5. Tutup Modal & Refresh Tampilan
-    if (typeof closeModal === "function") closeModal();
+    // ✅ 4. JAMINAN REFRESH: Paksa baca ulang data mutasi kasir dari Database aslinya
+    // (Ganti "mutasikasir" dengan variabel pemanggil DB kamu jika berbeda)
+    if (typeof db.getAll === "function") {
+      DBCache.mutasikasir = await db.getAll("mutasikasir");
+    } else if (typeof db.getAllAsync === "function") {
+      DBCache.mutasikasir = await db.getAllAsync("mutasikasir");
+    }
 
+    // 5. Render Ulang Tampilan
     renderKasirDetilTable();
     updateKasirHeaderNominal();
     await hitungSaldoOtomatis();
@@ -2569,7 +2589,10 @@ async function executeHapusMutasiPerCabang() {
     renderKasirNoreffList();
 
     toast(
-      "Berhasil menghapus " + dataDihapus.length + " data cabang " + cabDihapus,
+      "✅ Berhasil menghapus " +
+        dataDihapus.length +
+        " data cabang " +
+        cabDihapus,
       "ok",
     );
   } catch (err) {
@@ -2577,6 +2600,7 @@ async function executeHapusMutasiPerCabang() {
     toast("Gagal menghapus data: " + err.message, "err");
   }
 }
+
 // ✅ FUNGSI UNTUK MENAMPILKAN/MENGHILANGKAN INDIKATOR PROSES
 function showImportLoader(show, text = "Sedang Memproses Data...") {
   var existing = document.getElementById("global_import_loader");
