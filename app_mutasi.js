@@ -2514,18 +2514,17 @@ function promptHapusMutasiPerCabang() {
   else alert("Fungsi Modal tidak ditemukan.");
 }
 // ✅ FUNGSI EKSEKUSI HAPUS YANG SUDAH DIPERBAIKI (ANTI GAGAL REFRESH)
+// ✅ FUNGSI HAPUS YANG SUDAH TERHUBUNG SUPABASE
 async function executeHapusMutasiPerCabang() {
   var cabDihapus = $("opt_hapus_cab") ? $("opt_hapus_cab").value : "";
 
-  if (!cabDihapus) {
-    return toast("Pilih cabang terlebih dahulu!", "err");
-  }
+  if (!cabDihapus) return toast("Pilih cabang terlebih dahulu!", "err");
 
   if (
     !confirm(
-      "APAKAH ANDA YAKIN?\n\nSemua riwayat transaksi kasir untuk cabang [" +
+      "APAKAH ANDA YAKIN?\n\nSemua data kasir cabang [" +
         cabDihapus +
-        "] akan dihapus PERMANEN.",
+        "] akan dihapus dari PERANGKAT dan SUPABASE.",
     )
   ) {
     return;
@@ -2533,54 +2532,60 @@ async function executeHapusMutasiPerCabang() {
 
   try {
     if (typeof closeModal === "function") closeModal();
-    toast("Menghapus data cabang " + cabDihapus + "...", "inf");
+    toast("Menghubungi Supabase, mohon tunggu...", "inf");
 
-    // 1. Cari data di cache (Dibuat longgar, antara "04" atau 4 akan ketemu)
-    var dataDihapus = DBCache.mutasikasir.filter(function (item) {
-      return String(item.cabang).trim() === String(cabDihapus).trim();
-    });
+    // ==========================================================
+    // PILIH SALAH SATU METODE DI BAWAH INI SESUAI SISTEM KAMU
+    // ==========================================================
 
-    if (dataDihapus.length === 0) {
-      return toast(
-        "Tidak ada data kasir untuk cabang " + cabDihapus + " di memori.",
-        "ok",
-      );
+    // --- METODE 1: Jika kamu punya variabel koneksi supabase-js ---
+    // (Hapus tanda // di baris bawah jika pakai metode ini)
+    /*
+    const { data, error } = await supabase
+      .from('mutasikasir')
+      .delete()
+      .eq('cabang', cabDihapus);
+    
+    if (error) throw new Error(error.message);
+    */
+
+    // --- METODE 2: Jika sistem kamu punya fungsi API wrapper (Cek di app_core.js) ---
+    // (Hapus tanda // di baris bawah jika pakai metode ini)
+    /*
+    await api('DELETE', '/mutasikasir?cabang=eq.' + cabDihapus);
+    */
+
+    // --- METODE 3: Jika TIDAK ADA DARI DUANYA, GUNAKAN INI (Fetch API Langsung) ---
+    // Kamu WAJIB ganti 'URL_SUPABASE_MU' dan 'API_KEY_MU' dibawah ini
+    var SUPABASE_URL = "https://xxx.supabase.co"; // Ganti dengan URL Supabase kamu
+    var SUPABASE_KEY = "eyJhbGci..."; // Ganti dengan Anon Key / Service Role Key Supabase kamu
+
+    var response = await fetch(
+      SUPABASE_URL + "/rest/v1/mutasikasir?cabang=eq." + cabDihapus,
+      {
+        method: "DELETE",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: "Bearer " + SUPABASE_KEY,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    if (!response.ok) {
+      var errText = await response.text();
+      throw new Error("Supabase error: " + errText);
     }
+    // ==========================================================
 
-    // 2. Hapus dari Database satu per satu
-    for (var d = 0; d < dataDihapus.length; d++) {
-      var idTarget = dataDihapus[d].id;
+    // Setelah berhasil menghapus di Supabase, baru kita bersihkan data Lokal (Browser)
+    toast("Supabase berhasil. Membersihkan data lokal...", "inf");
 
-      // Coba 3 metode hapus yang umum di sistem custom, biar pasti kehapus
-      if (typeof db.delete === "function") {
-        await db.delete("mutasikasir", function (row) {
-          return row.id === idTarget;
-        });
-      } else if (typeof db.remove === "function") {
-        await db.remove("mutasikasir", function (row) {
-          return row.id === idTarget;
-        });
-      } else if (typeof db.del === "function") {
-        await db.del("mutasikasir", function (row) {
-          return row.id === idTarget;
-        });
-      }
-    }
-
-    // 3. Bersihkan Cache Memori
     DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
       return String(item.cabang).trim() !== String(cabDihapus).trim();
     });
 
-    // ✅ 4. JAMINAN REFRESH: Paksa baca ulang data mutasi kasir dari Database aslinya
-    // (Ganti "mutasikasir" dengan variabel pemanggil DB kamu jika berbeda)
-    if (typeof db.getAll === "function") {
-      DBCache.mutasikasir = await db.getAll("mutasikasir");
-    } else if (typeof db.getAllAsync === "function") {
-      DBCache.mutasikasir = await db.getAllAsync("mutasikasir");
-    }
-
-    // 5. Render Ulang Tampilan
+    // Render Ulang Tampilan
     renderKasirDetilTable();
     updateKasirHeaderNominal();
     await hitungSaldoOtomatis();
@@ -2589,15 +2594,14 @@ async function executeHapusMutasiPerCabang() {
     renderKasirNoreffList();
 
     toast(
-      "✅ Berhasil menghapus " +
-        dataDihapus.length +
-        " data cabang " +
-        cabDihapus,
+      "✅ Berhasil menghapus SELURUH data cabang " +
+        cabDihapus +
+        " (Lokal & Supabase)",
       "ok",
     );
   } catch (err) {
     console.error(err);
-    toast("Gagal menghapus data: " + err.message, "err");
+    toast("Gagal menghapus di Supabase: " + err.message, "err");
   }
 }
 
