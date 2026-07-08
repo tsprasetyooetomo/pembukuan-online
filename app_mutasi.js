@@ -1743,9 +1743,9 @@ async function hapusKasirDetil(id) {
   await hitungSaldoOtomatis(); // ✅ Update hitungan saldo setelah hapus detil
   renderKasirNoreffList();
 }
-
 function renderKasirNoreffList() {
   var box = $("mutKasirNoreffList");
+  var countBox = $("mutKasirNoreffCount"); // Sesuaikan ID ini jika berbeda
   if (!box) return;
 
   // ✅ 1. AMBIL NILAI DARI KETIGA COMBOBOX
@@ -1757,14 +1757,17 @@ function renderKasirNoreffList() {
   var safeBulan = filterBulan ? filterBulan.padStart(2, "0") : "";
 
   var filtered = data.filter(function (t) {
-    // ✅ 2. PENGAMAN: Pastikan tanggal ada dan formatnya benar sebelum di-substring
-    if (!t.tanggal || typeof t.tanggal !== "string" || t.tanggal.length < 7)
+    // ✅ 2. PENGAMAN STRUKTUR DATA (Mengantisipasi data flat atau data JSONB)
+    var d = t.data || t;
+
+    if (!d.noreff || !d.tanggal) return false;
+    if (typeof d.tanggal !== "string" || d.tanggal.length < 7) return false;
+
+    var ym = d.tanggal.substring(0, 7);
+
+    // ✅ 3. FILTER CABANG YANG FLEKSIBEL
+    if (filterCabang !== "" && String(d.cabang || "") !== String(filterCabang))
       return false;
-
-    var ym = t.tanggal.substring(0, 7); // Aman sekarang
-
-    // ✅ 3. TAMBAHKAN FILTER CABANG
-    if (filterCabang && t.cabang !== filterCabang) return false;
 
     // Filter Bulan & Tahun
     if (safeBulan && filterTahun) return ym === filterTahun + "-" + safeBulan;
@@ -1774,51 +1777,110 @@ function renderKasirNoreffList() {
     return true;
   });
 
-  var rows = [];
-  var uniqueNoreff = {};
+  // ✅ 4. TAMPILAN JIKA FILTER TIDAK MENEMUKAN DATA
+  if (filtered.length === 0) {
+    box.innerHTML =
+      '<div style="padding:.8rem;color:var(--muted);text-align:center;font-size:.75rem">' +
+      '<i class="fa-solid fa-filter-circle-xmark"></i> Tidak ada data' +
+      "<br><small>Cabang: " +
+      esc(filterCabang || "Semua") +
+      " | Bulan: " +
+      esc(filterBulan || "Semua") +
+      " | Tahun: " +
+      esc(filterTahun || "Semua") +
+      "</small></div>";
+    if (countBox) countBox.textContent = "";
+    return;
+  }
 
+  // ✅ 5. GROUPING DATA PER NOREFF (SAMA PERSIS DENGAN KODE TRANSASKI)
+  var uniqueNoreff = {};
   filtered.forEach(function (t) {
-    if (!uniqueNoreff[t.noreff]) {
-      uniqueNoreff[t.noreff] = {
-        tanggal: t.tanggal,
+    var d = t.data || t;
+
+    if (d.noreff && !uniqueNoreff[d.noreff]) {
+      uniqueNoreff[d.noreff] = {
+        tanggal: d.tanggal || "-",
+        jumlahDetil: 0, // Menyimpan berapa baris DBF di tanggal ini
         totalRp: 0,
-        cabang: t.cabang,
+        cabang: d.cabang || "-",
       };
     }
-    uniqueNoreff[t.noreff].totalRp += num(t.total);
+    if (uniqueNoreff[d.noreff]) {
+      uniqueNoreff[d.noreff].jumlahDetil++;
+      uniqueNoreff[d.noreff].totalRp += num(d.total);
+    }
   });
 
-  Object.keys(uniqueNoreff).forEach(function (nref) {
-    var item = uniqueNoreff[nref];
-    var isActive = nref === _kasirSession.noreff;
-
-    rows.push(
-      '<tr style="cursor:pointer;border-bottom:1px solid var(--brd);' +
-        (isActive ? "background:var(--accent);color:#fff;" : "") +
-        '" onclick="onKasirNoreffClicked(\'' +
-        nref +
-        "')\">" +
-        '<td style="padding:4px;font-size:.7rem;font-family:monospace">' +
-        esc(nref) +
-        "<br><small>" +
-        esc(item.tanggal) +
-        "</small></td>" +
-        '<td style="padding:4px;font-size:.7rem;text-align:right;font-weight:600">' +
-        fmtN(item.totalRp) +
-        "</td>" +
-        "</tr>",
-    );
+  // ✅ 6. URUTKAN BERDASARKAN TANGGAL/NOREFF (Menggunakan localeCompare numeric)
+  var arrNoreff = Object.keys(uniqueNoreff).map(function (noreff) {
+    return Object.assign({ noreff: noreff }, uniqueNoreff[noreff]);
   });
 
-  if (rows.length === 0) {
-    box.innerHTML =
-      '<div style="padding:1rem;color:var(--muted);text-align:center">Tidak ada data</div>';
-  } else {
-    box.innerHTML =
-      '<table style="width:100%;border-collapse:collapse">' +
-      rows.join("") +
-      "</table>";
-  }
+  arrNoreff.sort(function (a, b) {
+    // Karena format noreff KASIR-04-2026-01-06-XXXX, ambil 8 karakter terakhir (tgl+random)
+    var suffixA = String(a.noreff || "").slice(-8);
+    var suffixB = String(b.noreff || "").slice(-8);
+    return suffixA.localeCompare(suffixB, undefined, { numeric: true });
+  });
+
+  // ✅ 7. RENDER TABEL HTML YANG RAPI (ADA THEAD & STICKY)
+  var html = '<table style="width:100%;border-collapse:collapse">';
+  html +=
+    '<thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1">';
+  html +=
+    '<th style="padding:4px;text-align:left;font-size:.65rem">No Ref</th>';
+  html +=
+    '<th style="padding:4px;text-align:center;font-size:.65rem;width:30px">D</th>';
+  html +=
+    '<th style="padding:4px;text-align:right;font-size:.65rem;width:65px">Total</th>';
+  html += "</tr></thead><tbody>";
+
+  arrNoreff.forEach(function (item) {
+    // Gunakan _kasirSession (sesuaikan jika variabel session kasir Anda beda nama)
+    var isActive = item.noreff === _kasirSession.noreff;
+    var rowStyle =
+      "cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s;";
+
+    if (isActive) {
+      rowStyle += "background:var(--accent);color:#fff;font-weight:600;";
+    }
+
+    html +=
+      '<tr style="' +
+      rowStyle +
+      '" onclick="onKasirNoreffClicked(\'' +
+      esc(item.noreff).replace(/'/g, "\\'") +
+      "')\" " +
+      (isActive ? 'data-active="1"' : "") +
+      ">";
+
+    html +=
+      '<td style="padding:4px;font-size:.7rem;font-family:monospace">' +
+      esc(item.noreff) +
+      (item.cabang
+        ? ' <small style="opacity:0.7">(' + esc(item.cabang) + ")</small>"
+        : "") +
+      "</td>";
+
+    html +=
+      '<td style="padding:4px;font-size:.65rem;text-align:center">' +
+      item.jumlahDetil +
+      "</td>";
+
+    html +=
+      '<td style="padding:4px;font-size:.7rem;text-align:right;font-weight:600">' +
+      fmtN(item.totalRp) +
+      "</td>";
+
+    html += "</tr>";
+  });
+
+  html += "</tbody></table>";
+  box.innerHTML = html;
+
+  // ✅ 8. UPDATE COUNT BOX
+  if (countBox) countBox.textContent = arrNoreff.length + " kasir";
 }
 
 function onKasirNoreffClicked(noreffTarget) {
