@@ -1401,7 +1401,6 @@ function renderMutasiKasir() {
     '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
     // ✅ TOMBOL IMPORT DBF YANG SUDAH DIPERBAIKI (MENJALANKAN POPUP)
-    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     "</div>" + // <-- Penutup div kelompok tombol
     "</div>" + // <-- Penutup div baris header atas
     // BARIS INPUT DETAIL DAN TABEL
@@ -1423,6 +1422,7 @@ function renderMutasiKasir() {
     "</div>" +
     '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.3rem;">' +
     '<div style="font-size:.85rem;font-weight:700">Riwayat Detil Transaksi Kasir</div>' +
+    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="promptHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data Per Cabang</button>' +
     "</div>" +
     '<div style="margin-top:.8rem;">' +
