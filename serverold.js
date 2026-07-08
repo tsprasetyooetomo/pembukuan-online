@@ -997,6 +997,209 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     res.end();
   }
 });
+
+// ============================================================================
+// 18. ENDPOINT IMPOR MUTASI KASIR ONLINE (SSE STREAMING PROGRESS)
+// ============================================================================
+app.post("/api/impor-mutasikasir-online", async (req, res) => {
+  if (!db) {
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+    res.flushHeaders();
+    res.write(
+      `data: ${JSON.stringify({ percent: 100, message: "Database tidak terkoneksi", success: false })}\n\n`,
+    );
+    return res.end();
+  }
+
+  // WAJIB HEADER SSE
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no"); // Matiin buffer Railway/Nginx
+  res.flushHeaders();
+
+  const send = (percent, msg, extra = {}) => {
+    res.write(
+      `data: ${JSON.stringify({ percent, message: msg, ...extra })}\n\n`,
+    );
+  };
+
+  try {
+    const busboy = require("busboy");
+    const bb = busboy({ headers: req.headers });
+    const files = {};
+    const fields = {};
+
+    bb.on("file", (name, file) => {
+      const chunks = [];
+      file.on("data", (chunk) => chunks.push(chunk));
+      file.on("end", () => {
+        files[name] = Buffer.concat(chunks);
+      });
+    });
+
+    bb.on("field", (name, val) => {
+      fields[name] = val;
+    });
+
+    bb.on("finish", async () => {
+      try {
+        const { cabang, hapus_tahun, hapus_bulan } = fields;
+        const fileDbf = files["file_dbf"];
+
+        if (!fileDbf) {
+          send(100, "File DBF tidak ditemukan", { success: false });
+          return res.end();
+        }
+
+        send(5, "Membaca file DBF di server...");
+        const { Dbf } = require("dbf-reader");
+        const records = Dbf.read(fileDbf)?.rows || [];
+        send(15, `DBF terbaca: ${records.length} baris`);
+
+        if (records.length === 0) {
+          send(100, "File DBF kosong", { success: false });
+          return res.end();
+        }
+
+        // Validasi cabang
+        if (!cabang) {
+          send(100, "Parameter cabang tidak ada", { success: false });
+          return res.end();
+        }
+
+        // 1. HAPUS DATA LAMA JIKA DIPILIH
+        if (hapus_tahun || hapus_bulan) {
+          send(20, "Menghapus data lama di database...");
+          let sql = `DELETE FROM mutasikasir WHERE CAST(data AS jsonb)->>'cabang' = $1`;
+          let params = [cabang];
+          let paramIdx = 2;
+
+          if (hapus_tahun && hapus_bulan) {
+            sql += ` AND CAST(data AS jsonb)->>'tanggal' LIKE $${paramIdx++}`;
+            params.push(`${hapus_tahun}-${hapus_bulan}%`);
+          } else if (hapus_tahun) {
+            sql += ` AND CAST(data AS jsonb)->>'tanggal' LIKE $${paramIdx++}`;
+            params.push(`${hapus_tahun}%`);
+          }
+
+          await db.query(sql, params);
+          send(25, "Data lama berhasil dihapus");
+        } else {
+          send(25, "Mode tambah data (tidak menghapus yang lama)");
+        }
+
+        // 2. PROSES PARSE DAN INSERT KE DATABASE
+        send(30, "Memproses data...");
+        const client = await db.connect();
+        try {
+          await client.query("BEGIN");
+
+          let savedCount = 0;
+          const batchSize = 500;
+          const totalBatches = Math.ceil(records.length / batchSize);
+
+          for (let i = 0; i < records.length; i += batchSize) {
+            const batch = records.slice(i, i + batchSize);
+            let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
+            let values = [];
+            let placeholders = [];
+
+            batch.forEach((row, index) => {
+              const getStr = (val) =>
+                val !== undefined && val !== null ? String(val).trim() : "";
+              const getNum = (val) =>
+                val !== undefined && val !== null ? Number(val) : 0;
+
+              const kodeTrans = getStr(row.N_KODE_).toUpperCase();
+              const desc = getStr(row.PENJELASAN).toUpperCase();
+              const total = getNum(row.N_RUPIAH_);
+              const cabDBF = getStr(row.N_CABANG_) || cabang;
+
+              if (total <= 0 || kodeTrans === "") return; // Skip baris tidak valid
+
+              // Format Tanggal
+              let tglStr = getStr(row.TANGGAL);
+              let tanggalFix = new Date().toISOString().split("T")[0];
+              if (tglStr.length === 8 && !isNaN(tglStr)) {
+                tanggalFix =
+                  tglStr.substring(0, 4) +
+                  "-" +
+                  tglStr.substring(4, 6) +
+                  "-" +
+                  tglStr.substring(6, 8);
+              } else if (tglStr.length >= 10) {
+                tanggalFix = tglStr;
+              }
+
+              // Buat ID unik
+              const crypto = require("crypto");
+              const id = crypto.randomUUID();
+
+              const jsonData = JSON.stringify({
+                id,
+                noreff: "",
+                tanggal: tanggalFix,
+                cabang: cabDBF,
+                kodeTrans,
+                noperkiraan: "",
+                desc,
+                total,
+                db: total,
+                cr: 0,
+              });
+
+              const base = index * 2;
+              placeholders.push(`($${base + 1}, $${base + 2})`);
+              values.push(id, jsonData);
+            });
+
+            if (placeholders.length > 0) {
+              queryText += placeholders.join(", ");
+              queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+              await client.query(queryText, values);
+            }
+
+            savedCount += batch.length;
+            const currentBatch = Math.floor(i / batchSize) + 1;
+            const pct =
+              30 + Math.round((currentBatch / totalBatches) * 100 * 0.7); // Skala 30% - 100%
+
+            send(
+              pct,
+              `Menyimpan ke Supabase... (${savedCount}/${records.length})`,
+            );
+          }
+
+          await client.query("COMMIT");
+          send(
+            100,
+            `Sukses! ${savedCount} data kasir cabang ${cabang} tersimpan`,
+            { success: true },
+          );
+          res.end();
+        } catch (txError) {
+          await client.query("ROLLBACK");
+          send(100, "Gagal simpan DB: " + txError.message, { success: false });
+          res.end();
+        } finally {
+          client.release();
+        }
+      } catch (innerErr) {
+        send(100, "Error: " + innerErr.message, { success: false });
+        res.end();
+      }
+    });
+
+    req.pipe(bb);
+  } catch (error) {
+    send(100, "Error: " + error.message, { success: false });
+    res.end();
+  }
+});
+
 // ============================================================================
 // JALANKAN SERVER - WAJIB DI PALING BAWAH
 // ============================================================================
