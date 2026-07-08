@@ -2514,6 +2514,7 @@ function promptHapusMutasiPerCabang() {
   else alert("Fungsi Modal tidak ditemukan.");
 }
 // ✅ FUNGSI HAPUS MUTASI KASIR (MENYELARASKAN DENGAN POLA clearAllDataMutasi)
+// ✅ FUNGSI HAPUS MENGGUNAKAN API clear-all-data YANG SUDAH DIPERBAIKI
 async function executeHapusMutasiPerCabang() {
   var label = "Mutasi Kasir";
 
@@ -2558,12 +2559,11 @@ async function executeHapusMutasiPerCabang() {
       .join("");
   }
 
-  // Buka Modal (Menggunakan fungsi openModal milikmu)
   openModal(
     "Filter Hapus Data " + label,
     `<div class="confirm-box" style="padding: .5rem">
       <div style="margin-bottom: 1rem; font-size: .85rem; color: var(--muted)">
-        Data yang dihapus akan langsung terhapus dari Database Server (Supabase).
+        Data yang dihapus akan langsung terhapus dari Database Server.
       </div>
       
       <div style="display: flex; flex-direction: column; gap: .8rem; margin-bottom: 1.5rem">
@@ -2598,7 +2598,6 @@ async function executeHapusMutasiPerCabang() {
     </div>`,
   );
 
-  // EVENT LISTENER UNTUK TOMBOL HAPUS
   document.getElementById("btnKonfirmasiHapusMutasi").onclick =
     async function () {
       var bln = document.getElementById("del_bulan").value;
@@ -2624,19 +2623,21 @@ async function executeHapusMutasiPerCabang() {
       }
 
       closeModal();
-      toast("Menghapus data di server...", "inf");
+      toast("Menghubungi server untuk menghapus data...", "inf");
 
       try {
         // ====================================================================
-        // 1. HAPUS DI SUPABASE DULU (MENGGUNAKAN ENDPOINT BULK YANG DIBUAT TADI)
+        // 1. PANGGIL API clear-all-data YANG SUDAH DIFIX DI SERVER
         // ====================================================================
-        var response = await fetch("/api/mutasikasir/bulk-delete", {
-          method: "DELETE",
+        var response = await fetch("/api/clear-all-data", {
+          method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            storeName: "mutasikasir",
             cabang: cbg,
             tahun: thn,
             bulan: bln,
+            // Tidak mengirim 'masa' karena mutasikasir tidak pakai kolom fisik masa
           }),
         });
 
@@ -2649,9 +2650,6 @@ async function executeHapusMutasiPerCabang() {
         // 2. HAPUS DI CACHE MEMORY (LOCAL BROWSER) SUPAYA TAMPILAN LANGSUNG HILANG
         // ====================================================================
         var dataDipertahankan = [];
-        var dataDihapusCount = 0;
-
-        // Pastikan DBCache.mutasikasir ada
         var allData = DBCache.mutasikasir || [];
 
         for (var i = 0; i < allData.length; i++) {
@@ -2659,25 +2657,21 @@ async function executeHapusMutasiPerCabang() {
           var cocokCabang = item.cabang === cbg;
 
           var cocokTahun = true;
-          if (thn) {
-            cocokTahun = item.tanggal && item.tanggal.startsWith(thn);
-          }
+          if (thn) cocokTahun = item.tanggal && item.tanggal.startsWith(thn);
 
           var cocokBulan = true;
           if (thn && bln) {
-            var prefix = thn + "-" + bln;
-            cocokBulan = item.tanggal && item.tanggal.startsWith(prefix);
+            cocokBulan =
+              item.tanggal && item.tanggal.startsWith(thn + "-" + bln);
           }
 
-          // Jika cocok dengan kriteria hapus, skip (tidak dimasukkan ke array dipertahankan)
           if (cocokCabang && cocokTahun && cocokBulan) {
-            dataDihapusCount++;
+            // Data ini cocok dengan kriteria hapus, JANGAN masukkan ke array (berarti dihapus)
           } else {
-            dataDipertahankan.push(item);
+            dataDipertahankan.push(item); // Data ini aman, masukkan ke array baru
           }
         }
 
-        // Update cache lokal
         DBCache.mutasikasir = dataDipertahankan;
 
         // ====================================================================
@@ -2693,7 +2687,7 @@ async function executeHapusMutasiPerCabang() {
         renderKasirNoreffList();
 
         toast(
-          `✅ Berhasil menghapus ${result.deleted} data ${label} dari Supabase`,
+          `✅ Berhasil menghapus ${result.changes} data ${label} dari Server`,
           "ok",
         );
       } catch (err) {
