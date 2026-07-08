@@ -177,7 +177,7 @@ function buildSidebar() {
         { id: "perk", label: "No Perkiraan", icon: "fa-list-ol" },
         { id: "cbg", label: "Cabang", icon: "fa-code-branch" },
         { id: "kode", label: "Kode Bank/Kas", icon: "fa-building-columns" },
-        { id: "saldoKasir", label: "Saldo Kasir", icon: "fa-building-columns" },
+        { id: "saldoKasirawal", label: "Saldo Kasir", icon: "fa-building-columns" },
       ],
     },
     {
