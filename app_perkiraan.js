@@ -1124,11 +1124,11 @@ function getCabangFilterHTML() {
   return html;
 }
 
-PANEL_MAP.saldoKasirawal = renderSaldoKasir;
+PANEL_MAP.saldoKasirawal = renderSaldoKasirawal;
 
 // ========================================================
 // 1. RENDER SALDO KASIR
-async function renderSaldoKasir() {
+async function renderSaldoKasirawal() {
   // ✅ FIX 1: Standarisasi pakai "saldoKasirawal" agar sesuai dengan API & IndexedDB
   var rawData = DBCache.saldoKasirawal || [];
   var data = filterByCabang(rawData);
@@ -1183,7 +1183,7 @@ async function renderSaldoKasir() {
     " record" +
     "</div>" +
     '<div style="display:flex;gap:.4rem">' +
-    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasirawal\', \'Data_SaldoKasir\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
+    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasirawal\', \'Data_SaldoKasirawal\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasirawal\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasirawal\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
     '<button type="button" class="btn btn-a" onclick="formSaldoKasir()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
@@ -1204,7 +1204,7 @@ async function renderSaldoKasir() {
 
 // ========================================================
 // 2. FORM SALDO KASIR
-function formSaldoKasir(id) {
+function formSaldoKasirawal(id) {
   var isEdit = !!id;
 
   // ✅ FIX 2: Cari data dari DBCache yang sudah distandarisasi
@@ -1242,7 +1242,7 @@ function formSaldoKasir(id) {
 
 // ========================================================
 // 3. SAVE SALDO KASIR
-async function saveSaldoKasir(e, editId) {
+async function saveSaldoKasirawal(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
   try {
