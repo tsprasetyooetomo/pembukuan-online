@@ -2378,16 +2378,20 @@ async function handleImportDBF(event) {
           cr: 0,
         });
       }
-
       if (tempDetilKasirDBF.length === 0) {
         return toast("Tidak ada data valid di file DBF.", "err");
       }
 
-      toast("Memproses import " + tempDetilKasirDBF.length + " data...", "inf");
+      toast(
+        "Tahap 1: Menyimpan " +
+          tempDetilKasirDBF.length +
+          " data ke database...",
+        "inf",
+      );
       if ($("mk_cab")) $("mk_cab").disabled = true;
       if ($("mk_tgl")) $("mk_tgl").disabled = true;
 
-      // --- LOGIKA HAPUS DATA ---
+      // --- LOGIKA HAPUS DATA SESUAI KRITERIA ---
       if (isHapus) {
         var dataDihapus = DBCache.mutasikasir.filter(function (item) {
           if (item.cabang !== cabTerpilih) return false;
@@ -2400,12 +2404,10 @@ async function handleImportDBF(event) {
 
         if (dataDihapus.length > 0) {
           for (var d = 0; d < dataDihapus.length; d++) {
-            // ✅ GANTI DENGAN CARA DELETE PAKE FILTER ID (Cara paling aman)
-            await db.del("mutasikasir", function (row) {
+            await db.delete("mutasikasir", function (row) {
               return row.id === dataDihapus[d].id;
             });
           }
-
           DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
             if (item.cabang !== cabTerpilih) return true;
             if (bulan === "" && tahun === "") return false;
@@ -2414,48 +2416,49 @@ async function handleImportDBF(event) {
             var prefix = tahun + "-" + bulan;
             return !(item.tanggal && item.tanggal.startsWith(prefix));
           });
-          toast(
-            "Dihapus " +
-              dataDihapus.length +
-              " data lama cabang " +
-              cabTerpilih,
-            "inf",
-          );
         }
       }
 
-      // --- PROSES IMPORT LANGSUNG TANPA JEDA (LEBIH AMAN DARI CRASH) ---
+      // --- TAHAP 1: SIMPAN KE DATABASE DAN CACHE DALAM KELOMPOK KECIL ---
       var totalData = tempDetilKasirDBF.length;
+      var batchSize = 500; // Simpan 500 data dulu ke DB
       var berhasilDisimpan = 0;
 
-      for (var j = 0; j < totalData; j++) {
-        var newDetil = tempDetilKasirDBF[j];
+      for (var i = 0; i < totalData; i += batchSize) {
+        var batch = tempDetilKasirDBF.slice(i, i + batchSize);
 
-        await db.add("mutasikasir", newDetil);
-
-        if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
-        DBCache.mutasikasir.push(newDetil);
-        berhasilDisimpan++;
-
-        // Hanya update UI toast setiap 1000 data sekali (agar tidak lag)
-        if (berhasilDisimpan % 1000 === 0) {
-          toast(
-            "Menyimpan data... (" + berhasilDisimpan + " / " + totalData + ")",
-            "inf",
-          );
+        for (var j = 0; j < batch.length; j++) {
+          await db.add("mutasikasir", batch[j]);
+          berhasilDisimpan++;
         }
+
+        // Masukkan ke cache memori
+        if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
+        DBCache.mutasikasir = DBCache.mutasikasir.concat(batch);
+
+        // Beri jeda 10ms HANYA untuk bernapas, biar database tidak dianggap hang oleh browser
+        await new Promise((resolve) => setTimeout(resolve, 10));
       }
 
-      // --- REFRESH UI ---
+      // --- TAHAP 2: REFRESH UI (DILAKUKAN SEKALI SAJA DI AKHIR) ---
+      toast("Tahap 2: Me-render tampilan...", "inf");
+
+      // Paksa browser menunda rendering sebentar, supaya toast "Tahap 2" bisa muncul duluan ke layar
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       renderKasirDetilTable();
       updateKasirHeaderNominal();
       await hitungSaldoOtomatis();
 
-      // ✅ PERBAIKAN NOREF: Paksa sistem untuk me-rebuild ulang daftar NoRef berdasarkan cache baru
+      // Rebuild daftar No Ref
       if (typeof buildGroupedNoreff === "function") {
-        buildGroupedNoreff(); // Fungsi yang mengelompokkan noreff di sistem kamu
+        buildGroupedNoreff();
       }
       renderKasirNoreffList();
+
+      // Buka kunci form
+      if ($("mk_cab")) $("mk_cab").disabled = false;
+      if ($("mk_tgl")) $("mk_tgl").disabled = false;
 
       toast(
         "✅ Import Selesai! Berhasil masuk: " + berhasilDisimpan + " data.",
