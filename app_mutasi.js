@@ -1397,13 +1397,17 @@ function renderMutasiKasir() {
     '<div style="display:flex; gap:.4rem;">' +
     '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
+    // ✅ TAMBAHAN TOMBOL IMPORT DBF DI SINI
+    '<label class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff; margin:0; cursor:pointer;">' +
+    '<i class="fa-solid fa-file-import"></i> Import DBF' +
+    '<input type="file" accept=".dbf" onchange="handleImportDBF(event)" style="display:none;">' +
+    "</label>" +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Baru</button>' +
     "</div>" +
     "</div>" +
+    /* --- SISANYA TETAP SAMA SEPERTI KODE ASLI KAMU --- */
     '<div style="display:flex;gap:1rem">' +
-    /* KOLOM KIRI (INPUT EXCEL & DETIL) */
     '<div style="flex:3">' +
-    /* BARIS HEADER (CABANG, TANGGAL, NOREF, TOTAL) */
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
     '<div class="fg" style="flex:1"><label>Cabang</label><select id="mk_cab" class="in">' +
     getCabangOpts(firstCab) +
@@ -1414,12 +1418,10 @@ function renderMutasiKasir() {
     '<div class="fg" style="flex:1"><label>No Ref</label><input id="mk_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
     '<div class="fg" style="flex:1"><label>Total Rp</label><input id="mk_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
     "</div>" +
-    /* ✅ BARIS SALDO AWAL OTOMATIS DI SEBELAH KANAN */
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
     '<div class="fg" style="flex:1"><label>Saldo Awal (Otomatis)</label><input id="mk_saldo_awal" class="in" readonly style="background:var(--bg);color:var(--accent);font-weight:700;" value="Mencari..."></div>' +
     '<div class="fg" style="flex:1"><label>Saldo Akhir (Auto-Hitung)</label><input id="mk_saldo_akhir" class="in" readonly style="background:var(--bg);color:var(--danger);font-weight:700;" value="0"></div>' +
     "</div>" +
-    /* TABEL INPUT EXCEL DI ATAS */
     '<div style="margin-top:.8rem;">' +
     '<table class="tbl-excel">' +
     "<thead>" +
@@ -1437,11 +1439,9 @@ function renderMutasiKasir() {
     "</tbody>" +
     "</table>" +
     "</div>" +
-    /* TABEL RIWAYAT DETIL DI BAWAHNYA */
     '<div style="font-size:.85rem;font-weight:700;margin-top:1rem;margin-bottom:.4rem">Riwayat Detil Transaksi Kasir</div>' +
     '<div id="mutKasirDetilTbl" class="tw"></div>' +
     "</div>" +
-    /* KOLOM KANAN (RIWAYAT NOREF) */
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
     '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="mk_filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
@@ -2197,4 +2197,96 @@ async function executeHapusSeReffKasir() {
     closeModal();
     toast("Gagal menghapus: " + err.message, "err");
   }
+}
+// Variable sementara untuk menampung data DBF sebelum dikirim ke tabel
+// Variable sementara untuk menampung data DBF
+// Variable sementara untuk menampung data DBF
+var tempDetilKasirDBF = [];
+
+function handleImportDBF(event) {
+  var file = event.target.files[0];
+  if (!file) return;
+
+  event.target.value = ""; // Reset input file
+
+  var reader = new FileReader();
+  reader.onload = async function (e) {
+    try {
+      var buffer = e.target.result;
+      var dbf = new DBF(buffer);
+      var records = dbf.getRecords();
+
+      tempDetilKasirDBF = [];
+
+      // ✅ SESUAIKAN NAMA KOLOM DBF KAMU (r.KODE, r.DESC, r.TOTAL)
+      for (var i = 0; i < records.length; i++) {
+        var r = records[i];
+
+        var kodeTrans = (r.KODE || r.kode || "")
+          .toString()
+          .trim()
+          .toUpperCase();
+        var desc = (r.DESC || r.desc || r.KETERANGAN || r.PENJELASAN || "")
+          .toString()
+          .trim()
+          .toUpperCase();
+        var total = num(r.TOTAL || r.total || r.NOMINAL || r.RP || 0);
+
+        if (total <= 0 || kodeTrans === "") continue;
+
+        // ✅ PERBAIKAN ID DI SINI: Menggunakan crypto.randomUUID()
+        tempDetilKasirDBF.push({
+          id: crypto.randomUUID(),
+          noreff: _kasirSession.noreff,
+          tanggal: $("mk_tgl").value,
+          cabang: $("mk_cab").value,
+          kodeTrans: kodeTrans,
+          noperkiraan: "",
+          desc: desc,
+          total: total,
+          db: total,
+          cr: 0,
+        });
+      }
+
+      if (tempDetilKasirDBF.length === 0) {
+        return toast("Tidak ada data valid di file DBF.", "err");
+      }
+
+      toast("Memproses import " + tempDetilKasirDBF.length + " data...", "inf");
+
+      // Kunci form
+      _kasirSession.isLocked = true;
+      $("mk_cab").disabled = true;
+      $("mk_tgl").disabled = true;
+
+      // Simpan ke DB satu per satu
+      for (var j = 0; j < tempDetilKasirDBF.length; j++) {
+        var newDetil = tempDetilKasirDBF[j];
+
+        await db.add("mutasikasir", newDetil);
+
+        if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
+        DBCache.mutasikasir.push(newDetil);
+      }
+
+      // Update UI setelah semua selesai
+      renderKasirDetilTable();
+      updateKasirHeaderNominal();
+      await hitungSaldoOtomatis();
+      renderKasirNoreffList();
+
+      toast(
+        "Berhasil mengimport " + tempDetilKasirDBF.length + " data DBF!",
+        "ok",
+      );
+    } catch (err) {
+      console.error(err);
+      toast("Gagal import DBF: " + err.message, "err");
+      _kasirSession.isLocked = false;
+      $("mk_cab").disabled = false;
+      $("mk_tgl").disabled = false;
+    }
+  };
+  reader.readAsArrayBuffer(file);
 }
