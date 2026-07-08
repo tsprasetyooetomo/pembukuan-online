@@ -186,10 +186,10 @@ function buildSidebar() {
       items: [
         {
           id: "mutasikasir",
-          label: "Mutasi Harian Kasir",
+          label: "Harian Kasir",
           icon: "fa-right-left",
         },
-        { id: "mutasi", label: "Mutasi Transaksi", icon: "fa-right-left" },
+        { id: "mutasi", label: "Pembukuan", icon: "fa-right-left" },
       ],
     },
     {
