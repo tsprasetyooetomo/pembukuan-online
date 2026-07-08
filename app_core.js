@@ -415,6 +415,7 @@ async function refreshCache() {
         db.getAll("golongan", cabangSaya),
         db.getAll("perkiraan", cabangSaya),
         db.getAll("kodeBank", cabangSaya),
+        db.getAll("saldoKasirawal", cabangSaya),
         db.getAll("saldoKasir", cabangSaya),
         db.getAll("mutasikasir", cabangSaya),
       ]);
@@ -424,6 +425,7 @@ async function refreshCache() {
     DBCache.perkiraan = perkiraan;
     DBCache.kodeBank = kodeBank;
     DBCache.saldoKasir = saldoKasir;
+    DBCache.saldoKasirawal = saldoKasirawal
     DBCache.mutasikasir = mutasikasir;
 
     console.log(
@@ -544,6 +546,7 @@ function bulkShowConfirm(store) {
     users: "User",
     kodeBank: "Kode Bank",
     cabang: "Cabang",
+    saldokasirawal: "saldoKasirawal",
   };
   var storeLabel = labelMap[store] || store;
   openModal(
@@ -632,7 +635,11 @@ var MENUS = [
       { id: "perk", label: "No Perkiraan", icon: "fa-list-ol" },
       { id: "cbg", label: "Cabang", icon: "fa-code-branch" },
       { id: "kode", label: "Kode Bank/Kas", icon: "fa-building-columns" },
-      { id: "saldoKasir", label: "Saldo Kasir", icon: "fa-building-columns" },
+      {
+        id: "saldoKasirawal",
+        label: "Saldo Kasir",
+        icon: "fa-building-columns",
+      },
     ],
   },
   {
