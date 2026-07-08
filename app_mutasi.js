@@ -1422,7 +1422,7 @@ function renderMutasiKasir() {
     "</div>" +
     '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.3rem;">' +
     '<div style="font-size:.85rem;font-weight:700">Riwayat Detil Transaksi Kasir</div>' +
-    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
+    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportKasirDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="executeHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data Per Cabang</button>' +
     "</div>" +
     '<div style="margin-top:.8rem;">' +
@@ -2215,287 +2215,7 @@ async function executeHapusSeReffKasir() {
     toast("Gagal menghapus: " + err.message, "err");
   }
 }
-// ✅ 1. FUNGSI MENAMPILKAN POPUP OPTIONS
-function promptImportDBF() {
-  var cabOpts = getCabangOpts($("mk_cab") ? $("mk_cab").value : "");
-  var bulanOpts = generateBulanOpts("");
-  var tahunOpts = generateTahunOpts("");
 
-  var html = `
-    <div style="padding:1rem; font-size:.85rem;">
-      <div style="margin-bottom:1rem; font-weight:700; color:var(--accent);">Opsi Import DBF</div>
-      
-      <div class="fg" style="margin-bottom:.8rem;">
-        <label>Cabang Target</label>
-        <select id="opt_imp_cab" class="in">${cabOpts}</select>
-      </div>
-
-      <div style="display:flex; gap:.5rem; margin-bottom:.8rem;">
-        <div class="fg" style="flex:1;">
-          <label>Bulan (Opsional)</label>
-          <select id="opt_imp_bulan" class="in">${bulanOpts}</select>
-        </div>
-        <div class="fg" style="flex:1;">
-          <label>Tahun (Opsional)</label>
-          <select id="opt_imp_tahun" class="in">${tahunOpts}</select>
-        </div>
-      </div>
-
-      <div class="fg" style="margin-bottom:1rem;">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-          <input type="checkbox" id="opt_imp_hapus" style="width:18px; height:18px; accent-color:var(--danger);">
-          <span>Hapus data lama berdasarkan filter di atas sebelum import?</span>
-        </label>
-      </div>
-
-      <div style="display:flex; gap:.5rem; justify-content:flex-end;">
-        <button class="btn btn-sm" onclick="closeModal()">Batal</button>
-        <label class="btn btn-sm btn-a" style="cursor:pointer;">
-          <i class="fa-solid fa-folder-open"></i> Pilih File DBF
-          <input type="file" accept=".dbf" onchange="handleImportDBF(event)" style="display:none;">
-        </label>
-      </div>
-    </div>
-  `;
-
-  // Menggunakan fungsi modal bawaan sistem kamu (biasanya showModal atau openModal)
-  if (typeof showModal === "function") showModal("Import Data DBF", html);
-  else if (typeof openModal === "function") openModal("Import Data DBF", html);
-  else alert("Fungsi Modal tidak ditemukan di sistem.");
-}
-
-// ✅ 2. FUNGSI UTAMA IMPORT (SUDAH DENGAN LOGIKA HAPUS)
-var tempDetilKasirDBF = [];
-// ✅ FUNGSI PARSER BINARY DBF (WAJIB ADA DI ATAS handleImportDBF)
-function parseDBFCorrect(buffer) {
-  var data = new DataView(buffer);
-  var fields = [];
-  var rows = [];
-
-  // 1. Baca Ukuran Header (Byte 8-9)
-  var headerSize = data.getUint8(8) | (data.getUint8(9) << 8);
-
-  // 2. Hitung Jumlah Kolom yang BENAR
-  var fieldCount = Math.floor((headerSize - 33) / 32);
-
-  // 3. Baca Nama Kolom (Mulai dari byte ke-32)
-  for (var i = 0; i < fieldCount; i++) {
-    var offset = 32 + i * 32;
-    var name = "";
-    for (var j = 0; j < 11; j++) {
-      var ch = data.getUint8(offset + j);
-      if (ch === 0) break;
-      name += String.fromCharCode(ch);
-    }
-    var type = String.fromCharCode(data.getUint8(offset + 11));
-    var len = data.getUint8(offset + 16);
-    fields.push({ name: name.trim().toUpperCase(), type: type, len: len });
-  }
-
-  // 4. Mulai baca data baris (Dimulai tepat di akhir header)
-  var pos = headerSize;
-
-  while (pos < buffer.byteLength) {
-    var delFlag = data.getUint8(pos);
-    if (delFlag === 0x1a) break; // Tanda akhir file DBF
-
-    pos++; // Lewati byte tanda hapus
-    var row = {};
-    var isRowEmpty = true;
-
-    for (var f = 0; f < fields.length; f++) {
-      var valBytes = new Uint8Array(buffer, pos, fields[f].len);
-      var val = new TextDecoder("windows-1252").decode(valBytes).trim();
-
-      // Bersihkan karakter aneh invisible
-      val = val.replace(/[\x00-\x1F\x7F]/g, "");
-
-      // Jika tipe kolom Numeric (N) atau Float (F), ubah jadi angka
-      if ((fields[f].type === "N" || fields[f].type === "F") && val !== "") {
-        val = val.replace(/\./g, "").replace(",", ".");
-        row[fields[f].name] = parseFloat(val) || 0;
-      } else {
-        row[fields[f].name] = val;
-      }
-
-      if (val !== "") isRowEmpty = false;
-      pos += fields[f].len;
-    }
-
-    if (!isRowEmpty) {
-      rows.push(row);
-    }
-  }
-  return rows;
-}
-
-async function handleImportDBF(event) {
-  var file = event.target.files[0];
-  if (!file) return;
-  event.target.value = "";
-  if (typeof closeModal === "function") closeModal();
-
-  var cabTerpilih = $("opt_imp_cab") ? $("opt_imp_cab").value : "";
-  var bulan = $("opt_imp_bulan") ? $("opt_imp_bulan").value : "";
-  var tahun = $("opt_imp_tahun") ? $("opt_imp_tahun").value : "";
-  var isHapus = $("opt_imp_hapus") ? $("opt_imp_hapus").checked : false;
-
-  if (isHapus) {
-    if (bulan !== "" && tahun === "") {
-      return toast("Jika memilih Bulan, Tahun wajib diisi!", "err");
-    }
-  }
-
-  var reader = new FileReader();
-  reader.onload = async function (e) {
-    try {
-      var buffer = e.target.result;
-      var records = parseDBFCorrect(buffer);
-      tempDetilKasirDBF = [];
-
-      for (var i = 0; i < records.length; i++) {
-        var r = records[i];
-
-        var kodeTrans = String(r.N_KODE_ || "")
-          .trim()
-          .toUpperCase();
-        var desc = String(r.PENJELASAN || "")
-          .trim()
-          .toUpperCase();
-        var total = parseFloat(r.N_RUPIAH_ || 0);
-        var cabangDBF = String(r.N_CABANG_ || cabTerpilih).trim();
-
-        var tglDBF = r.TANGGAL;
-        var tanggalFix = new Date().toISOString().split("T")[0];
-        if (tglDBF) {
-          var tglStr = String(tglDBF).trim();
-          if (tglStr.length === 8 && !isNaN(tglStr)) {
-            tanggalFix =
-              tglStr.substring(0, 4) +
-              "-" +
-              tglStr.substring(4, 6) +
-              "-" +
-              tglStr.substring(6, 8);
-          } else if (tglStr.length >= 10) {
-            tanggalFix = tglStr;
-          }
-        }
-
-        if (total <= 0 || kodeTrans === "") continue;
-
-        tempDetilKasirDBF.push({
-          id: crypto.randomUUID(),
-          noreff: _kasirSession.noreff,
-          tanggal: tanggalFix,
-          cabang: cabangDBF,
-          kodeTrans: kodeTrans,
-          noperkiraan: "",
-          desc: desc,
-          total: total,
-          db: total,
-          cr: 0,
-        });
-      }
-      if (tempDetilKasirDBF.length === 0) {
-        return toast("Tidak ada data valid di file DBF.", "err");
-      }
-
-      // ✅ AKTIFKAN INDIKATOR LOADING
-      showImportLoader(true, "Menyiapkan database...");
-      if ($("mk_cab")) $("mk_cab").disabled = true;
-      if ($("mk_tgl")) $("mk_tgl").disabled = true;
-
-      // --- LOGIKA HAPUS DATA SESUAI KRITERIA ---
-      if (isHapus) {
-        updateLoaderText("Menghapus data lama...");
-        var dataDihapus = DBCache.mutasikasir.filter(function (item) {
-          if (item.cabang !== cabTerpilih) return false;
-          if (bulan === "" && tahun === "") return true;
-          if (bulan === "" && tahun !== "")
-            return item.tanggal && item.tanggal.startsWith(tahun);
-          var prefix = tahun + "-" + bulan;
-          return item.tanggal && item.tanggal.startsWith(prefix);
-        });
-
-        if (dataDihapus.length > 0) {
-          for (var d = 0; d < dataDihapus.length; d++) {
-            // Pastikan pakai perintah delete yang benar di sistemmu (db.remove atau db.delete)
-            await db.remove("mutasikasir", dataDihapus[d].id);
-          }
-          DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
-            if (item.cabang !== cabTerpilih) return true;
-            if (bulan === "" && tahun === "") return false;
-            if (bulan === "" && tahun !== "")
-              return !(item.tanggal && item.tanggal.startsWith(tahun));
-            var prefix = tahun + "-" + bulan;
-            return !(item.tanggal && item.tanggal.startsWith(prefix));
-          });
-        }
-      }
-
-      // --- PROSES IMPORT KE DATABASE ---
-      var totalData = tempDetilKasirDBF.length;
-      var berhasilDisimpan = 0;
-      var batchSize = 500;
-
-      updateLoaderText("Menyimpan ke database...");
-
-      for (var i = 0; i < totalData; i += batchSize) {
-        var batch = tempDetilKasirDBF.slice(i, i + batchSize);
-
-        for (var j = 0; j < batch.length; j++) {
-          await db.add("mutasikasir", batch[j]);
-          berhasilDisimpan++;
-        }
-
-        if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
-        DBCache.mutasikasir = DBCache.mutasikasir.concat(batch);
-
-        // ✅ UPDATE ANGKA PROGRESS DI INDIKATOR
-        updateLoaderText(
-          "Menyimpan data... (" + berhasilDisimpan + " / " + totalData + ")",
-        );
-
-        // Beri jeda 10ms agar browser tidak dianggap "Not Responding" oleh OS
-        await new Promise((resolve) => setTimeout(resolve, 10));
-      }
-
-      // --- REFRESH UI ---
-      updateLoaderText("Selesai! Merender tampilan...");
-
-      // Jeda 100ms biar layar sempat refresh sebelum rendering berat dimulai
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      renderKasirDetilTable();
-      updateKasirHeaderNominal();
-      await hitungSaldoOtomatis();
-
-      if (typeof buildGroupedNoreff === "function") {
-        buildGroupedNoreff();
-      }
-      renderKasirNoreffList();
-
-      // ✅ MATIKAN INDIKATOR LOADING
-      showImportLoader(false);
-
-      if ($("mk_cab")) $("mk_cab").disabled = false;
-      if ($("mk_tgl")) $("mk_tgl").disabled = false;
-
-      toast(
-        "✅ Import Selesai! Berhasil masuk: " + berhasilDisimpan + " data.",
-        "ok",
-      );
-    } catch (err) {
-      console.error(err);
-      // ✅ PASTIKAN LOADER MATI JIKA TERJADI ERROR
-      showImportLoader(false);
-      toast("Gagal import: " + err.message, "err");
-      if ($("mk_cab")) $("mk_cab").disabled = false;
-      if ($("mk_tgl")) $("mk_tgl").disabled = false;
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
 // ✅ FUNGSI POPUP HAPUS DATA MUTASI KASIR PER CABANG
 function promptHapusMutasiPerCabang() {
   var cabOpts = getCabangOpts($("mk_cab") ? $("mk_cab").value : "");
@@ -2710,30 +2430,220 @@ async function executeHapusMutasiPerCabang() {
       }
     };
 }
+// ✅ OBJEK LOGIKA IMPORT DBF KASIR (SERVER-SIDE)
+const AppImporKasirDBF = {
+  API_URL: window.location.origin + "/api/impor-mutasikasir-online",
 
-// ✅ FUNGSI UNTUK MENAMPILKAN/MENGHILANGKAN INDIKATOR PROSES
-function showImportLoader(show, text = "Sedang Memproses Data...") {
-  var existing = document.getElementById("global_import_loader");
-  if (show) {
-    if (existing) existing.remove();
-    var div = document.createElement("div");
-    div.id = "global_import_loader";
-    div.innerHTML = `
-      <div style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:99999;display:flex;flex-direction:column;justify-content:center;align-items:center;">
-        <i class="fa-solid fa-database" style="font-size:3rem;color:#6366f1;margin-bottom:1rem;animation: spin 1s linear infinite;"></i>
-        <div style="color:#fff;font-size:1.2rem;font-weight:bold;" id="loader_text">${text}</div>
-        <div style="color:#ccc;font-size:.8rem;margin-top:.5rem;">Mohon jangan tutup halaman ini</div>
+  getHTML() {
+    let opsiCabang = `<option value="" disabled selected>-- Pilih Cabang --</option>`;
+    if (typeof DBCache !== "undefined" && DBCache.cabang?.length > 0) {
+      DBCache.cabang.forEach((c) => {
+        let kode = c.kode_cabang || c.kode || "";
+        let nama = c.nama_cabang || c.nama || "";
+        if (kode)
+          opsiCabang += `<option value="${kode}">${kode} - ${nama}</option>`;
+      });
+    }
+
+    let opsiTahun = `<option value="">-- Semua Tahun --</option>`;
+    let tahunSekarang = new Date().getFullYear();
+    for (let y = tahunSekarang; y >= tahunSekarang - 3; y--) {
+      opsiTahun += `<option value="${y}">${y}</option>`;
+    }
+
+    let opsiBulan = `<option value="">-- Semua Bulan --</option>`;
+    const daftarBulan = [
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
+    ];
+    daftarBulan.forEach((b, i) => {
+      let val = String(i + 1).padStart(2, "0");
+      opsiBulan += `<option value="${val}">${b}</option>`;
+    });
+
+    return `
+      <div style="max-width: 500px; padding: 1rem;">
+        <div style="margin-bottom: 1rem; font-size:.85rem; color:var(--muted); background:rgba(0,0,0,0.2); padding:.5rem; border-radius:6px;">
+          <i class="fa-solid fa-circle-info"></i> Proses import akan berjalan di Server. Browser tidak akan ngelag.
+        </div>
+
+        <form id="formImporKasirDbf">
+          <div class="fg" style="margin-bottom: 1rem;">
+            <label>Cabang Tujuan</label>
+            <select id="impKasirCab" required class="in">${opsiCabang}</select>
+          </div>
+
+          <div style="display:flex; gap:.5rem; margin-bottom: 1rem;">
+            <div class="fg" style="flex:1; margin-bottom:0">
+              <label>Hapus Tahun</label>
+              <select id="impKasirThn" class="in">${opsiTahun}</select>
+            </div>
+            <div class="fg" style="flex:1; margin-bottom:0">
+              <label>Hapus Bulan</label>
+              <select id="impKasirBln" class="in">${opsiBulan}</select>
+            </div>
+          </div>
+          
+          <div class="fg" style="margin-bottom: 1.5rem;">
+            <label>Pilih File DBF</label>
+            <div style="border: 2px dashed var(--brd); border-radius: 6px; padding: 1.5rem; text-align: center; position:relative; margin-top:.3rem;">
+              <input type="file" id="fileDbfKasir" accept=".dbf" required style="position:absolute; inset:0; opacity:0; cursor:pointer;">
+              <div id="labelDbfKasir" style="color: var(--muted);">
+                <i class="fa-solid fa-file-circle-plus" style="font-size: 2rem; display:block; margin-bottom:.5rem;"></i>
+                Klik untuk pilih file .DBF
+              </div>
+            </div>
+          </div>
+
+          <!-- PROGRESS BAR -->
+          <div id="kasirProgressBox" style="display:none; margin-bottom:1.5rem">
+            <div style="background:var(--bg);border-radius:8px;height:24px;overflow:hidden;border:1px solid var(--brd);position:relative">
+              <div id="kasirProgressBar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),#10b981);transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.75rem"></div>
+            </div>
+            <div id="kasirProgressText" style="font-size:.8rem;color:var(--muted);margin-top:.3rem;text-align:center">Menunggu...</div>
+          </div>
+
+          <div style="display:flex; gap:.5rem; justify-content:flex-end;">
+            <button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>
+            <button type="submit" id="btnSubmitKasir" class="btn btn-a" style="padding:.5rem 1.5rem;">
+              <i class="fa-solid fa-cloud-arrow-up"></i> Upload & Import
+            </button>
+          </div>
+        </form>
       </div>
-      <style>@keyframes spin { 100% { transform: rotate(360deg); } }</style>
     `;
-    document.body.appendChild(div);
-  } else {
-    if (existing) existing.remove();
-  }
-}
+  },
 
-// Fungsi kecil untuk mengupdate angka di dalam loader tanpa membuat lag
-function updateLoaderText(newText) {
-  var el = document.getElementById("loader_text");
-  if (el) el.innerText = newText;
+  initEvents() {
+    const fileInput = document.getElementById("fileDbfKasir");
+    if (fileInput) {
+      fileInput.addEventListener("change", (e) => {
+        const label = document.getElementById("labelDbfKasir");
+        if (e.target.files.length > 0) {
+          label.innerHTML = `<i class="fa-solid fa-file-check" style="font-size: 2rem; display:block; margin-bottom:.5rem; color:var(--success);"></i>${e.target.files[0].name}`;
+        }
+      });
+    }
+
+    const form = document.getElementById("formImporKasirDbf");
+    if (form) {
+      form.addEventListener("submit", (e) => this.submit(e));
+    }
+  },
+
+  async submit(e) {
+    e.preventDefault();
+    const btn = document.getElementById("btnSubmitKasir");
+    const progressBox = document.getElementById("kasirProgressBox");
+    const progressBar = document.getElementById("kasirProgressBar");
+    const progressText = document.getElementById("kasirProgressText");
+
+    const cabang = document.getElementById("impKasirCab")?.value;
+    const hapusThn = document.getElementById("impKasirThn")?.value || "";
+    const hapusBln = document.getElementById("impKasirBln")?.value || "";
+    const fileDbf = document.getElementById("fileDbfKasir")?.files[0];
+
+    if (!cabang || !fileDbf)
+      return toast("Cabang dan File wajib diisi!", "err");
+    if (hapusBln && !hapusThn)
+      return toast("Jika pilih bulan, tahun wajib dipilih!", "err");
+
+    try {
+      btn.disabled = true;
+      btn.innerText = "Memproses...";
+      progressBox.style.display = "block";
+      progressBar.style.width = "0%";
+      progressBar.style.background =
+        "linear-gradient(90deg,var(--accent),#10b981)";
+      progressText.textContent = "Menghubungi server...";
+
+      const fd = new FormData();
+      fd.append("cabang", cabang);
+      if (hapusThn) fd.append("hapus_tahun", hapusThn);
+      if (hapusBln) fd.append("hapus_bulan", hapusBln);
+      fd.append("file_dbf", fileDbf);
+
+      await new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", this.API_URL);
+
+        let lastLine = "";
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === 3) {
+            const lines = xhr.responseText.split("\n\n");
+            const newLine = lines[lines.length - 2];
+
+            if (
+              newLine &&
+              newLine.startsWith("data: ") &&
+              newLine !== lastLine
+            ) {
+              lastLine = newLine;
+              try {
+                const data = JSON.parse(newLine.replace("data: ", ""));
+
+                progressBar.style.width = data.percent + "%";
+                progressBar.textContent = data.percent + "%";
+                progressText.textContent = data.message;
+
+                if (data.percent === 100) {
+                  if (!data.success) {
+                    reject(new Error(data.message));
+                  } else {
+                    resolve(data);
+                  }
+                }
+              } catch (err) {}
+            }
+          }
+        };
+
+        xhr.onerror = () => reject(new Error("Network error"));
+        xhr.send(fd);
+      });
+
+      toast("✅ Import DBF Kasir berhasil di Server!", "ok");
+      closeModal();
+
+      // Tarik ulang data dari server ke lokal & refresh tampilan
+      if (typeof fetchInitialData === "function") {
+        await fetchInitialData();
+      }
+
+      renderKasirDetilTable();
+      updateKasirHeaderNominal();
+      await hitungSaldoOtomatis();
+      if (typeof buildGroupedNoreff === "function") buildGroupedNoreff();
+      renderKasirNoreffList();
+    } catch (err) {
+      toast("Error: " + err.message, "err");
+      progressBar.style.background = "var(--danger)";
+      progressText.textContent = "Gagal: " + err.message;
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML =
+        '<i class="fa-solid fa-cloud-arrow-up"></i> Upload & Import';
+    }
+  },
+};
+
+// ✅ FUNGSI UNTUK DIPANGGIL OLEH TOMBOL DI MUTASI KASIR
+function promptImportKasirDBF() {
+  if (typeof openModal === "function") {
+    openModal("Impor DBF Mutasi Kasir (Server)", AppImporKasirDBF.getHTML());
+    // Beri jeda 50ms agar DOM modal sempat terbentuk, lalu pasang event listenernya
+    setTimeout(() => AppImporKasirDBF.initEvents(), 50);
+  } else {
+    toast("Fungsi Modal tidak ditemukan", "err");
+  }
 }
