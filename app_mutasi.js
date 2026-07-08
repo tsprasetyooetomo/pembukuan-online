@@ -2380,7 +2380,6 @@ async function handleImportDBF(event) {
           cr: 0,
         });
       }
-
       if (tempDetilKasirDBF.length === 0) {
         return toast("Tidak ada data valid di file DBF.", "err");
       }
@@ -2389,7 +2388,6 @@ async function handleImportDBF(event) {
       if ($("mk_cab")) $("mk_cab").disabled = true;
       if ($("mk_tgl")) $("mk_tgl").disabled = true;
 
-      // --- LOGIKA HAPUS DATA SESUAI KRITERIA ---
       // --- LOGIKA HAPUS DATA SESUAI KRITERIA ---
       if (isHapus) {
         var dataDihapus = DBCache.mutasikasir.filter(function (item) {
@@ -2402,11 +2400,9 @@ async function handleImportDBF(event) {
         });
 
         if (dataDihapus.length > 0) {
-          // ✅ GUNAKAN db.delete("namatabel", id) PERSIS SEPERTI db.add() DI KODEMU
           for (var d = 0; d < dataDihapus.length; d++) {
             await db.delete("mutasikasir", dataDihapus[d].id);
           }
-
           DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
             if (item.cabang !== cabTerpilih) return true;
             if (bulan === "" && tahun === "") return false;
@@ -2425,15 +2421,33 @@ async function handleImportDBF(event) {
         }
       }
 
-      // --- MASUKKAN DATA BARU ---
-      for (var j = 0; j < tempDetilKasirDBF.length; j++) {
-        var newDetil = tempDetilKasirDBF[j];
+      // ✅ PERBAIKAN: PROSES IMPORT DENGAN BATCHING (DIPECAH 100 DATA PER 0.5 DETIK)
+      var batchSize = 100;
+      var totalData = tempDetilKasirDBF.length;
+      var berhasilDisimpan = 0;
 
-        // ✅ SUDAH PERSIS DENGAN KODE ASLIMU
-        await db.add("mutasikasir", newDetil);
+      for (var i = 0; i < totalData; i += batchSize) {
+        var batch = tempDetilKasirDBF.slice(i, i + batchSize);
 
-        if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
-        DBCache.mutasikasir.push(newDetil);
+        for (var j = 0; j < batch.length; j++) {
+          var newDetil = batch[j];
+
+          // ✅ PASTIKAN MEMAKAI TANGGAL DARI DBF, BUKAN TANGGAL HARI INI
+          // (Karena di langkah sebelumnya sudah diformat, tinggal pakai saja)
+
+          await db.add("mutasikasir", newDetil);
+
+          if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
+          DBCache.mutasikasir.push(newDetil);
+          berhasilDisimpan++;
+        }
+
+        // ✅ KASIH JEDA 500ms SETIAP 100 DATA AGAR DATABASE TIDAK HANG/FREEZE
+        toast(
+          "Menyimpan data... (" + berhasilDisimpan + " / " + totalData + ")",
+          "inf",
+        );
+        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       // --- REFRESH UI ---
@@ -2441,10 +2455,14 @@ async function handleImportDBF(event) {
       updateKasirHeaderNominal();
       await hitungSaldoOtomatis();
       renderKasirNoreffList();
-      toast("Berhasil import " + tempDetilKasirDBF.length + " data!", "ok");
+
+      toast(
+        "✅ Import Selesai! Berhasil masuk: " + berhasilDisimpan + " data.",
+        "ok",
+      );
     } catch (err) {
       console.error(err);
-      toast("Gagal baca file DBF: " + err.message, "err");
+      toast("Gagal import di tengah jalan: " + err.message, "err");
       if ($("mk_cab")) $("mk_cab").disabled = false;
       if ($("mk_tgl")) $("mk_tgl").disabled = false;
     }
