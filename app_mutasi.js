@@ -2069,7 +2069,7 @@ async function simpanPerubahanKasirDetil(idYangDiedit) {
 // ========================================================
 // HAPUS SE-REFF KHUSUS MUTASI KASIR
 // ========================================================
-function {
+function promptHapusSeReffKasir() {
   var noreffAktif = _kasirSession.noreff;
 
   var html =
