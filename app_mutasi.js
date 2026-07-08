@@ -1446,7 +1446,13 @@ function renderMutasiKasir() {
     '<div id="mutKasirDetilTbl" class="tw"></div>' +
     "</div>" +
     // KOLOM KANAN (NOREFF LIST)
+
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
+    // ✅ TAMBAHKAN FILTER CABANG DI ATAS SINI (BARIS BARU)
+    '<div class="fg" style="margin-bottom:.4rem"><label style="font-size:.65rem">Cabang</label><select id="mk_filter_cab" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    getCabangOpts(firstCab) +
+    "</select></div>" +
+    // LANJUTAN BULAN & TAHUN DI BAWAHNYA
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
     '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="mk_filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
     generateBulanOpts("") +
@@ -1818,9 +1824,6 @@ function resetKasirNewTransaction() {
   renderKasirNoreffList();
 }
 
-/* ================================================================
-   PRINT MUTASI KASIR & SIMPAN SALDO OTOMATIS
-   ================================================================ */
 /* ================================================================
    PRINT MUTASI KASIR & SIMPAN SALDO OTOMATIS
    ================================================================ */
@@ -2474,7 +2477,7 @@ const AppImporKasirDBF = {
     return `
       <div style="max-width: 500px; padding: 1rem;">
         <div style="margin-bottom: 1rem; font-size:.85rem; color:var(--muted); background:rgba(0,0,0,0.2); padding:.5rem; border-radius:6px;">
-          <i class="fa-solid fa-circle-info"></i> Proses import akan berjalan di Server. Browser tidak akan ngelag.
+          <i class="fa-solid fa-circle-info"></i> Proses import akan berjalan di Server.
         </div>
 
         <form id="formImporKasirDbf">
