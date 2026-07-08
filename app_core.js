@@ -410,15 +410,21 @@ async function refreshCache() {
     }
     // 🚀 KELOMPOK 2: Data Operasional/Transaksi (DIFILTER SESUAI CABANG USER)
     // Golongan, Perkiraan, dll tetap memakai db.getAll karena kodenya sudah benar
-    const [golongan, perkiraan, kodeBank, saldoKasir, mutasikasir] =
-      await Promise.all([
-        db.getAll("golongan", cabangSaya),
-        db.getAll("perkiraan", cabangSaya),
-        db.getAll("kodeBank", cabangSaya),
-        db.getAll("saldoKasirawal", cabangSaya),
-        db.getAll("saldoKasir", cabangSaya),
-        db.getAll("mutasikasir", cabangSaya),
-      ]);
+    const [
+      golongan,
+      perkiraan,
+      kodeBank,
+      saldoKasir,
+      saldoKasirawal,
+      mutasikasir,
+    ] = await Promise.all([
+      db.getAll("golongan", cabangSaya),
+      db.getAll("perkiraan", cabangSaya),
+      db.getAll("kodeBank", cabangSaya),
+      db.getAll("saldoKasirawal", cabangSaya),
+      db.getAll("saldoKasir", cabangSaya),
+      db.getAll("mutasikasir", cabangSaya),
+    ]);
 
     // Simpan Data Operasional
     DBCache.golongan = golongan;
