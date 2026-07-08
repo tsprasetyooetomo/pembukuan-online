@@ -2515,12 +2515,30 @@ function promptHapusMutasiPerCabang() {
 }
 
 // ✅ FUNGSI EKSEKUSI HAPUS DATA
+// ✅ FUNGSI EKSEKUSI HAPUS DATA (SUDAH DIPERBAIKI ID DAN PERINTAH DB-NYA)
 async function executeHapusMutasiPerCabang() {
+  // 1. PERBAIKAN ID: Harus sama persis dengan id di dalam HTML promptHapusMutasiPerCabang
   var cabDihapus = $("opt_hapus_cab") ? $("opt_hapus_cab").value : "";
-  if (!cabDihapus) return toast("Pilih cabang terlebih dahulu!", "err");
+
+  if (!cabDihapus) {
+    return toast("Pilih cabang terlebih dahulu!", "err");
+  }
+
+  // Tanya konfirmasi sekali lagi untuk keamanan
+  if (
+    !confirm(
+      "APAKAH ANDA YAKIN?\n\nSemua riwayat transaksi kasir untuk cabang [" +
+        cabDihapus +
+        "] akan dihapus PERMANEN.",
+    )
+  ) {
+    return; // Batal jika tidak klik OK
+  }
 
   try {
-    // 1. Cari data di cache yang cabangnya cocok
+    toast("Menghapus data cabang " + cabDihapus + "...", "inf");
+
+    // 2. Cari data di cache yang cabangnya cocok
     var dataDihapus = DBCache.mutasikasir.filter(function (item) {
       return item.cabang === cabDihapus;
     });
@@ -2530,20 +2548,18 @@ async function executeHapusMutasiPerCabang() {
       return toast("Tidak ada data kasir untuk cabang " + cabDihapus, "ok");
     }
 
-    // 2. Hapus dari Database satu per satu
+    // 3. Hapus dari Database satu per satu
     for (var d = 0; d < dataDihapus.length; d++) {
-      // Sesuaikan dengan perintah delete yang work di sistem kamu (db.delete / db.remove)
-      await db.del("mutasikasir", function (row) {
-        return row.id === dataDihapus[d].id;
-      });
+      // ✅ PERBAIKAN KEDUA: GANTI db.delete MENJADI db.remove (SESUAI SISTEMMU)
+      await db.remove("mutasikasir", dataDihapus[d].id);
     }
 
-    // 3. Hapus dari Cache Memory
+    // 4. Hapus dari Cache Memory
     DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
       return item.cabang !== cabDihapus;
     });
 
-    // 4. Tutup Modal & Refresh Tampilan
+    // 5. Tutup Modal & Refresh Tampilan
     if (typeof closeModal === "function") closeModal();
 
     renderKasirDetilTable();
@@ -2554,10 +2570,7 @@ async function executeHapusMutasiPerCabang() {
     renderKasirNoreffList();
 
     toast(
-      "Berhasil menghapus " +
-        dataDihapus.length +
-        " data kasir cabang " +
-        cabDihapus,
+      "Berhasil menghapus " + dataDihapus.length + " data cabang " + cabDihapus,
       "ok",
     );
   } catch (err) {
