@@ -2199,7 +2199,7 @@ async function executeHapusSeReffKasir() {
   }
 }
 var tempDetilKasirDBF = [];
-var tempDetilKasirDBF = []; 
+var tempDetilKasirDBF = [];
 
 // ✅ PARSER BINARY DBF YANG SUDAH DIPERBAIKI (Menghitung Jumlah Kolom dengan Benar)
 function parseDBFCorrect(buffer) {
@@ -2209,14 +2209,14 @@ function parseDBFCorrect(buffer) {
 
   // 1. Baca Ukuran Header (Byte 8-9) -> INI YANG DULU SALAH
   var headerSize = data.getUint8(8) | (data.getUint8(9) << 8);
-  
+
   // 2. Hitung Jumlah Kolom yang BENAR
   // (Rumus baku DBF: (UkuranHeader - 32 byte awal - 1 byte terminator) / 32 byte per kolom)
   var fieldCount = Math.floor((headerSize - 33) / 32);
 
   // 3. Baca Nama Kolom (Mulai dari byte ke-32)
   for (var i = 0; i < fieldCount; i++) {
-    var offset = 32 + (i * 32);
+    var offset = 32 + i * 32;
     var name = "";
     for (var j = 0; j < 11; j++) {
       var ch = data.getUint8(offset + j);
@@ -2233,8 +2233,8 @@ function parseDBFCorrect(buffer) {
 
   while (pos < buffer.byteLength) {
     var delFlag = data.getUint8(pos);
-    if (delFlag === 0x1A) break; // Tanda akhir file DBF
-    
+    if (delFlag === 0x1a) break; // Tanda akhir file DBF
+
     pos++; // Lewati byte tanda hapus
     var row = {};
     var isRowEmpty = true;
@@ -2243,15 +2243,15 @@ function parseDBFCorrect(buffer) {
       // Ambil potongan byte sesuai panjang kolom
       var valBytes = new Uint8Array(buffer, pos, fields[f].len);
       // Decode menggunakan encoding Windows-1252 (Standar DBF Indonesia)
-      var val = new TextDecoder('windows-1252').decode(valBytes).trim();
-      
+      var val = new TextDecoder("windows-1252").decode(valBytes).trim();
+
       // Bersihkan karakter aneh invisible
       val = val.replace(/[\x00-\x1F\x7F]/g, "");
 
       // Jika tipe kolom Numeric (N) atau Float (F), ubah jadi angka
-      if ((fields[f].type === 'N' || fields[f].type === 'F') && val !== "") {
+      if ((fields[f].type === "N" || fields[f].type === "F") && val !== "") {
         // Hapus titik ribuan dan ubah koma desimal jadi titik (contoh: 15.000.000,00 -> 15000000.00)
-        val = val.replace(/\./g, '').replace(',', '.');
+        val = val.replace(/\./g, "").replace(",", ".");
         row[fields[f].name] = parseFloat(val) || 0;
       } else {
         row[fields[f].name] = val;
@@ -2272,68 +2272,83 @@ function handleImportDBF(event) {
   var file = event.target.files[0];
   if (!file) return;
 
-  event.target.value = ''; 
+  event.target.value = "";
 
   var reader = new FileReader();
-  reader.onload = async function(e) {
+  reader.onload = async function (e) {
     try {
       var buffer = e.target.result;
-      
+
       // Gunakan parser yang sudah diperbaiki
       var records = parseDBFCorrect(buffer);
       console.log("Hasil baca DBF:", records); // Untuk debugging, bisa dihapus nanti
 
-      tempDetilKasirDBF = []; 
+      tempDetilKasirDBF = [];
 
       for (var i = 0; i < records.length; i++) {
         var r = records[i];
-        
-        var kodeTrans = String(r.N_KODE || "").trim().toUpperCase();
-        var desc = String(r.PENJELASAN || "").trim().toUpperCase();
+
+        // ✅ SUDAH DISESUAIKAN DENGAN HASIL CONSOLE
+        var kodeTrans = String(r.N_KODE_ || "")
+          .trim()
+          .toUpperCase();
+        var desc = String(r.PENJELASAN || "")
+          .trim()
+          .toUpperCase();
         var total = parseFloat(r.N_RUPIAH_ || 0);
         var cabangDBF = String(r.N_CABANG_ || "00").trim();
-        
-        // Handle tanggal
-        var tglDBF = r.TANGGAL; 
-        var tanggalFix = $("mk_tgl") ? $("mk_tgl").value : new Date().toISOString().split("T")[0];
+
+        // Handle tanggal (Karena hasilmu "20240801", ini akan otomatis diubah jadi "2024-08-01")
+        var tglDBF = r.TANGGAL;
+        var tanggalFix = $("mk_tgl")
+          ? $("mk_tgl").value
+          : new Date().toISOString().split("T")[0];
         if (tglDBF) {
-            var tglStr = String(tglDBF).trim();
-            if (tglStr.length === 8 && !isNaN(tglStr)) {
-                tanggalFix = tglStr.substring(0, 4) + "-" + tglStr.substring(4, 6) + "-" + tglStr.substring(6, 8);
-            } else if (tglStr.length >= 10) {
-                tanggalFix = tglStr;
-            }
+          var tglStr = String(tglDBF).trim();
+          if (tglStr.length === 8 && !isNaN(tglStr)) {
+            tanggalFix =
+              tglStr.substring(0, 4) +
+              "-" +
+              tglStr.substring(4, 6) +
+              "-" +
+              tglStr.substring(6, 8);
+          } else if (tglStr.length >= 10) {
+            tanggalFix = tglStr;
+          }
         }
 
         if (total <= 0 || kodeTrans === "") continue;
 
         tempDetilKasirDBF.push({
-          id: crypto.randomUUID(), 
-          noreff: _kasirSession.noreff, 
-          tanggal: tanggalFix,       
-          cabang: cabangDBF,         
-          kodeTrans: kodeTrans,      
+          id: crypto.randomUUID(),
+          noreff: _kasirSession.noreff,
+          tanggal: tanggalFix, // Akan terisi "2024-08-01"
+          cabang: cabangDBF, // Akan terisi "04"
+          kodeTrans: kodeTrans, // Akan terisi "BE"
           noperkiraan: "",
-          desc: desc,                
-          total: total,              
-          db: total,  
-          cr: 0       
+          desc: desc, // Akan terisi "SAYUR KANTIN"
+          total: total, // Akan terisi 251000
+          db: total,
+          cr: 0,
         });
       }
 
       if (tempDetilKasirDBF.length === 0) {
-        return toast("Tidak ada data valid. Cek konsol (F12) untuk lihat isi DBF aslinya.", "err");
+        return toast(
+          "Tidak ada data valid. Cek konsol (F12) untuk lihat isi DBF aslinya.",
+          "err",
+        );
       }
 
       toast("Memproses import " + tempDetilKasirDBF.length + " data...", "inf");
-      
-      if($("mk_cab")) $("mk_cab").disabled = true;
-      if($("mk_tgl")) $("mk_tgl").disabled = true;
+
+      if ($("mk_cab")) $("mk_cab").disabled = true;
+      if ($("mk_tgl")) $("mk_tgl").disabled = true;
 
       for (var j = 0; j < tempDetilKasirDBF.length; j++) {
         var newDetil = tempDetilKasirDBF[j];
         await db.add("mutasikasir", newDetil);
-        
+
         if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
         DBCache.mutasikasir.push(newDetil);
       }
@@ -2342,15 +2357,17 @@ function handleImportDBF(event) {
       updateKasirHeaderNominal();
       await hitungSaldoOtomatis();
       renderKasirNoreffList();
-      
-      toast("Berhasil mengimport " + tempDetilKasirDBF.length + " data DBF!", "ok");
 
+      toast(
+        "Berhasil mengimport " + tempDetilKasirDBF.length + " data DBF!",
+        "ok",
+      );
     } catch (err) {
       console.error(err);
       toast("Gagal baca file DBF: " + err.message, "err");
-      if($("mk_cab")) $("mk_cab").disabled = false;
-      if($("mk_tgl")) $("mk_tgl").disabled = false;
+      if ($("mk_cab")) $("mk_cab").disabled = false;
+      if ($("mk_tgl")) $("mk_tgl").disabled = false;
     }
   };
-  reader.readAsArrayBuffer(file); 
+  reader.readAsArrayBuffer(file);
 }
