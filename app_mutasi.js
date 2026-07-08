@@ -2248,7 +2248,68 @@ function promptImportDBF() {
 
 // ✅ 2. FUNGSI UTAMA IMPORT (SUDAH DENGAN LOGIKA HAPUS)
 var tempDetilKasirDBF = [];
+// ✅ FUNGSI PARSER BINARY DBF (WAJIB ADA DI ATAS handleImportDBF)
+function parseDBFCorrect(buffer) {
+  var data = new DataView(buffer);
+  var fields = [];
+  var rows = [];
 
+  // 1. Baca Ukuran Header (Byte 8-9)
+  var headerSize = data.getUint8(8) | (data.getUint8(9) << 8);
+
+  // 2. Hitung Jumlah Kolom yang BENAR
+  var fieldCount = Math.floor((headerSize - 33) / 32);
+
+  // 3. Baca Nama Kolom (Mulai dari byte ke-32)
+  for (var i = 0; i < fieldCount; i++) {
+    var offset = 32 + i * 32;
+    var name = "";
+    for (var j = 0; j < 11; j++) {
+      var ch = data.getUint8(offset + j);
+      if (ch === 0) break;
+      name += String.fromCharCode(ch);
+    }
+    var type = String.fromCharCode(data.getUint8(offset + 11));
+    var len = data.getUint8(offset + 16);
+    fields.push({ name: name.trim().toUpperCase(), type: type, len: len });
+  }
+
+  // 4. Mulai baca data baris (Dimulai tepat di akhir header)
+  var pos = headerSize;
+
+  while (pos < buffer.byteLength) {
+    var delFlag = data.getUint8(pos);
+    if (delFlag === 0x1a) break; // Tanda akhir file DBF
+
+    pos++; // Lewati byte tanda hapus
+    var row = {};
+    var isRowEmpty = true;
+
+    for (var f = 0; f < fields.length; f++) {
+      var valBytes = new Uint8Array(buffer, pos, fields[f].len);
+      var val = new TextDecoder("windows-1252").decode(valBytes).trim();
+
+      // Bersihkan karakter aneh invisible
+      val = val.replace(/[\x00-\x1F\x7F]/g, "");
+
+      // Jika tipe kolom Numeric (N) atau Float (F), ubah jadi angka
+      if ((fields[f].type === "N" || fields[f].type === "F") && val !== "") {
+        val = val.replace(/\./g, "").replace(",", ".");
+        row[fields[f].name] = parseFloat(val) || 0;
+      } else {
+        row[fields[f].name] = val;
+      }
+
+      if (val !== "") isRowEmpty = false;
+      pos += fields[f].len;
+    }
+
+    if (!isRowEmpty) {
+      rows.push(row);
+    }
+  }
+  return rows;
+}
 async function handleImportDBF(event) {
   var file = event.target.files[0];
   if (!file) return;
