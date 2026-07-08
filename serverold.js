@@ -1070,7 +1070,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         }
 
         // 1. HAPUS DATA LAMA JIKA DIPILIH
-        // ✅ DISESUAIKAN: Karena 1 noreff = 1 tanggal, kita hapus berdasarkan pola Noreff-nya
         if (hapus_tahun || hapus_bulan) {
           send(20, "Menghapus data lama di database...");
           const cabShort = (cabang || "PUSAT").substring(0, 3).toUpperCase();
@@ -1091,56 +1090,23 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           send(25, "Mode tambah data (tidak menghapus yang lama)");
         }
 
-        // 2. PROSES PARSE DAN GROUPING DATA
-        send(30, "Memproses dan mengelompokkan data per tanggal...");
+        // 2. PROSES PARSE DATA (TANPA MENGURANGI JUMLAH BARIS)
+        send(30, "Memproses data...");
         const crypto = require("crypto");
 
-        const groupedData = records.reduce((acc, row) => {
-          const getStr = (val) =>
-            val !== undefined && val !== null ? String(val).trim() : "";
+        // ✅ DICT UNTUK MENYIMPAN NOREFF BERDASARKAN TANGGAL & CABANG
+        const noreffMap = {};
+
+        // Filter baris valid (total > 0) agar tidak membuang resource
+        const validRecords = records.filter((row) => {
           const getNum = (val) =>
             val !== undefined && val !== null ? Number(val) : 0;
+          return getNum(row.N_RUPIAH_) > 0;
+        });
 
-          const total = getNum(row.N_RUPIAH_);
-          const desc = getStr(row.PENJELASAN).toUpperCase();
-          const cabDBF = getStr(row.N_CABANG_) || cabang;
-
-          if (total <= 0) return acc;
-
-          let tglStr = getStr(row.TANGGAL);
-          let tanggalFix = new Date().toISOString().split("T")[0];
-          if (tglStr.length === 8 && !isNaN(tglStr)) {
-            tanggalFix =
-              tglStr.substring(0, 4) +
-              "-" +
-              tglStr.substring(4, 6) +
-              "-" +
-              tglStr.substring(6, 8);
-          } else if (tglStr.length >= 10) {
-            tanggalFix = tglStr;
-          }
-
-          const key = `${tanggalFix}_${cabDBF}`;
-
-          if (!acc[key]) {
-            acc[key] = {
-              tanggal: tanggalFix,
-              cabang: cabDBF,
-              total: 0,
-              descriptions: new Set(),
-            };
-          }
-
-          acc[key].total += total;
-          if (desc) acc[key].descriptions.add(desc);
-
-          return acc;
-        }, {});
-
-        const finalRecords = Object.values(groupedData);
         send(
           40,
-          `Data dikelompokkan menjadi ${finalRecords.length} entri (dari ${records.length} baris)`,
+          `${validRecords.length} data valid ditemukan, mulai menyimpan...`,
         );
 
         // 3. INSERT KE DATABASE
@@ -1150,40 +1116,72 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
           let savedCount = 0;
           const batchSize = 500;
-          const totalBatches = Math.ceil(finalRecords.length / batchSize);
+          const totalBatches = Math.ceil(validRecords.length / batchSize);
 
-          for (let i = 0; i < finalRecords.length; i += batchSize) {
-            const batch = finalRecords.slice(i, i + batchSize);
+          for (let i = 0; i < validRecords.length; i += batchSize) {
+            const batch = validRecords.slice(i, i + batchSize);
             let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
             let values = [];
             let placeholders = [];
 
-            batch.forEach((item) => {
-              const id = crypto.randomUUID();
+            batch.forEach((row) => {
+              const getStr = (val) =>
+                val !== undefined && val !== null ? String(val).trim() : "";
+              const getNum = (val) =>
+                val !== undefined && val !== null ? Number(val) : 0;
 
-              // ✅ LOGIKA EXACT DARI FRONTEND:
-              // "KASIR-" + (cab || "PUSAT").substring(0, 3).toUpperCase() + "-" + tgl + "-" + Math.random()...
-              const cabShort = (item.cabang || "PUSAT")
+              const kodeTrans = getStr(row.N_KODE_).toUpperCase();
+              const desc = getStr(row.PENJELASAN).toUpperCase();
+              const total = getNum(row.N_RUPIAH_);
+              const cabDBF = getStr(row.N_CABANG_) || cabang;
+
+              // Format Tanggal
+              let tglStr = getStr(row.TANGGAL);
+              let tanggalFix = new Date().toISOString().split("T")[0];
+              if (tglStr.length === 8 && !isNaN(tglStr)) {
+                tanggalFix =
+                  tglStr.substring(0, 4) +
+                  "-" +
+                  tglStr.substring(4, 6) +
+                  "-" +
+                  tglStr.substring(6, 8);
+              } else if (tglStr.length >= 10) {
+                tanggalFix = tglStr;
+              }
+
+              const cabShort = (cabDBF || "PUSAT")
                 .substring(0, 3)
                 .toUpperCase();
-              const randomStr = Math.random()
-                .toString(36)
-                .substr(2, 4)
-                .toUpperCase();
-              const noreff = `KASIR-${cabShort}-${item.tanggal}-${randomStr}`;
 
-              const combinedDesc = Array.from(item.descriptions).join("; ");
+              // ✅ LOGIKA NOREFF: Buat key unik dari Tanggal + Cabang
+              const noreffKey = `${cabShort}_${tanggalFix}`;
+
+              // Jika noreff untuk tanggal & cabang ini BELUM pernah dibuat, buat baru
+              if (!noreffMap[noreffKey]) {
+                const randomStr = Math.random()
+                  .toString(36)
+                  .substr(2, 4)
+                  .toUpperCase();
+                noreffMap[noreffKey] =
+                  `KASIR-${cabShort}-${tanggalFix}-${randomStr}`;
+              }
+
+              // Ambil noreff yang sudah pernah dibuat (atau baru saja dibuat)
+              const noreff = noreffMap[noreffKey];
+
+              // Buat ID unik tetap berbeda untuk setiap baris
+              const id = crypto.randomUUID();
 
               const jsonData = JSON.stringify({
                 id,
-                noreff: noreff,
-                tanggal: item.tanggal,
-                cabang: item.cabang,
-                kodeTrans: "MULTI",
+                noreff: noreff, // <-- Ini yang jadi sama jika tanggalnya sama
+                tanggal: tanggalFix,
+                cabang: cabDBF,
+                kodeTrans: kodeTrans, // <-- Diembalikan lagi ke aslinya dari DBF
                 noperkiraan: "",
-                desc: combinedDesc,
-                total: item.total,
-                db: item.total,
+                desc: desc,
+                total: total,
+                db: total,
                 cr: 0,
               });
 
@@ -1204,14 +1202,14 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
             send(
               pct,
-              `Menyimpan ke Supabase... (${savedCount}/${finalRecords.length} entri)`,
+              `Menyimpan ke Supabase... (${savedCount}/${validRecords.length} data)`,
             );
           }
 
           await client.query("COMMIT");
           send(
             100,
-            `Sukses! ${savedCount} entri kasir cabang ${cabang} tersimpan (Digabung per tanggal)`,
+            `Sukses! ${savedCount} data kasir cabang ${cabang} tersimpan`,
             { success: true },
           );
           res.end();
