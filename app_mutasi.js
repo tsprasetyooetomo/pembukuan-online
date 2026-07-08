@@ -2424,28 +2424,26 @@ async function handleImportDBF(event) {
         }
       }
 
-      // --- PROSES IMPORT BATCHING ---
-      var batchSize = 100;
+      // --- PROSES IMPORT LANGSUNG TANPA JEDA (LEBIH AMAN DARI CRASH) ---
       var totalData = tempDetilKasirDBF.length;
       var berhasilDisimpan = 0;
 
-      for (var i = 0; i < totalData; i += batchSize) {
-        var batch = tempDetilKasirDBF.slice(i, i + batchSize);
+      for (var j = 0; j < totalData; j++) {
+        var newDetil = tempDetilKasirDBF[j];
 
-        for (var j = 0; j < batch.length; j++) {
-          var newDetil = batch[j];
-          await db.add("mutasikasir", newDetil);
+        await db.add("mutasikasir", newDetil);
 
-          if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
-          DBCache.mutasikasir.push(newDetil);
-          berhasilDisimpan++;
+        if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
+        DBCache.mutasikasir.push(newDetil);
+        berhasilDisimpan++;
+
+        // Hanya update UI toast setiap 1000 data sekali (agar tidak lag)
+        if (berhasilDisimpan % 1000 === 0) {
+          toast(
+            "Menyimpan data... (" + berhasilDisimpan + " / " + totalData + ")",
+            "inf",
+          );
         }
-
-        toast(
-          "Menyimpan data... (" + berhasilDisimpan + " / " + totalData + ")",
-          "inf",
-        );
-        await new Promise((resolve) => setTimeout(resolve, 500));
       }
 
       // --- REFRESH UI ---
