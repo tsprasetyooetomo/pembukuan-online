@@ -1150,8 +1150,8 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 db: total,
                 cr: 0,
               });
-
-              const base = index * 2;
+              const base = values.length; // ✅ PERBAIKAN: Hitung berdasarkan array yang benar-benar terisi
+           
               placeholders.push(`($${base + 1}, $${base + 2})`);
               values.push(id, jsonData);
             });
