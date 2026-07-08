@@ -1398,11 +1398,23 @@ function renderMutasiKasir() {
     '<div style="display:flex; gap:.4rem;">' +
     '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
-    // ✅ TAMBAHAN TOMBOL IMPORT DBF DI SINI
+    // ✅ TAMBAHAN TOMBOL IMPORT DBF + OPSI HAPUS
     '<label class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff; margin:0; cursor:pointer;">' +
     '<i class="fa-solid fa-file-import"></i> Import DBF' +
     '<input type="file" accept=".dbf" onchange="handleImportDBF(event)" style="display:none;">' +
     "</label>" +
+    // -- Opsi Tambahan Muncul Di Samping Tombol Import --
+    '<div style="display:flex; align-items:center; gap:5px; margin-left:5px; font-size:.6rem; color:var(--fg)">' +
+    '<select id="mk_import_bulan" class="in" style="width:auto; padding:1px 4px; font-size:.6rem;">' +
+    generateBulanOpts("") +
+    "</select>" +
+    '<select id="mk_import_tahun" class="in" style="width:auto; padding:1px 4px; font-size:.6rem;">' +
+    generateTahunOpts("") +
+    "</select>" +
+    '<label style="display:flex; align-items:center; gap:3px; cursor:pointer; white-space:nowrap;">' +
+    '<input type="checkbox" id="mk_import_hapus" style="margin:0; accent-color:var(--danger);"> Hapus Data Periode Ini?' +
+    "</label>" +
+    "</div>" +
     "</div>" +
     "</div>" +
     /* --- SISANYA TETAP SAMA SEPERTI KODE ASLI KAMU --- */
@@ -2199,96 +2211,36 @@ async function executeHapusSeReffKasir() {
   }
 }
 var tempDetilKasirDBF = [];
-var tempDetilKasirDBF = [];
-
-// ✅ PARSER BINARY DBF YANG SUDAH DIPERBAIKI (Menghitung Jumlah Kolom dengan Benar)
-function parseDBFCorrect(buffer) {
-  var data = new DataView(buffer);
-  var fields = [];
-  var rows = [];
-
-  // 1. Baca Ukuran Header (Byte 8-9) -> INI YANG DULU SALAH
-  var headerSize = data.getUint8(8) | (data.getUint8(9) << 8);
-
-  // 2. Hitung Jumlah Kolom yang BENAR
-  // (Rumus baku DBF: (UkuranHeader - 32 byte awal - 1 byte terminator) / 32 byte per kolom)
-  var fieldCount = Math.floor((headerSize - 33) / 32);
-
-  // 3. Baca Nama Kolom (Mulai dari byte ke-32)
-  for (var i = 0; i < fieldCount; i++) {
-    var offset = 32 + i * 32;
-    var name = "";
-    for (var j = 0; j < 11; j++) {
-      var ch = data.getUint8(offset + j);
-      if (ch === 0) break;
-      name += String.fromCharCode(ch);
-    }
-    var type = String.fromCharCode(data.getUint8(offset + 11));
-    var len = data.getUint8(offset + 16);
-    fields.push({ name: name.trim().toUpperCase(), type: type, len: len });
-  }
-
-  // 4. Mulai baca data baris (Dimulai tepat di akhir header)
-  var pos = headerSize;
-
-  while (pos < buffer.byteLength) {
-    var delFlag = data.getUint8(pos);
-    if (delFlag === 0x1a) break; // Tanda akhir file DBF
-
-    pos++; // Lewati byte tanda hapus
-    var row = {};
-    var isRowEmpty = true;
-
-    for (var f = 0; f < fields.length; f++) {
-      // Ambil potongan byte sesuai panjang kolom
-      var valBytes = new Uint8Array(buffer, pos, fields[f].len);
-      // Decode menggunakan encoding Windows-1252 (Standar DBF Indonesia)
-      var val = new TextDecoder("windows-1252").decode(valBytes).trim();
-
-      // Bersihkan karakter aneh invisible
-      val = val.replace(/[\x00-\x1F\x7F]/g, "");
-
-      // Jika tipe kolom Numeric (N) atau Float (F), ubah jadi angka
-      if ((fields[f].type === "N" || fields[f].type === "F") && val !== "") {
-        // Hapus titik ribuan dan ubah koma desimal jadi titik (contoh: 15.000.000,00 -> 15000000.00)
-        val = val.replace(/\./g, "").replace(",", ".");
-        row[fields[f].name] = parseFloat(val) || 0;
-      } else {
-        row[fields[f].name] = val;
-      }
-
-      if (val !== "") isRowEmpty = false;
-      pos += fields[f].len; // Pindah ke kolom berikutnya
-    }
-
-    if (!isRowEmpty) {
-      rows.push(row);
-    }
-  }
-  return rows;
-}
 
 function handleImportDBF(event) {
   var file = event.target.files[0];
   if (!file) return;
-
   event.target.value = "";
+
+  // ✅ 1. AMBIL NILAI DARI OPSI YANG BARU DITAMBAHKAN
+  var filterBulan = $("mk_import_bulan") ? $("mk_import_bulan").value : "";
+  var filterTahun = $("mk_import_tahun") ? $("mk_import_tahun").value : "";
+  var isHapusDulu = $("mk_import_hapus") ? $("mk_import_hapus").checked : false;
+
+  // Validasi: Jika centang hapus, wajib pilih bulan & tahun
+  if (isHapusDulu && (!filterBulan || !filterTahun)) {
+    return toast(
+      "Jika centang 'Hapus Data Sebelum Import', Bulan & Tahun wajib dipilih!",
+      "err",
+    );
+  }
 
   var reader = new FileReader();
   reader.onload = async function (e) {
     try {
       var buffer = e.target.result;
-
-      // Gunakan parser yang sudah diperbaiki
       var records = parseDBFCorrect(buffer);
-      console.log("Hasil baca DBF:", records); // Untuk debugging, bisa dihapus nanti
-
       tempDetilKasirDBF = [];
 
+      // 2. PROSES PARSING DATA DBF (Sudah sesuai fieldmu)
       for (var i = 0; i < records.length; i++) {
         var r = records[i];
 
-        // ✅ SUDAH DISESUAIKAN DENGAN HASIL CONSOLE
         var kodeTrans = String(r.N_KODE_ || "")
           .trim()
           .toUpperCase();
@@ -2298,7 +2250,6 @@ function handleImportDBF(event) {
         var total = parseFloat(r.N_RUPIAH_ || 0);
         var cabangDBF = String(r.N_CABANG_ || "00").trim();
 
-        // Handle tanggal (Karena hasilmu "20240801", ini akan otomatis diubah jadi "2024-08-01")
         var tglDBF = r.TANGGAL;
         var tanggalFix = $("mk_tgl")
           ? $("mk_tgl").value
@@ -2322,22 +2273,19 @@ function handleImportDBF(event) {
         tempDetilKasirDBF.push({
           id: crypto.randomUUID(),
           noreff: _kasirSession.noreff,
-          tanggal: tanggalFix, // Akan terisi "2024-08-01"
-          cabang: cabangDBF, // Akan terisi "04"
-          kodeTrans: kodeTrans, // Akan terisi "BE"
+          tanggal: tanggalFix,
+          cabang: cabangDBF,
+          kodeTrans: kodeTrans,
           noperkiraan: "",
-          desc: desc, // Akan terisi "SAYUR KANTIN"
-          total: total, // Akan terisi 251000
+          desc: desc,
+          total: total,
           db: total,
           cr: 0,
         });
       }
 
       if (tempDetilKasirDBF.length === 0) {
-        return toast(
-          "Tidak ada data valid. Cek konsol (F12) untuk lihat isi DBF aslinya.",
-          "err",
-        );
+        return toast("Tidak ada data valid di file DBF.", "err");
       }
 
       toast("Memproses import " + tempDetilKasirDBF.length + " data...", "inf");
@@ -2345,6 +2293,38 @@ function handleImportDBF(event) {
       if ($("mk_cab")) $("mk_cab").disabled = true;
       if ($("mk_tgl")) $("mk_tgl").disabled = true;
 
+      // ✅ 3. LOGIKA HAPUS DATA LAMA BERDASARKAN BULAN & TAHUN
+      if (isHapusDulu) {
+        var targetPrefix = filterTahun + "-" + filterBulan; // Contoh: "2024-08"
+
+        // Cari di cache data yang tanggalnya cocok dengan target
+        var dataDihapus = DBCache.mutasikasir.filter(function (item) {
+          return item.tanggal && item.tanggal.startsWith(targetPrefix);
+        });
+
+        if (dataDihapus.length > 0) {
+          // Hapus dari IndexedDB satu per satu
+          for (var d = 0; d < dataDihapus.length; d++) {
+            await db.delete("mutasikasir", dataDihapus[d].id);
+          }
+          // Hapus dari Cache Memory
+          DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
+            return !(item.tanggal && item.tanggal.startsWith(targetPrefix));
+          });
+          toast(
+            "Berhasil menghapus " +
+              dataDihapus.length +
+              " data lama (Bulan " +
+              filterBulan +
+              " " +
+              filterTahun +
+              ")",
+            "inf",
+          );
+        }
+      }
+
+      // ✅ 4. MASUKKAN DATA BARU
       for (var j = 0; j < tempDetilKasirDBF.length; j++) {
         var newDetil = tempDetilKasirDBF[j];
         await db.add("mutasikasir", newDetil);
@@ -2353,13 +2333,14 @@ function handleImportDBF(event) {
         DBCache.mutasikasir.push(newDetil);
       }
 
+      // ✅ 5. REFRESH UI
       renderKasirDetilTable();
       updateKasirHeaderNominal();
       await hitungSaldoOtomatis();
       renderKasirNoreffList();
 
       toast(
-        "Berhasil mengimport " + tempDetilKasirDBF.length + " data DBF!",
+        "Import selesai! Total data baru: " + tempDetilKasirDBF.length,
         "ok",
       );
     } catch (err) {
