@@ -1091,67 +1091,102 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           send(25, "Mode tambah data (tidak menghapus yang lama)");
         }
 
-        // 2. PROSES PARSE DAN INSERT KE DATABASE
-        send(30, "Memproses data...");
+        // 2. PROSES PARSE DAN GROUPING DATA
+        send(30, "Memproses dan mengelompokkan data per tanggal...");
+        const crypto = require("crypto");
+
+        // Kelompokkan data berdasarkan Tanggal + Cabang
+        const groupedData = records.reduce((acc, row) => {
+          const getStr = (val) =>
+            val !== undefined && val !== null ? String(val).trim() : "";
+          const getNum = (val) =>
+            val !== undefined && val !== null ? Number(val) : 0;
+
+          const total = getNum(row.N_RUPIAH_);
+          const desc = getStr(row.PENJELASAN).toUpperCase();
+          const cabDBF = getStr(row.N_CABANG_) || cabang;
+
+          if (total <= 0) return acc; // Skip baris tidak valid
+
+          // Format Tanggal
+          let tglStr = getStr(row.TANGGAL);
+          let tanggalFix = new Date().toISOString().split("T")[0];
+          if (tglStr.length === 8 && !isNaN(tglStr)) {
+            tanggalFix =
+              tglStr.substring(0, 4) +
+              "-" +
+              tglStr.substring(4, 6) +
+              "-" +
+              tglStr.substring(6, 8);
+          } else if (tglStr.length >= 10) {
+            tanggalFix = tglStr;
+          }
+
+          // Key unik berdasarkan TANGGAL dan CABANG
+          const key = `${tanggalFix}_${cabDBF}`;
+
+          if (!acc[key]) {
+            // Inisialisasi jika belum ada
+            acc[key] = {
+              tanggal: tanggalFix,
+              cabang: cabDBF,
+              total: 0,
+              descriptions: new Set(), // Gunakan Set agar tidak ada deskripsi duplikat
+            };
+          }
+
+          // Tambahkan total dan deskripsi
+          acc[key].total += total;
+          if (desc) acc[key].descriptions.add(desc);
+
+          return acc;
+        }, {});
+
+        const finalRecords = Object.values(groupedData);
+        send(
+          40,
+          `Data dikelompokkan menjadi ${finalRecords.length} entri (dari ${records.length} baris)`,
+        );
+
+        // 3. INSERT KE DATABASE
         const client = await db.connect();
         try {
           await client.query("BEGIN");
 
           let savedCount = 0;
           const batchSize = 500;
-          const totalBatches = Math.ceil(records.length / batchSize);
+          const totalBatches = Math.ceil(finalRecords.length / batchSize);
 
-          for (let i = 0; i < records.length; i += batchSize) {
-            const batch = records.slice(i, i + batchSize);
+          for (let i = 0; i < finalRecords.length; i += batchSize) {
+            const batch = finalRecords.slice(i, i + batchSize);
             let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
             let values = [];
             let placeholders = [];
 
-            batch.forEach((row, index) => {
-              const getStr = (val) =>
-                val !== undefined && val !== null ? String(val).trim() : "";
-              const getNum = (val) =>
-                val !== undefined && val !== null ? Number(val) : 0;
-
-              const kodeTrans = getStr(row.N_KODE_).toUpperCase();
-              const desc = getStr(row.PENJELASAN).toUpperCase();
-              const total = getNum(row.N_RUPIAH_);
-              const cabDBF = getStr(row.N_CABANG_) || cabang;
-
-              if (total <= 0 || kodeTrans === "") return; // Skip baris tidak valid
-
-              // Format Tanggal
-              let tglStr = getStr(row.TANGGAL);
-              let tanggalFix = new Date().toISOString().split("T")[0];
-              if (tglStr.length === 8 && !isNaN(tglStr)) {
-                tanggalFix =
-                  tglStr.substring(0, 4) +
-                  "-" +
-                  tglStr.substring(4, 6) +
-                  "-" +
-                  tglStr.substring(6, 8);
-              } else if (tglStr.length >= 10) {
-                tanggalFix = tglStr;
-              }
-
-              // Buat ID unik
-              const crypto = require("crypto");
+            batch.forEach((item) => {
+              // Buat ID unik untuk 1 tanggal 1 cabang
               const id = crypto.randomUUID();
+
+              // Buat Noreff unik (bisa diubah formatnya sesuai kebutuhan, contoh: NOREFF-TANGGAL-CABANG)
+              const noreff = `NOREFF-${item.tanggal}-${item.cabang}`;
+
+              // Gabungkan semua deskripsi yang ada di tanggal tersebut
+              const combinedDesc = Array.from(item.descriptions).join("; ");
 
               const jsonData = JSON.stringify({
                 id,
-                noreff: "",
-                tanggal: tanggalFix,
-                cabang: cabDBF,
-                kodeTrans,
+                noreff: noreff,
+                tanggal: item.tanggal,
+                cabang: item.cabang,
+                kodeTrans: "MULTI", // Karena digabung, bisa diisi MULTI atau string lain
                 noperkiraan: "",
-                desc,
-                total,
-                db: total,
+                desc: combinedDesc,
+                total: item.total,
+                db: item.total,
                 cr: 0,
               });
-              const base = values.length; // ✅ PERBAIKAN: Hitung berdasarkan array yang benar-benar terisi
-           
+
+              const base = values.length;
               placeholders.push(`($${base + 1}, $${base + 2})`);
               values.push(id, jsonData);
             });
@@ -1164,19 +1199,19 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
             savedCount += batch.length;
             const currentBatch = Math.floor(i / batchSize) + 1;
-            const pct =
-              30 + Math.round((currentBatch / totalBatches) * 100 * 0.7); // Skala 30% - 100%
+            // Skala 40% - 100%
+            const pct = 40 + Math.round((currentBatch / totalBatches) * 60);
 
             send(
               pct,
-              `Menyimpan ke Supabase... (${savedCount}/${records.length})`,
+              `Menyimpan ke Supabase... (${savedCount}/${finalRecords.length} entri)`,
             );
           }
 
           await client.query("COMMIT");
           send(
             100,
-            `Sukses! ${savedCount} data kasir cabang ${cabang} tersimpan`,
+            `Sukses! ${savedCount} entri kasir cabang ${cabang} tersimpan (Digabung per tanggal)`,
             { success: true },
           );
           res.end();
@@ -1199,7 +1234,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
     res.end();
   }
 });
-
 // ============================================================================
 // JALANKAN SERVER - WAJIB DI PALING BAWAH
 // ============================================================================
