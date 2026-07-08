@@ -294,21 +294,31 @@ app.post("/api/clear-all-data", async (req, res) => {
     let params = [];
 
     // ✅ LOGIKA KHUSUS UNTUK MUTASI KASIR (Mencari di dalam kolom JSON 'data')
+    // ✅ LOGIKA KHUSUS UNTUK MUTASI KASIR
     if (lowerStoreName === "mutasikasir") {
       let conditions = [];
       let paramIndex = 1;
 
+      // 1. Filter Noreff (TAMBAHKAN INI)
+      if (req.body.noreff) {
+        conditions.push(`data->>'noreff' = $${paramIndex++}`);
+        params.push(req.body.noreff);
+      }
+
+      // 2. Filter Cabang
       if (cabang) {
         conditions.push(`data->>'cabang' = $${paramIndex++}`);
         params.push(cabang);
       }
+
+      // 3. Filter Tahun & Bulan
       if (tahun && tahun !== "") {
         if (bulan && bulan !== "") {
           conditions.push(`data->>'tanggal' LIKE $${paramIndex++}`);
-          params.push(`${tahun}-${bulan}%`); // Contoh: 2024-08%
+          params.push(`${tahun}-${bulan}%`);
         } else {
           conditions.push(`data->>'tanggal' LIKE $${paramIndex++}`);
-          params.push(`${tahun}%`); // Contoh: 2024%
+          params.push(`${tahun}%`);
         }
       }
 
