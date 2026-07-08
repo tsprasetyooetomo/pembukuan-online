@@ -2513,96 +2513,194 @@ function promptHapusMutasiPerCabang() {
     openModal("Hapus Data Mutasi Kasir", html);
   else alert("Fungsi Modal tidak ditemukan.");
 }
-// ✅ FUNGSI EKSEKUSI HAPUS YANG SUDAH DIPERBAIKI (ANTI GAGAL REFRESH)
-// ✅ FUNGSI HAPUS YANG SUDAH TERHUBUNG SUPABASE
+// ✅ FUNGSI HAPUS MUTASI KASIR (MENYELARASKAN DENGAN POLA clearAllDataMutasi)
 async function executeHapusMutasiPerCabang() {
-  var cabDihapus = $("opt_hapus_cab") ? $("opt_hapus_cab").value : "";
+  var label = "Mutasi Kasir";
 
-  if (!cabDihapus) return toast("Pilih cabang terlebih dahulu!", "err");
-
-  if (
-    !confirm(
-      "APAKAH ANDA YAKIN?\n\nSemua data kasir cabang [" +
-        cabDihapus +
-        "] akan dihapus dari PERANGKAT dan SUPABASE.",
-    )
-  ) {
-    return;
+  var tahunSekarang = new Date().getFullYear();
+  var opsiTahunHtml = "";
+  for (var i = 0; i < 3; i++) {
+    var thn = tahunSekarang - i;
+    opsiTahunHtml += `<option value="${thn}">${thn}</option>`;
   }
 
-  try {
-    if (typeof closeModal === "function") closeModal();
-    toast("Menghubungi Supabase, mohon tunggu...", "inf");
+  var daftarBulan = [
+    { v: "01", n: "Januari" },
+    { v: "02", n: "Februari" },
+    { v: "03", n: "Maret" },
+    { v: "04", n: "April" },
+    { v: "05", n: "Mei" },
+    { v: "06", n: "Juni" },
+    { v: "07", n: "Juli" },
+    { v: "08", n: "Agustus" },
+    { v: "09", n: "September" },
+    { v: "10", n: "Oktober" },
+    { v: "11", n: "November" },
+    { v: "12", n: "Desember" },
+  ];
+  var opsiBulanHtml = daftarBulan
+    .map(function (b) {
+      return `<option value="${b.v}">${b.n}</option>`;
+    })
+    .join("");
 
-    // ==========================================================
-    // PILIH SALAH SATU METODE DI BAWAH INI SESUAI SISTEM KAMU
-    // ==========================================================
-
-    // --- METODE 1: Jika kamu punya variabel koneksi supabase-js ---
-    // (Hapus tanda // di baris bawah jika pakai metode ini)
-    /*
-    const { data, error } = await supabase
-      .from('mutasikasir')
-      .delete()
-      .eq('cabang', cabDihapus);
-    
-    if (error) throw new Error(error.message);
-    */
-
-    // --- METODE 2: Jika sistem kamu punya fungsi API wrapper (Cek di app_core.js) ---
-    // (Hapus tanda // di baris bawah jika pakai metode ini)
-    /*
-    await api('DELETE', '/mutasikasir?cabang=eq.' + cabDihapus);
-    */
-
-    // --- METODE 3: Jika TIDAK ADA DARI DUANYA, GUNAKAN INI (Fetch API Langsung) ---
-    // Kamu WAJIB ganti 'URL_SUPABASE_MU' dan 'API_KEY_MU' dibawah ini
-    var SUPABASE_URL = "https://xxx.supabase.co"; // Ganti dengan URL Supabase kamu
-    var SUPABASE_KEY = "eyJhbGci..."; // Ganti dengan Anon Key / Service Role Key Supabase kamu
-
-    var response = await fetch(
-      SUPABASE_URL + "/rest/v1/mutasikasir?cabang=eq." + cabDihapus,
-      {
-        method: "DELETE",
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: "Bearer " + SUPABASE_KEY,
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (!response.ok) {
-      var errText = await response.text();
-      throw new Error("Supabase error: " + errText);
-    }
-    // ==========================================================
-
-    // Setelah berhasil menghapus di Supabase, baru kita bersihkan data Lokal (Browser)
-    toast("Supabase berhasil. Membersihkan data lokal...", "inf");
-
-    DBCache.mutasikasir = DBCache.mutasikasir.filter(function (item) {
-      return String(item.cabang).trim() !== String(cabDihapus).trim();
+  var cabFilterOpts = '<option value="">-- Semua Cabang --</option>';
+  if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
+    var sortedList = [...DBCache.cabang];
+    sortedList.sort(function (a, b) {
+      return String(a.kode || "").localeCompare(String(b.kode || ""));
     });
-
-    // Render Ulang Tampilan
-    renderKasirDetilTable();
-    updateKasirHeaderNominal();
-    await hitungSaldoOtomatis();
-
-    if (typeof buildGroupedNoreff === "function") buildGroupedNoreff();
-    renderKasirNoreffList();
-
-    toast(
-      "✅ Berhasil menghapus SELURUH data cabang " +
-        cabDihapus +
-        " (Lokal & Supabase)",
-      "ok",
-    );
-  } catch (err) {
-    console.error(err);
-    toast("Gagal menghapus di Supabase: " + err.message, "err");
+    cabFilterOpts += sortedList
+      .map(function (c) {
+        var displayNama = c.nama ? ` (${c.nama})` : "";
+        return `<option value="${c.kode}">${c.kode}${displayNama}</option>`;
+      })
+      .join("");
   }
+
+  // Buka Modal (Menggunakan fungsi openModal milikmu)
+  openModal(
+    "Filter Hapus Data " + label,
+    `<div class="confirm-box" style="padding: .5rem">
+      <div style="margin-bottom: 1rem; font-size: .85rem; color: var(--muted)">
+        Data yang dihapus akan langsung terhapus dari Database Server (Supabase).
+      </div>
+      
+      <div style="display: flex; flex-direction: column; gap: .8rem; margin-bottom: 1.5rem">
+        <div>
+          <label style="display:block; font-size:.8rem; margin-bottom:.3rem; font-weight:bold">Bulan</label>
+          <select id="del_bulan" style="width:100%; padding:.5rem; border-radius:6px; border:1px solid var(--brd); background:var(--bg2); color:inherit">
+            <option value="">-- Semua Bulan --</option>
+            ${opsiBulanHtml}
+          </select>
+        </div>
+        
+        <div>
+          <label style="display:block; font-size:.8rem; margin-bottom:.3rem; font-weight:bold">Tahun</label>
+          <select id="del_tahun" style="width:100%; padding:.5rem; border-radius:6px; border:1px solid var(--brd); background:var(--bg2); color:inherit">
+            <option value="">-- Semua Tahun --</option>
+            ${opsiTahunHtml}
+          </select>
+        </div>
+        
+        <div>
+          <label style="display:block; font-size:.8rem; margin-bottom:.3rem; font-weight:bold">Kode Cabang</label>
+          <select id="del_cabang" style="width:100%; padding:.5rem; border-radius:6px; border:1px solid var(--brd); background:var(--bg2); color:inherit">
+            ${cabFilterOpts}
+          </select>
+        </div>
+      </div>
+
+      <div class="cb-btns" style="display:flex; justify-content:flex-end; gap:.5rem">
+        <button class="btn btn-g" onclick="closeModal()">Batal</button>
+        <button class="btn btn-r" id="btnKonfirmasiHapusMutasi"><i class="fa-solid fa-trash-can"></i> Hapus Data</button>
+      </div>
+    </div>`,
+  );
+
+  // EVENT LISTENER UNTUK TOMBOL HAPUS
+  document.getElementById("btnKonfirmasiHapusMutasi").onclick =
+    async function () {
+      var bln = document.getElementById("del_bulan").value;
+      var thn = document.getElementById("del_tahun").value;
+      var cbg = document.getElementById("del_cabang").value;
+
+      if (!cbg) {
+        return toast("Kode Cabang wajib dipilih!", "err");
+      }
+
+      var infoFilter = `\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg}`;
+
+      if (
+        !confirm(
+          "PERINGATAN!\n\nData " +
+            label +
+            " dengan kriteria berikut akan dihapus permanen dari Server:" +
+            infoFilter +
+            "\n\nLanjutkan?",
+        )
+      ) {
+        return;
+      }
+
+      closeModal();
+      toast("Menghapus data di server...", "inf");
+
+      try {
+        // ====================================================================
+        // 1. HAPUS DI SUPABASE DULU (MENGGUNAKAN ENDPOINT BULK YANG DIBUAT TADI)
+        // ====================================================================
+        var response = await fetch("/api/mutasikasir/bulk-delete", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            cabang: cbg,
+            tahun: thn,
+            bulan: bln,
+          }),
+        });
+
+        var result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || "Gagal menghubungi server");
+        }
+
+        // ====================================================================
+        // 2. HAPUS DI CACHE MEMORY (LOCAL BROWSER) SUPAYA TAMPILAN LANGSUNG HILANG
+        // ====================================================================
+        var dataDipertahankan = [];
+        var dataDihapusCount = 0;
+
+        // Pastikan DBCache.mutasikasir ada
+        var allData = DBCache.mutasikasir || [];
+
+        for (var i = 0; i < allData.length; i++) {
+          var item = allData[i];
+          var cocokCabang = item.cabang === cbg;
+
+          var cocokTahun = true;
+          if (thn) {
+            cocokTahun = item.tanggal && item.tanggal.startsWith(thn);
+          }
+
+          var cocokBulan = true;
+          if (thn && bln) {
+            var prefix = thn + "-" + bln;
+            cocokBulan = item.tanggal && item.tanggal.startsWith(prefix);
+          }
+
+          // Jika cocok dengan kriteria hapus, skip (tidak dimasukkan ke array dipertahankan)
+          if (cocokCabang && cocokTahun && cocokBulan) {
+            dataDihapusCount++;
+          } else {
+            dataDipertahankan.push(item);
+          }
+        }
+
+        // Update cache lokal
+        DBCache.mutasikasir = dataDipertahankan;
+
+        // ====================================================================
+        // 3. REFRESH UI TAMPILAN
+        // ====================================================================
+        renderKasirDetilTable();
+        updateKasirHeaderNominal();
+        await hitungSaldoOtomatis();
+
+        if (typeof buildGroupedNoreff === "function") {
+          buildGroupedNoreff();
+        }
+        renderKasirNoreffList();
+
+        toast(
+          `✅ Berhasil menghapus ${result.deleted} data ${label} dari Supabase`,
+          "ok",
+        );
+      } catch (err) {
+        console.error(err);
+        toast("Gagal memproses penghapusan: " + err.message, "err");
+      }
+    };
 }
 
 // ✅ FUNGSI UNTUK MENAMPILKAN/MENGHILANGKAN INDIKATOR PROSES
