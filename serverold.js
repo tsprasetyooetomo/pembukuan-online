@@ -1064,26 +1064,26 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           return res.end();
         }
 
-        // Validasi cabang
         if (!cabang) {
           send(100, "Parameter cabang tidak ada", { success: false });
           return res.end();
         }
 
         // 1. HAPUS DATA LAMA JIKA DIPILIH
+        // ✅ DISESUAIKAN: Karena 1 noreff = 1 tanggal, kita hapus berdasarkan pola Noreff-nya
         if (hapus_tahun || hapus_bulan) {
           send(20, "Menghapus data lama di database...");
-          let sql = `DELETE FROM mutasikasir WHERE CAST(data AS jsonb)->>'cabang' = $1`;
-          let params = [cabang];
-          let paramIdx = 2;
+          const cabShort = (cabang || "PUSAT").substring(0, 3).toUpperCase();
+          let norefPrefix = `KASIR-${cabShort}-`;
 
           if (hapus_tahun && hapus_bulan) {
-            sql += ` AND CAST(data AS jsonb)->>'tanggal' LIKE $${paramIdx++}`;
-            params.push(`${hapus_tahun}-${hapus_bulan}%`);
+            norefPrefix += `${hapus_tahun}-${hapus_bulan}`;
           } else if (hapus_tahun) {
-            sql += ` AND CAST(data AS jsonb)->>'tanggal' LIKE $${paramIdx++}`;
-            params.push(`${hapus_tahun}%`);
+            norefPrefix += `${hapus_tahun}`;
           }
+
+          let sql = `DELETE FROM mutasikasir WHERE CAST(data AS jsonb)->>'noreff' LIKE $1`;
+          let params = [`${norefPrefix}%`];
 
           await db.query(sql, params);
           send(25, "Data lama berhasil dihapus");
@@ -1095,7 +1095,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         send(30, "Memproses dan mengelompokkan data per tanggal...");
         const crypto = require("crypto");
 
-        // Kelompokkan data berdasarkan Tanggal + Cabang
         const groupedData = records.reduce((acc, row) => {
           const getStr = (val) =>
             val !== undefined && val !== null ? String(val).trim() : "";
@@ -1106,9 +1105,8 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           const desc = getStr(row.PENJELASAN).toUpperCase();
           const cabDBF = getStr(row.N_CABANG_) || cabang;
 
-          if (total <= 0) return acc; // Skip baris tidak valid
+          if (total <= 0) return acc;
 
-          // Format Tanggal
           let tglStr = getStr(row.TANGGAL);
           let tanggalFix = new Date().toISOString().split("T")[0];
           if (tglStr.length === 8 && !isNaN(tglStr)) {
@@ -1122,20 +1120,17 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
             tanggalFix = tglStr;
           }
 
-          // Key unik berdasarkan TANGGAL dan CABANG
           const key = `${tanggalFix}_${cabDBF}`;
 
           if (!acc[key]) {
-            // Inisialisasi jika belum ada
             acc[key] = {
               tanggal: tanggalFix,
               cabang: cabDBF,
               total: 0,
-              descriptions: new Set(), // Gunakan Set agar tidak ada deskripsi duplikat
+              descriptions: new Set(),
             };
           }
 
-          // Tambahkan total dan deskripsi
           acc[key].total += total;
           if (desc) acc[key].descriptions.add(desc);
 
@@ -1164,13 +1159,19 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
             let placeholders = [];
 
             batch.forEach((item) => {
-              // Buat ID unik untuk 1 tanggal 1 cabang
               const id = crypto.randomUUID();
 
-              // Buat Noreff unik (bisa diubah formatnya sesuai kebutuhan, contoh: NOREFF-TANGGAL-CABANG)
-              const noreff = `NOREFF-${item.tanggal}-${item.cabang}`;
+              // ✅ LOGIKA EXACT DARI FRONTEND:
+              // "KASIR-" + (cab || "PUSAT").substring(0, 3).toUpperCase() + "-" + tgl + "-" + Math.random()...
+              const cabShort = (item.cabang || "PUSAT")
+                .substring(0, 3)
+                .toUpperCase();
+              const randomStr = Math.random()
+                .toString(36)
+                .substr(2, 4)
+                .toUpperCase();
+              const noreff = `KASIR-${cabShort}-${item.tanggal}-${randomStr}`;
 
-              // Gabungkan semua deskripsi yang ada di tanggal tersebut
               const combinedDesc = Array.from(item.descriptions).join("; ");
 
               const jsonData = JSON.stringify({
@@ -1178,7 +1179,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 noreff: noreff,
                 tanggal: item.tanggal,
                 cabang: item.cabang,
-                kodeTrans: "MULTI", // Karena digabung, bisa diisi MULTI atau string lain
+                kodeTrans: "MULTI",
                 noperkiraan: "",
                 desc: combinedDesc,
                 total: item.total,
@@ -1199,7 +1200,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
             savedCount += batch.length;
             const currentBatch = Math.floor(i / batchSize) + 1;
-            // Skala 40% - 100%
             const pct = 40 + Math.round((currentBatch / totalBatches) * 60);
 
             send(
