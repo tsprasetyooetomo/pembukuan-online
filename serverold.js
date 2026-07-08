@@ -284,7 +284,7 @@ app.post("/api/reset-posting", async (req, res) => {
 app.post("/api/clear-all-data", async (req, res) => {
   if (!db) return res.status(500).json({ success: false, message: "DB Error" });
   try {
-    const { storeName, masa, cabang } = req.body;
+    const { storeName, masa, cabang, tahun, bulan } = req.body; // ✅ Tambahkan tahun & bulan
     if (!storeName || !isValidTable(storeName))
       return res
         .status(403)
@@ -292,13 +292,41 @@ app.post("/api/clear-all-data", async (req, res) => {
     const lowerStoreName = storeName.toLowerCase();
     let sql = `DELETE FROM ${lowerStoreName}`;
     let params = [];
-    const colCheckQuery = `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'masa';`;
-    const colResult = await db.query(colCheckQuery, [lowerStoreName]);
-    const hasMasa = colResult.rows.length > 0;
-    if (hasMasa && masa && cabang) {
-      sql += ` WHERE masa = $1 AND cabang = $2`;
-      params = [masa, cabang];
+
+    // ✅ LOGIKA KHUSUS UNTUK MUTASI KASIR (Mencari di dalam kolom JSON 'data')
+    if (lowerStoreName === "mutasikasir") {
+      let conditions = [];
+      let paramIndex = 1;
+
+      if (cabang) {
+        conditions.push(`data->>'cabang' = $${paramIndex++}`);
+        params.push(cabang);
+      }
+      if (tahun && tahun !== "") {
+        if (bulan && bulan !== "") {
+          conditions.push(`data->>'tanggal' LIKE $${paramIndex++}`);
+          params.push(`${tahun}-${bulan}%`); // Contoh: 2024-08%
+        } else {
+          conditions.push(`data->>'tanggal' LIKE $${paramIndex++}`);
+          params.push(`${tahun}%`); // Contoh: 2024%
+        }
+      }
+
+      if (conditions.length > 0) {
+        sql += " WHERE " + conditions.join(" AND ");
+      }
     }
+    // LOGIKA LAMA UNTUK TABEL TAHUNAN (Golongan, Perkiraan, Transaksi)
+    else {
+      const colCheckQuery = `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'masa';`;
+      const colResult = await db.query(colCheckQuery, [lowerStoreName]);
+      const hasMasa = colResult.rows.length > 0;
+      if (hasMasa && masa && cabang) {
+        sql += ` WHERE masa = $1 AND cabang = $2`;
+        params = [masa, cabang];
+      }
+    }
+
     const info = await db.query(sql, params);
     res.json({ success: true, changes: info.rowCount || 0 });
   } catch (e) {
