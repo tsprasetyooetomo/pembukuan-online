@@ -1143,7 +1143,7 @@ async function renderSaldoKasir() {
   var ids = data.map(function (r) {
     return r.id;
   });
-  bulkInit("saldoKasir", ids);
+  bulkInit("saldoKasirawal", ids);
 
   var dataLimit = data.slice(0, _viewLimit);
   var idsLimit = dataLimit.map(function (r) {
@@ -1176,7 +1176,7 @@ async function renderSaldoKasir() {
   // ... kode atas tetap sama ...
 
   return (
-    bulkBarHTML("saldoKasir", "saldoKasir") +
+    bulkBarHTML("saldoKasirawal", "saldoKasirawal") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
     "Tampilkan " +
@@ -1194,15 +1194,15 @@ async function renderSaldoKasir() {
     wrapTable(
       buildTable(["Cabang", "Tanggal", "Saldo Awal"], rows, {
         foot: foot,
-        bulkStore: "saldoKasir",
+        bulkStore: "saldoKasirawal",
         bulkIds: idsLimit,
 
         // ✅ PERBAIKAN: Ganti dengan memanggil crudActions() persis seperti di halaman Cabang
         actions: function (r, i) {
-          return crudActions(dataLimit[i].id, "saldoKasir");
+          return crudActions(dataLimit[i].id, "saldoKasirawal");
         },
 
-        emptyMsg: "Belum ada data Saldo Kasir",
+        emptyMsg: "Belum ada data Saldo Kasir awal",
       }),
     )
   );
