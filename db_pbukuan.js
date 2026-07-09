@@ -524,9 +524,10 @@ class PembukuanDB {
     }
 
     // 3. Bangun URL
-    const url = cabang
-      ? API_BASE_URL + "/api/data/" + s + "?cabang=" + cabang
-      : API_BASE_URL + "/api/data/" + s;
+    const url =
+      cabang && cabang !== "undefined"
+        ? API_BASE_URL + "/api/data/" + s + "?cabang=" + cabang
+        : API_BASE_URL + "/api/data/" + s;
 
     // 4. Fetch data
     return fetch(url).then(function (r) {
