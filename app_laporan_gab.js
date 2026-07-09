@@ -1196,7 +1196,7 @@ async function terapkanOpsiArusKasGabungan() {
 
       if (!setValidCabang.has(cabangData)) return;
 
-      if (kodeGol > 102 && kodegol < 300 && masaData === kodemasadicari) {
+      if (kodeGol > 102 && kodeGol < 300 && masaData === kodemasadicari) {
         if (!dataByCabang[cabangData]) dataByCabang[cabangData] = {};
         if (!dataByCabang[cabangData][kodeGol])
           dataByCabang[cabangData][kodeGol] = 0;
