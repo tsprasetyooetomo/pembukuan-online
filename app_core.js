@@ -415,14 +415,14 @@ async function refreshCache() {
       perkiraan,
       kodeBank,
       saldoKasir,
-      saldoKasirAwal,
+      //saldoKasirAwal,
       mutasikasir,
     ] = await Promise.all([
       db.getAll("golongan", cabangSaya),
       db.getAll("perkiraan", cabangSaya),
       db.getAll("kodeBank", cabangSaya),
       db.getAll("saldoKasir", cabangSaya),
-      db.getAll("saldoKasirAwal", cabangSaya),
+      //db.getAll("saldoKasirAwal", cabangSaya),
       db.getAll("mutasikasir", cabangSaya),
     ]);
 
@@ -431,7 +431,7 @@ async function refreshCache() {
     DBCache.perkiraan = perkiraan;
     DBCache.kodeBank = kodeBank;
     DBCache.saldoKasir = saldoKasir;
-    DBCache.saldoKasirAwal = saldoKasirAwal;
+    // DBCache.saldoKasirAwal = saldoKasirAwal;
 
     DBCache.mutasikasir = mutasikasir;
 
