@@ -1009,7 +1009,7 @@ async function editRow(dk, id) {
   else if (dk === "formatNeraca") formFmtNeraca(id);
   else if (dk === "kodeBank") formKodeBank(id);
   else if (dk === "cabang") formCabang(id);
-  else if (dk === "saldoKasirAwal") formSaldoKasirAwal(id);
+  else if (dk === "saldokasirawal") formSaldoKasirAwal(id);
 }
 
 /* ================================================================
