@@ -1215,9 +1215,9 @@ function formSaldoKasirawal(id) {
     : {};
 
   var displaySaldo = isEdit ? data.akhir || 0 : 0;
-
   var html =
-    '<div class="fg"><label>Cabang</label><select id="fSkCab" class="in"' +
+    '<div class="fg"><label>Cabang</label>' +
+    '<select id="fSkCab" class="in"' +
     (isEdit ? " disabled" : "") +
     ">" +
     getCabangOpts(data.cabang) +
@@ -1246,23 +1246,37 @@ async function saveSaldoKasirawal(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
   try {
-    var cabang = $("fSkCab").value;
-    var tgl_awal = $("fSkTgl").value;
-    var akhir = num($("fSkAwal").value);
+    // ✅ FIX ELEMEN: Tambahkan '#' pada selektor ID agar value bisa terbaca
+    var $cabangEl = $("#fSkCab");
+    var cabang = $cabangEl.val() || ""; // Ini berisi KODE cabang (value dari option)
+
+    // ✅ TAMBAHAN: Ambil teks NAMA cabang dari option yang sedang dipilih
+    var nama_cabang = $cabangEl.find("option:selected").text() || "";
+    // Opsional: Jika format teks Anda adalah "KODE - NAMA", kita bersihkan agar hanya mengambil NAMA saja
+    if (nama_cabang.includes(" - ")) {
+      nama_cabang = nama_cabang.split(" - ")[1];
+    }
+
+    var tgl_awal = $("#fSkTgl").val();
+    var akhir = num($("#fSkAwal").val());
     var awal = 0;
     var vdb = 0;
     var vcr = 0;
+
+    if (!cabang) {
+      return toast("Cabang wajib dipilih", "err");
+    }
 
     if (!tgl_awal) {
       return toast("Tanggal wajib diisi", "err");
     }
 
     if (editId) {
-      // ✅ FIX 3: Ambil data dari IndexedDB "saldoKasirawal" (bukan saldoKasir)
       var r = await db.get("saldoKasirawal", editId);
       if (r) {
         var updated = Object.assign({}, r, {
           cabang: cabang,
+          nama_cabang: nama_cabang, // ✅ SIMPAN NAMA CABANG (EDIT)
           tgl_awal: tgl_awal,
           db: vdb,
           cr: vcr,
@@ -1284,10 +1298,8 @@ async function saveSaldoKasirawal(e, editId) {
           throw new Error(errJson.error || "Gagal update ke server backend");
         }
 
-        // ✅ FIX 4: Put ke IndexedDB "saldoKasirawal"
         await db.put("saldoKasirawal", updated);
 
-        // ✅ FIX 5: Update cache "saldoKasirawal"
         var idx = DBCache.saldoKasirawal.findIndex((x) => x.id === editId);
         if (idx !== -1) {
           DBCache.saldoKasirawal[idx] = updated;
@@ -1300,6 +1312,7 @@ async function saveSaldoKasirawal(e, editId) {
       var newObj = {
         id: newId,
         cabang: cabang,
+        nama_cabang: nama_cabang, // ✅ SIMPAN NAMA CABANG (BARU)
         tgl_awal: tgl_awal,
         db: vdb,
         cr: vcr,
@@ -1320,7 +1333,6 @@ async function saveSaldoKasirawal(e, editId) {
         );
       }
 
-      // ✅ FIX 6: Tambah ke IndexedDB & Cache "saldoKasirawal"
       await db.add("saldoKasirawal", newObj);
       DBCache.saldoKasirawal.push(newObj);
     }
