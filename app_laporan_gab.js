@@ -1225,7 +1225,7 @@ async function terapkanOpsiArusKasGabungan() {
     });
 
     // ==========================================
-    // 6. HITUNG TOTAL SALDO AWAL (GOL < 103) DARI BULAN SEBELUMNYA
+    // 6. HITUNG TOTAL SALDO AWAL (GOL < 103) BULAN LALU
     // ==========================================
     var kodemasasebelumnya = "";
     var bulanInt = parseInt(filterbulan);
@@ -1242,7 +1242,7 @@ async function terapkanOpsiArusKasGabungan() {
     var namaStoreSebelum = "golongan" + tahunSebelum;
 
     var rawSaldoAwal = await db.getAll(namaStoreSebelum);
-    var totalSaldoAwalByCabang = {}; // Hanya menampung total angka per cabang
+    var totalSaldoAwalByCabang = {};
 
     if (rawSaldoAwal) {
       var arrSaldoAwal = Array.isArray(rawSaldoAwal)
@@ -1265,7 +1265,7 @@ async function terapkanOpsiArusKasGabungan() {
     }
 
     // ==========================================
-    // 7. HITUNG SALDO AKHIR AKTIVA TETAP (GOL >= 103) DIRINCI 1 PER 1
+    // 7. HITUNG SALDO AKHIR AKTIVA TETAP (DIRINCI PER NO PERKIRAAN)
     // ==========================================
     var saldoAkhirAktivaTetapByCabang = {};
     var namaStorePerkTahun = "perkiraan" + filtertahunfull;
@@ -1360,8 +1360,8 @@ async function terapkanOpsiArusKasGabungan() {
       mapMasterGol,
       mapMasterCab,
       false,
-      totalSaldoAwalByCabang, // Dikirim sebagai total saja
-      saldoAkhirAktivaTetapByCabang, // Dikirim sebagai rincian
+      totalSaldoAwalByCabang,
+      saldoAkhirAktivaTetapByCabang,
     );
   } catch (error) {
     console.error("❌ Gagal total RL Gabungan:", error);
@@ -1557,12 +1557,12 @@ function generateHTMLArusKasGabungan(
 
   // --- BARIS SALDO AWAL ---
   html +=
-    '<tr style="font-size: 0.85rem; background-color:#000000; color:#0000ff;"><td style="padding:8px; border:1px solid #000; text-align:center; font-weight:bold;">-</td>';
+    '<tr style="font-size: 0.85rem; background-color:#e8f5e9;"><td style="padding:8px; border:1px solid #000; text-align:center; font-weight:bold;">-</td>';
   html +=
     '<td style="padding:8px; border:1px solid #000; font-weight:bold;">SALDO AWAL</td>';
   var saTotalGlobal = 0;
   daftarCabang.forEach(function (cab) {
-    var saCab = totalSaldoAwalByCabang[cab] || 0; // Ambil total saldo awal per cabang
+    var saCab = totalSaldoAwalByCabang[cab] || 0;
     saTotalGlobal += saCab;
     var xNum = isForExcel ? ' x:num="' + saCab + '"' : "";
     html +=
@@ -1572,7 +1572,6 @@ function generateHTMLArusKasGabungan(
       formatUang(saCab) +
       "</td>";
   });
-
   var xNumSaTotal = isForExcel ? ' x:num="' + saTotalGlobal + '"' : "";
   html +=
     '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;"' +
@@ -1588,8 +1587,8 @@ function generateHTMLArusKasGabungan(
     });
   }
 
-  // Hitung Subtotal Pemasukan (Saldo Awal + Pemasukan Golongan)
-  var subTotalPemasukanG = saTotalGlobal; // Sudah termasuk saldo awal
+  // Hitung Subtotal Pemasukan
+  var subTotalPemasukanG = saTotalGlobal;
   daftarCabang.forEach(function (cab) {
     arrPemasukan.forEach(function (g) {
       subTotalPemasukanG += dataByCabang[cab][g] || 0;
@@ -1628,9 +1627,9 @@ function generateHTMLArusKasGabungan(
     html += buatBarisSubtotal("PENGELUARAN", arrPengeluaran, "rl", "#842029");
   }
 
-  // 3. SELISIH
+  // 3. SELISIH (PEMASUKAN + PENGELUARAN)
   var totalPengeluaranG = hitungTotalGlobal(arrPengeluaran, "rl");
-  var selisihGlobal = subTotalPemasukanG + totalPengeluaranG; // Dihitung dari subtotal pemasukan baru
+  var selisihGlobal = subTotalPemasukanG + totalPengeluaranG;
   var bgSelisih = selisihGlobal >= 0 ? "#198754" : "#dc3545";
 
   html +=
@@ -1663,88 +1662,33 @@ function generateHTMLArusKasGabungan(
     formatUang(selGrandTotal) +
     "</td></tr>";
 
-  // 4. SALDO YANG ADA
-  html +=
-    "<tr style='background-color:#ffc107; color:#000; font-weight:bold; font-size:1rem;'><td colspan='2' style='padding:10px; border:1px solid #000; text-align:right;'>SALDO YANG ADA</td>";
-  daftarCabang.forEach(function (cab) {
-    var xNum = isForExcel ? ' x:num="' + selGrandTotal + '"' : ""; // Saldo yang ada sama dengan selisih
-  });
-
-  // Karena Saldo Yang Ada = Selisih, kita langsung pakai nilai selGrandTotal
-  var xNumTotalSa = isForExcel ? ' x:num="' + selGrandTotal + '"' : "";
-  html +=
-    '<td style="padding:10px; border:1px solid #000; text-align:right;" ' +
-    xNumTotalSa +
-    ">" +
-    formatUang(selGrandTotal) +
-    "</td></tr>";
-
-  // Render per cabang untuk Saldo Yang Ada
-  // (Koreksi logika render barisnya biar ke-render per cabang)
-  html = html.replace(
-    '<td style="padding:10px; border:1px solid #000; text-align:right;" ' +
-      xNumTotalSa +
-      ">" +
-      formatUang(selGrandTotal) +
-      "</td></tr>",
-    "",
-  ); // Hapus baris sebelumnya yg salah
-
-  html +=
-    "<tr style='background-color:#ffc107; color:#000; font-weight:bold; font-size:1rem;'><td colspan='2' style='padding:10px; border:1px solid #000; text-align:right;'>SALDO YANG ADA</td>";
-  var syaGrandTotal = 0;
-  daftarCabang.forEach(function (cab) {
-    var syaCab = totalSaldoAwalByCabang[cab] || 0;
-    arrPemasukan.forEach(function (g) {
-      syaCab += dataByCabang[cab][g] || 0;
-    });
-    arrPengeluaran.forEach(function (g) {
-      syaCab += dataByCabang[cab][g] || 0;
-    });
-    syaGrandTotal += syaCab;
-    var xNum = isForExcel ? ' x:num="' + syaCab + '"' : "";
-    html +=
-      '<td style="padding:10px; border:1px solid #000; text-align:right;" ' +
-      xNum +
-      ">" +
-      formatUang(syaCab) +
-      "</td>";
-  });
-  var xNumTotalSya = isForExcel ? ' x:num="' + syaGrandTotal + '"' : "";
-  html +=
-    '<td style="padding:10px; border:1px solid #000; text-align:right;"' +
-    xNumTotalSya +
-    ">" +
-    formatUang(syaGrandTotal) +
-    "</td></tr>";
-
   html +=
     '<tr><td colspan="' +
     (daftarCabang.length + 3) +
     '" style="height:15px; border:none; background:transparent;"></td></tr>';
 
   // ==========================================
-  // 5. RENDER AKTIVA TETAP (NO PERK) - SALDO AKHIR DARI PERKIRAAN+TAHUN (DIRINCI)
+  // 4. SALDO AKHIR (AKTIVA TETAP & LAINNYA) - DIRINCI 1 PER 1
   // ==========================================
   if (arrAktivaTetap.length > 0) {
     html +=
       "<tr><td colspan='" +
       (daftarCabang.length + 3) +
-      "' style='padding:8px; border:1px solid #000; font-weight:bold; background-color:#e2e3e5; color:#383d41;'>SALDO YANG ADA (AKTIVA TETAP & LAINNYA)</td></tr>";
+      "' style='padding:8px; border:1px solid #000; font-weight:bold; background-color:#e2e3e5; color:#383d41;'>SALDO AKHIR (AKTIVA TETAP & LAINNYA)</td></tr>";
     arrAktivaTetap.forEach(function (noPerk) {
       html += buatBarisData(noPerk, "akhir_perk");
     });
     html += buatBarisSubtotal(
-      "AKTIVA TETAP",
+      "SALDO AKHIR",
       arrAktivaTetap,
       "akhir_perk",
       "#383d41",
     );
   }
 
-  // 6. GRAND TOTAL AKHIR
+  // 5. GRAND TOTAL AKHIR (SELISIH + SALDO AKHIR AKTIVA TETAP)
   var totalAktivaTetapG = hitungTotalGlobal(arrAktivaTetap, "akhir_perk");
-  var grandTotalAkhir = syaGrandTotal + totalAktivaTetapG;
+  var grandTotalAkhir = selGrandTotal + totalAktivaTetapG;
 
   html +=
     "<tr style='background-color:#343a40; color:#fff; font-weight:bold; font-size:1.1rem;'><td colspan='2' style='padding:12px; border:1px solid #000; text-align:right;'>TOTAL AKHIR</td>";
