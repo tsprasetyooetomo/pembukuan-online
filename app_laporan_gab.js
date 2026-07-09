@@ -255,88 +255,145 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
     return val - dataHPP[index] - dataAdmUmum[index] - dataLain2[index];
   });
 
-  areaGrafik.style.display = "block";
-  var ctx = document.getElementById("chart_rlgab_cabang").getContext("2d");
+  // 1. Buka jendela baru dengan ukuran kustom
+  var lebar = 900;
+  var tinggi = 600;
+  var kiri = (screen.width - lebar) / 2;
+  var atas = (screen.height - tinggi) / 2;
 
-  if (window.myRlGabChart) {
-    window.myRlGabChart.destroy();
+  var winGrafik = window.open(
+    "",
+    "GrafikRLCabang",
+    "width=" +
+      lebar +
+      ",height=" +
+      tinggi +
+      ",top=" +
+      atas +
+      ",left=" +
+      kiri +
+      ",resizable=yes,scrollbars=yes",
+  );
+
+  if (!winGrafik) {
+    alert("Mohon izinkan pop-up pada browser Anda untuk melihat grafik.");
+    return;
   }
 
-  window.myRlGabChart = new Chart(ctx, {
-    type: "bar", // Diubah menjadi bar chart
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: "PENJUALAN BERSIH",
-          data: dataPenjualan,
-          borderColor: "#1f7a43",
-          backgroundColor: "rgba(31, 122, 67, 0.7)", // Opasitas dinaikkan agar warna batang solid
-          borderWidth: 1,
-        },
-        {
-          label: "TOTAL HPP",
-          data: dataHPP,
-          borderColor: "#0d6efd",
-          backgroundColor: "rgba(13, 110, 253, 0.7)",
-          borderWidth: 1,
-        },
-        {
-          label: "TOTAL BY. ADM & UMUM",
-          data: dataAdmUmum,
-          borderColor: "#dc3545",
-          backgroundColor: "rgba(220, 53, 69, 0.7)",
-          borderWidth: 1,
-        },
-        {
-          label: "TOTAL PEND & BY LAIN2",
-          data: dataLain2,
-          borderColor: "#ffc107",
-          backgroundColor: "rgba(255, 193, 7, 0.7)",
-          borderWidth: 1,
-        },
-        {
-          label: "LABA / RUGI BERSIH (RL)",
-          data: dataRL,
-          borderColor: "#B8860B", // Diubah ke warna emas gelap agar teks dan batas lebih kontras
-          backgroundColor: "rgba(255, 215, 0, 0.7)",
-          borderWidth: 2,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: "top",
-          labels: { color: "#333", font: { size: 11 } },
-        },
-        tooltip: {
-          callbacks: {
-            label: function (context) {
-              return (
-                context.dataset.label + ": " + formatUang(context.parsed.y)
-              );
+  // 2. Isi struktur HTML dan panggil pustaka Chart.js di jendela baru
+  winGrafik.document.open();
+  winGrafik.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Grafik R/L Gabungan Per Cabang</title>
+      <script src="https://jsdelivr.net"><\/script>
+      <style>
+        body { margin: 0; padding: 20px; font-family: sans-serif; background-color: #f8f9fa; }
+        .container { width: 100%; height: calc(100vh - 40px); background: #ffffff; padding: 15px; box-sizing: border-box; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <canvas id="chart_rlgab_cabang_baru"></canvas>
+      </div>
+    </body>
+    </html>
+  `);
+  winGrafik.document.close();
+
+  // 3. Berikan jeda waktu sesaat agar pustaka Chart.js selesai dimuat di jendela baru sebelum menggambar
+  winGrafik.onload = function () {
+    var ctx = winGrafik.document
+      .getElementById("chart_rlgab_cabang_baru")
+      .getContext("2d");
+
+    // Salin atau deklarasikan ulang fungsi formatUang agar bisa diakses di jendela baru
+    var formatUangLokal =
+      typeof formatUang === "function"
+        ? formatUang
+        : function (val) {
+            return val.toLocaleString("id-ID");
+          };
+
+    new winGrafik.Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "PENJUALAN BERSIH",
+            data: dataPenjualan,
+            borderColor: "#1f7a43",
+            backgroundColor: "rgba(31, 122, 67, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "TOTAL HPP",
+            data: dataHPP,
+            borderColor: "#0d6efd",
+            backgroundColor: "rgba(13, 110, 253, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "TOTAL BY. ADM & UMUM",
+            data: dataAdmUmum,
+            borderColor: "#dc3545",
+            backgroundColor: "rgba(220, 53, 69, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "TOTAL PEND & BY LAIN2",
+            data: dataLain2,
+            borderColor: "#ffc107",
+            backgroundColor: "rgba(255, 193, 7, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "LABA / RUGI BERSIH (RL)",
+            data: dataRL,
+            borderColor: "#B8860B",
+            backgroundColor: "rgba(255, 215, 0, 0.7)",
+            borderWidth: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "top",
+            labels: { color: "#333", font: { size: 11 } },
+          },
+          tooltip: {
+            callbacks: {
+              label: function (context) {
+                return (
+                  context.dataset.label +
+                  ": " +
+                  formatUangLokal(context.parsed.y)
+                );
+              },
             },
           },
         },
-      },
-      scales: {
-        y: {
-          beginAtZero: true, // Diubah ke true agar grafik batang mulai dari angka 0 dengan pas
-          ticks: {
-            color: "#333",
-            callback: function (value) {
-              return formatUang(value);
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: "#333",
+              callback: function (value) {
+                return formatUangLokal(value);
+              },
             },
+            grid: { color: "rgba(0,0,0,0.05)" },
           },
-          grid: { color: "rgba(0,0,0,0.05)" },
+          x: { ticks: { color: "#333" }, grid: { display: false } },
         },
-        x: { ticks: { color: "#333" }, grid: { display: false } },
       },
-    },
-  });
+    });
+  };
 }
 
 async function downloadRLGabunganExcel() {
