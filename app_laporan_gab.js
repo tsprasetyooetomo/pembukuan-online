@@ -168,6 +168,7 @@ async function terapkanOpsiRLGabungan() {
       area.style.maxHeight = "none";
       area.style.height = "auto";
     }
+
     area.innerHTML = generateHTMLRLGabungan(
       daftarCabang,
       arrKodeGol,
@@ -176,6 +177,7 @@ async function terapkanOpsiRLGabungan() {
       mapMasterCab,
       false,
     );
+    renderGrafikRLGabungan(daftarCabang, dataByCabang, mapMasterCab);
   } catch (error) {
     console.error("❌ Gagal total RL Gabungan:", error);
     if (area)
@@ -186,23 +188,27 @@ async function terapkanOpsiRLGabungan() {
   }
 }
 
-// Fungsi ini sekarang HANYA bertugas memastikan library Chart.js sudah ada
-async function renderGrafikRLGabungan() {
-  return new Promise(function (resolve) {
-    if (typeof Chart !== "undefined") {
-      resolve(true);
-    } else {
-      var script = document.createElement("script");
-      script.src = "https://cdn.jsdelivr.net/npm/chart.js";
-      script.onload = function () {
-        resolve(true);
-      };
-      document.head.appendChild(script);
-    }
-  });
+async function renderGrafikRLGabungan(
+  daftarCabang,
+  dataByCabang,
+  mapMasterCab,
+) {
+  var areaGrafik = document.getElementById("area_grafik_rlgab");
+  if (!areaGrafik) return;
+
+  if (typeof Chart === "undefined") {
+    var script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/chart.js"; // PERBAIKAN: URL yang benar
+    script.onload = function () {
+      gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik);
+    };
+    document.head.appendChild(script);
+  } else {
+    gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik);
+  }
 }
-// Fungsi ini menggambar grafik langsung di <canvas> yang ada di halaman utama
-function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
+
+function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
   var labels = daftarCabang.map(function (cab) {
     return mapMasterCab[cab] || cab;
   });
@@ -211,9 +217,8 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
     return daftarCabang.map(function (cab) {
       var total = 0;
       Object.keys(dataByCabang[cab] || {}).forEach(function (kodeGol) {
-        if (String(kodeGol).charAt(0) === digitTarget) {
+        if (String(kodeGol).charAt(0) === digitTarget)
           total += dataByCabang[cab][kodeGol];
-        }
       });
       return isPenjualan ? total * -1 : total;
     });
@@ -228,95 +233,121 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
     return val - dataHPP[index] - dataAdmUmum[index] - dataLain2[index];
   });
 
-  // Hancurkan grafik lama jika ada, agar tidak menumpuk saat diklik berulang kali
-  var existingChart = Chart.getChart("chart_rlgab_cabang");
-  if (existingChart) existingChart.destroy();
+  var lebar = 900,
+    tinggi = 600;
+  var kiri = (screen.width - lebar) / 2,
+    atas = (screen.height - tinggi) / 2;
 
-  var ctx = document.getElementById("chart_rlgab_cabang");
-  if (!ctx) return;
+  var winGrafik = window.open(
+    "",
+    "GrafikRLCabang",
+    "width=" +
+      lebar +
+      ",height=" +
+      tinggi +
+      ",top=" +
+      atas +
+      ",left=" +
+      kiri +
+      ",resizable=yes,scrollbars=yes",
+  );
+  if (!winGrafik) {
+    alert("Mohon izinkan pop-up pada browser Anda untuk melihat grafik.");
+    return;
+  }
 
-  var formatUangLokal =
-    typeof formatUang === "function"
-      ? formatUang
-      : function (val) {
-          return val.toLocaleString("id-ID");
-        };
+  winGrafik.document.open();
+  winGrafik.document
+    .write(`<!DOCTYPE html><html><head><title>Grafik R/L Gabungan Per Cabang</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
+    <style>body{margin:0;padding:20px;font-family:sans-serif;background-color:#f8f9fa;} .container{width:100%;height:calc(100vh - 40px);background:#ffffff;padding:15px;box-sizing:border-box;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);}</style>
+    </head><body><div class="container"><canvas id="chart_rlgab_cabang_baru"></canvas></div></body></html>`);
+  winGrafik.document.close();
 
-  new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: labels,
-      datasets: [
-        {
-          label: "PENJUALAN BERSIH",
-          data: dataPenjualan,
-          borderColor: "#1f7a43",
-          backgroundColor: "rgba(31, 122, 67, 0.7)",
-          borderWidth: 1,
-        },
-        {
-          label: "TOTAL HPP",
-          data: dataHPP,
-          borderColor: "#0d6efd",
-          backgroundColor: "rgba(13, 110, 253, 0.7)",
-          borderWidth: 1,
-        },
-        {
-          label: "TOTAL BY. ADM & UMUM",
-          data: dataAdmUmum,
-          borderColor: "#dc3545",
-          backgroundColor: "rgba(220, 53, 69, 0.7)",
-          borderWidth: 1,
-        },
-        {
-          label: "TOTAL PEND & BY LAIN2",
-          data: dataLain2,
-          borderColor: "#ffc107",
-          backgroundColor: "rgba(255, 193, 7, 0.7)",
-          borderWidth: 1,
-        },
-        {
-          label: "LABA / RUGI BERSIH (RL)",
-          data: dataRL,
-          borderColor: "#B8860B",
-          backgroundColor: "rgba(255, 215, 0, 0.7)",
-          borderWidth: 2,
-        },
-      ],
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          position: "top",
-          labels: { color: "#333", font: { size: 11 } },
-        },
-        tooltip: {
-          callbacks: {
-            label: function (context) {
-              return (
-                context.dataset.label + ": " + formatUangLokal(context.parsed.y)
-              );
+  winGrafik.onload = function () {
+    var ctx = winGrafik.document
+      .getElementById("chart_rlgab_cabang_baru")
+      .getContext("2d");
+    var formatUangLokal =
+      typeof formatUang === "function"
+        ? formatUang
+        : function (val) {
+            return val.toLocaleString("id-ID");
+          };
+
+    new winGrafik.Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "PENJUALAN BERSIH",
+            data: dataPenjualan,
+            borderColor: "#1f7a43",
+            backgroundColor: "rgba(31, 122, 67, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "TOTAL HPP",
+            data: dataHPP,
+            borderColor: "#0d6efd",
+            backgroundColor: "rgba(13, 110, 253, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "TOTAL BY. ADM & UMUM",
+            data: dataAdmUmum,
+            borderColor: "#dc3545",
+            backgroundColor: "rgba(220, 53, 69, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "TOTAL PEND & BY LAIN2",
+            data: dataLain2,
+            borderColor: "#ffc107",
+            backgroundColor: "rgba(255, 193, 7, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "LABA / RUGI BERSIH (RL)",
+            data: dataRL,
+            borderColor: "#B8860B",
+            backgroundColor: "rgba(255, 215, 0, 0.7)",
+            borderWidth: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "top",
+            labels: { color: "#333", font: { size: 11 } },
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) =>
+                context.dataset.label +
+                ": " +
+                formatUangLokal(context.parsed.y),
             },
           },
         },
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: {
-            color: "#333",
-            callback: function (value) {
-              return formatUangLokal(value);
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: "#333",
+              callback: (value) => formatUangLokal(value),
             },
+            grid: { color: "rgba(0,0,0,0.05)" },
           },
-          grid: { color: "rgba(0,0,0,0.05)" },
+          x: { ticks: { color: "#333" }, grid: { display: false } },
         },
-        x: { ticks: { color: "#333" }, grid: { display: false } },
       },
-    },
-  });
+    });
+  };
 }
 
 async function downloadRLGabunganExcel() {
@@ -1030,8 +1061,8 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
         "</div>";
     });
 }
-// Fungsi ini dipanggil saat tombol "Lihat Grafik" diklik
-async function lihatGrafikRLGabungan() {
+
+function lihatGrafikRLGabungan() {
   if (
     !window._rlGabunganData ||
     !window._rlGabunganData.daftarCabang ||
@@ -1041,26 +1072,12 @@ async function lihatGrafikRLGabungan() {
       toast("Silakan klik 'Terapkan' terlebih dahulu untuk memuat data", "wrn");
     return;
   }
-
   var areaGrafik = document.getElementById("area_grafik_rlgab");
-  if (!areaGrafik) {
+  if (areaGrafik) {
+    areaGrafik.style.display = "block";
+    areaGrafik.scrollIntoView({ behavior: "smooth", block: "start" });
+  } else {
     if (typeof toast === "function")
       toast("Area grafik tidak ditemukan", "err");
-    return;
   }
-
-  // Tampilkan area grafik terlebih dahulu
-  areaGrafik.style.display = "block";
-
-  // Pastikan library Chart.js sudah termuat
-  await renderGrafikRLGabungan();
-
-  // Ambil data dan gambar grafiknya sekarang
-  var d = window._rlGabunganData;
-  gambarChartNow(d.daftarCabang, d.dataByCabang, d.mapMasterCab);
-
-  // Scroll halaman secara halus ke arah grafik
-  setTimeout(function () {
-    areaGrafik.scrollIntoView({ behavior: "smooth", block: "start" });
-  }, 300);
 }
