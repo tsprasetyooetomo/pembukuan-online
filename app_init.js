@@ -205,7 +205,7 @@ function buildSidebar() {
           label: "Kas Harian Kasir",
           icon: "fa-calendar-day",
         },
-        { id: "kasHarian", label: "Kas Harian", icon: "fa-calendar-day" },
+        { id: "kasHarian", label: "Kas Pembukuan", icon: "fa-calendar-day" },
         { id: "inputHarian", label: "Input Harian", icon: "fa-keyboard" },
       ],
     },
