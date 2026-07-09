@@ -1227,16 +1227,18 @@ async function terapkanOpsiArusKasGabungan() {
       return totalSemuaCabang !== 0;
     });
     // --- TAMBAHKAN KODE INI UNTUK MENGHITUNG SALDO AWAL ---
-    var kodemasasebelumnya = ""; // Logika untuk mencari masa sebelumnya (misal bulan lalu)
-    // Contoh sederhana jika bulan sebelumnya:
+    // --- 1. HITUNG SALDO AWAL AKTIVA LANCAR ---
+    var kodemasasebelumnya = "";
     var bulanInt = parseInt(filterbulan);
     var tahunInt = parseInt(filtertahunfull);
+
     if (bulanInt === 1) {
       bulanInt = 12;
       tahunInt--;
     } else {
       bulanInt--;
     }
+
     var bulanSebelum = String(bulanInt).padStart(2, "0");
     var tahunSebelum = String(tahunInt);
     kodemasasebelumnya = bulanSebelum + tahunSebelum.substring(2, 4);
@@ -1268,6 +1270,39 @@ async function terapkanOpsiArusKasGabungan() {
         }
       });
     }
+
+    // --- 2. HITUNG SALDO AKHIR AKTIVA TETAP (DARI MASTER PERKIRAAN) ---
+    var saldoAkhirAktivaTetapByCabang = {};
+
+    // Pastikan DBCache.perkiraan sudah ada
+    if (
+      typeof DBCache !== "undefined" &&
+      DBCache.perkiraan &&
+      Array.isArray(DBCache.perkiraan)
+    ) {
+      daftarCabang.forEach(function (cab) {
+        saldoAkhirAktivaTetapByCabang[cab] = {};
+
+        DBCache.perkiraan.forEach(function (p) {
+          var noPerk = String(p.noPerk || "").trim();
+          // Filter No Perkiraan Aktiva Tetap (Contoh: di bawah 103.0000)
+          if (noPerk && parseFloat(noPerk) < 103.0) {
+            var saldoDB = +(p.db || 0);
+            var saldoCR = +(p.cr || 0);
+            // Pastikan data memiliki keterangan cabang yang sesuai
+            var perkCabang = String(p.cabang || p.kode_cabang || "").trim();
+
+            if (perkCabang === cab && (saldoDB !== 0 || saldoCR !== 0)) {
+              // Hitung saldo (sesuaikan rumus ini dengan kebutuhan akuntansi Anda, biasanya db - cr atau db + cr)
+              var saldo = saldoDB - saldoCR;
+              saldoAkhirAktivaTetapByCabang[cab][noPerk] = saldo;
+            }
+          }
+        });
+      });
+    }
+
+    // --- AKHIR KODE YANG DITAMBAHKAN ---
     window._rlGabunganData = {
       daftarCabang,
       arrKodeGol,
