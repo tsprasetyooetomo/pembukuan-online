@@ -1124,13 +1124,13 @@ function getCabangFilterHTML() {
   return html;
 }
 
-PANEL_MAP.saldoKasirawal = renderSaldoKasirawal;
+PANEL_MAP.saldoKasirAwal = renderSaldoKasirawal;
 
 // ========================================================
 // 1. RENDER SALDO KASIR
 async function renderSaldoKasirawal() {
   // ✅ FIX 1: Standarisasi pakai "saldoKasirawal" agar sesuai dengan API & IndexedDB
-  var rawData = DBCache.saldoKasirawal || [];
+  var rawData = DBCache.saldoKasirAwal || [];
   var data = filterByCabang(rawData);
 
   data.sort(function (a, b) {
@@ -1144,7 +1144,7 @@ async function renderSaldoKasirawal() {
   var ids = data.map(function (r) {
     return r.id;
   });
-  bulkInit("saldoKasirawal", ids);
+  bulkInit("saldoKasirAwal", ids);
 
   var dataLimit = data.slice(0, _viewLimit);
   var idsLimit = dataLimit.map(function (r) {
@@ -1179,7 +1179,7 @@ async function renderSaldoKasirawal() {
   ];
 
   return (
-    bulkBarHTML("saldoKasirawal", "saldoKasirawal") +
+    bulkBarHTML("saldoKasirAwal", "saldoKasirAwal") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
     "Tampilkan " +
@@ -1190,17 +1190,17 @@ async function renderSaldoKasirawal() {
     "</div>" +
     '<div style="display:flex;gap:.4rem">' +
     '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasirawal\', \'Data_SaldoKasirawal\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
-    '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasirawal\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
-    '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasirawal\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
-    '<button type="button" class="btn btn-a" onclick="formSaldoKasirawal()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
+    '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasirAwal\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
+    '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasirAwal\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
+    '<button type="button" class="btn btn-a" onclick="formSaldoKasirAwal()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
       buildTable(["Cabang", "Nama Cabang", "Tanggal", "Saldo Awal"], rows, {
         foot: foot,
-        bulkStore: "saldoKasirawal",
+        bulkStore: "saldoKasirAwal",
         bulkIds: idsLimit,
         actions: function (r, i) {
-          return crudActions(dataLimit[i].id, "saldoKasirawal");
+          return crudActions(dataLimit[i].id, "saldoKasirAwal");
         },
         emptyMsg: "Belum ada data Saldo Kasir awal",
       }),
@@ -1210,7 +1210,7 @@ async function renderSaldoKasirawal() {
 
 // ========================================================
 // 2. FORM SALDO KASIR
-function formSaldoKasirawal(id) {
+function formSaldoKasirAwal(id) {
   var isEdit = !!id;
 
   // ✅ FIX 2: Cari data dari DBCache yang sudah distandarisasi
@@ -1250,7 +1250,7 @@ function formSaldoKasirawal(id) {
 
 // ========================================================
 // 3. SAVE SALDO KASIR
-async function saveSaldoKasirawal(e, editId) {
+async function saveSaldoKasirAwal(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
   try {
