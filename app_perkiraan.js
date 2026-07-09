@@ -1134,6 +1134,10 @@ async function renderSaldoKasirAwal() {
   var rawData = DBCache.saldoKasirAwal || [];
   var data = filterByCabang(rawData);
 
+  // ⬇️ TAMBAHKAN 3 BARIS INI UNTUK DEBUG ⬇️
+  console.log("🔍 ISI RAW DATA AWAL:", rawData.length, rawData);
+  console.log("🔍 CABANG YANG SEDANG LOGIN:", localStorage.getItem("cabang"));
+  // ⬆️ TAMBAHKAN 3 BARIS INI UNTUK DEBUG ⬆️
   data.sort(function (a, b) {
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
