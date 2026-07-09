@@ -1080,7 +1080,7 @@ function lihatGrafikRLGabungan() {
   renderGrafikRLGabungan(d.daftarCabang, d.dataByCabang, d.mapMasterCab);
 }
 
-PANEL_MAP.saldoKasir = renderLaporanArusKas;
+PANEL_MAP.arusKas = renderLaporanArusKas;
 
 function renderLaporanArusKas() {
   // Pengaman jika sistem memanggil fungsi ini tanpa klik menu
