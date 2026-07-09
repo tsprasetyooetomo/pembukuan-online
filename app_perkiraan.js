@@ -1200,7 +1200,7 @@ async function renderSaldoKasirAwal() {
         bulkStore: "saldoKasirAwal",
         bulkIds: idsLimit,
         actions: function (r, i) {
-          return crudActions(dataLimit[i].id, "saldoKasirAwal");
+          return crudActions(dataLimit[i].id, "saldokasirawal");
         },
         emptyMsg: "Belum ada data Saldo Kasir awal",
       }),
