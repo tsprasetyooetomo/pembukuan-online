@@ -1327,10 +1327,10 @@ function generateHTMLArusKasGabungan(
 
   // Helper Function: Membuat Baris Subtotal
   function buatBarisSubtotal(namaGroup, arrGroupGol) {
+    // ✅ PERBAIKAN: Background dibuat abu-abu muda (#f8f9fa) agar kontras dengan biru tua (#0a58ca)
     var htmlSub =
-      '<tr style="font-weight:bold; background-color:#ffffff !important; color:#0d6efd !important;">' +
-      // Kunci warna biru (#0d6efd) langsung di tag TD tulisan SUBTOTAL agar tidak hilang
-      '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right; color:#0d6efd !important; background-color:#ffffff !important;">SUBTOTAL ' +
+      '<tr style="font-weight:bold; background-color:#f8f9fa !important;">' +
+      '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right; color:#0a58ca !important; background-color:#f8f9fa !important;">SUBTOTAL ' +
       namaGroup +
       "</td>";
     var grandTotal = 0;
@@ -1342,14 +1342,16 @@ function generateHTMLArusKasGabungan(
       });
       grandTotal += totalCab;
 
+      // ✅ PERBAIKAN: Teks biru tua di atas background abu-abu muda
       htmlSub +=
-        '<td style="padding:8px; border:1px solid #000; text-align:right; color:#0d6efd !important;">' +
+        '<td style="padding:8px; border:1px solid #000; text-align:right; color:#0a58ca !important; background-color:#f8f9fa !important;">' +
         formatUang(totalCab) +
         "</td>";
     });
 
+    // ✅ PERBAIKAN: Total paling kanan juga diberi background yang sama
     htmlSub +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right; color:#0d6efd !important;">' +
+      '<td style="padding:8px; border:1px solid #000; text-align:right; color:#0a58ca !important; background-color:#f8f9fa !important;">' +
       formatUang(grandTotal) +
       "</td></tr>";
     return htmlSub;
