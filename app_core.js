@@ -1009,6 +1009,7 @@ async function editRow(dk, id) {
   else if (dk === "formatNeraca") formFmtNeraca(id);
   else if (dk === "kodeBank") formKodeBank(id);
   else if (dk === "cabang") formCabang(id);
+  else if (dk === "saldoKasirAwal") formSaldoKasirAwal(id);
 }
 
 /* ================================================================
@@ -1020,6 +1021,7 @@ async function renderDashboard() {
     tt = await db.count("transaksi"),
     tu = await db.count("users"),
     tk = await db.count("kodeBank");
+
   return (
     '<div class="stat-row"><div class="stat-c"><div class="sv">' +
     tg +
