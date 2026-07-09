@@ -1130,30 +1130,37 @@ PANEL_MAP.saldoKasirAwal = renderSaldoKasirAwal;
 // ========================================================
 // 1. RENDER SALDO KASIR AWAL
 async function renderSaldoKasirAwal() {
-  // ✅ LOGIKA BARU: Jika cache kosong, ambil data dulu dari server
+  // ✅ POLA SEPERTI REFRESH CACHE: Fetch semua data dulu dari server, baru difilter di frontend
   if (!DBCache.saldoKasirAwal || DBCache.saldoKasirAwal.length === 0) {
     try {
-      // Kita bypass db.getAll langsung pakai fetch murni (seperti di Kelompok 1)
-      // Karena endpoint ini aman dipanggil tanpa parameter tanggal (akan return semua tanggal)
       const baseUrl = window.location.origin + "/api/data/";
-      const response = await fetch(baseUrl + "saldoKasirAwal");
+
+      // TRIK: Tambahkan parameter tgl_awal= (kosong) atau tgl_awal=all
+      // Agar server tidak mengembalikan Error 400, tapi tetap mengembalikan semua data
+      const response = await fetch(baseUrl + "saldoKasirAwal?tgl_awal=");
 
       if (response.ok) {
         DBCache.saldoKasirAwal = await response.json();
         console.log(
-          "✅ Data saldoKasirAwal berhasil diambil on-demand:",
+          "✅ Berhasil fetch semua saldoKasirAwal:",
           DBCache.saldoKasirAwal.length,
           "record",
         );
       } else {
-        console.error("Gagal mengambil data saldoKasirAwal dari server");
+        console.warn(
+          "⚠️ Server tetap menolak (Status:",
+          response.status,
+          "). Cache kosong.",
+        );
+        DBCache.saldoKasirAwal = [];
       }
     } catch (error) {
       console.error("Error fetch saldoKasirAwal:", error);
+      DBCache.saldoKasirAwal = [];
     }
   }
 
-  // ✅ KODE LAMA KAMU (Tidak diubah, hanya variabelnya sekarang pasti sudah terisi)
+  // ✅ SETERAH FRONTEND: Filter berdasarkan cabang yang sedang login
   var rawData = DBCache.saldoKasirAwal || [];
   var data = filterByCabang(rawData);
 
@@ -1226,7 +1233,7 @@ async function renderSaldoKasirAwal() {
         actions: function (r, i) {
           return crudActions(dataLimit[i].id, "saldoKasirAwal");
         },
-        emptyMsg: "Belum ada data Saldo Kasir awal",
+        emptyMsg: "Belum ada data Saldo Kasir awal untuk cabang ini",
       }),
     )
   );
