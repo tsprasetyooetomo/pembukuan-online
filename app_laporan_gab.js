@@ -1196,7 +1196,7 @@ async function terapkanOpsiArusKasGabungan() {
 
       if (!setValidCabang.has(cabangData)) return;
 
-      if (kodeGol < 300 && masaData === kodemasadicari) {
+      if (kodeGol > 102 && kodegol < 300 && masaData === kodemasadicari) {
         if (!dataByCabang[cabangData]) dataByCabang[cabangData] = {};
         if (!dataByCabang[cabangData][kodeGol])
           dataByCabang[cabangData][kodeGol] = 0;
@@ -1328,7 +1328,7 @@ function generateHTMLArusKasGabungan(
   // Helper Function: Membuat Baris Subtotal
   function buatBarisSubtotal(namaGroup, arrGroupGol) {
     var htmlSub =
-      '<tr style="font-weight:bold; background-color:#e2e3e5;"><td colspan="2" style="padding:8px; border:1px solid #000; text-align:right;">SUBTOTAL ' +
+      '<tr style="font-weight:bold; background-color:#ffffff; color:#0d6efd;"><td colspan="2" style="padding:8px; border:1px solid #000; text-align:right;">SUBTOTAL ' +
       namaGroup +
       "</td>";
     var grandTotal = 0;
@@ -1339,7 +1339,7 @@ function generateHTMLArusKasGabungan(
         totalCab += dataByCabang[cab][gol] || 0;
       });
       grandTotal += totalCab;
-      var colorStyle = totalCab < 0 ? "color: red;" : "";
+      var colorStyle = totalCab < 0 ? "color: blue;" : "";
       htmlSub +=
         '<td style="padding:8px; border:1px solid #000; text-align:right; ' +
         colorStyle +
@@ -1348,7 +1348,7 @@ function generateHTMLArusKasGabungan(
         "</td>";
     });
 
-    var colorTotal = grandTotal < 0 ? "color: red;" : "";
+    var colorTotal = grandTotal < 0 ? "color: blue;" : "";
     htmlSub +=
       '<td style="padding:8px; border:1px solid #000; text-align:right; ' +
       colorTotal +
@@ -1441,7 +1441,7 @@ function generateHTMLArusKasGabungan(
     });
 
     var labaRugiBersih = totalPemasukan + totalPengeluaran;
-    var namaHasil = labaRugiBersih >= 0 ? "LABA BERSIH" : "RUGI BERSIH";
+    var namaHasil = labaRugiBersih >= 0 ? "SELISIH" : "SELISIH";
     var bgColor = labaRugiBersih >= 0 ? "#198754" : "#dc3545";
     var txtColor = "#ffffff";
 
