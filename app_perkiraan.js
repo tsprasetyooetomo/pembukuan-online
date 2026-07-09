@@ -1215,6 +1215,7 @@ function formSaldoKasirawal(id) {
     : {};
 
   var displaySaldo = isEdit ? data.akhir || 0 : 0;
+
   var html =
     '<div class="fg"><label>Cabang</label>' +
     '<select id="fSkCab" class="in"' +
@@ -1229,10 +1230,11 @@ function formSaldoKasirawal(id) {
     esc(displaySaldo) +
     '"></div>';
 
+  // ✅ PERBAIKAN: Gunakan fungsi esc() pada id di tombol Update agar string ID aman dan tidak merusak HTML atribut onclick
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
     '<button type="button" class="btn btn-a" onclick="saveSaldoKasirawal(event, \'' +
-    (id || "") +
+    esc(id || "") +
     "')\">" +
     (isEdit ? "Update" : "Simpan") +
     "</button>";
