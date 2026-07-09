@@ -1278,7 +1278,7 @@ async function saveSaldoKasirAwal(e, editId) {
 
     if (editId) {
       // ✅ FIX: Standarisasi db.get dan db.put menggunakan "saldoKasirAwal"
-      var r = await db.get("saldoKasirAwal", editId);
+      var r = await db.get("saldokasirawal", editId);
       if (r) {
         var updated = Object.assign({}, r, {
           cabang: cabang,
@@ -1291,7 +1291,7 @@ async function saveSaldoKasirAwal(e, editId) {
         });
 
         var response = await fetch(
-          API_BASE_URL + "/api/data/saldoKasirAwal/" + editId,
+          API_BASE_URL + "/api/data/saldokasirawal/" + editId,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -1306,9 +1306,9 @@ async function saveSaldoKasirAwal(e, editId) {
 
         await db.put("saldoKasirAwal", updated);
 
-        var idx = DBCache.saldoKasirAwal.findIndex((x) => x.id === editId);
+        var idx = DBCache.saldokasirawal.findIndex((x) => x.id === editId);
         if (idx !== -1) {
-          DBCache.saldoKasirAwal[idx] = updated;
+          DBCache.saldokasirawal[idx] = updated;
         }
       } else {
         throw new Error("Data lama tidak ditemukan di DB lokal!");
@@ -1326,7 +1326,7 @@ async function saveSaldoKasirAwal(e, editId) {
         awal: awal,
       };
 
-      var response = await fetch(API_BASE_URL + "/api/data/saldoKasirAwal", {
+      var response = await fetch(API_BASE_URL + "/api/data/saldokasirawal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newObj),
@@ -1340,8 +1340,8 @@ async function saveSaldoKasirAwal(e, editId) {
       }
 
       // ✅ FIX: Standarisasi db.add menggunakan "saldoKasirAwal"
-      await db.add("saldoKasirAwal", newObj);
-      DBCache.saldoKasirAwal.push(newObj);
+      await db.add("saldokasirawal", newObj);
+      DBCache.saldokasirawal.push(newObj);
     }
 
     setTimeout(async function () {
