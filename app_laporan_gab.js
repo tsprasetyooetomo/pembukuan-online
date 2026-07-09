@@ -12,7 +12,6 @@ function renderRLRekapGabungan() {
   var filterTahunFull = partMasa[1];
   var inputMonthValue = filterTahunFull + "-" + filterBulan;
 
-  // UBAH: height dan maxHeight dihapus, overflow dijadikan visible agar bisa menyesuaikan tinggi
   var htmlLaporan =
     '<div id="area_cetak_rlgab" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:visible;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
@@ -30,7 +29,6 @@ function renderRLRekapGabungan() {
     '<button type="button" class="btn btn-s" style="font-size:.75rem; padding:4px 12px; background:#6f42c1; border-color:#6f42c1; color:#fff;" onclick="lihatGrafikRLGabungan()"><i class="fa-solid fa-chart-line"></i> Lihat Grafik</button>' +
     "</div>" +
     "</div>" +
-    // UBAH: Area ini menjadi dinamis (bisa menampung tabel gabungan atau rl lebar)
     '<div id="tempat_tabel_rlgab" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
     '<div id="area_grafik_rlgab" class="no-print" style="width:100%; max-width:1000px; height:400px; margin:2rem auto 0 auto; background:var(--bg2); border:1px solid var(--brd); border-radius:var(--r); padding:1rem; box-sizing:border-box; display:none;">' +
     '<canvas id="chart_rlgab_cabang"></canvas>' +
@@ -52,6 +50,7 @@ async function terapkanOpsiRLGabungan() {
     return;
   }
   closeModal();
+
   var part = valmasa.split("-");
   var filtertahunfull = part[0];
   var filterbulan = part[1];
@@ -68,9 +67,7 @@ async function terapkanOpsiRLGabungan() {
   }
 
   try {
-    // ==========================================
-    // 1. AMBIL MASTER GOLONGAN (untuk lookup nama)
-    // ==========================================
+    // 1. AMBIL MASTER GOLONGAN
     var rawMasterGol = await db.getAll("golongan");
     var mapMasterGol = {};
     if (rawMasterGol) {
@@ -84,12 +81,10 @@ async function terapkanOpsiRLGabungan() {
       });
     }
 
-    // ==========================================
-    // 2. AMBIL MASTER CABANG & BUAT DAFTAR KODE YANG VALID
-    // ==========================================
+    // 2. AMBIL MASTER CABANG
     var rawMasterCab = await db.getAll("cabang");
     var mapMasterCab = {};
-    var setValidCabang = new Set(); // ✅ KUNCI UTAMA: Menampung kode cabang yang boleh diproses
+    var setValidCabang = new Set();
 
     if (rawMasterCab) {
       var arrMasterCab = Array.isArray(rawMasterCab)
@@ -100,49 +95,39 @@ async function terapkanOpsiRLGabungan() {
         var nama = String(c.nama_cabang || c.nama || c.cabang || "").trim();
         if (kode && nama) {
           mapMasterCab[kode] = nama;
-          setValidCabang.add(kode); // ✅ Masukkan ke daftar putih
+          setValidCabang.add(kode);
         }
       });
     }
 
-    // ==========================================
     // 3. AMBIL DATA GOLONGAN TAHUNAN
-    // ==========================================
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
       ? Array.isArray(resgolbackup)
         ? resgolbackup
         : Object.values(resgolbackup)
       : [];
-
     var dataByCabang = {};
 
-    // ==========================================
-    // 4. PROSES DATA (HANYA YANG KODE CABANGNYA ADA DI DAFTAR VALID)
-    // ==========================================
+    // 4. PROSES DATA
     rawdatagolongan.forEach(function (g) {
       var kodeGol = String(g.gol || g.golongan || "").trim();
       var cabangData = String(g.cabang || g.cab || g.kode_cabang || "").trim();
       var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
 
-      // ✅ FILTER BARU: Skip langsung jika cabangnya tidak ada di master
       if (!setValidCabang.has(cabangData)) return;
 
       if (kodeGol >= 300 && kodeGol < 700 && masaData === kodemasadicari) {
         if (!dataByCabang[cabangData]) dataByCabang[cabangData] = {};
         if (!dataByCabang[cabangData][kodeGol])
           dataByCabang[cabangData][kodeGol] = 0;
-
         var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
         dataByCabang[cabangData][kodeGol] += saldoAkhir;
       }
     });
 
-    // ==========================================
     // 5. SUSUN BARIS DAN KOLOM TABEL
-    // ==========================================
     var daftarCabang = Object.keys(dataByCabang).sort();
-
     var setKodeGol = new Set();
     daftarCabang.forEach(function (cab) {
       Object.keys(dataByCabang[cab]).forEach(function (gol) {
@@ -164,15 +149,14 @@ async function terapkanOpsiRLGabungan() {
     });
 
     window._rlGabunganData = {
-      daftarCabang: daftarCabang,
-      arrKodeGol: arrKodeGol,
-      dataByCabang: dataByCabang,
-      mapMasterGol: mapMasterGol,
-      mapMasterCab: mapMasterCab,
+      daftarCabang,
+      arrKodeGol,
+      dataByCabang,
+      mapMasterGol,
+      mapMasterCab,
     };
 
     // Render UI
-    var html = "";
     var outerArea = document.getElementById("area_cetak_rlgab");
     if (outerArea) {
       outerArea.style.height = "auto";
@@ -185,7 +169,7 @@ async function terapkanOpsiRLGabungan() {
       area.style.height = "auto";
     }
 
-    html += generateHTMLRLGabungan(
+    area.innerHTML = generateHTMLRLGabungan(
       daftarCabang,
       arrKodeGol,
       dataByCabang,
@@ -193,17 +177,14 @@ async function terapkanOpsiRLGabungan() {
       mapMasterCab,
       false,
     );
-    area.innerHTML = html;
-
     renderGrafikRLGabungan(daftarCabang, dataByCabang, mapMasterCab);
   } catch (error) {
     console.error("❌ Gagal total RL Gabungan:", error);
-    if (area) {
+    if (area)
       area.innerHTML =
         '<div style="padding:3rem; text-align:center; color:darkred;">Error: ' +
         error.message +
         "</div>";
-    }
   }
 }
 
@@ -217,7 +198,7 @@ async function renderGrafikRLGabungan(
 
   if (typeof Chart === "undefined") {
     var script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/chart.js";
+    script.src = "https://cdn.jsdelivr.net/npm/chart.js"; // PERBAIKAN: URL yang benar
     script.onload = function () {
       gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik);
     };
@@ -226,6 +207,7 @@ async function renderGrafikRLGabungan(
     gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik);
   }
 }
+
 function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
   var labels = daftarCabang.map(function (cab) {
     return mapMasterCab[cab] || cab;
@@ -235,14 +217,10 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
     return daftarCabang.map(function (cab) {
       var total = 0;
       Object.keys(dataByCabang[cab] || {}).forEach(function (kodeGol) {
-        if (String(kodeGol).charAt(0) === digitTarget) {
+        if (String(kodeGol).charAt(0) === digitTarget)
           total += dataByCabang[cab][kodeGol];
-        }
       });
-      if (isPenjualan) {
-        total = total * -1;
-      }
-      return total;
+      return isPenjualan ? total * -1 : total;
     });
   }
 
@@ -255,11 +233,10 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
     return val - dataHPP[index] - dataAdmUmum[index] - dataLain2[index];
   });
 
-  // 1. Buka jendela baru dengan ukuran kustom
-  var lebar = 900;
-  var tinggi = 600;
-  var kiri = (screen.width - lebar) / 2;
-  var atas = (screen.height - tinggi) / 2;
+  var lebar = 900,
+    tinggi = 600;
+  var kiri = (screen.width - lebar) / 2,
+    atas = (screen.height - tinggi) / 2;
 
   var winGrafik = window.open(
     "",
@@ -274,41 +251,23 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
       kiri +
       ",resizable=yes,scrollbars=yes",
   );
-
   if (!winGrafik) {
     alert("Mohon izinkan pop-up pada browser Anda untuk melihat grafik.");
     return;
   }
 
-  // 2. Isi struktur HTML dan panggil pustaka Chart.js di jendela baru
   winGrafik.document.open();
-  winGrafik.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Grafik R/L Gabungan Per Cabang</title>
-      <script src="https://jsdelivr.net"><\/script>
-      <style>
-        body { margin: 0; padding: 20px; font-family: sans-serif; background-color: #f8f9fa; }
-        .container { width: 100%; height: calc(100vh - 40px); background: #ffffff; padding: 15px; box-sizing: border-box; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <canvas id="chart_rlgab_cabang_baru"></canvas>
-      </div>
-    </body>
-    </html>
-  `);
+  winGrafik.document
+    .write(`<!DOCTYPE html><html><head><title>Grafik R/L Gabungan Per Cabang</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
+    <style>body{margin:0;padding:20px;font-family:sans-serif;background-color:#f8f9fa;} .container{width:100%;height:calc(100vh - 40px);background:#ffffff;padding:15px;box-sizing:border-box;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);}</style>
+    </head><body><div class="container"><canvas id="chart_rlgab_cabang_baru"></canvas></div></body></html>`);
   winGrafik.document.close();
 
-  // 3. Berikan jeda waktu sesaat agar pustaka Chart.js selesai dimuat di jendela baru sebelum menggambar
   winGrafik.onload = function () {
     var ctx = winGrafik.document
       .getElementById("chart_rlgab_cabang_baru")
       .getContext("2d");
-
-    // Salin atau deklarasikan ulang fungsi formatUang agar bisa diakses di jendela baru
     var formatUangLokal =
       typeof formatUang === "function"
         ? formatUang
@@ -368,13 +327,10 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
           },
           tooltip: {
             callbacks: {
-              label: function (context) {
-                return (
-                  context.dataset.label +
-                  ": " +
-                  formatUangLokal(context.parsed.y)
-                );
-              },
+              label: (context) =>
+                context.dataset.label +
+                ": " +
+                formatUangLokal(context.parsed.y),
             },
           },
         },
@@ -383,9 +339,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
             beginAtZero: true,
             ticks: {
               color: "#333",
-              callback: function (value) {
-                return formatUangLokal(value);
-              },
+              callback: (value) => formatUangLokal(value),
             },
             grid: { color: "rgba(0,0,0,0.05)" },
           },
@@ -418,6 +372,7 @@ async function downloadRLGabunganExcel() {
     `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>RL Gabungan</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>` +
     htmlContent +
     `</body></html>`;
+
   var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
@@ -465,8 +420,9 @@ function generateHTMLRLGabungan(
     }
   });
 
+  // PERBAIKAN: Syntax double style dan typo 'centre' diperbaiki di sini
   html +=
-    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:centre; background-color:#d9e1f2;style="color:#00D2FF; font-weight:bold;">TOTAL</th>';
+    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:center; background-color:#d9e1f2; color:#00D2FF; font-weight:bold;">TOTAL</th>';
   html += "</tr><tr></tr></thead><tbody>";
 
   var currentDigit = null;
@@ -484,7 +440,7 @@ function generateHTMLRLGabungan(
         mapSumPerDigit,
         isForExcel,
       );
-      if (currentDigit === "4") {
+      if (currentDigit === "4")
         html += hitungBarisLaba(
           "LABA KOTOR",
           "3",
@@ -496,7 +452,7 @@ function generateHTMLRLGabungan(
           "#4a4a4a",
           isForExcel,
         );
-      } else if (currentDigit === "5") {
+      else if (currentDigit === "5")
         html += hitungBarisLaba(
           "LABA SETELAH BY. ADM & UMUM",
           "3",
@@ -508,7 +464,7 @@ function generateHTMLRLGabungan(
           "#4a4a4a",
           isForExcel,
         );
-      } else if (currentDigit === "6") {
+      else if (currentDigit === "6")
         html += hitungBarisLaba(
           "LABA / RUGI BERSIH",
           "3",
@@ -520,7 +476,6 @@ function generateHTMLRLGabungan(
           "#4a4a4a",
           isForExcel,
         );
-      }
       mapSumPerDigit = {};
     }
 
@@ -543,7 +498,6 @@ function generateHTMLRLGabungan(
 
     currentDigit = digit;
     var totalRow = 0;
-
     html += '<tr style="font-size: 0.85rem;">';
     html +=
       '<td style="padding:8px; border:1px solid #000; text-align:center; font-weight:bold;">' +
@@ -590,7 +544,7 @@ function generateHTMLRLGabungan(
       mapSumPerDigit,
       isForExcel,
     );
-    if (currentDigit === "6") {
+    if (currentDigit === "6")
       html += hitungBarisLaba(
         "LABA / RUGI BERSIH",
         "3",
@@ -602,9 +556,7 @@ function generateHTMLRLGabungan(
         "#4a4a4a",
         isForExcel,
       );
-    }
   }
-
   html += "</tbody></table></div>";
   return html;
 }
@@ -668,8 +620,8 @@ function hitungBarisLaba(
   bgColor,
   isForExcel,
 ) {
-  var html = "";
-  var totalLaba = 0;
+  var html = "",
+    totalLaba = 0;
   html +=
     '<tr style="font-weight:bold; background-color:' +
     bgColor +
@@ -680,16 +632,14 @@ function hitungBarisLaba(
     "</td>";
   daftarCabang.forEach(function (cab) {
     var saldoCab = 0;
-    var arrDigit = [digit1, digit2, digit3, digit4].filter(function (d) {
-      return d !== undefined;
-    });
-    arrDigit.forEach(function (dig) {
-      Object.keys(dataByCabang[cab] || {}).forEach(function (kodeGol) {
-        if (String(kodeGol).charAt(0) === dig) {
-          saldoCab += dataByCabang[cab][kodeGol];
-        }
+    [digit1, digit2, digit3, digit4]
+      .filter((d) => d !== undefined)
+      .forEach(function (dig) {
+        Object.keys(dataByCabang[cab] || {}).forEach(function (kodeGol) {
+          if (String(kodeGol).charAt(0) === dig)
+            saldoCab += dataByCabang[cab][kodeGol];
+        });
       });
-    });
     totalLaba += saldoCab;
     html +=
       '<td style="padding:8px; border:1px solid #000; text-align:right; color:#ffffff;"' +
@@ -710,13 +660,9 @@ function hitungBarisLaba(
   return html;
 }
 
-// ==========================================
-// FUNGSI BARU: KEMBALIKAN KE TAMPILAN GABUNGAN
-// ==========================================
 function kembaliKeRLGabungan() {
   var area = document.getElementById("tempat_tabel_rlgab");
   var grafik = document.getElementById("area_grafik_rlgab");
-
   if (area && window._rlGabunganData) {
     var d = window._rlGabunganData;
     area.innerHTML = generateHTMLRLGabungan(
@@ -728,40 +674,25 @@ function kembaliKeRLGabungan() {
       false,
     );
   }
-  if (grafik) {
-    grafik.style.display = "block"; // Tampilkan kembali grafiknya
-  }
+  if (grafik) grafik.style.display = "block";
 }
 
-// ==========================================
-// FUNGSI DETAIL: DITAMPILKAN DI ATAS, LEBAR, TANPA POPUP
-// ==========================================
 async function tampilkanRLPerCabangSD(kodeCabang) {
   if (!window._rlGabFilterMasa) return;
-
-  var namaCab = kodeCabang;
-  if (
-    window._rlGabunganData &&
-    window._rlGabunganData.mapMasterCab[kodeCabang]
-  ) {
-    namaCab = window._rlGabunganData.mapMasterCab[kodeCabang];
-  }
-
+  var namaCab =
+    window._rlGabunganData && window._rlGabunganData.mapMasterCab[kodeCabang]
+      ? window._rlGabunganData.mapMasterCab[kodeCabang]
+      : kodeCabang;
   var partMasa = window._rlGabFilterMasa.split("-");
-  var filterBulan = partMasa[0];
-  var filterTahunFull = partMasa[1];
+  var filterBulan = partMasa[0],
+    filterTahunFull = partMasa[1];
 
   var area = document.getElementById("tempat_tabel_rlgab");
   var grafik = document.getElementById("area_grafik_rlgab");
-
-  // Sembunyikan grafik sementara
   if (grafik) grafik.style.display = "none";
-
-  // Tampilkan Loading di area yang sama
-  if (area) {
+  if (area)
     area.innerHTML =
       '<div style="padding:3rem; text-align:center; color:var(--muted); background:#000; border-radius:8px;"><span class="spinner"></span> Memuat RL Lebar 12 Bulan...</div>';
-  }
 
   try {
     var namastoregolbackup = "golongan" + filterTahunFull;
@@ -771,7 +702,6 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
         ? resgolbackup
         : Object.values(resgolbackup)
       : [];
-
     var namaBulan = [
       "JAN",
       "FEB",
@@ -788,46 +718,43 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
     ];
     var mapGolongan = {};
 
-    for (var bln = 1; bln <= 12; bln++) {
-      var blnStr = ("0" + bln).slice(-2);
-      var duaDigitTahun = String(filterTahunFull).slice(-2);
-      var kodeMasa = blnStr + duaDigitTahun;
-
-      var dataBulanIni = rawdatagolongan.filter((g) => {
-        var kodeGol = parseInt(g.gol || g.golongan || 0, 10);
-        var cocokGol = kodeGol >= 300 && kodeGol < 700;
-        var cabangData = String(
-          g.cabang || g.cab || g.kode_cabang || "",
-        ).trim();
-        var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
-        return cocokGol && masaData === kodeMasa && cabangData === kodeCabang;
+    for (let b = 1; b <= 12; b++) {
+      let blnStr = ("0" + b).slice(-2);
+      let duaDigitTahun = String(filterTahunFull).slice(-2);
+      let kodeMasa = blnStr + duaDigitTahun;
+      let dataBulanIni = rawdatagolongan.filter((g) => {
+        let kodeGol = parseInt(g.gol || g.golongan || 0, 10);
+        return (
+          kodeGol >= 300 &&
+          kodeGol < 700 &&
+          String(g.masa || g.periode || g.kode_masa || "").trim() ===
+            kodeMasa &&
+          String(g.cabang || g.cab || g.kode_cabang || "").trim() === kodeCabang
+        );
       });
 
       dataBulanIni.forEach((item) => {
-        var kodeGol = String(item.gol || item.golongan || "");
-        var namaGol = item.namaGol || item.nama_golongan || "";
-        var saldoAkhir = Number((item.db || 0) - (item.cr || 0));
-
+        let kodeGol = String(item.gol || item.golongan || "");
         if (!mapGolongan[kodeGol]) {
           mapGolongan[kodeGol] = {
             gol: kodeGol,
-            namaGol: namaGol,
+            namaGol: item.namaGol || item.nama_golongan || "",
             cabang: kodeCabang,
             bulan: {},
             total: 0,
           };
-          for (var b = 1; b <= 12; b++)
-            mapGolongan[kodeGol].bulan[("0" + b).slice(-2)] = 0;
+          for (let x = 1; x <= 12; x++)
+            mapGolongan[kodeGol].bulan[("0" + x).slice(-2)] = 0;
         }
+        let saldoAkhir = Number((item.db || 0) - (item.cr || 0));
         mapGolongan[kodeGol].bulan[blnStr] = saldoAkhir;
         mapGolongan[kodeGol].total += saldoAkhir;
       });
     }
 
-    var listGol = Object.values(mapGolongan)
+    let listGol = Object.values(mapGolongan)
       .filter((g) => g.total !== 0)
       .sort((a, b) => parseInt(a.gol) - parseInt(b.gol));
-
     if (listGol.length === 0) {
       area.innerHTML =
         '<div style="padding:3rem;text-align:center;color:#888; background:#000; border-radius:8px;">Data kosong untuk cabang ini di tahun ' +
@@ -836,32 +763,17 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       return;
     }
 
-    // TAMBAHAN: Header dengan tombol kembali
-    var html =
-      '<div style="margin-bottom: 1rem; display:flex; justify-content:space-between; align-items:center;">' +
-      '<h4 style="margin:0; color:#fff; font-size:1.1rem;">RL Lebar: ' +
+    let html =
+      '<div style="margin-bottom: 1rem; display:flex; justify-content:space-between; align-items:center;"><h4 style="margin:0; color:#fff; font-size:1.1rem;">RL Lebar: ' +
       namaCab +
       " - Tahun " +
       filterTahunFull +
-      "</h4>" +
-      '<button class="btn btn-b" style="background:#333; color:#fff; border:1px solid #555; font-size:.8rem; padding:5px 15px;" onclick="kembaliKeRLGabungan()"><i class="fa-solid fa-arrow-left"></i> Kembali ke RL Gabungan</button>' +
-      "</div>";
+      '</h4><button class="btn btn-b" style="background:#333; color:#fff; border:1px solid #555; font-size:.8rem; padding:5px 15px;" onclick="kembaliKeRLGabungan()"><i class="fa-solid fa-arrow-left"></i> Kembali ke RL Gabungan</button></div>';
 
     html +=
       '<div style="overflow-x:auto; border:1px solid #444; border-radius:8px;"><table border="1" style="width:100%;border-collapse:collapse;color:#fff;border:1px solid #444;background:#000; min-width:1200px;">';
-
     html +=
-      '<thead><tr style="background:#1a1a1a;font-weight:bold;color:#fff;">';
-    html +=
-      '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">GOL</th>';
-    html +=
-      '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">NAMA GOLONGAN</th>';
-    html +=
-      '<th colspan="12" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:center;">BULAN</th>';
-    html +=
-      '<th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:right;">TOTAL YTD</th>';
-    html +=
-      '</tr><tr style="background:#1a1a1a;font-weight:bold;color:#fff;text-align:center">';
+      '<thead><tr style="background:#1a1a1a;font-weight:bold;color:#fff;"><th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">GOL</th><th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">NAMA GOLONGAN</th><th colspan="12" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:center;">BULAN</th><th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:right;">TOTAL YTD</th></tr><tr style="background:#1a1a1a;font-weight:bold;color:#fff;text-align:center">';
     namaBulan.forEach(
       (nb) =>
         (html +=
@@ -871,11 +783,11 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
     );
     html += "</tr></thead><tbody>";
 
-    var currentDigit = null;
-    var subTotalPerBulan = {};
-    var akumulasiLabaRugiPerBulan = {};
-    for (var b = 1; b <= 12; b++) {
-      var bsInit = ("0" + b).slice(-2);
+    let currentDigit = null;
+    let subTotalPerBulan = {},
+      akumulasiLabaRugiPerBulan = {};
+    for (let b = 1; b <= 12; b++) {
+      let bsInit = ("0" + b).slice(-2);
       subTotalPerBulan[bsInit] = 0;
       akumulasiLabaRugiPerBulan[bsInit] = 0;
     }
@@ -888,17 +800,18 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
     }
 
     function buatBarisSubtotal(teks, arrBulan, total, warnaBg, doubleTop) {
-      var topBorder = doubleTop ? "border-top:3px double #fff;" : "";
-      html += '<tr style="background:' + warnaBg + ';font-weight:bold;">';
+      let topBorder = doubleTop ? "border-top:3px double #fff;" : "";
       html +=
-        '<td colspan="2" style="padding:8px;border:1px solid #444;text-align:right;' +
+        '<tr style="background:' +
+        warnaBg +
+        ';font-weight:bold;"><td colspan="2" style="padding:8px;border:1px solid #444;text-align:right;' +
         topBorder +
         'color:#fff;">' +
         teks +
         "</td>";
-      for (var b = 1; b <= 12; b++) {
-        var blnStr = ("0" + b).slice(-2);
-        var val = arrBulan[blnStr] || 0;
+      for (let b = 1; b <= 12; b++) {
+        let blnStr = ("0" + b).slice(-2);
+        let val = arrBulan[blnStr] || 0;
         html +=
           '<td style="padding:8px;border:1px solid #444;text-align:right;color:' +
           (val >= 0 ? "#fff" : "#ffcdd2") +
@@ -919,40 +832,36 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
     }
 
     function prosesAkumulasiYTD(digitSekarang, subTotalBulan) {
-      for (var b = 1; b <= 12; b++) {
-        var bsLaba = ("0" + b).slice(-2);
-        var nilaiBulanIni = subTotalBulan[bsLaba] || 0;
-        if (digitSekarang === "3") {
-          akumulasiLabaRugiPerBulan[bsLaba] = nilaiBulanIni;
-        } else {
-          akumulasiLabaRugiPerBulan[bsLaba] += nilaiBulanIni;
-        }
+      for (let b = 1; b <= 12; b++) {
+        let bsLaba = ("0" + b).slice(-2);
+        let nilaiBulanIni = subTotalBulan[bsLaba] || 0;
+        akumulasiLabaRugiPerBulan[bsLaba] =
+          digitSekarang === "3"
+            ? nilaiBulanIni
+            : akumulasiLabaRugiPerBulan[bsLaba] + nilaiBulanIni;
       }
     }
 
-    for (var i = 0; i < listGol.length; i++) {
-      var item = listGol[i];
-      var kodeGol = parseInt(item.gol, 10);
-      var digit = String(kodeGol).charAt(0);
+    for (let i = 0; i < listGol.length; i++) {
+      let item = listGol[i];
+      let digit = String(parseInt(item.gol, 10)).charAt(0);
 
       if (currentDigit !== null && digit !== currentDigit) {
-        var arrSub = {};
-        var totalSub = 0;
-        for (var b = 1; b <= 12; b++) {
-          var bs = ("0" + b).slice(-2);
+        let arrSub = {},
+          totalSub = 0;
+        for (let b = 1; b <= 12; b++) {
+          let bs = ("0" + b).slice(-2);
           arrSub[bs] = subTotalPerBulan[bs];
           totalSub += subTotalPerBulan[bs];
         }
-
-        var ket = "SUBTOTAL " + currentDigit + "xx";
+        let ket = "SUBTOTAL " + currentDigit + "xx";
         if (currentDigit === "3") ket = "PENJUALAN BERSIH";
         if (currentDigit === "4") ket = "TOTAL HPP";
         if (currentDigit === "5") ket = "TOTAL BY ADM & UMUM";
         if (currentDigit === "6") ket = "TOTAL BEBAN LAINNYA";
-
         buatBarisSubtotal(ket, arrSub, totalSub, "#1b5e20", false);
         prosesAkumulasiYTD(currentDigit, subTotalPerBulan);
-        for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
+        for (let b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
       }
 
       if (currentDigit !== digit) {
@@ -964,31 +873,28 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
 
       currentDigit = digit;
       html += "<tr>";
-      html += `<td onclick="lihatDetilTransaksiRLLebar('${item.gol}', 'YTD${filterTahunFull}', '${kodeCabang}')" style="padding:6px;border:1px solid #3e0a93;cursor:pointer;color:#4da3ff;font-weight:bold;text-decoration:underline;">${item.gol}</td>
-      <td style="padding:6px;border:1px solid #444;color:#fff;text-align: left;">${item.namaGol}</td>`;
-
-      for (var b = 1; b <= 12; b++) {
-        var bs = ("0" + b).slice(-2);
-        var rawVal =
+      html += `<td onclick="lihatDetilTransaksiRLLebar('${item.gol}', 'YTD${filterTahunFull}', '${kodeCabang}')" style="padding:6px;border:1px solid #3e0a93;cursor:pointer;color:#4da3ff;font-weight:bold;text-decoration:underline;">${item.gol}</td><td style="padding:6px;border:1px solid #444;color:#fff;text-align: left;">${item.namaGol}</td>`;
+      for (let b = 1; b <= 12; b++) {
+        let bs = ("0" + b).slice(-2);
+        let rawVal =
           item.bulan && item.bulan[bs] !== undefined ? item.bulan[bs] : 0;
-        var val = num(rawVal);
+        let val = num(rawVal);
         if (!subTotalPerBulan[bs]) subTotalPerBulan[bs] = 0;
         subTotalPerBulan[bs] += val;
         html += `<td style="padding:6px;border:1px solid #444;text-align:right;color:${val >= 0 ? "#fff" : "#ffc107"}">${val !== 0 ? formatUang(val) : ""}</td>`;
       }
-
       html += `<td style="padding:6px;border:1px solid #444;text-align:right;font-weight:bold;color:${item.total >= 0 ? "#fff" : "#ff6b6b"}">${formatUang(item.total)}</td></tr>`;
     }
 
     if (currentDigit !== null) {
-      var arrSubAkhir = {};
-      var totalSubAkhir = 0;
-      for (var b = 1; b <= 12; b++) {
-        var bs = ("0" + b).slice(-2);
+      let arrSubAkhir = {},
+        totalSubAkhir = 0;
+      for (let b = 1; b <= 12; b++) {
+        let bs = ("0" + b).slice(-2);
         arrSubAkhir[bs] = subTotalPerBulan[bs];
         totalSubAkhir += subTotalPerBulan[bs];
       }
-      var ketAkhir = "SUBTOTAL " + currentDigit + "xx";
+      let ketAkhir = "SUBTOTAL " + currentDigit + "xx";
       if (currentDigit === "3") ketAkhir = "PENJUALAN BERSIH";
       if (currentDigit === "4") ketAkhir = "TOTAL HPP";
       if (currentDigit === "5") ketAkhir = "TOTAL BY ADM & UMUM";
@@ -999,10 +905,10 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
 
     html +=
       '<tr><td colspan="15" style="border:1px solid #444;padding:4px;background-color:#ffc107;"></td></tr>';
-    var arrTotalBulan = {};
-    var grandTotal = 0;
-    for (var b = 1; b <= 12; b++) {
-      var bs = ("0" + b).slice(-2);
+    let arrTotalBulan = {},
+      grandTotal = 0;
+    for (let b = 1; b <= 12; b++) {
+      let bs = ("0" + b).slice(-2);
       arrTotalBulan[bs] = akumulasiLabaRugiPerBulan[bs];
       grandTotal += akumulasiLabaRugiPerBulan[bs];
     }
@@ -1013,10 +919,7 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       "#1b5e20",
       true,
     );
-
     html += "</tbody></table></div>";
-
-    // Render langsung di area utama
     area.innerHTML = html;
   } catch (error) {
     console.error("Error load detail RL Cabang:", error);
@@ -1028,198 +931,126 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
   }
 }
 
-// ==========================================
-// FUNGSI DETAIL TRANSAKSI TETAP MENGGUNAKAN POPUP KEcil
-// ==========================================
 function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
-  // 1. Parse tahun dari format "YTD2024"
-  var tahunFull = masa.replace("YTD", ""); // Hasil: "2024"
-  var namaStore = "transaksi" + tahunFull;
-
-  var popupId = "popup_transaksi_" + Date.now();
-
-  var cabFilter = String(cabang || "")
+  let tahunFull = masa.replace("YTD", "");
+  let namaStore = "transaksi" + tahunFull;
+  let popupId = "popup_transaksi_" + Date.now();
+  let cabFilter = String(cabang || "")
     .trim()
     .toUpperCase();
-  if (cabFilter === "PUSAT") {
-    cabFilter = "00";
-  }
+  if (cabFilter === "PUSAT") cabFilter = "00";
 
-  var popupHtml =
+  let popupHtml =
     '<div id="' +
     popupId +
-    '" style="position:fixed; top:20px; right:20px; width:50%; max-width:700px; max-height:90vh; background:#000; border:2px solid #4da3ff; box-shadow:0 0 20px rgba(77, 163, 255, 0.5); z-index:10001; display:flex; flex-direction:column; border-radius:8px;">' +
-    '<div style="padding:12px; background:#1a1a1a; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; border-radius:8px 8px 0 0;">' +
-    '<strong style="font-size:0.9rem; color:#4da3ff;">Detil Transaksi YTD: ' +
+    '" style="position:fixed; top:20px; right:20px; width:50%; max-width:700px; max-height:90vh; background:#000; border:2px solid #4da3ff; box-shadow:0 0 20px rgba(77, 163, 255, 0.5); z-index:10001; display:flex; flex-direction:column; border-radius:8px;"><div style="padding:12px; background:#1a1a1a; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; border-radius:8px 8px 0 0;"><strong style="font-size:0.9rem; color:#4da3ff;">Detil Transaksi YTD: ' +
     noPerkiraan +
     " | Cabang: " +
     cabFilter +
-    "</strong>" +
-    "<button onclick=\"document.getElementById('" +
+    "</strong><button onclick=\"document.getElementById('" +
     popupId +
-    '\').remove()" style="background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:#fff;">&times;</button>' +
-    "</div>" +
-    '<div id="' +
+    '\').remove()" style="background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:#fff;">&times;</button></div><div id="' +
     popupId +
-    '_body" style="padding:10px; overflow-y:auto; flex:1; font-size:0.8rem; color:#fff;">' +
-    '<div style="text-align:center; padding:20px; color:#888;">Loading data transaksi 12 bulan...</div>' +
-    "</div></div>";
+    '_body" style="padding:10px; overflow-y:auto; flex:1; font-size:0.8rem; color:#fff;"><div style="text-align:center; padding:20px; color:#888;">Loading data transaksi 12 bulan...</div></div></div>';
 
   document.body.insertAdjacentHTML("beforeend", popupHtml);
-  var container = document.getElementById(popupId + "_body");
+  let container = document.getElementById(popupId + "_body");
 
   db.getAll(namaStore)
     .then(function (rawData) {
-      var listTrans = Array.isArray(rawData) ? rawData : [];
+      let listTrans = Array.isArray(rawData) ? rawData : [];
+      let duaDigitTahun = tahunFull.substring(2, 4);
+      let setMasaValid = new Set();
+      for (let b = 1; b <= 12; b++)
+        setMasaValid.add(("0" + b).slice(-2) + duaDigitTahun);
 
-      // 2. Siapkan array 12 bulan untuk mencocokkan (0101 s/d 1224 jika tahun 2024)
-      var duaDigitTahun = tahunFull.substring(2, 4);
-      var setMasaValid = new Set();
-      for (var b = 1; b <= 12; b++) {
-        var blnStr = ("0" + b).slice(-2);
-        setMasaValid.add(blnStr + duaDigitTahun); // Contoh: "0124", "0224", dst...
-      }
-
-      // 3. Ambil 3 digit depan no perkiraan
-      var prefixNoPerkiraan = String(noPerkiraan || "")
+      let prefixNoPerkiraan = String(noPerkiraan || "")
         .trim()
         .substring(0, 3);
 
-      // 4. Filter Data
-      var detilTrans = listTrans.filter(function (t) {
-        var tNo = String(t.noperkiraan || "").trim();
-        var tCab = String(t.cabang || "")
+      let detilTrans = listTrans.filter(function (t) {
+        let tNo = String(t.noperkiraan || "").trim();
+        let tCab = String(t.cabang || "")
           .trim()
           .toUpperCase();
-        var tMasa = String(t.masa || "").trim();
-
-        var tNoPrefix = tNo.substring(0, 3);
-        var cocokPerkiraan = tNoPrefix === prefixNoPerkiraan;
-
-        // Cek apakah masanya ada di dalam 12 bulan tahun tersebut
-        var cocokMasa = setMasaValid.has(tMasa);
-
-        var cocokCabang = true;
-        if (cabFilter !== "ALL" && cabFilter !== "") {
-          cocokCabang = tCab === cabFilter;
-        }
-
+        let tMasa = String(t.masa || "").trim();
+        let cocokPerkiraan = tNo.substring(0, 3) === prefixNoPerkiraan;
+        let cocokMasa = setMasaValid.has(tMasa);
+        let cocokCabang =
+          cabFilter === "ALL" || cabFilter === "" ? true : tCab === cabFilter;
         return cocokPerkiraan && cocokMasa && cocokCabang;
       });
 
       if (detilTrans.length === 0) {
         container.innerHTML =
-          '<div style="text-align:center; padding:20px; color:#ffc107;">' +
-          "Data tidak ditemukan.<br><br>" +
-          "<small>Dicari No Perkiraan (3 digit depan): " +
+          '<div style="text-align:center; padding:20px; color:#ffc107;">Data tidak ditemukan.<br><br><small>Dicari No Perkiraan (3 digit depan): ' +
           prefixNoPerkiraan +
           " | Tahun: " +
           tahunFull +
           " | Cabang Kode: " +
           cabFilter +
-          "</small>" +
-          "</div>";
+          "</small></div>";
         return;
       }
 
-      // Urutkan berdasarkan masa dan tanggal agar kronologis
       detilTrans.sort(function (a, b) {
-        var masaA = String(a.masa || "");
-        var masaB = String(b.masa || "");
+        let masaA = String(a.masa || ""),
+          masaB = String(b.masa || "");
         if (masaA !== masaB) return masaA.localeCompare(masaB);
         return String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
       });
-      // ✅ FUNGSI BARU: Parser untuk mengambil HANYA ANGKA TANGGAL
-      // ✅ FUNGSI BARU: Parser untuk mengambil HANYA ANGKA TANGGAL
+
+      // PERBAIKAN: Fungsi dipanggil saat merender tabel
       function ambilTanggalSaja(rawTgl) {
         if (!rawTgl) return "-";
-        var strTgl = String(rawTgl).trim();
-
-        // ✅ 1. Jika format "Mon Feb 23 2026 00:00:00 GMT+0" (Format Date JS)
-        // Split pakai spasi, tanggalnya ada di urutan ke-3 (index 2)
-        var parts = strTgl.split(" ");
-        if (parts.length >= 3 && !isNaN(parts[2])) {
-          return parts[2]; // Akan mengembalikan "23"
-        }
-
-        // 2. Jika format "Senin, 15/01/2024 10:30:00" atau "15/01/2024 10:30:00"
-        if (strTgl.indexOf("/") > -1) {
-          var partsSlash = strTgl.split(" ")[0];
-          var tglParts = partsSlash.split("/");
-          return tglParts[0] || "-";
-        }
-
-        // 3. Jika format ISO "2024-01-15T10:30:00.000Z"
-        if (strTgl.indexOf("-") > -1 && strTgl.indexOf("T") > -1) {
-          var dateObj = new Date(strTgl);
-          return dateObj.getDate() || "-";
-        }
-
+        let strTgl = String(rawTgl).trim();
+        let parts = strTgl.split(" ");
+        if (parts.length >= 3 && !isNaN(parts[2])) return parts[2];
+        if (strTgl.indexOf("/") > -1)
+          return strTgl.split(" ")[0].split("/")[0] || "-";
+        if (strTgl.indexOf("-") > -1 && strTgl.indexOf("T") > -1)
+          return new Date(strTgl).getDate() || "-";
         return "-";
       }
 
-      // 5. Render Tabel
-      var tableHtml =
-        '<div style="overflow-x:auto; background-color:#000000; color:#ffffff;">' +
-        '<table style="width:100%; border-collapse:collapse; font-size:0.75rem; min-width:500px; background-color:#000000; color:#ffffff;">' +
-        '<thead style="background:#1a1a1a; position:sticky; top:0; color:#ffffff;"><tr>' +
-        '<th style="border:1px solid #444; padding:5px;">MASA</th>' +
-        '<th style="border:1px solid #444; padding:5px;">TANGGAL</th>' +
-        '<th style="border:1px solid #444; padding:5px;">NOREFF</th>' +
-        '<th style="border:1px solid #444; padding:5px;">DESC</th>' +
-        '<th style="border:1px solid #444; padding:5px; text-align:right;">DEBET</th>' +
-        '<th style="border:1px solid #444; padding:5px; text-align:right;">KREDIT</th>' +
-        "</tr></thead><tbody>";
-
-      var totalDb = 0;
-      var totalCr = 0;
+      let tableHtml =
+        '<div style="overflow-x:auto; background-color:#000000; color:#ffffff;"><table style="width:100%; border-collapse:collapse; font-size:0.75rem; min-width:500px; background-color:#000000; color:#ffffff;"><thead style="background:#1a1a1a; position:sticky; top:0; color:#ffffff;"><tr><th style="border:1px solid #444; padding:5px;">MASA</th><th style="border:1px solid #444; padding:5px;">TGL</th><th style="border:1px solid #444; padding:5px;">NOREFF</th><th style="border:1px solid #444; padding:5px;">DESC</th><th style="border:1px solid #444; padding:5px; text-align:right;">DEBET</th><th style="border:1px solid #444; padding:5px; text-align:right;">KREDIT</th></tr></thead><tbody>';
+      let totalDb = 0,
+        totalCr = 0;
 
       detilTrans.forEach(function (t) {
-        var msa = t.masa || "-";
-        var tgl = t.tanggal || "-";
-        var ref = t.noreff || "-";
-        var ket = t.desc || "-";
-        var dbVal = num(t.db || 0);
-        var crVal = num(t.cr || 0);
-
+        let dbVal = num(t.db || 0),
+          crVal = num(t.cr || 0);
         totalDb += dbVal;
         totalCr += crVal;
-
         tableHtml +=
           "<tr>" +
           '<td style="border:1px solid #444; padding:4px; text-align:center; color:#4da3ff;">' +
-          msa +
+          (t.masa || "-") +
+          "</td>" +
+          '<td style="border:1px solid #444; padding:4px; text-align:center;">' +
+          ambilTanggalSaja(t.tanggal) +
+          "</td>" + // PERBAIKAN: Manggil fungsi tanggal
+          '<td style="border:1px solid #444; padding:4px;">' +
+          (t.noreff || "-") +
           "</td>" +
           '<td style="border:1px solid #444; padding:4px;">' +
-          tgl +
-          "</td>" +
-          '<td style="border:1px solid #444; padding:4px;">' +
-          ref +
-          "</td>" +
-          '<td style="border:1px solid #444; padding:4px;">' +
-          ket +
+          (t.desc || "-") +
           "</td>" +
           '<td style="border:1px solid #444; padding:4px; text-align:right;">' +
-          fmtN(dbVal) +
-          "</td>" +
+          formatUang(dbVal) +
+          "</td>" + // PERBAIKAN: Disamakan formatUang
           '<td style="border:1px solid #444; padding:4px; text-align:right;">' +
-          fmtN(crVal) +
-          "</td>" +
-          "</tr>";
+          formatUang(crVal) +
+          "</td></tr>";
       });
 
       tableHtml +=
-        '<tr style="background:#1b5e20; font-weight:bold;">' +
-        '<td colspan="4" style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">TOTAL YTD</td>' +
-        '<td style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">' +
-        fmtN(totalDb) +
-        "</td>" +
-        '<td style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">' +
-        fmtN(totalCr) +
-        "</td>" +
-        "</tr>";
-
-      tableHtml += "</tbody></table></div>";
+        '<tr style="background:#1b5e20; font-weight:bold;"><td colspan="4" style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">TOTAL YTD</td><td style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">' +
+        formatUang(totalDb) +
+        '</td><td style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">' +
+        formatUang(totalCr) +
+        "</td></tr></tbody></table></div>";
       container.innerHTML = tableHtml;
     })
     .catch(function (err) {
@@ -1230,27 +1061,23 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
         "</div>";
     });
 }
-// ==========================================
-// FUNGSI AKSI TOMBOL LIHAT GRAFIK
-// ==========================================
+
 function lihatGrafikRLGabungan() {
   if (
     !window._rlGabunganData ||
     !window._rlGabunganData.daftarCabang ||
     window._rlGabunganData.daftarCabang.length === 0
   ) {
-    toast("Silakan klik 'Terapkan' terlebih dahulu untuk memuat data", "wrn");
+    if (typeof toast === "function")
+      toast("Silakan klik 'Terapkan' terlebih dahulu untuk memuat data", "wrn");
     return;
   }
-
   var areaGrafik = document.getElementById("area_grafik_rlgab");
   if (areaGrafik) {
-    // Tampilkan area grafik
     areaGrafik.style.display = "block";
-
-    // Scroll halaman secara halus ke arah grafik
     areaGrafik.scrollIntoView({ behavior: "smooth", block: "start" });
   } else {
-    toast("Area grafik tidak ditemukan", "err");
+    if (typeof toast === "function")
+      toast("Area grafik tidak ditemukan", "err");
   }
 }
