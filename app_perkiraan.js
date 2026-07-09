@@ -1159,7 +1159,7 @@ async function renderSaldoKasirawal() {
   }
 
   var rows = dataLimit.map(function (r) {
-    return [r.cabang || "-", formatTgl(r.tgl_awal), formatUang(r.akhir || 0)];
+    return [r.cabang || "-", r.nama_cabang || "-", formatTgl(r.tgl_awal), formatUang(r.akhir || 0)];
   });
 
   var totalSaldo = data.reduce(function (s, r) {
@@ -1189,7 +1189,7 @@ async function renderSaldoKasirawal() {
     '<button type="button" class="btn btn-a" onclick="formSaldoKasirawal()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
-      buildTable(["Cabang", "Tanggal", "Saldo Awal"], rows, {
+      buildTable(["Cabang", "Nama Cabang", "Tanggal", "Saldo Awal"], rows, {
         foot: foot,
         bulkStore: "saldoKasirawal",
         bulkIds: idsLimit,
