@@ -1079,3 +1079,220 @@ function lihatGrafikRLGabungan() {
   var d = window._rlGabunganData;
   renderGrafikRLGabungan(d.daftarCabang, d.dataByCabang, d.mapMasterCab);
 }
+
+
+PANEL_MAP.saldoKasir = renderLaporanArusKas;
+
+function renderLaporanArusKas() {
+  if (typeof window._arusKasFilterTahun === "undefined") {
+    var d = new Date();
+    window._arusKasFilterTahun = d.getFullYear();
+  }
+
+  var htmlLaporan =
+    '<div id="area_cetak_aruskas" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); width:100%; box-sizing:border-box; display:block; overflow:visible;">' +
+    '<div style="text-align:center; width:100%; box-sizing:border-box;">' +
+    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan Arus Kas</h3>' +
+    '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem;">' +
+    '<div style="display:flex; align-items:center; gap:5px;">' +
+    '<label style="font-size:.8rem; color:var(--fg); font-weight:bold;">Tahun:</label>' +
+    '<input type="number" id="filter_aruskas_tahun" value="' + window._arusKasFilterTahun + '" style="width:100px; padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem;">' +
+    "</div>" +
+    '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiArusKas()">Terapkan</button>' +
+    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadArusKasExcel()"><i class="fa-solid fa-file-excel"></i> Download Excel</button>' +
+    "</div>" +
+    "</div>" +
+    '<div id="tempat_tabel_aruskas" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
+    "</div>";
+
+  return htmlLaporan;
+}
+
+async function terapkanOpsiArusKas() {
+  var inputTahun = document.getElementById("filter_aruskas_tahun");
+  if (!inputTahun) return;
+
+  var filterTahun = inputTahun.value;
+  if (!filterTahun) {
+    if (typeof toast === "function") toast("Silakan isi tahun terlebih dahulu", "err");
+    return;
+  }
+
+  window._arusKasFilterTahun = filterTahun;
+  var namastoregolbackup = "golongan" + filterTahun;
+
+  var area = document.getElementById("tempat_tabel_aruskas");
+  if (area) {
+    area.innerHTML = '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memproses data arus kas...</div>';
+  }
+
+  try {
+    // 1. AMBIL DATA GOLONGAN TAHUNAN
+    var resgolbackup = await db.getAll(namastoregolbackup);
+    var rawdatagolongan = resgolbackup ? (Array.isArray(resgolbackup) ? resgolbackup : Object.values(resgolbackup)) : [];
+
+    var totalSaldoKasAwal = 0;
+    var totalPemasukan = 0;
+    var totalPengeluaran = 0;
+    var totalSaldoKasAkhir = 0;
+
+    // Variabel untuk menyimpan rincian per golongan (opsional untuk detail)
+    var detailPemasukan = [];
+    var detailPengeluaran = [];
+
+    rawdatagolongan.forEach(function (g) {
+      var kodeGol = String(g.gol || g.golongan || "").trim();
+      var numKodeGol = parseInt(kodeGol, 10);
+
+      // Hanya proses golongan dibawah 300
+      if (isNaN(numKodeGol) || numKodeGol >= 300) return;
+
+      var cabangData = String(g.cabang || g.cab || g.kode_cabang || "").trim();
+      var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
+      
+      // Ambil 2 digit tahun dari masa (misal: "0124" -> "24")
+      var tahunMasa = "20" + masaData.substring(2, 4);
+
+      // Cek apakah tahun masa sesuai dengan filter
+      if (tahunMasa !== String(filterTahun)) return;
+
+      var dbVal = +(g.db || 0);
+      var crVal = +(g.cr || 0);
+      var saldo = dbVal - crVal;
+
+      // LOGIKA SALDO AWAL: Golongan < 103 di bulan pertama masuk (biasanya Januari / 01)
+      if (numKodeGol < 103 && masaData.substring(0, 2) === "01") {
+        totalSaldoKasAwal += dbVal; // Mengasumsikan saldo awal masuk ke Debet
+      }
+
+      // LOGIKA MUTASI: Golongan >= 103 (transaksi rutin)
+      if (numKodeGol >= 103) {
+        if (saldo < 0) {
+          // Jika Db - Cr kurang dari 0 -> Cr lebih besar -> Pemasukan
+          totalPemasukan += Math.abs(saldo);
+          detailPemasukan.push({ gol: kodeGol, nilai: Math.abs(saldo) });
+        } else if (saldo > 0) {
+          // Jika Db - Cr lebih dari 0 -> Db lebih besar -> Pengeluaran
+          totalPengeluaran += saldo;
+          detailPengeluaran.push({ gol: kodeGol, nilai: saldo });
+        }
+      }
+
+      // LOGIKA SALDO AKHIR: Total seluruh golongan < 103 di bulan terakhir (biasanya Desember / 12)
+      if (numKodeGol < 103 && masaData.substring(0, 2) === "12") {
+        totalSaldoKasAkhir += (dbVal - crVal);
+      }
+    });
+
+    var selisihMutasi = totalPemasukan - totalPengeluaran;
+    var selisihAkhir = selisihMutasi - totalSaldoKasAkhir;
+
+    // Simpan data untuk keperluan download excel
+    window._dataArusKas = {
+      tahun: filterTahun,
+      totalSaldoKasAwal: totalSaldoKasAwal,
+      totalPemasukan: totalPemasukan,
+      totalPengeluaran: totalPengeluaran,
+      selisihMutasi: selisihMutasi,
+      totalSaldoKasAkhir: totalSaldoKasAkhir,
+      selisihAkhir: selisihAkhir
+    };
+
+    // Render Tabel
+    var html = generateHTMLArusKas(
+      filterTahun,
+      totalSaldoKasAwal,
+      totalPemasukan,
+      totalPengeluaran,
+      selisihMutasi,
+      totalSaldoKasAkhir,
+      selisihAkhir,
+      false
+    );
+
+    area.innerHTML = html;
+
+  } catch (error) {
+    console.error("❌ Gagal proses Arus Kas:", error);
+    if (area) {
+      area.innerHTML = '<div style="padding:3rem; text-align:center; color:darkred;">Error: ' + error.message + "</div>";
+    }
+  }
+}
+
+function generateHTMLArusKas(tahun, saldoAwal, pemasukan, pengeluaran, selisihMutasi, saldoAkhir, selisihAkhir, isForExcel) {
+  var brdColor = isForExcel ? "#000" : "var(--brd)";
+  var bgCard = isForExcel ? "#fff" : "var(--card)";
+  var fgColor = isForExcel ? "#000" : "var(--fg)";
+
+  var html = '<div style="width:100%; max-width:600px; margin:0 auto; border:1px solid ' + brdColor + '; border-radius:4px; overflow:hidden;">';
+  
+  // Header Tabel
+  html += '<table style="width:100%; border-collapse:collapse; font-size:.85rem; color:' + fgColor + ';">';
+  html += '<thead><tr style="background:#e9ecef; font-weight:bold;"><td style="padding:10px; border:1px solid ' + brdColor + ';" colspan="2">KETERANGAN</td><td style="padding:10px; border:1px solid ' + brdColor + '; text-align:right; width:150px;">JUMLAH (RP)</td></tr></thead>';
+  
+  html += '<tbody>';
+
+  // 1. Pemasukan
+  html += '<tr style="background:#d1e7dd; font-weight:bold;"><td style="padding:8px; border:1px solid ' + brdColor + ';" colspan="2">PEMASUKAN</td><td style="padding:8px; border:1px solid ' + brdColor + '; text-align:right;"></td></tr>';
+  
+  html += '<tr><td style="padding:6px 8px 6px 20px; border:1px solid ' + brdColor + ';" colspan="2">Kas dan Bank Awal Tahun (Gol < 103)</td>';
+  html += '<td style="padding:6px 8px; border:1px solid ' + brdColor + '; text-align:right;"' + (isForExcel ? ' x:num="' + saldoAwal + '"' : '') + '>' + formatUang(saldoAwal) + '</td></tr>';
+
+  html += '<tr><td style="padding:6px 8px 6px 20px; border:1px solid ' + brdColor + ';" colspan="2">Pemasukan Lainnya (Gol 103 - 299)</td>';
+  html += '<td style="padding:6px 8px; border:1px solid ' + brdColor + '; text-align:right;"' + (isForExcel ? ' x:num="' + pemasukan + '"' : '') + '>' + formatUang(pemasukan) + '</td></tr>';
+
+  html += '<tr style="font-weight:bold; background:#d1e7dd;"><td style="padding:8px; border:1px solid ' + brdColor + ';" colspan="2">Total Pemasukan</td>';
+  html += '<td style="padding:8px; border:1px solid ' + brdColor + '; text-align:right;"' + (isForExcel ? ' x:num="' + (saldoAwal + pemasukan) + '"' : '') + '>' + formatUang(saldoAwal + pemasukan) + '</td></tr>';
+
+  // 2. Pengeluaran
+  html += '<tr style="background:#f8d7da; font-weight:bold;"><td style="padding:8px; border:1px solid ' + brdColor + ';" colspan="2">PENGELUARAN</td><td style="padding:8px; border:1px solid ' + brdColor + '; text-align:right;"></td></tr>';
+  
+  html += '<tr><td style="padding:6px 8px 6px 20px; border:1px solid ' + brdColor + ';" colspan="2">Pengeluaran Lainnya (Gol 103 - 299)</td>';
+  html += '<td style="padding:6px 8px; border:1px solid ' + brdColor + '; text-align:right;"' + (isForExcel ? ' x:num="' + pengeluaran + '"' : '') + '>' + formatUang(pengeluaran) + '</td></tr>';
+
+  html += '<tr style="font-weight:bold; background:#f8d7da;"><td style="padding:8px; border:1px solid ' + brdColor + ';" colspan="2">Total Pengeluaran</td>';
+  html += '<td style="padding:8px; border:1px solid ' + brdColor + '; text-align:right;"' + (isForExcel ? ' x:num="' + pengeluaran + '"' : '') + '>' + formatUang(pengeluaran) + '</td></tr>';
+
+  // 3. Selisih Mutasi
+  var warnaSelisih = selisihMutasi >= 0 ? "#d1e7dd" : "#f8d7da";
+  html += '<tr style="font-weight:bold; background:' + warnaSelisih + ';"><td style="padding:8px; border:1px solid ' + brdColor + ';" colspan="2">Selisih Pemasukan dan Pengeluaran</td>';
+  html += '<td style="padding:8px; border:1px solid ' + brdColor + '; text-align:right;"' + (isForExcel ? ' x:num="' + selisihMutasi + '"' : '') + '>' + formatUang(selisihMutasi) + '</td></tr>';
+
+  // 4. Saldo Kas Akhir
+  html += '<tr style="background:#fff3cd; font-weight:bold;"><td style="padding:8px; border:1px solid ' + brdColor + ';" colspan="2">Saldo Kas dan Bank Akhir Tahun (Gol < 103)</td>';
+  html += '<td style="padding:8px; border:1px solid ' + brdColor + '; text-align:right;"' + (isForExcel ? ' x:num="' + saldoAkhir + '"' : '') + '>' + formatUang(saldoAkhir) + '</td></tr>';
+
+  // 5. Selisih Akhir (Keterangan)
+  var warnaAkhir = selisihAkhir === 0 ? "#d1e7dd" : "#ffc107";
+  html += '<tr style="font-weight:bold; background:' + warnaAkhir + ';"><td style="padding:8px; border:1px solid ' + brdColor + ';" colspan="2">Selisih (Mutasi - Saldo Akhir)</td>';
+  html += '<td style="padding:8px; border:1px solid ' + brdColor + '; text-align:right;"' + (isForExcel ? ' x:num="' + selisihAkhir + '"' : '') + '>' + formatUang(selisihAkhir) + '</td></tr>';
+
+  html += '</tbody></table></div>';
+
+  return html;
+}
+
+async function downloadArusKasExcel() {
+  if (!window._dataArusKas) {
+    if (typeof toast === "function") toast("Tidak ada data Arus Kas untuk didownload", "err");
+    return;
+  }
+
+  var d = window._dataArusKas;
+  var htmlContent = generateHTMLArusKas(d.tahun, d.totalSaldoKasAwal, d.totalPemasukan, d.totalPengeluaran, d.selisihMutasi, d.totalSaldoKasAkhir, d.selisihAkhir, true);
+  
+  var fullHtml = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Arus Kas</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>` + htmlContent + `</body></html>`;
+  
+  var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "Laporan_Arus_Kas_" + d.tahun + ".xls";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  
+  if (typeof toast === "function") toast("File Excel Arus Kas sedang didownload...", "ok");
+}
