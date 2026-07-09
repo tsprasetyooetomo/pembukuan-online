@@ -1226,7 +1226,48 @@ async function terapkanOpsiArusKasGabungan() {
       });
       return totalSemuaCabang !== 0;
     });
+    // --- TAMBAHKAN KODE INI UNTUK MENGHITUNG SALDO AWAL ---
+    var kodemasasebelumnya = ""; // Logika untuk mencari masa sebelumnya (misal bulan lalu)
+    // Contoh sederhana jika bulan sebelumnya:
+    var bulanInt = parseInt(filterbulan);
+    var tahunInt = parseInt(filtertahunfull);
+    if (bulanInt === 1) {
+      bulanInt = 12;
+      tahunInt--;
+    } else {
+      bulanInt--;
+    }
+    var bulanSebelum = String(bulanInt).padStart(2, "0");
+    var tahunSebelum = String(tahunInt);
+    kodemasasebelumnya = bulanSebelum + tahunSebelum.substring(2, 4);
+    var namaStoreSebelum = "golongan" + tahunSebelum;
 
+    var rawSaldoAwal = await db.getAll(namaStoreSebelum);
+    var saldoAwalByCabang = {};
+
+    if (rawSaldoAwal) {
+      var arrSaldoAwal = Array.isArray(rawSaldoAwal)
+        ? rawSaldoAwal
+        : Object.values(rawSaldoAwal);
+      arrSaldoAwal.forEach(function (s) {
+        var kodeGol = String(s.gol || s.golongan || "").trim();
+        var cabangData = String(
+          s.cabang || s.cab || s.kode_cabang || "",
+        ).trim();
+        var masaData = String(s.masa || s.periode || s.kode_masa || "").trim();
+
+        if (!setValidCabang.has(cabangData)) return;
+        // Ambil golongan aktiva lancar (< 103) di masa sebelumnya
+        if (parseInt(kodeGol) < 103 && masaData === kodemasasebelumnya) {
+          if (!saldoAwalByCabang[cabangData])
+            saldoAwalByCabang[cabangData] = {};
+          if (!saldoAwalByCabang[cabangData][kodeGol])
+            saldoAwalByCabang[cabangData][kodeGol] = 0;
+          var saldoAkhir = +(s.db || 0) - +(s.cr || 0);
+          saldoAwalByCabang[cabangData][kodeGol] += saldoAkhir;
+        }
+      });
+    }
     window._rlGabunganData = {
       daftarCabang,
       arrKodeGol,
@@ -1247,7 +1288,6 @@ async function terapkanOpsiArusKasGabungan() {
       area.style.maxHeight = "none";
       area.style.height = "auto";
     }
-
     area.innerHTML = generateHTMLArusKasGabungan(
       daftarCabang,
       arrKodeGol,
@@ -1255,6 +1295,8 @@ async function terapkanOpsiArusKasGabungan() {
       mapMasterGol,
       mapMasterCab,
       false,
+      saldoAwalByCabang, // <-- PARAMETER BARU 1
+      saldoAkhirAktivaTetapByCabang, // <-- PARAMETER BARU 2
     );
 
     // PERBAIKAN: Baris renderGrafikRLGabungan DIHAPUS. Tabel muncul, grafik TIDAK muncul saat ini.
