@@ -1330,8 +1330,8 @@ async function terapkanOpsiArusKasGabungan() {
       mapMasterGol,
       mapMasterCab,
       false,
-      saldoAwalByCabang, // <-- PARAMETER BARU 1
-      saldoAkhirAktivaTetapByCabang, // <-- PARAMETER BARU 2
+      saldoAwalByCabang || {},
+      {}, // <-- TAMBAHKAN INI UNTUK MENGHINDARI ERROR
     );
 
     // PERBAIKAN: Baris renderGrafikRLGabungan DIHAPUS. Tabel muncul, grafik TIDAK muncul saat ini.
