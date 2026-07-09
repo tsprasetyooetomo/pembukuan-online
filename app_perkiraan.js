@@ -1127,9 +1127,10 @@ function getCabangFilterHTML() {
 PANEL_MAP.saldoKasirAwal = renderSaldoKasirawal;
 
 // ========================================================
-// 1. RENDER SALDO KASIR
-async function renderSaldoKasirawal() {
-  // ✅ FIX 1: Standarisasi pakai "saldoKasirawal" agar sesuai dengan API & IndexedDB
+// ========================================================
+// 1. RENDER SALDO KASIR AWAL
+async function renderSaldoKasirAwal() {
+  // ✅ FIX: Standarisasi pakai "saldoKasirAwal" (A besar) agar sesuai cache
   var rawData = DBCache.saldoKasirAwal || [];
   var data = filterByCabang(rawData);
 
@@ -1189,7 +1190,7 @@ async function renderSaldoKasirawal() {
     " record" +
     "</div>" +
     '<div style="display:flex;gap:.4rem">' +
-    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasirawal\', \'Data_SaldoKasirawal\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
+    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldoKasirAwal\', \'Data_SaldoKasirAwal\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldoKasirAwal\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldoKasirAwal\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
     '<button type="button" class="btn btn-a" onclick="formSaldoKasirAwal()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
@@ -1209,13 +1210,13 @@ async function renderSaldoKasirawal() {
 }
 
 // ========================================================
-// 2. FORM SALDO KASIR
+// 2. FORM SALDO KASIR AWAL
 function formSaldoKasirAwal(id) {
   var isEdit = !!id;
 
-  // ✅ FIX 2: Cari data dari DBCache yang sudah distandarisasi
+  // ✅ FIX: Cari data dari DBCache.saldoKasirAwal (A besar)
   var data = isEdit
-    ? (DBCache.saldoKasirawal || []).find(function (d) {
+    ? (DBCache.saldoKasirAwal || []).find(function (d) {
         return d.id === id;
       }) || {}
     : {};
@@ -1236,10 +1237,10 @@ function formSaldoKasirAwal(id) {
     esc(displaySaldo) +
     '"></div>';
 
-  // ✅ PERBAIKAN: Gunakan fungsi esc() pada id di tombol Update agar string ID aman dan tidak merusak HTML atribut onclick
+  // ✅ FIX: Ganti saveSaldoKasirawal menjadi saveSaldoKasirAwal (A besar)
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
-    '<button type="button" class="btn btn-a" onclick="saveSaldoKasirawal(event, \'' +
+    '<button type="button" class="btn btn-a" onclick="saveSaldoKasirAwal(event, \'' +
     esc(id || "") +
     "')\">" +
     (isEdit ? "Update" : "Simpan") +
@@ -1249,16 +1250,15 @@ function formSaldoKasirAwal(id) {
 }
 
 // ========================================================
-// 3. SAVE SALDO KASIR
+// 3. SAVE SALDO KASIR AWAL
+// ✅ FIX: Nama fungsi diubah menjadi saveSaldoKasirAwal (A besar)
 async function saveSaldoKasirAwal(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
   try {
-    // PERBAIKAN TOTAL: Diubah dari .val() menjadi .value
     var cabangEl = $("fSkCab");
     var cabang = cabangEl ? cabangEl.value : "";
 
-    // PERBAIKAN: Ambil teks NAMA cabang
     var nama_cabang =
       cabangEl && cabangEl.options[cabangEl.selectedIndex]
         ? cabangEl.options[cabangEl.selectedIndex].text
@@ -1275,16 +1275,12 @@ async function saveSaldoKasirAwal(e, editId) {
     var vdb = 0;
     var vcr = 0;
 
-    if (!cabang) {
-      return toast("Cabang wajib dipilih", "err");
-    }
-
-    if (!tgl_awal) {
-      return toast("Tanggal wajib diisi", "err");
-    }
+    if (!cabang) return toast("Cabang wajib dipilih", "err");
+    if (!tgl_awal) return toast("Tanggal wajib diisi", "err");
 
     if (editId) {
-      var r = await db.get("saldoKasirawal", editId);
+      // ✅ FIX: Standarisasi db.get dan db.put menggunakan "saldoKasirAwal"
+      var r = await db.get("saldoKasirAwal", editId);
       if (r) {
         var updated = Object.assign({}, r, {
           cabang: cabang,
@@ -1297,7 +1293,7 @@ async function saveSaldoKasirAwal(e, editId) {
         });
 
         var response = await fetch(
-          API_BASE_URL + "/api/data/saldoKasirawal/" + editId,
+          API_BASE_URL + "/api/data/saldoKasirAwal/" + editId,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -1310,11 +1306,11 @@ async function saveSaldoKasirAwal(e, editId) {
           throw new Error(errJson.error || "Gagal update ke server backend");
         }
 
-        await db.put("saldoKasirawal", updated);
+        await db.put("saldoKasirAwal", updated);
 
-        var idx = DBCache.saldoKasirawal.findIndex((x) => x.id === editId);
+        var idx = DBCache.saldoKasirAwal.findIndex((x) => x.id === editId);
         if (idx !== -1) {
-          DBCache.saldoKasirawal[idx] = updated;
+          DBCache.saldoKasirAwal[idx] = updated;
         }
       } else {
         throw new Error("Data lama tidak ditemukan di DB lokal!");
@@ -1332,7 +1328,7 @@ async function saveSaldoKasirAwal(e, editId) {
         awal: awal,
       };
 
-      var response = await fetch(API_BASE_URL + "/api/data/saldoKasirawal", {
+      var response = await fetch(API_BASE_URL + "/api/data/saldoKasirAwal", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(newObj),
@@ -1345,8 +1341,9 @@ async function saveSaldoKasirAwal(e, editId) {
         );
       }
 
-      await db.add("saldoKasirawal", newObj);
-      DBCache.saldoKasirawal.push(newObj);
+      // ✅ FIX: Standarisasi db.add menggunakan "saldoKasirAwal"
+      await db.add("saldoKasirAwal", newObj);
+      DBCache.saldoKasirAwal.push(newObj);
     }
 
     setTimeout(async function () {
