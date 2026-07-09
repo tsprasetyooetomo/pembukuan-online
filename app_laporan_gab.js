@@ -466,7 +466,7 @@ function generateHTMLRLGabungan(
   });
 
   html +=
-    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:right; background-color:#d9e1f2; font-weight:bold;">TOTAL</th>';
+    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:centre; background-color:#d9e1f2;style="color:#00D2FF; font-weight:bold;">TOTAL</th>';
   html += "</tr><tr></tr></thead><tbody>";
 
   var currentDigit = null;
