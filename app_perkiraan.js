@@ -68,132 +68,166 @@ async function safeRenderCurrentPanel() {
 /* ---------- GLOBAL EXPORT TO EXCEL (CSV) ---------- */
 async function exportTableToExcel(storeName, fileNamePrefix) {
   console.log("📊 Memulai export " + storeName + "...");
-
-  // 1. Cari ID tabel yang sedang aktif di layar
-  // Sesuaikan dengan ID tabel di masing-masing halaman (biasanya standar: 'table_' + storeName)
-  var tableId = "table_" + storeName;
-  var table = document.getElementById(tableId);
-
-  // Fallback: Jika ID tabelnya berbeda atau tidak ada ID, cari tabel pertama di dalam area konten
-  if (!table) {
-    var contentArea = document.getElementById("contentArea");
-    if (contentArea) {
-      table = contentArea.querySelector("table");
-    }
+  var rawData = DBCache[storeName] || [];
+  if (!rawData.length) {
+    return toast("Tidak ada data untuk di-export", "err");
   }
 
-  if (!table) {
-    return toast("Tabel tidak ditemukan di halaman.", "err");
-  }
-
-  try {
-    // 2. Clone tabel agar tampilan web tidak berubah
-    var tableClone = table.cloneNode(true);
-
-    // 3. Loop semua baris untuk memformat sel
-    for (var i = 0; i < tableClone.rows.length; i++) {
-      var row = tableClone.rows[i];
-
-      // Hapus tombol Aksi (Edit/Hapus) jika ada di kolom paling kiri/kanan
-      // Biasanya tombol aksi ada di dalam <td> yang berisi <button>
-      for (var j = 0; j < row.cells.length; j++) {
-        var cell = row.cells[j];
-        // Jika sel berisi tombol, kosongkan isinya (ini kolom aksi)
-        if (cell.querySelector("button")) {
-          cell.innerHTML = "";
-          cell.removeAttribute("onclick");
-        } else {
-          cell.removeAttribute("onclick");
-        }
-      }
-
-      // 4. Proses Khusus Berdasarkan StoreName (Untuk memastikan format Excel sempurna)
-      if (storeName === "golongan" || storeName === "perkiraan") {
-        // Format: [0]Gol, [1]Nama, [2]Awal, [3]Db, [4]Cr, [5]Akhir, [6]Cabang (Atau sejenisnya)
-        // Kita cari sel yang isinya format uang (pakai regex pemisah ribuan)
-        for (var j = 0; j < row.cells.length; j++) {
-          var cellText = row.cells[j].innerText || "";
-          // Jika mengandung angka ribuan (format indo), proses sebagai angka
-          if (/^-?\d{1,3}(\.\d{3})+/.test(cellText.trim())) {
-            var nilaiAngka = cellText.replace(/\./g, "").replace(/,/g, ".");
-            var numVal = parseFloat(nilaiAngka);
-            if (!isNaN(numVal)) {
-              row.cells[j].setAttribute("x:num", numVal);
-              row.cells[j].setAttribute(
-                "style",
-                "mso-number-format:#\.##0; text-align:right; " +
-                  (row.cells[j].getAttribute("style") || ""),
-              );
-            }
-          }
-          // Jika mengandung teks kode (seperti kode golongan "310", "410" di kolom pertama)
-          else if (j === 0 && /^\d+$/.test(cellText.trim())) {
-            row.cells[j].setAttribute(
-              "style",
-              "mso-number-format:\\@; " +
-                (row.cells[j].getAttribute("style") || ""),
-            );
-          }
-        }
-      } else if (storeName === "kodeBank") {
-        // Kolom Jml Transaksi biasanya angka murni tanpa titik
-        for (var j = 0; j < row.cells.length; j++) {
-          var cellText = row.cells[j].innerText || "";
-          if (/^\d+$/.test(cellText.trim()) && j > 0) {
-            // J > 0 agar skip kolom checkbox
-            row.cells[j].setAttribute("x:num", cellText.trim());
-            row.cells[j].setAttribute(
-              "style",
-              "mso-number-format:0; text-align:right; " +
-                (row.cells[j].getAttribute("style") || ""),
-            );
-          }
-        }
-      } else if (storeName === "cabang") {
-        // Pastikan kode cabang dibaca sebagai teks
-        if (row.cells.length > 0) {
-          row.cells[0].setAttribute(
-            "style",
-            "mso-number-format:\\@; " +
-              (row.cells[0].getAttribute("style") || ""),
-          );
-        }
-      }
-
-      // PROSES UMUM: Kolom terakhir biasanya adalah Cabang. Pastikan selalu teks.
-      var lastIdx = row.cells.length - 1;
-      if (lastIdx >= 0 && row.cells[lastIdx].innerText.trim() !== "") {
-        row.cells[lastIdx].setAttribute(
-          "style",
-          "mso-number-format:\\@; " +
-            (row.cells[lastIdx].getAttribute("style") || ""),
-        );
-      }
-    }
-
-    // 5. Proses Download file .xls
-    var htmlContent = tableClone.outerHTML;
-    var blob = new Blob(["\ufeff", htmlContent], {
-      type: "application/vnd.ms-excel",
+  var data = rawData;
+  if (storeName !== "cabang") {
+    data = rawData.filter(function (r) {
+      return currentCabang === "SEMUA" || r.cabang === currentCabang;
     });
-
-    var url = URL.createObjectURL(blob);
-    var a = document.createElement("a");
-    a.href = url;
-
-    var suffix = storeName === "cabang" ? "" : "_" + (currentCabang || "Semua");
-    a.download = fileNamePrefix + suffix + ".xls";
-
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-
-    toast("File Excel berhasil diunduh.", "ok");
-  } catch (err) {
-    console.error("Error saat export Excel:", err);
-    toast("Gagal mengekspor ke Excel.", "err");
   }
+
+  if (data.length === 0) {
+    return toast("Tidak ada data pada filter ini untuk di-export", "err");
+  }
+
+  var csvContent = "";
+  var headers = [];
+  var footer = [];
+
+  if (storeName === "golongan") {
+    headers = [
+      "Gol",
+      "Nama Golongan",
+      "Awal",
+      "Debit",
+      "Kredit",
+      "Akhir",
+      "Cabang",
+    ];
+    csvContent += headers.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    var totalDb = 0,
+      totalCr = 0;
+    data.forEach(function (r) {
+      var ak = num(r.awal) + num(r.db) - num(r.cr);
+      totalDb += num(r.db);
+      totalCr += num(r.cr);
+      // ✅ TAMBAHKAN TANDA PETIK TUNGGAL DI DEPAP ANGKA AGAR DIBACA TEKS/ANGKA BENAR
+      var row = [
+        "'" + (r.gol || ""),
+        r.namaGol || "",
+        "'" + fmtN(r.awal),
+        "'" + fmtN(r.db),
+        "'" + fmtN(r.cr),
+        "'" + fmtN(ak),
+        "'" + lookupCabangLabel(r.cabang),
+      ];
+      csvContent += row.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    });
+    footer = ["", "", "", "'" + fmtN(totalDb), "'" + fmtN(totalCr), "", ""];
+  } else if (storeName === "perkiraan") {
+    headers = [
+      "Gol",
+      "No Perkiraan",
+      "Deskripsi",
+      "Awal",
+      "Debit",
+      "Kredit",
+      "Akhir",
+      "Cabang",
+    ];
+    csvContent += headers.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    var totalAwal = 0,
+      totalDb = 0,
+      totalCr = 0;
+    data.forEach(function (r) {
+      var ak = num(r.awal) + num(r.db) - num(r.cr);
+      totalAwal += num(r.awal);
+      totalDb += num(r.db);
+      totalCr += num(r.cr);
+      var row = [
+        "'" + (r.gol || ""),
+        "'" + (r.noPerk || ""),
+        r.desc || "",
+        "'" + fmtN(r.awal),
+        "'" + fmtN(r.db),
+        "'" + fmtN(r.cr),
+        "'" + fmtN(ak),
+        "'" + lookupCabangLabel(r.cabang),
+      ];
+      csvContent += row.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    });
+    footer = [
+      "",
+      "",
+      "",
+      "'" + fmtN(totalAwal),
+      "'" + fmtN(totalDb),
+      "'" + fmtN(totalCr),
+      "",
+      "",
+    ];
+  } else if (storeName === "kodeBank") {
+    headers = [
+      "Kode Bank",
+      "Penjelasan",
+      "No Perkiraan",
+      "Jml Transaksi",
+      "Cabang",
+    ];
+    csvContent += headers.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+
+    function countRef(kode) {
+      var tc = 0;
+      (DBCache.transaksi || []).forEach(function (t) {
+        if (t.kodeBank === kode) tc++;
+      });
+      return tc;
+    }
+    function lookupPerk(noper) {
+      if (!noper) return "-";
+      var p = (DBCache.perkiraan || []).find(function (x) {
+        return x.noPerk === noper;
+      });
+      return p ? p.noPerk + " — " + p.desc : noper;
+    }
+
+    var totalTrans = 0;
+    data.forEach(function (r) {
+      var jml = countRef(r.kodebank);
+      totalTrans += jml;
+      var row = [
+        "'" + (r.kodebank || ""),
+        r.penjelasan || "-",
+        "'" + lookupPerk(r.noper),
+        jml,
+        "'" + lookupCabangLabel(r.cabang),
+      ];
+      csvContent += row.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    });
+    footer = [data.length + " kode", "-", "-", totalTrans, "-"];
+  } else if (storeName === "cabang") {
+    headers = ["Kode Cabang", "Nama Cabang"];
+    csvContent += headers.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    data.forEach(function (r) {
+      var row = ["'" + (r.kode || ""), r.nama || ""];
+      csvContent += row.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    });
+    footer = [];
+  }
+
+  if (footer.length > 0) {
+    csvContent += footer.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+  }
+
+  // ✅ TRIK AKHIR: Simpan sebagai Tab-Delimited, tapi beri ekstensi .xls
+  // Excel akan langsung membukanya sebagai spreadsheet yang rapi tanpa blank!
+  var blob = new Blob(["\uFEFF" + csvContent], {
+    type: "application/vnd.ms-excel",
+  });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement("a");
+  link.setAttribute("href", url);
+  var suffix = storeName === "cabang" ? "" : "_" + currentCabang;
+  link.setAttribute("download", fileNamePrefix + suffix + ".xls"); // Ekstensi tetap .xls
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  toast("Data berhasil di-export!", "ok");
 }
 
 /* ---------- Golongan Perkiraan ---------- */
