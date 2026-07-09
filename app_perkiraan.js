@@ -1214,7 +1214,7 @@ function formSaldoKasirAwal(id) {
 
   // ✅ FIX: Cari data dari DBCache.saldoKasirAwal (A besar)
   var data = isEdit
-    ? (DBCache.saldoKasirAwal || []).find(function (d) {
+    ? (DBCache.saldokasirawal || []).find(function (d) {
         return d.id === id;
       }) || {}
     : {};
