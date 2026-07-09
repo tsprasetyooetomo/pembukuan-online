@@ -1130,14 +1130,33 @@ PANEL_MAP.saldoKasirAwal = renderSaldoKasirAwal;
 // ========================================================
 // 1. RENDER SALDO KASIR AWAL
 async function renderSaldoKasirAwal() {
-  // ✅ FIX: Standarisasi pakai "saldoKasirAwal" (A besar) agar sesuai cache
+  // ✅ LOGIKA BARU: Jika cache kosong, ambil data dulu dari server
+  if (!DBCache.saldoKasirAwal || DBCache.saldoKasirAwal.length === 0) {
+    try {
+      // Kita bypass db.getAll langsung pakai fetch murni (seperti di Kelompok 1)
+      // Karena endpoint ini aman dipanggil tanpa parameter tanggal (akan return semua tanggal)
+      const baseUrl = window.location.origin + "/api/data/";
+      const response = await fetch(baseUrl + "saldoKasirAwal");
+
+      if (response.ok) {
+        DBCache.saldoKasirAwal = await response.json();
+        console.log(
+          "✅ Data saldoKasirAwal berhasil diambil on-demand:",
+          DBCache.saldoKasirAwal.length,
+          "record",
+        );
+      } else {
+        console.error("Gagal mengambil data saldoKasirAwal dari server");
+      }
+    } catch (error) {
+      console.error("Error fetch saldoKasirAwal:", error);
+    }
+  }
+
+  // ✅ KODE LAMA KAMU (Tidak diubah, hanya variabelnya sekarang pasti sudah terisi)
   var rawData = DBCache.saldoKasirAwal || [];
   var data = filterByCabang(rawData);
 
-  // ⬇️ TAMBAHKAN 3 BARIS INI UNTUK DEBUG ⬇️
-  console.log("🔍 ISI RAW DATA AWAL:", rawData.length, rawData);
-  console.log("🔍 CABANG YANG SEDANG LOGIN:", localStorage.getItem("cabang"));
-  // ⬆️ TAMBAHKAN 3 BARIS INI UNTUK DEBUG ⬆️
   data.sort(function (a, b) {
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
@@ -1212,7 +1231,6 @@ async function renderSaldoKasirAwal() {
     )
   );
 }
-
 // ========================================================
 // 2. FORM SALDO KASIR AWAL
 function formSaldoKasirAwal(id) {
