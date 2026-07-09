@@ -355,7 +355,7 @@ app.get("/api/data/:storeName", async (req, res) => {
   try {
     // YANG BARU (DITAMBAH toLowerCase):
     const { storeName: rawName } = req.params;
-    const storeName = rawName.toLowerCase();
+    //const storeName = rawName.toLowerCase();
     const filterCabang = req.query.cabang; // Tangkap parameter ?cabang=XX dari frontend
 
     if (!isValidTable(storeName)) {
