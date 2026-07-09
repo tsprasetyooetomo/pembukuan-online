@@ -177,7 +177,11 @@ function buildSidebar() {
         { id: "perk", label: "No Perkiraan", icon: "fa-list-ol" },
         { id: "cbg", label: "Cabang", icon: "fa-code-branch" },
         { id: "kode", label: "Kode Bank/Kas", icon: "fa-building-columns" },
-        { id: "saldoKasirawal", label: "Saldo Kasir", icon: "fa-building-columns" },
+        {
+          id: "saldoKasirawal",
+          label: "Saldo Kasir",
+          icon: "fa-building-columns",
+        },
       ],
     },
     {
@@ -196,7 +200,11 @@ function buildSidebar() {
       group: "LAPORAN KAS",
       icon: "fa-cash-register",
       items: [
-        { id: "saldoKasir", label: "Kas Harian Kasir", icon: "fa-calendar-day" },
+        {
+          id: "saldoKasir",
+          label: "Kas Harian Kasir",
+          icon: "fa-calendar-day",
+        },
         { id: "kasHarian", label: "Kas Harian", icon: "fa-calendar-day" },
         { id: "inputHarian", label: "Input Harian", icon: "fa-keyboard" },
       ],
@@ -214,7 +222,11 @@ function buildSidebar() {
       items: [
         { id: "neraca", label: "Neraca", icon: "fa-scale-balanced" },
         { id: "detilNeraca", label: "Detil Neraca", icon: "fa-table-list" },
-        { id: "rlRekap", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
+        {
+          id: "rlRekap",
+          label: "RL Rekap Bulanan",
+          icon: "fa-arrow-trend-down",
+        },
         { id: "rlDetil", label: "RL Detil Bulanan", icon: "fa-bars-staggered" },
         { id: "rlLebar", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
         { id: "bukuBesar", label: "Buku Besar", icon: "fa-book" },
@@ -225,16 +237,20 @@ function buildSidebar() {
       group: "LAPORAN KEUANGAN GABUNGAN",
       icon: "fa-chart-pie",
       items: [
-        { id: "rlRekaps", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
+        {
+          id: "rlRekaps",
+          label: "RL Rekap Bulanan",
+          icon: "fa-arrow-trend-down",
+        },
         {
           id: "arusKas",
           label: "Arus Kas Gabungan",
-          icon: "fa-bars-staggered",
+          icon: "fa-money-bill-wave",
         },
         {
           id: "Omset",
           label: "Detil Omset per Menu",
-          icon: "fa-bars-staggered",
+          icon: "fa-chart-bar",
         },
       ],
     },
