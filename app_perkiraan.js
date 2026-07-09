@@ -1130,37 +1130,6 @@ PANEL_MAP.saldoKasirAwal = renderSaldoKasirAwal;
 // ========================================================
 // 1. RENDER SALDO KASIR AWAL
 async function renderSaldoKasirAwal() {
-  // ✅ POLA SEPERTI REFRESH CACHE: Fetch semua data dulu dari server, baru difilter di frontend
-  if (!DBCache.saldoKasirAwal || DBCache.saldoKasirAwal.length === 0) {
-    try {
-      const baseUrl = window.location.origin + "/api/data/";
-
-      // TRIK: Tambahkan parameter tgl_awal= (kosong) atau tgl_awal=all
-      // Agar server tidak mengembalikan Error 400, tapi tetap mengembalikan semua data
-      const response = await fetch(baseUrl + "saldoKasirAwal?tgl_awal=");
-
-      if (response.ok) {
-        DBCache.saldoKasirAwal = await response.json();
-        console.log(
-          "✅ Berhasil fetch semua saldoKasirAwal:",
-          DBCache.saldoKasirAwal.length,
-          "record",
-        );
-      } else {
-        console.warn(
-          "⚠️ Server tetap menolak (Status:",
-          response.status,
-          "). Cache kosong.",
-        );
-        DBCache.saldoKasirAwal = [];
-      }
-    } catch (error) {
-      console.error("Error fetch saldoKasirAwal:", error);
-      DBCache.saldoKasirAwal = [];
-    }
-  }
-
-  // ✅ SETERAH FRONTEND: Filter berdasarkan cabang yang sedang login
   var rawData = DBCache.saldoKasirAwal || [];
   var data = filterByCabang(rawData);
 
@@ -1233,7 +1202,7 @@ async function renderSaldoKasirAwal() {
         actions: function (r, i) {
           return crudActions(dataLimit[i].id, "saldoKasirAwal");
         },
-        emptyMsg: "Belum ada data Saldo Kasir awal untuk cabang ini",
+        emptyMsg: "Belum ada data Saldo Kasir awal",
       }),
     )
   );
