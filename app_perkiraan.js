@@ -1249,11 +1249,16 @@ async function saveSaldoKasirawal(e, editId) {
 
   try {
     // ✅ FIX ELEMEN: Tambahkan '#' pada selektor ID agar value bisa terbaca
-    var $cabangEl = $("#fSkCab");
-    var cabang = $cabangEl.val() || ""; // Ini berisi KODE cabang (value dari option)
+    // PERBAIKAN: Gunakan Vanilla JS murni agar tidak error
+    var cabangEl = document.getElementById("fSkCab");
+    var cabang = cabangEl ? cabangEl.value : ""; // Ambil KODE cabang
 
-    // ✅ TAMBAHAN: Ambil teks NAMA cabang dari option yang sedang dipilih
-    var nama_cabang = $cabangEl.find("option:selected").text() || "";
+    // PERBAIKAN: Ambil teks NAMA cabang menggunakan Vanilla JS
+    var nama_cabang =
+      cabangEl && cabangEl.options[cabangEl.selectedIndex]
+        ? cabangEl.options[cabangEl.selectedIndex].text
+        : "";
+
     // Opsional: Jika format teks Anda adalah "KODE - NAMA", kita bersihkan agar hanya mengambil NAMA saja
     if (nama_cabang.includes(" - ")) {
       nama_cabang = nama_cabang.split(" - ")[1];
