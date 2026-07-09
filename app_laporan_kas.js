@@ -987,12 +987,15 @@ function renderLaporanSaldoKasir() {
 
   // Render Form Awal
   return `<div class="flt">
-      <div class="fg"><label>Tgl Awal</label><input type="date" id="fk_tgl_awal" value="${defaultStart}" onchange="refreshSaldoKasir()"></div>
-      <div class="fg"><label>Tgl Akhir</label><input type="date" id="fk_tgl_akhir" value="${today}" onchange="refreshSaldoKasir()"></div>
-      <div class="fg"><label>Cabang</label><select id="fk_cabang" onchange="refreshSaldoKasir()">${getCabangOpts("")}</select></div>
-      <!-- TOMBOL EXPORT -->
-      <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
-        <button class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportSaldoKasir()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> Export XLS</button>
+      <div class="fg"><label>Tgl Awal</label><input type="date" id="fk_tgl_awal" value="${defaultStart}"></div>
+      <div class="fg"><label>Tgl Akhir</label><input type="date" id="fk_tgl_akhir" value="${today}"></div>
+      <div class="fg"><label>Cabang</label><select id="fk_cabang">${getCabangOpts("")}</select></div>
+      
+      <!-- DIV KHUSUS UNTUK TOMBOL AKSI -->
+      <div class="fg" style="display:flex; align-items:flex-end; gap:5px; padding-bottom:2px;">
+        <button type="button" class="btn btn-g" style="font-size:.8rem; padding:4px 12px;" onclick="refreshSaldoKasir()">Terapkan</button>
+        <button type="button" class="btn btn-a" style="font-size:.8rem; padding:4px 12px; background:#d93025; border-color:#d93025;" onclick="postingSaldoKasir()"><i class="fa-solid fa-upload"></i> Posting</button>
+        <button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportSaldoKasir()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>
       </div>
     </div>
     <div id="kasirTbl"></div>`;
@@ -1080,12 +1083,53 @@ async function refreshSaldoKasir() {
     return true;
   });
 
-  // 3. URUTKAN DATA MUTASI BERDASARKAN TANGGAL
-  filteredData.sort(function (a, b) {
+  // 3. GROUPING DATA BERDASARKAN NOREFF
+  var groupedMap = {};
+  filteredData.forEach(function (t) {
+    var keyRef = t.noreff || t.id || "-";
+    var typeIndicator = keyRef.substring(0, 2).toUpperCase(); // Ambil 2 huruf depan (PJ, TK, KK, dll)
+
+    if (!groupedMap[keyRef]) {
+      groupedMap[keyRef] = {
+        tanggal: t.tanggal || "-",
+        keterangan: t.keterangan || t.desc || t.dariKePada || "-",
+        noreff: keyRef,
+        db: 0,
+        cr: 0,
+      };
+    }
+
+    // LOGIKA PENJUMLAHAN DEBIT & KREDIT
+    var amount = num(t.db || 0) || num(t.cr || 0) || num(t.nominal || 0) || 0;
+
+    if (
+      typeIndicator === "PJ" ||
+      typeIndicator === "TK" ||
+      typeIndicator === "KT"
+    ) {
+      // Masuk ke kolom Debit
+      groupedMap[keyRef].db += amount;
+    } else if (
+      typeIndicator === "BE" ||
+      typeIndicator === "CS" ||
+      typeIndicator === "KK" ||
+      typeIndicator === "SK"
+    ) {
+      // Masuk ke kolom Kredit
+      groupedMap[keyRef].cr += amount;
+    } else {
+      // Fallback jika kode tidak dikenali (ambil dari value db/cr asli)
+      groupedMap[keyRef].db += num(t.db || 0);
+      groupedMap[keyRef].cr += num(t.cr || 0);
+    }
+  });
+
+  // Ubah object hasil grouping menjadi array dan urutkan
+  var groupedData = Object.values(groupedMap);
+  groupedData.sort(function (a, b) {
     var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
     if (dateComp !== 0) return dateComp;
-    // Jika tanggal sama, urutkan berdasarkan id atau noreff jika ada
-    return (a.id || "").localeCompare(b.id || "");
+    return (a.noreff || "").localeCompare(b.noreff || "");
   });
 
   // 4. SUSUN BARIS TABEL
@@ -1095,7 +1139,7 @@ async function refreshSaldoKasir() {
   var totalCr = 0;
   var lastDate = null;
 
-  filteredData.forEach(function (t) {
+  groupedData.forEach(function (t) {
     // Tambahkan baris kosong sebagai pemisah jika tanggal berganti
     if (lastDate !== null && lastDate !== t.tanggal) {
       rows.push(["", "", "", "", "", "", ""]);
@@ -1103,32 +1147,30 @@ async function refreshSaldoKasir() {
     lastDate = t.tanggal;
 
     var saldoAwalRow = runBal;
-    var dbVal = num(t.db || 0);
-    var crVal = num(t.cr || 0);
-    runBal += dbVal - crVal;
+    runBal += t.db - t.cr;
 
     rows.push([
-      t.tanggal || "-",
-      esc(t.keterangan || t.desc || t.dariKePada || "-").substring(0, 30),
-      esc(t.noreff || t.id || "-"),
+      t.tanggal,
+      esc(t.keterangan).substring(0, 30),
+      esc(t.noreff),
       fmtN(saldoAwalRow),
-      fmtN(dbVal),
-      fmtN(crVal),
+      fmtN(t.db),
+      fmtN(t.cr),
       fmtN(runBal),
     ]);
 
-    totalDb += dbVal;
-    totalCr += crVal;
+    totalDb += t.db;
+    totalCr += t.cr;
   });
 
   // Simpan ke wadah global untuk keperluan export
   DATA_KASIR_AKTIF.saldoAwalMaster = saldoAwalMaster;
-  DATA_KASIR_AKTIF.groupedData = filteredData;
+  DATA_KASIR_AKTIF.groupedData = groupedData; // Disimpan yg sudah dikelompokkan
 
   var foot = [
     "",
     "",
-    filteredData.length + " transaksi",
+    groupedData.length + " No Ref",
     "",
     fmtN(totalDb),
     fmtN(totalCr),
@@ -1138,10 +1180,10 @@ async function refreshSaldoKasir() {
   var headers = [
     "Tanggal",
     "Keterangan",
-    "No Ref/ID",
+    "No Ref",
     "Saldo Awal",
-    "Debit",
-    "Kredit",
+    "Debit (PJ/TK/KT)",
+    "Kredit (BE/CS/KK/SK)",
     "Saldo Akhir",
   ];
 
@@ -1156,7 +1198,106 @@ async function refreshSaldoKasir() {
     );
   }
 }
+async function postingSaldoKasir() {
+  // 1. Ambil parameter dari filter UI
+  var tglAwal = $("fk_tgl_awal").value;
+  var tglAkhir = $("fk_tgl_akhir").value;
+  var cab = $("fk_cabang").value || "Pusat";
 
+  if (!tglAwal || !tglAkhir) {
+    if (typeof toast === "function")
+      toast("Pilih tanggal awal dan akhir terlebih dahulu", "err");
+    else alert("Pilih tanggal awal dan akhir terlebih dahulu");
+    return;
+  }
+
+  // Cek apakah ada data yang sedang ditampilkan di layar
+  if (
+    !DATA_KASIR_AKTIF.groupedData ||
+    DATA_KASIR_AKTIF.groupedData.length === 0
+  ) {
+    if (typeof toast === "function")
+      toast(
+        "Tidak ada data yang bisa di-posting. Klik Terapkan terlebih dahulu.",
+        "wrn",
+      );
+    else
+      alert(
+        "Tidak ada data yang bisa di-posting. Klik Terapkan terlebih dahulu.",
+      );
+    return;
+  }
+
+  // 2. Konfirmasi ke user
+  var confirmMsg = `POSTING SALDO KASIR\n\nCabang: ${cab}\nPeriode: ${tglAwal} s/d ${tglAkhir}\n\nSaldo akan disimpan sebagai Saldo Awal untuk tanggal setelah ${tglAkhir}.\nLanjutkan?`;
+  var ok = confirm(confirmMsg);
+  if (!ok) return;
+
+  try {
+    // 3. Hitung Saldo Akhir dari data yang sedang aktif di layar
+    // Kita hitung ulang dari seluruh groupedData untuk memastikan akurasi
+    var saldoAwal = DATA_KASIR_AKTIF.saldoAwalMaster;
+    var saldoAkhirPosting = saldoAwal;
+
+    DATA_KASIR_AKTIF.groupedData.forEach(function (t) {
+      saldoAkhirPosting += (t.db || 0) - (t.cr || 0);
+    });
+
+    // 4. Susun data yang akan dikirim/disimpan
+    // Tanggal posting kita set 1 hari setelah tanggal akhir filter
+    var dateEnd = new Date(tglAkhir);
+    dateEnd.setDate(dateEnd.getDate() + 1);
+    var tglSaldoBaru = dateEnd.toISOString().slice(0, 10);
+
+    var objSaldoBaru = {
+      id: uid(), // Generate ID baru
+      cabang: cab,
+      tgl_awal: tglSaldoBaru,
+      db: 0,
+      cr: 0,
+      akhir: saldoAkhirPosting,
+      awal: 0,
+    };
+
+    // 5. KIRIM KE SERVER / DATABASE
+    var response = await fetch(API_BASE_URL + "/api/data/saldokasir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(objSaldoBaru),
+    });
+
+    if (!response.ok) {
+      var errJson = await response.json();
+      throw new Error(errJson.error || "Gagal menyimpan ke server backend");
+    }
+
+    // 6. SIMPAN KE INDEXEDDB LOKAL
+    await db.add("saldokasir", objSaldoBaru);
+
+    // 7. UPDATE CACHE DBCache (Agar langsung berefleksi tanpa reload)
+    if (!DBCache.saldokasir) DBCache.saldokasir = [];
+    DBCache.saldokasir.push(objSaldoBaru);
+
+    // 8. SUKSES
+    var pesanSukses = `Posting Berhasil!\nSaldo Akhir sebesar ${formatUang(saldoAkhirPosting)} telah disimpan sebagai Saldo Awal untuk tanggal ${tglSaldoBaru}.`;
+
+    if (typeof toast === "function") {
+      toast(pesanSukses, "ok");
+    } else {
+      alert(pesanSukses);
+    }
+
+    // Opsional: Refresh tampilan jika ingin langsung melihat perubahan
+    // refreshSaldoKasir();
+  } catch (err) {
+    console.error("❌ Gagal Posting Saldo Kasir:", err);
+    if (typeof toast === "function") {
+      toast("Gagal posting: " + err.message, "err");
+    } else {
+      alert("Gagal posting: " + err.message);
+    }
+  }
+}
 /* ---------- FUNGSI EXPORT KASIR ---------- */
 function exportSaldoKasir() {
   var groupedData = DATA_KASIR_AKTIF.groupedData;
