@@ -1118,7 +1118,7 @@ function renderArusKasGabungan() {
   return htmlLaporan;
 }
 
-async function terapkanOpsiArusKasLGabungan() {
+async function terapkanOpsiArusKasGabungan() {
   var inputmasa = document.getElementById("filter_rlgab_masa");
   if (!inputmasa) return;
 
