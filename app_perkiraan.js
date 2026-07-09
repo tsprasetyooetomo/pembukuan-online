@@ -69,6 +69,7 @@ async function safeRenderCurrentPanel() {
 async function exportTableToExcel(storeName, fileNamePrefix) {
   console.log("📊 Memulai export " + storeName + "...");
   var rawData = DBCache[storeName] || [];
+
   if (!rawData.length) {
     return toast("Tidak ada data untuk di-export", "err");
   }
@@ -88,6 +89,7 @@ async function exportTableToExcel(storeName, fileNamePrefix) {
   var headers = [];
   var footer = [];
 
+  // ✅ LOGIKA DINAMIS MILIKMU SENDIRI (SUDAH DIPERBAIKI, TIDAK SALAH ALAMAT LAGI)
   if (storeName === "golongan") {
     headers = [
       "Gol",
@@ -98,26 +100,25 @@ async function exportTableToExcel(storeName, fileNamePrefix) {
       "Akhir",
       "Cabang",
     ];
-    csvContent += headers.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    csvContent += headers.join(",") + "\n";
     var totalDb = 0,
       totalCr = 0;
     data.forEach(function (r) {
       var ak = num(r.awal) + num(r.db) - num(r.cr);
       totalDb += num(r.db);
       totalCr += num(r.cr);
-      // ✅ TAMBAHKAN TANDA PETIK TUNGGAL DI DEPAP ANGKA AGAR DIBACA TEKS/ANGKA BENAR
       var row = [
-        "'" + (r.gol || ""),
-        r.namaGol || "",
-        "'" + fmtN(r.awal),
-        "'" + fmtN(r.db),
-        "'" + fmtN(r.cr),
-        "'" + fmtN(ak),
-        "'" + lookupCabangLabel(r.cabang),
+        '"' + (r.gol || "") + '"',
+        '"' + (r.namaGol || "") + '"',
+        fmtN(r.awal),
+        fmtN(r.db),
+        fmtN(r.cr),
+        fmtN(ak),
+        '"' + lookupCabangLabel(r.cabang) + '"',
       ];
-      csvContent += row.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+      csvContent += row.join(",") + "\n";
     });
-    footer = ["", "", "", "'" + fmtN(totalDb), "'" + fmtN(totalCr), "", ""];
+    footer = ["", "", "", fmtN(totalDb), fmtN(totalCr), "", ""];
   } else if (storeName === "perkiraan") {
     headers = [
       "Gol",
@@ -129,7 +130,7 @@ async function exportTableToExcel(storeName, fileNamePrefix) {
       "Akhir",
       "Cabang",
     ];
-    csvContent += headers.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    csvContent += headers.join(",") + "\n";
     var totalAwal = 0,
       totalDb = 0,
       totalCr = 0;
@@ -139,24 +140,24 @@ async function exportTableToExcel(storeName, fileNamePrefix) {
       totalDb += num(r.db);
       totalCr += num(r.cr);
       var row = [
-        "'" + (r.gol || ""),
-        "'" + (r.noPerk || ""),
-        r.desc || "",
-        "'" + fmtN(r.awal),
-        "'" + fmtN(r.db),
-        "'" + fmtN(r.cr),
-        "'" + fmtN(ak),
-        "'" + lookupCabangLabel(r.cabang),
+        '"' + (r.gol || "") + '"',
+        '"' + (r.noPerk || "") + '"',
+        '"' + (r.desc || "") + '"',
+        fmtN(r.awal),
+        fmtN(r.db),
+        fmtN(r.cr),
+        fmtN(ak),
+        '"' + lookupCabangLabel(r.cabang) + '"',
       ];
-      csvContent += row.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+      csvContent += row.join(",") + "\n";
     });
     footer = [
       "",
       "",
       "",
-      "'" + fmtN(totalAwal),
-      "'" + fmtN(totalDb),
-      "'" + fmtN(totalCr),
+      fmtN(totalAwal),
+      fmtN(totalDb),
+      fmtN(totalCr),
       "",
       "",
     ];
@@ -168,7 +169,7 @@ async function exportTableToExcel(storeName, fileNamePrefix) {
       "Jml Transaksi",
       "Cabang",
     ];
-    csvContent += headers.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    csvContent += headers.join(",") + "\n";
 
     function countRef(kode) {
       var tc = 0;
@@ -190,46 +191,50 @@ async function exportTableToExcel(storeName, fileNamePrefix) {
       var jml = countRef(r.kodebank);
       totalTrans += jml;
       var row = [
-        "'" + (r.kodebank || ""),
-        r.penjelasan || "-",
-        "'" + lookupPerk(r.noper),
+        '"' + (r.kodebank || "") + '"',
+        '"' + (r.penjelasan || "-") + '"',
+        '"' + lookupPerk(r.noper) + '"',
         jml,
-        "'" + lookupCabangLabel(r.cabang),
+        '"' + lookupCabangLabel(r.cabang) + '"',
       ];
-      csvContent += row.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+      csvContent += row.join(",") + "\n";
     });
     footer = [data.length + " kode", "-", "-", totalTrans, "-"];
   } else if (storeName === "cabang") {
     headers = ["Kode Cabang", "Nama Cabang"];
-    csvContent += headers.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    csvContent += headers.join(",") + "\n";
     data.forEach(function (r) {
-      var row = ["'" + (r.kode || ""), r.nama || ""];
-      csvContent += row.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+      var row = ['"' + (r.kode || "") + '"', '"' + (r.nama || "") + '"'];
+      csvContent += row.join(",") + "\n";
     });
     footer = [];
   }
 
   if (footer.length > 0) {
-    csvContent += footer.join("\t") + "\n"; // ✅ GANTI KOMA JADI TAB
+    csvContent += footer.join(",") + "\n";
   }
 
-  // ✅ TRIK AKHIR: Simpan sebagai Tab-Delimited, tapi beri ekstensi .xls
-  // Excel akan langsung membukanya sebagai spreadsheet yang rapi tanpa blank!
+  // ✅ TRIK RAHASIA DI SINI:
+  // Kita tetap buat file CSV asli, tapi kita paksa browser memberi NAMA FILE .xls
+  // DAN kita tambahkan Type "application/vnd.ms-excel" agar langsung dibuka oleh MS Excel.
+  // Dengan begini, tidak ada data yang salah alamat, tidak ada yang blank, dan kolom tidak mbleber.
   var blob = new Blob(["\uFEFF" + csvContent], {
-    type: "application/vnd.ms-excel",
+    type: "application/vnd.ms-excel;charset=utf-8;",
   });
+
   var url = URL.createObjectURL(blob);
   var link = document.createElement("a");
   link.setAttribute("href", url);
   var suffix = storeName === "cabang" ? "" : "_" + currentCabang;
-  link.setAttribute("download", fileNamePrefix + suffix + ".xls"); // Ekstensi tetap .xls
+  link.setAttribute("download", fileNamePrefix + suffix + ".xls"); // Ekstensi diubah ke .xls
+
   link.style.visibility = "hidden";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
+
   toast("Data berhasil di-export!", "ok");
 }
-
 /* ---------- Golongan Perkiraan ---------- */
 PANEL_MAP.gol = renderGol;
 
