@@ -1328,7 +1328,9 @@ function generateHTMLArusKasGabungan(
   // Helper Function: Membuat Baris Subtotal
   function buatBarisSubtotal(namaGroup, arrGroupGol) {
     var htmlSub =
-      '<tr style="font-weight:bold; background-color:#ffffff; color:#0d6efd;"><td colspan="2" style="padding:8px; border:1px solid #000; text-align:right;">SUBTOTAL ' +
+      '<tr style="font-weight:bold; background-color:#ffffff !important; color:#0d6efd !important;">' +
+      // Kunci warna biru (#0d6efd) langsung di tag TD tulisan SUBTOTAL agar tidak hilang
+      '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right; color:#0d6efd !important; background-color:#ffffff !important;">SUBTOTAL ' +
       namaGroup +
       "</td>";
     var grandTotal = 0;
@@ -1340,16 +1342,14 @@ function generateHTMLArusKasGabungan(
       });
       grandTotal += totalCab;
 
-      // Langsung cetak nilai, otomatis berwarna biru mengikuti baris induk (tr)
       htmlSub +=
-        '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+        '<td style="padding:8px; border:1px solid #000; text-align:right; color:#0d6efd !important;">' +
         formatUang(totalCab) +
         "</td>";
     });
 
-    // Kolom Grand Total juga otomatis berwarna biru
     htmlSub +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+      '<td style="padding:8px; border:1px solid #000; text-align:right; color:#0d6efd !important;">' +
       formatUang(grandTotal) +
       "</td></tr>";
     return htmlSub;
