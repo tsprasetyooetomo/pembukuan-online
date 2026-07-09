@@ -12,6 +12,7 @@ function renderRLRekapGabungan() {
   var filterTahunFull = partMasa[1];
   var inputMonthValue = filterTahunFull + "-" + filterBulan;
 
+  // PERBAIKAN: Tag area_grafik_rlgab dan canvas yang tidak dipakai di halaman utama sudah dihapus
   var htmlLaporan =
     '<div id="area_cetak_rlgab" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:visible;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
@@ -30,11 +31,8 @@ function renderRLRekapGabungan() {
     "</div>" +
     "</div>" +
     '<div id="tempat_tabel_rlgab" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
-    '<div id="area_grafik_rlgab" class="no-print" style="width:100%; max-width:1000px; height:400px; margin:2rem auto 0 auto; background:var(--bg2); border:1px solid var(--brd); border-radius:var(--r); padding:1rem; box-sizing:border-box; display:none;">' +
-    '<canvas id="chart_rlgab_cabang"></canvas>' +
-    "</div>" +
     '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data. <i>(Klik nama cabang untuk melihat RL Lebar 12 Bulan)</i></p>' +
-    "</div></div>";
+    "</div>";
 
   return htmlLaporan;
 }
@@ -177,7 +175,8 @@ async function terapkanOpsiRLGabungan() {
       mapMasterCab,
       false,
     );
-    renderGrafikRLGabungan(daftarCabang, dataByCabang, mapMasterCab);
+
+    // PERBAIKAN: Baris renderGrafikRLGabungan DIHAPUS. Tabel muncul, grafik TIDAK muncul saat ini.
   } catch (error) {
     console.error("❌ Gagal total RL Gabungan:", error);
     if (area)
@@ -186,168 +185,6 @@ async function terapkanOpsiRLGabungan() {
         error.message +
         "</div>";
   }
-}
-
-async function renderGrafikRLGabungan(
-  daftarCabang,
-  dataByCabang,
-  mapMasterCab,
-) {
-  var areaGrafik = document.getElementById("area_grafik_rlgab");
-  if (!areaGrafik) return;
-
-  if (typeof Chart === "undefined") {
-    var script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/chart.js"; // PERBAIKAN: URL yang benar
-    script.onload = function () {
-      gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik);
-    };
-    document.head.appendChild(script);
-  } else {
-    gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik);
-  }
-}
-
-function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
-  var labels = daftarCabang.map(function (cab) {
-    return mapMasterCab[cab] || cab;
-  });
-
-  function hitungSubTotalPerCabang(digitTarget, isPenjualan) {
-    return daftarCabang.map(function (cab) {
-      var total = 0;
-      Object.keys(dataByCabang[cab] || {}).forEach(function (kodeGol) {
-        if (String(kodeGol).charAt(0) === digitTarget)
-          total += dataByCabang[cab][kodeGol];
-      });
-      return isPenjualan ? total * -1 : total;
-    });
-  }
-
-  var dataPenjualan = hitungSubTotalPerCabang("3", true);
-  var dataHPP = hitungSubTotalPerCabang("4", false);
-  var dataAdmUmum = hitungSubTotalPerCabang("5", false);
-  var dataLain2 = hitungSubTotalPerCabang("6", false);
-
-  var dataRL = dataPenjualan.map(function (val, index) {
-    return val - dataHPP[index] - dataAdmUmum[index] - dataLain2[index];
-  });
-
-  var lebar = 900,
-    tinggi = 600;
-  var kiri = (screen.width - lebar) / 2,
-    atas = (screen.height - tinggi) / 2;
-
-  var winGrafik = window.open(
-    "",
-    "GrafikRLCabang",
-    "width=" +
-      lebar +
-      ",height=" +
-      tinggi +
-      ",top=" +
-      atas +
-      ",left=" +
-      kiri +
-      ",resizable=yes,scrollbars=yes",
-  );
-  if (!winGrafik) {
-    alert("Mohon izinkan pop-up pada browser Anda untuk melihat grafik.");
-    return;
-  }
-
-  winGrafik.document.open();
-  winGrafik.document
-    .write(`<!DOCTYPE html><html><head><title>Grafik R/L Gabungan Per Cabang</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
-    <style>body{margin:0;padding:20px;font-family:sans-serif;background-color:#f8f9fa;} .container{width:100%;height:calc(100vh - 40px);background:#ffffff;padding:15px;box-sizing:border-box;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);}</style>
-    </head><body><div class="container"><canvas id="chart_rlgab_cabang_baru"></canvas></div></body></html>`);
-  winGrafik.document.close();
-
-  winGrafik.onload = function () {
-    var ctx = winGrafik.document
-      .getElementById("chart_rlgab_cabang_baru")
-      .getContext("2d");
-    var formatUangLokal =
-      typeof formatUang === "function"
-        ? formatUang
-        : function (val) {
-            return val.toLocaleString("id-ID");
-          };
-
-    new winGrafik.Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "PENJUALAN BERSIH",
-            data: dataPenjualan,
-            borderColor: "#1f7a43",
-            backgroundColor: "rgba(31, 122, 67, 0.7)",
-            borderWidth: 1,
-          },
-          {
-            label: "TOTAL HPP",
-            data: dataHPP,
-            borderColor: "#0d6efd",
-            backgroundColor: "rgba(13, 110, 253, 0.7)",
-            borderWidth: 1,
-          },
-          {
-            label: "TOTAL BY. ADM & UMUM",
-            data: dataAdmUmum,
-            borderColor: "#dc3545",
-            backgroundColor: "rgba(220, 53, 69, 0.7)",
-            borderWidth: 1,
-          },
-          {
-            label: "TOTAL PEND & BY LAIN2",
-            data: dataLain2,
-            borderColor: "#ffc107",
-            backgroundColor: "rgba(255, 193, 7, 0.7)",
-            borderWidth: 1,
-          },
-          {
-            label: "LABA / RUGI BERSIH (RL)",
-            data: dataRL,
-            borderColor: "#B8860B",
-            backgroundColor: "rgba(255, 215, 0, 0.7)",
-            borderWidth: 2,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: "top",
-            labels: { color: "#333", font: { size: 11 } },
-          },
-          tooltip: {
-            callbacks: {
-              label: (context) =>
-                context.dataset.label +
-                ": " +
-                formatUangLokal(context.parsed.y),
-            },
-          },
-        },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              color: "#333",
-              callback: (value) => formatUangLokal(value),
-            },
-            grid: { color: "rgba(0,0,0,0.05)" },
-          },
-          x: { ticks: { color: "#333" }, grid: { display: false } },
-        },
-      },
-    });
-  };
 }
 
 async function downloadRLGabunganExcel() {
@@ -420,7 +257,7 @@ function generateHTMLRLGabungan(
     }
   });
 
-  // PERBAIKAN: Syntax double style dan typo 'centre' diperbaiki di sini
+  // PERBAIKAN: Bug CSS double style dan typo 'centre' sudah diperbaiki
   html +=
     '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:center; background-color:#d9e1f2; color:#00D2FF; font-weight:bold;">TOTAL</th>';
   html += "</tr><tr></tr></thead><tbody>";
@@ -662,7 +499,6 @@ function hitungBarisLaba(
 
 function kembaliKeRLGabungan() {
   var area = document.getElementById("tempat_tabel_rlgab");
-  var grafik = document.getElementById("area_grafik_rlgab");
   if (area && window._rlGabunganData) {
     var d = window._rlGabunganData;
     area.innerHTML = generateHTMLRLGabungan(
@@ -674,7 +510,6 @@ function kembaliKeRLGabungan() {
       false,
     );
   }
-  if (grafik) grafik.style.display = "block";
 }
 
 async function tampilkanRLPerCabangSD(kodeCabang) {
@@ -684,12 +519,9 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       ? window._rlGabunganData.mapMasterCab[kodeCabang]
       : kodeCabang;
   var partMasa = window._rlGabFilterMasa.split("-");
-  var filterBulan = partMasa[0],
-    filterTahunFull = partMasa[1];
+  var filterTahunFull = partMasa[1];
 
   var area = document.getElementById("tempat_tabel_rlgab");
-  var grafik = document.getElementById("area_grafik_rlgab");
-  if (grafik) grafik.style.display = "none";
   if (area)
     area.innerHTML =
       '<div style="padding:3rem; text-align:center; color:var(--muted); background:#000; border-radius:8px;"><span class="spinner"></span> Memuat RL Lebar 12 Bulan...</div>';
@@ -1000,7 +832,6 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
         return String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
       });
 
-      // PERBAIKAN: Fungsi dipanggil saat merender tabel
       function ambilTanggalSaja(rawTgl) {
         if (!rawTgl) return "-";
         let strTgl = String(rawTgl).trim();
@@ -1030,7 +861,7 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
           "</td>" +
           '<td style="border:1px solid #444; padding:4px; text-align:center;">' +
           ambilTanggalSaja(t.tanggal) +
-          "</td>" + // PERBAIKAN: Manggil fungsi tanggal
+          "</td>" +
           '<td style="border:1px solid #444; padding:4px;">' +
           (t.noreff || "-") +
           "</td>" +
@@ -1039,7 +870,7 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
           "</td>" +
           '<td style="border:1px solid #444; padding:4px; text-align:right;">' +
           formatUang(dbVal) +
-          "</td>" + // PERBAIKAN: Disamakan formatUang
+          "</td>" +
           '<td style="border:1px solid #444; padding:4px; text-align:right;">' +
           formatUang(crVal) +
           "</td></tr>";
@@ -1062,6 +893,177 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
     });
 }
 
+// ==========================================
+// FUNGSI GRAFIK (JENDELA BARU)
+// ==========================================
+async function renderGrafikRLGabungan(
+  daftarCabang,
+  dataByCabang,
+  mapMasterCab,
+) {
+  if (typeof Chart === "undefined") {
+    var script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/chart.js";
+    script.onload = function () {
+      gambarChartNow(daftarCabang, dataByCabang, mapMasterCab);
+    };
+    document.head.appendChild(script);
+  } else {
+    gambarChartNow(daftarCabang, dataByCabang, mapMasterCab);
+  }
+}
+
+function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
+  var labels = daftarCabang.map(function (cab) {
+    return mapMasterCab[cab] || cab;
+  });
+
+  function hitungSubTotalPerCabang(digitTarget, isPenjualan) {
+    return daftarCabang.map(function (cab) {
+      var total = 0;
+      Object.keys(dataByCabang[cab] || {}).forEach(function (kodeGol) {
+        if (String(kodeGol).charAt(0) === digitTarget) {
+          total += dataByCabang[cab][kodeGol];
+        }
+      });
+      if (isPenjualan) total = total * -1;
+      return total;
+    });
+  }
+
+  var dataPenjualan = hitungSubTotalPerCabang("3", true);
+  var dataHPP = hitungSubTotalPerCabang("4", false);
+  var dataAdmUmum = hitungSubTotalPerCabang("5", false);
+  var dataLain2 = hitungSubTotalPerCabang("6", false);
+
+  var dataRL = dataPenjualan.map(function (val, index) {
+    return val - dataHPP[index] - dataAdmUmum[index] - dataLain2[index];
+  });
+
+  // 1. Buka jendela baru
+  var lebar = 900,
+    tinggi = 600;
+  var kiri = (screen.width - lebar) / 2,
+    atas = (screen.height - tinggi) / 2;
+
+  var winGrafik = window.open(
+    "",
+    "GrafikRLCabang",
+    "width=" +
+      lebar +
+      ",height=" +
+      tinggi +
+      ",top=" +
+      atas +
+      ",left=" +
+      kiri +
+      ",resizable=yes,scrollbars=yes",
+  );
+
+  if (!winGrafik) {
+    alert("Mohon izinkan pop-up pada browser Anda untuk melihat grafik.");
+    return;
+  }
+
+  // 2. Isi struktur HTML dan panggil pustaka Chart.js di jendela baru
+  winGrafik.document.open();
+  winGrafik.document
+    .write(`<!DOCTYPE html><html><head><title>Grafik R/L Gabungan Per Cabang</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
+    <style>body{margin:0;padding:20px;font-family:sans-serif;background-color:#f8f9fa;} .container{width:100%;height:calc(100vh - 40px);background:#ffffff;padding:15px;box-sizing:border-box;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);}</style>
+    </head><body><div class="container"><canvas id="chart_rlgab_cabang_baru"></canvas></div></body></html>`);
+  winGrafik.document.close();
+
+  // 3. Gambar chart setelah jendela baru selesai dimuat
+  winGrafik.onload = function () {
+    var ctx = winGrafik.document
+      .getElementById("chart_rlgab_cabang_baru")
+      .getContext("2d");
+    var formatUangLokal =
+      typeof formatUang === "function"
+        ? formatUang
+        : function (val) {
+            return val.toLocaleString("id-ID");
+          };
+
+    new winGrafik.Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: "PENJUALAN BERSIH",
+            data: dataPenjualan,
+            borderColor: "#1f7a43",
+            backgroundColor: "rgba(31, 122, 67, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "TOTAL HPP",
+            data: dataHPP,
+            borderColor: "#0d6efd",
+            backgroundColor: "rgba(13, 110, 253, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "TOTAL BY. ADM & UMUM",
+            data: dataAdmUmum,
+            borderColor: "#dc3545",
+            backgroundColor: "rgba(220, 53, 69, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "TOTAL PEND & BY LAIN2",
+            data: dataLain2,
+            borderColor: "#ffc107",
+            backgroundColor: "rgba(255, 193, 7, 0.7)",
+            borderWidth: 1,
+          },
+          {
+            label: "LABA / RUGI BERSIH (RL)",
+            data: dataRL,
+            borderColor: "#B8860B",
+            backgroundColor: "rgba(255, 215, 0, 0.7)",
+            borderWidth: 2,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: "top",
+            labels: { color: "#333", font: { size: 11 } },
+          },
+          tooltip: {
+            callbacks: {
+              label: (context) =>
+                context.dataset.label +
+                ": " +
+                formatUangLokal(context.parsed.y),
+            },
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: "#333",
+              callback: (value) => formatUangLokal(value),
+            },
+            grid: { color: "rgba(0,0,0,0.05)" },
+          },
+          x: { ticks: { color: "#333" }, grid: { display: false } },
+        },
+      },
+    });
+  };
+}
+
+// ==========================================
+// FUNGSI AKSI TOMBOL LIHAT GRAFIK
+// ==========================================
 function lihatGrafikRLGabungan() {
   if (
     !window._rlGabunganData ||
@@ -1072,12 +1074,8 @@ function lihatGrafikRLGabungan() {
       toast("Silakan klik 'Terapkan' terlebih dahulu untuk memuat data", "wrn");
     return;
   }
-  var areaGrafik = document.getElementById("area_grafik_rlgab");
-  if (areaGrafik) {
-    areaGrafik.style.display = "block";
-    areaGrafik.scrollIntoView({ behavior: "smooth", block: "start" });
-  } else {
-    if (typeof toast === "function")
-      toast("Area grafik tidak ditemukan", "err");
-  }
+
+  // Ambil data lalu kirim ke fungsi pembuka jendela baru
+  var d = window._rlGabunganData;
+  renderGrafikRLGabungan(d.daftarCabang, d.dataByCabang, d.mapMasterCab);
 }
