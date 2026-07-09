@@ -1248,24 +1248,23 @@ async function saveSaldoKasirawal(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
   try {
-    // ✅ FIX ELEMEN: Tambahkan '#' pada selektor ID agar value bisa terbaca
-    // PERBAIKAN: Gunakan Vanilla JS murni agar tidak error
-    var cabangEl = document.getElementById("fSkCab");
-    var cabang = cabangEl ? cabangEl.value : ""; // Ambil KODE cabang
+    // PERBAIKAN TOTAL: Diubah dari .val() menjadi .value
+    var cabangEl = $("fSkCab");
+    var cabang = cabangEl ? cabangEl.value : "";
 
-    // PERBAIKAN: Ambil teks NAMA cabang menggunakan Vanilla JS
+    // PERBAIKAN: Ambil teks NAMA cabang
     var nama_cabang =
       cabangEl && cabangEl.options[cabangEl.selectedIndex]
         ? cabangEl.options[cabangEl.selectedIndex].text
         : "";
 
-    // Opsional: Jika format teks Anda adalah "KODE - NAMA", kita bersihkan agar hanya mengambil NAMA saja
     if (nama_cabang.includes(" - ")) {
       nama_cabang = nama_cabang.split(" - ")[1];
     }
 
-    var tgl_awal = $("#fSkTgl").val();
-    var akhir = num($("#fSkAwal").val());
+    var tgl_awal = $("fSkTgl") ? $("fSkTgl").value : "";
+    var akhir = num($("fSkAwal") ? $("fSkAwal").value : 0);
+
     var awal = 0;
     var vdb = 0;
     var vcr = 0;
@@ -1283,7 +1282,7 @@ async function saveSaldoKasirawal(e, editId) {
       if (r) {
         var updated = Object.assign({}, r, {
           cabang: cabang,
-          nama_cabang: nama_cabang, // ✅ SIMPAN NAMA CABANG (EDIT)
+          nama_cabang: nama_cabang,
           tgl_awal: tgl_awal,
           db: vdb,
           cr: vcr,
@@ -1319,7 +1318,7 @@ async function saveSaldoKasirawal(e, editId) {
       var newObj = {
         id: newId,
         cabang: cabang,
-        nama_cabang: nama_cabang, // ✅ SIMPAN NAMA CABANG (BARU)
+        nama_cabang: nama_cabang,
         tgl_awal: tgl_awal,
         db: vdb,
         cr: vcr,
