@@ -410,51 +410,77 @@ async function refreshKasHarian() {
 
 // ====== FILE FRONTEND (Misal: kasharian.js atau app.js) ======
 /* ---------- HELPER: AMBIL SALDO AWAL (READ SALDO_HARIAN) ---------- */
-async function getSaldoAwalClient(cabang, char4, tglAwal) {
+async function getSaldoAwalClient(cabang, tglAwal) {
   var cab = cabang || "Pusat";
-  var c4 = char4 || " ";
 
-  // 1. Pastikan data saldo_harian sudah ada di memori (DBCache)
-  // Jika belum, ambil dari server via db.getAll
-  if (!DBCache.saldo_harian) {
-    console.log("Fetching saldo_harian...");
-    DBCache.saldo_harian = await db.getAll("saldo_harian");
+  // 1. Pastikan data saldokasir sudah ada di memori (DBCache)
+  if (!DBCache.saldokasir) {
+    console.log("Fetching saldokasir...");
+    DBCache.saldokasir = await db.getAll("saldokasir");
   }
 
-  // 2. CARI SALDO TERAKHIR DI TABEL saldo_harian SEBELUM tglAwal
-  // Kita filter manual di sisi client (mirip query SQL server)
-  var listSaldo = DBCache.saldo_harian.filter(function (s) {
-    var sCab = s.cabang || "Pusat";
-    var sC4 = s.char4 || " ";
-    return sCab === cab && sC4 === c4 && s.tanggal < tglAwal;
+  // 2. CARI SALDO TERAKHIR DI TABEL saldokasir SEBELUM tglAwal
+  var listSaldo = (DBCache.saldokasir || []).filter(function (s) {
+    // Flexibilitas nama kolom cabang (kode_cabang atau cabang)
+    var sCab = s.kode_cabang || s.cabang || "Pusat";
+    if (sCab !== cab) return false;
+
+    // Flexibilitas nama kolom tanggal (tgl_awal atau tanggal)
+    var sTgl = s.tgl_awal || s.tanggal || "";
+    // Cari yang tanggalnya sebelum tglAwal
+    return sTgl < tglAwal;
   });
 
   // Urutkan dari tanggal terbesar ke terkecil (DESC)
   listSaldo.sort(function (a, b) {
-    return b.tanggal.localeCompare(a.tanggal);
+    var tglA = a.tgl_awal || a.tanggal || "";
+    var tglB = b.tgl_awal || b.tanggal || "";
+    return tglB.localeCompare(tglA);
   });
 
   // Ambil data paling atas (paling mendekati tglAwal)
   if (listSaldo.length > 0) {
-    return num(listSaldo[0].saldo_akhir || 0);
+    var saldoTerakhir = listSaldo[0];
+    // Flexibilitas nama kolom saldo akhir (saldo akhir, saldoakhir, atau akhir)
+    return num(
+      saldoTerakhir["saldo akhir"] ||
+        saldoTerakhir.saldoakhir ||
+        saldoTerakhir.akhir ||
+        0,
+    );
   }
 
-  // 3. FALLBACK: Jika tidak ada riwayat di saldo_harian, ambil dari Master KodeBank
-  var bankMatch = DBCache.kodeBank.find(function (b) {
-    var bankCabang = b.cabang || "Pusat";
-    var fullKode = b.kodebank || "";
-    var bankChar4 = fullKode.length >= 4 ? fullKode.charAt(3) : " ";
-    return bankCabang === cab && bankChar4 === c4;
+  // 3. FALLBACK: Jika tidak ada riwayat di saldokasir, ambil dari saldokasirawal
+  if (!DBCache.saldokasirawal) {
+    console.log("Fetching saldokasirawal...");
+    DBCache.saldokasirawal = await db.getAll("saldokasirawal");
+  }
+
+  var listSaldoAwal = (DBCache.saldokasirawal || []).filter(function (s) {
+    var sCab = s.kode_cabang || s.cabang || "Pusat";
+    if (sCab !== cab) return false;
+
+    var sTgl = s.tgl_awal || s.tanggal || "";
+    return sTgl < tglAwal;
   });
 
-  if (bankMatch) {
-    // Cek tanggal cutoff master bank
-    var tglAwalMaster = bankMatch.tgl_awal || "";
-    if (!tglAwal || tglAwal >= tglAwalMaster) {
-      return num(bankMatch.awal || 0);
-    }
+  listSaldoAwal.sort(function (a, b) {
+    var tglA = a.tgl_awal || a.tanggal || "";
+    var tglB = b.tgl_awal || b.tanggal || "";
+    return tglB.localeCompare(tglA);
+  });
+
+  if (listSaldoAwal.length > 0) {
+    var saldoTerakhir = listSaldoAwal[0];
+    return num(
+      saldoTerakhir["saldo akhir"] ||
+        saldoTerakhir.saldoakhir ||
+        saldoTerakhir.akhir ||
+        0,
+    );
   }
 
+  // Jika dari kedua tabel tidak ada, kembalikan 0
   return 0;
 }
 async function simpanSnapshotSaldo(
