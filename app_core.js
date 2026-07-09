@@ -415,14 +415,14 @@ async function refreshCache() {
       perkiraan,
       kodeBank,
       saldoKasir,
-      saldoKasirawal,
+      saldoKasirAwal,
       mutasikasir,
     ] = await Promise.all([
       db.getAll("golongan", cabangSaya),
       db.getAll("perkiraan", cabangSaya),
       db.getAll("kodeBank", cabangSaya),
       db.getAll("saldoKasir", cabangSaya),
-      db.getAll("saldoKasirawal", cabangSaya),
+      db.getAll("saldoKasirAwal", cabangSaya),
       db.getAll("mutasikasir", cabangSaya),
     ]);
 
@@ -431,7 +431,7 @@ async function refreshCache() {
     DBCache.perkiraan = perkiraan;
     DBCache.kodeBank = kodeBank;
     DBCache.saldoKasir = saldoKasir;
-    DBCache.saldoKasirawal = saldoKasirawal;
+    DBCache.saldoKasirAwal = saldoKasirAwal;
 
     DBCache.mutasikasir = mutasikasir;
 
@@ -553,7 +553,7 @@ function bulkShowConfirm(store) {
     users: "User",
     kodeBank: "Kode Bank",
     cabang: "Cabang",
-    saldokasirawal: "saldoKasirawal",
+    saldoKasirAwal: "saldoKasirAwal",
   };
   var storeLabel = labelMap[store] || store;
   openModal(
@@ -643,7 +643,7 @@ var MENUS = [
       { id: "cbg", label: "Cabang", icon: "fa-code-branch" },
       { id: "kode", label: "Kode Bank/Kas", icon: "fa-building-columns" },
       {
-        id: "saldoKasirawal",
+        id: "saldoKasirAwal",
         label: "Saldo Kasir",
         icon: "fa-building-columns",
       },
@@ -784,7 +784,7 @@ async function navigate(id) {
     "users",
     "kodeBank",
     "saldoKasir",
-    "saldoKasirawal",
+    "saldoKasirAwal",
     "cabang",
   ].forEach(function (s) {
     bulkCleanup(s);
