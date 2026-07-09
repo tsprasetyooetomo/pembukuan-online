@@ -226,7 +226,6 @@ async function renderGrafikRLGabungan(
     gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik);
   }
 }
-
 function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
   var labels = daftarCabang.map(function (cab) {
     return mapMasterCab[cab] || cab;
@@ -264,7 +263,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
   }
 
   window.myRlGabChart = new Chart(ctx, {
-    type: "line",
+    type: "bar", // Diubah menjadi bar chart
     data: {
       labels: labels,
       datasets: [
@@ -272,47 +271,36 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
           label: "PENJUALAN BERSIH",
           data: dataPenjualan,
           borderColor: "#1f7a43",
-          backgroundColor: "rgba(31, 122, 67, 0.1)",
-          borderWidth: 2,
-          tension: 0.3,
-          fill: false,
+          backgroundColor: "rgba(31, 122, 67, 0.7)", // Opasitas dinaikkan agar warna batang solid
+          borderWidth: 1,
         },
         {
           label: "TOTAL HPP",
           data: dataHPP,
           borderColor: "#0d6efd",
-          backgroundColor: "rgba(13, 110, 253, 0.1)",
-          borderWidth: 2,
-          tension: 0.3,
-          fill: false,
+          backgroundColor: "rgba(13, 110, 253, 0.7)",
+          borderWidth: 1,
         },
         {
           label: "TOTAL BY. ADM & UMUM",
           data: dataAdmUmum,
           borderColor: "#dc3545",
-          backgroundColor: "rgba(220, 53, 69, 0.1)",
-          borderWidth: 2,
-          tension: 0.3,
-          fill: false,
+          backgroundColor: "rgba(220, 53, 69, 0.7)",
+          borderWidth: 1,
         },
         {
           label: "TOTAL PEND & BY LAIN2",
           data: dataLain2,
           borderColor: "#ffc107",
-          backgroundColor: "rgba(255, 193, 7, 0.1)",
-          borderWidth: 2,
-          tension: 0.3,
-          fill: false,
+          backgroundColor: "rgba(255, 193, 7, 0.7)",
+          borderWidth: 1,
         },
         {
           label: "LABA / RUGI BERSIH (RL)",
           data: dataRL,
-          borderColor: "#FFD700",
-          backgroundColor: "rgba(255, 215, 0, 0.2)",
-          borderWidth: 4,
-          borderDash: [5, 5],
-          tension: 0.3,
-          fill: false,
+          borderColor: "#B8860B", // Diubah ke warna emas gelap agar teks dan batas lebih kontras
+          backgroundColor: "rgba(255, 215, 0, 0.7)",
+          borderWidth: 2,
         },
       ],
     },
@@ -336,7 +324,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab, areaGrafik) {
       },
       scales: {
         y: {
-          beginAtZero: false,
+          beginAtZero: true, // Diubah ke true agar grafik batang mulai dari angka 0 dengan pas
           ticks: {
             color: "#333",
             callback: function (value) {
