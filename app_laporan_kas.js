@@ -1260,7 +1260,7 @@ async function postingSaldoKasir() {
     };
 
     // 5. KIRIM KE SERVER / DATABASE
-    var response = await fetch(API_BASE_URL + "/api/data/saldokasir", {
+    var response = await fetch(API_BASE_URL + "/api/data/saldokasirawal", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(objSaldoBaru),
