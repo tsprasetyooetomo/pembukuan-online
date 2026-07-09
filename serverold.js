@@ -375,7 +375,7 @@ app.get("/api/data/:storeName", async (req, res) => {
       "kodebank",
       "cabang",
       "detiltransaksi",
-      "saldo_harian",
+      "saldokasirawal",
       "saldokasir",
       "mutasikasir",
     ];
