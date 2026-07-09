@@ -1339,20 +1339,17 @@ function generateHTMLArusKasGabungan(
         totalCab += dataByCabang[cab][gol] || 0;
       });
       grandTotal += totalCab;
-      var colorStyle = totalCab < 0 ? "color: blue;" : "";
+
+      // Langsung cetak nilai, otomatis berwarna biru mengikuti baris induk (tr)
       htmlSub +=
-        '<td style="padding:8px; border:1px solid #000; text-align:right; ' +
-        colorStyle +
-        '">' +
+        '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
         formatUang(totalCab) +
         "</td>";
     });
 
-    var colorTotal = grandTotal < 0 ? "color: blue;" : "";
+    // Kolom Grand Total juga otomatis berwarna biru
     htmlSub +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right; ' +
-      colorTotal +
-      '">' +
+      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
       formatUang(grandTotal) +
       "</td></tr>";
     return htmlSub;
