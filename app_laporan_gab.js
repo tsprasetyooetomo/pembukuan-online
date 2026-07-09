@@ -1080,7 +1080,7 @@ function lihatGrafikRLGabungan() {
   renderGrafikRLGabungan(d.daftarCabang, d.dataByCabang, d.mapMasterCab);
 }
 
-PANEL_MAP.arusKas = renderLaporanArusKas;
+PANEL_MAP.arusKas = renderArusKasGabungan;
 function renderArusKasGabungan() {
   if (typeof window._rlGabFilterMasa === "undefined") {
     var d = new Date();
