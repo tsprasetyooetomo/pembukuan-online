@@ -1304,7 +1304,7 @@ async function saveSaldoKasirAwal(e, editId) {
           throw new Error(errJson.error || "Gagal update ke server backend");
         }
 
-        await db.put("saldoKasirAwal", updated);
+        await db.put("saldokasirawal", updated);
 
         var idx = DBCache.saldokasirawal.findIndex((x) => x.id === editId);
         if (idx !== -1) {
