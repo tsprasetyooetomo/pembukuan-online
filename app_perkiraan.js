@@ -1130,7 +1130,7 @@ PANEL_MAP.saldoKasirAwal = renderSaldoKasirAwal;
 // ========================================================
 // 1. RENDER SALDO KASIR AWAL
 async function renderSaldoKasirAwal() {
-  var rawData = DBCache.saldoKasirAwal || [];
+  var rawData = DBCache.saldokasirawal || [];
   var data = filterByCabang(rawData);
 
   data.sort(function (a, b) {
