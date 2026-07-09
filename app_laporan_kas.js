@@ -1003,7 +1003,7 @@ async function getSaldoAwalKasir(cabang, tglAwal) {
   var cab = cabang || "Pusat";
   var rawData = DBCache.saldokasir || [];
 
-  // Cari data saldo kasir untuk cabang tersebut yang tanggalnya kurang dari atau sama dengan tglAwal
+  // 1. CARI DI TABLE saldoKasir (UTAMA)
   var filteredSaldo = rawData.filter(function (s) {
     var sCab = s.cabang || "Pusat";
     return sCab === cab && s.tgl_awal <= tglAwal;
@@ -1014,11 +1014,42 @@ async function getSaldoAwalKasir(cabang, tglAwal) {
     return b.tgl_awal.localeCompare(a.tgl_awal);
   });
 
-  // Ambil data paling atas (paling mendekati tglAwal)
+  // Jika ketemu di saldoKasir, langsung kembalikan nilainya
   if (filteredSaldo.length > 0) {
     return num(filteredSaldo[0].akhir || 0);
   }
 
+  // ==========================================
+  // 2. FALLBACK: JIKA TIDAK KETEMU, CARI DI saldoKasirawal
+  // ==========================================
+  try {
+    // Cek apakah sudah ada di cache, jika belum ambil dari IndexedDB
+    if (!DBCache.saldoKasirawal) {
+      DBCache.saldoKasirawal = await db.getAll("saldoKasirawal");
+    }
+
+    var rawDataAwal = DBCache.saldoKasirawal || [];
+
+    // Filter cabang dan tanggal yang <= tglAwal
+    var filteredSaldoAwal = rawDataAwal.filter(function (s) {
+      var sCab = s.cabang || "Pusat";
+      return sCab === cab && s.tgl_awal <= tglAwal;
+    });
+
+    // Urutkan DESC
+    filteredSaldoAwal.sort(function (a, b) {
+      return b.tgl_awal.localeCompare(a.tgl_awal);
+    });
+
+    // Jika ketemu di saldoKasirawal, kembalikan nilainya
+    if (filteredSaldoAwal.length > 0) {
+      return num(filteredSaldoAwal[0].akhir || 0);
+    }
+  } catch (err) {
+    console.warn("Gagal mengambil data fallback dari saldoKasirawal:", err);
+  }
+
+  // 3. Jika dari kedua tabel tetap tidak ada, kembalikan 0
   return 0;
 }
 
