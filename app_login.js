@@ -71,30 +71,6 @@ async function loginSystem() {
 }
 
 // --- Fungsi di bawah ini tidak perlu diubah, biarkan tetap seperti ini ---
-async function loadTransaksi() {
-  const token = localStorage.getItem("token");
-
-  if (!token) {
-    if (typeof toast === "function") toast("Anda belum login!", "err");
-    else alert("Anda belum login!");
-    return;
-  }
-
-  try {
-    const res = await fetch("/api/data/transaksi2024", {
-      method: "GET",
-      headers: {
-        Authorization: "Bearer " + token,
-      },
-    });
-
-    const dataTransaksi = await res.json();
-    console.log(dataTransaksi);
-    return dataTransaksi;
-  } catch (error) {
-    console.error("Gagal memuat transaksi:", error);
-  }
-}
 
 function doLogout() {
   // 1. Hapus semua data session dari localStorage
