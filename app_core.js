@@ -666,7 +666,7 @@ var MENUS = [
     icon: "fa-cash-register",
     items: [
       { id: "saldoKasir", label: "Kas Harian Kasir", icon: "fa-calendar-day" },
-      { id: "kasHarian", label: "Kas Harian", icon: "fa-calendar-day" },
+      { id: "kasHarian", label: "Kas Pembukuan", icon: "fa-calendar-day" },
       { id: "inputHarian", label: "Input Harian", icon: "fa-keyboard" },
     ],
   },
@@ -686,7 +686,7 @@ var MENUS = [
     items: [
       { id: "neraca", label: "Neraca", icon: "fa-scale-balanced" },
       { id: "detilNeraca", label: "Detil Neraca", icon: "fa-table-list" },
-      { id: "rlRekap", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
+      { id: "rlRekap", label: "RL Rekap Bulanan", icon: "fa-arrow-trend-down" },
       { id: "rlDetil", label: "RL Detil Bulanan", icon: "fa-bars-staggered" },
       { id: "rlLebar", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
       { id: "bukuBesar", label: "Buku Besar", icon: "fa-book" },
@@ -697,8 +697,12 @@ var MENUS = [
     group: "LAPORAN KEUANGAN GABUNGAN",
     icon: "fa-chart-pie",
     items: [
-      { id: "rlRekaps", label: "RL Rekap Bulanan", icon: "fa-chart-bar" },
-      { id: "arusKas", label: "Arus Kas Gabungan", icon: "fa-bars-staggered" },
+      {
+        id: "rlRekaps",
+        label: "RL Rekap Bulanan",
+        icon: "fa-arrow-trend-down",
+      },
+      { id: "arusKas", label: "Arus Kas Gabungan", icon: "fa-money-bill-wave" },
       { id: "Omset", label: "Detil Omset Per Menu", icon: "fa-bars-staggered" },
     ],
   },
