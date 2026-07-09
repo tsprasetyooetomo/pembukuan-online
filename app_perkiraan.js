@@ -1159,7 +1159,12 @@ async function renderSaldoKasirawal() {
   }
 
   var rows = dataLimit.map(function (r) {
-    return [r.cabang || "-", r.nama_cabang || "-", formatTgl(r.tgl_awal), formatUang(r.akhir || 0)];
+    return [
+      r.cabang || "-",
+      r.nama_cabang || "-",
+      formatTgl(r.tgl_awal),
+      formatUang(r.akhir || 0),
+    ];
   });
 
   var totalSaldo = data.reduce(function (s, r) {
@@ -1168,6 +1173,7 @@ async function renderSaldoKasirawal() {
 
   var foot = [
     "Total: " + data.length + " record",
+    "-",
     "-",
     '<span style="font-weight:bold;">' + formatUang(totalSaldo) + "</span>",
   ];
