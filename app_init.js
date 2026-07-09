@@ -178,7 +178,7 @@ function buildSidebar() {
         { id: "cbg", label: "Cabang", icon: "fa-code-branch" },
         { id: "kode", label: "Kode Bank/Kas", icon: "fa-building-columns" },
         {
-          id: "saldoKasirawal",
+          id: "saldoKasirAwal",
           label: "Saldo Kasir",
           icon: "fa-building-columns",
         },
