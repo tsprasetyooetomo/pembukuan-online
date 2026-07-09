@@ -969,3 +969,255 @@ function exportInputHarian() {
   if (typeof toast === "function")
     toast("Laporan input harian berhasil diunduh.");
 }
+PANEL_MAP.saldoKasir = renderLaporanSaldoKasir;
+
+// Wadah global untuk menyimpan data kasir yang sedang aktif di layar
+let DATA_KASIR_AKTIF = {
+  saldoAwalMaster: 0,
+  groupedData: [],
+};
+
+function renderLaporanSaldoKasir() {
+  // Set Tanggal Hari Ini untuk Tanggal Akhir
+  var today = new Date().toISOString().slice(0, 10);
+  // Set 1 Bulan ke belakang untuk Tanggal Awal (Default)
+  var lastMonth = new Date();
+  lastMonth.setMonth(lastMonth.getMonth() - 1);
+  var defaultStart = lastMonth.toISOString().slice(0, 10);
+
+  // Render Form Awal
+  return `<div class="flt">
+      <div class="fg"><label>Tgl Awal</label><input type="date" id="fk_tgl_awal" value="${defaultStart}" onchange="refreshSaldoKasir()"></div>
+      <div class="fg"><label>Tgl Akhir</label><input type="date" id="fk_tgl_akhir" value="${today}" onchange="refreshSaldoKasir()"></div>
+      <div class="fg"><label>Cabang</label><select id="fk_cabang" onchange="refreshSaldoKasir()">${getCabangOpts("")}</select></div>
+      <!-- TOMBOL EXPORT -->
+      <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
+        <button class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportSaldoKasir()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> Export XLS</button>
+      </div>
+    </div>
+    <div id="kasirTbl"></div>`;
+}
+
+/* ---------- FUNGSI AMBIL SALDO AWAL DARI TABEL saldokasir ---------- */
+async function getSaldoAwalKasir(cabang, tglAwal) {
+  var cab = cabang || "Pusat";
+  var rawData = DBCache.saldokasir || [];
+
+  // Cari data saldo kasir untuk cabang tersebut yang tanggalnya kurang dari atau sama dengan tglAwal
+  var filteredSaldo = rawData.filter(function (s) {
+    var sCab = s.cabang || "Pusat";
+    return sCab === cab && s.tgl_awal <= tglAwal;
+  });
+
+  // Urutkan dari tanggal terbesar ke terkecil (DESC)
+  filteredSaldo.sort(function (a, b) {
+    return b.tgl_awal.localeCompare(a.tgl_awal);
+  });
+
+  // Ambil data paling atas (paling mendekati tglAwal)
+  if (filteredSaldo.length > 0) {
+    return num(filteredSaldo[0].akhir || 0);
+  }
+
+  return 0;
+}
+
+/* ---------- FUNGSI REFRESH & RENDER TABEL ---------- */
+async function refreshSaldoKasir() {
+  var tglAwal = $("fk_tgl_awal").value;
+  var tglAkhir = $("fk_tgl_akhir").value;
+  var cab = $("fk_cabang").value;
+
+  // 1. AMBIL SALDO AWAL DARI TABEL saldokasir
+  var saldoAwalMaster = await getSaldoAwalKasir(cab, tglAwal);
+
+  // 2. AMBIL DATA MUTASI DARI TABEL mutasikasir
+  var filteredData = (DBCache.mutasikasir || []).filter(function (t) {
+    var isDateOk = true;
+    if (tglAwal && tglAkhir) {
+      isDateOk = t.tanggal && t.tanggal >= tglAwal && t.tanggal <= tglAkhir;
+    } else if (tglAwal) {
+      isDateOk = t.tanggal && t.tanggal >= tglAwal;
+    } else if (tglAkhir) {
+      isDateOk = t.tanggal && t.tanggal <= tglAkhir;
+    }
+    if (!isDateOk) return false;
+
+    var transCab = t.cabang || "Pusat";
+    if (cab && transCab !== cab) return false;
+
+    return true;
+  });
+
+  // 3. URUTKAN DATA MUTASI BERDASARKAN TANGGAL
+  filteredData.sort(function (a, b) {
+    var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+    if (dateComp !== 0) return dateComp;
+    // Jika tanggal sama, urutkan berdasarkan id atau noreff jika ada
+    return (a.id || "").localeCompare(b.id || "");
+  });
+
+  // 4. SUSUN BARIS TABEL
+  var rows = [];
+  var runBal = saldoAwalMaster;
+  var totalDb = 0;
+  var totalCr = 0;
+  var lastDate = null;
+
+  filteredData.forEach(function (t) {
+    // Tambahkan baris kosong sebagai pemisah jika tanggal berganti
+    if (lastDate !== null && lastDate !== t.tanggal) {
+      rows.push(["", "", "", "", "", "", ""]);
+    }
+    lastDate = t.tanggal;
+
+    var saldoAwalRow = runBal;
+    var dbVal = num(t.db || 0);
+    var crVal = num(t.cr || 0);
+    runBal += dbVal - crVal;
+
+    rows.push([
+      t.tanggal || "-",
+      esc(t.keterangan || t.desc || t.dariKePada || "-").substring(0, 30),
+      esc(t.noreff || t.id || "-"),
+      fmtN(saldoAwalRow),
+      fmtN(dbVal),
+      fmtN(crVal),
+      fmtN(runBal),
+    ]);
+
+    totalDb += dbVal;
+    totalCr += crVal;
+  });
+
+  // Simpan ke wadah global untuk keperluan export
+  DATA_KASIR_AKTIF.saldoAwalMaster = saldoAwalMaster;
+  DATA_KASIR_AKTIF.groupedData = filteredData;
+
+  var foot = [
+    "",
+    "",
+    filteredData.length + " transaksi",
+    "",
+    fmtN(totalDb),
+    fmtN(totalCr),
+    fmtN(totalDb - totalCr),
+  ];
+
+  var headers = [
+    "Tanggal",
+    "Keterangan",
+    "No Ref/ID",
+    "Saldo Awal",
+    "Debit",
+    "Kredit",
+    "Saldo Akhir",
+  ];
+
+  var areaTbl = $("kasirTbl");
+  if (areaTbl) {
+    areaTbl.innerHTML = wrapTable(
+      buildTable(headers, rows, {
+        numCols: [3, 4, 5, 6], // Kolom yang pakai format angka
+        foot: foot,
+        emptyMsg: "Tidak ada data mutasi kasir untuk periode ini",
+      }),
+    );
+  }
+}
+
+/* ---------- FUNGSI EXPORT KASIR ---------- */
+function exportSaldoKasir() {
+  var groupedData = DATA_KASIR_AKTIF.groupedData;
+  var saldoAwalMaster = DATA_KASIR_AKTIF.saldoAwalMaster;
+
+  if (!groupedData || groupedData.length === 0) {
+    alert(
+      "Tidak ada data di layar yang bisa di-export! Silakan pilih filter data terlebih dahulu.",
+    );
+    return;
+  }
+
+  var tglAwal = $("fk_tgl_awal").value;
+  var tglAkhir = $("fk_tgl_akhir").value;
+  var cab = $("fk_cabang").value;
+
+  // BANGUN CSV / EXCEL
+  var csvContent = "Tanggal;Keterangan;No Ref;Awal;Debit;Kredit;Akhir\r\n";
+  var runBal = saldoAwalMaster;
+  var totalDb = 0;
+  var totalCr = 0;
+  var lastDate = null;
+
+  groupedData.forEach(function (t) {
+    if (lastDate !== null && lastDate !== t.tanggal) {
+      csvContent += ";;;;;;\r\n"; // Baris pemisah antar tanggal
+    }
+    lastDate = t.tanggal;
+
+    var saldoAwalRow = runBal;
+    var dbVal = num(t.db || 0);
+    var crVal = num(t.cr || 0);
+    runBal += dbVal - crVal;
+
+    var cleanKet = (t.keterangan || t.desc || t.dariKePada || "").replace(
+      /;/g,
+      ",",
+    );
+    var cleanReff = (t.noreff || t.id || "").replace(/;/g, ",");
+
+    csvContent +=
+      (t.tanggal || "-") +
+      ";" +
+      cleanKet +
+      ";" +
+      cleanReff +
+      ";" +
+      saldoAwalRow +
+      ";" +
+      dbVal +
+      ";" +
+      crVal +
+      ";" +
+      runBal +
+      "\r\n";
+
+    totalDb += dbVal;
+    totalCr += crVal;
+  });
+
+  csvContent +=
+    ";;TOTAL;" +
+    groupedData.length +
+    " ref;" +
+    totalDb +
+    ";" +
+    totalCr +
+    ";" +
+    (totalDb - totalCr) +
+    "\r\n";
+
+  // DOWNLOAD FILE
+  var blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  var link = document.createElement("a");
+  var url = URL.createObjectURL(blob);
+  var namaFile =
+    "Laporan_Saldo_Kasir_" +
+    (cab || "Semua") +
+    "_" +
+    tglAwal +
+    "_to_" +
+    tglAkhir +
+    ".csv";
+
+  link.setAttribute("href", url);
+  link.setAttribute("download", namaFile);
+  link.style.visibility = "hidden";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  if (typeof toast === "function") {
+    toast("Laporan Saldo Kasir berhasil diunduh.");
+  }
+}
