@@ -1557,7 +1557,7 @@ function generateHTMLArusKasGabungan(
 
   // --- BARIS SALDO AWAL ---
   html +=
-    '<tr style="font-size: 0.85rem; background-color:#e8f5e9;"><td style="padding:8px; border:1px solid #000; text-align:center; font-weight:bold;">-</td>';
+    '<tr style="font-size: 0.85rem; background-color:#000000; color:#0000ff;"><td style="padding:8px; border:1px solid #000; text-align:center; font-weight:bold;">-</td>';
   html +=
     '<td style="padding:8px; border:1px solid #000; font-weight:bold;">SALDO AWAL</td>';
   var saTotalGlobal = 0;
@@ -1572,6 +1572,7 @@ function generateHTMLArusKasGabungan(
       formatUang(saCab) +
       "</td>";
   });
+
   var xNumSaTotal = isForExcel ? ' x:num="' + saTotalGlobal + '"' : "";
   html +=
     '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;"' +
