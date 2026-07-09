@@ -421,8 +421,8 @@ async function refreshCache() {
       db.getAll("golongan", cabangSaya),
       db.getAll("perkiraan", cabangSaya),
       db.getAll("kodeBank", cabangSaya),
-      db.getAll("saldoKasirawal", cabangSaya),
       db.getAll("saldoKasir", cabangSaya),
+      db.getAll("saldoKasirawal", cabangSaya),
       db.getAll("mutasikasir", cabangSaya),
     ]);
 
@@ -430,8 +430,8 @@ async function refreshCache() {
     DBCache.golongan = golongan;
     DBCache.perkiraan = perkiraan;
     DBCache.kodeBank = kodeBank;
-    DBCache.saldoKasirawal = saldoKasirawal;
     DBCache.saldoKasir = saldoKasir;
+    DBCache.saldoKasirawal = saldoKasirawal;
 
     DBCache.mutasikasir = mutasikasir;
 
