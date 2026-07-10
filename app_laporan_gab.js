@@ -1299,8 +1299,7 @@ async function terapkanOpsiArusKasGabungan() {
     console.log("Total data mentah dari DB: " + sumberData.length);
 
     // ==========================================
-    // 2. EKSEKUSI LOGIKA FOXPRO:
-    // SELECT * FROM sumberData WHERE noPerk < "103" AND masa = "0526"
+    // 2. EKSEKUSI LOGIKA FOXPRO (FINAL VERSION)
     // ==========================================
 
     mapPerkiraanDifilter = sumberData
@@ -1308,25 +1307,37 @@ async function terapkanOpsiArusKasGabungan() {
         var nPerk = String(mp.noPerk || "").trim();
         var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
         var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim();
-        var nSaldo = parseFloat(mp.saldoAkhir || mp.akhir || 0); // Saya lihat fieldnya 'akhir', bukan 'saldoAkhir'
+
+        // PERBAIKAN PEMBACAAN SALDO:
+        // Cek apakah property 'akhir' benar-benar ada di data ini
+        var nSaldo = 0;
+        if (mp.hasOwnProperty("akhir")) {
+          nSaldo = parseFloat(mp.akhir); // Langsung ambil, biarpun 0 tetap 0
+        } else {
+          nSaldo = parseFloat(mp.saldoAkhir || mp.saldo_akhir || 0);
+        }
+
         var nCabang = String(
           mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
         ).trim();
 
+        // 1. Bersihkan dari titik/huruf: '100.0000' -> '1000000'
         var perkBersih = nPerk.replace(/[^0-9]/g, "");
-        var angkaPerk = parseInt(perkBersih) || 0;
 
-        // --- TAMBAHKAN PENGAMAN INI ---
-        // Jika setelah dibersihkan dari titik/huruf hasilnya kosong (""), atau noPerk aslinya cuma titik, TOLAK!
-        if (perkBersih === "" || nPerk === ".") {
+        // 2. PENGAMAN: Tolak jika kosong atau isinya cuma titik/huruf
+        if (perkBersih.length === 0) {
           return null;
         }
-        // -----------------------------
 
-        var kondisi1 = angkaPerk < 103000;
-        var kondisi2 = nMasa === kodemasadicari;
+        // 3. Ambil 3 huruf depan: '1000000' -> '100'
+        var kepalaPerk = perkBersih.substring(0, 3);
 
-        if (kondisi1 && kondisi2) {
+        // 4. Logika WHERE FoxPro:
+        var kondisiNoPerk =
+          kepalaPerk === "100" || kepalaPerk === "101" || kepalaPerk === "102";
+        var kondisiMasa = nMasa === kodemasadicari; // Pastikan kodemasadicari saat ini isinya '0526' jika ingin data bulan mei
+
+        if (kondisiNoPerk && kondisiMasa) {
           if (nPerk) mapNamaPerkiraan[nPerk] = nNama;
 
           return {
@@ -1335,7 +1346,7 @@ async function terapkanOpsiArusKasGabungan() {
             masa: nMasa,
             saldo: nSaldo,
             cabang: nCabang,
-            golongan: String(angkaPerk).substring(0, 3),
+            golongan: kepalaPerk,
           };
         }
 
