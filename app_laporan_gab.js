@@ -1198,12 +1198,16 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
   }
 
   try {
-    var valmasa = window._rlGabFilterMasa; // format: "MM-YYYY"
+    var valmasa = window._rlGabFilterMasa; // Format sekarang: "YYYY-MM" (contoh: "2026-05")
     var part = valmasa.split("-");
-    var filtertahunfull = part[0];
-    var filterbulan = part[1];
-    var duadigittahunbelakang = filtertahunfull.substring(2, 4);
-    var kodemasadicari = filterbulan + duadigittahunbelakang;
+
+    var filtertahunfull = part[0].trim(); // "2026"
+    var filterbulan = part[1].trim(); // "05"
+
+    var duadigittahunbelakang = filtertahunfull.substring(2, 4); // "26"
+    var kodemasadicari = filterbulan + duadigittahunbelakang; // "0526"
+
+    // Ini akan menghasilkan "golongan2026" dan nanti "perkiraan2026"
     var namastoregolbackup = "golongan" + filtertahunfull;
 
     // DAFTAR BULAN UNTUK KOLOM (Dari Januari sampai bulan filter)
@@ -1260,7 +1264,7 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
       });
     }
 
-    // 3. AMBIL DATA GOLONGAN TAHUNAN
+    // 3. AMBIL DATA GOLONGAN TAHUNAN (ex: golongan2026)
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
       ? Array.isArray(resgolbackup)
@@ -1268,8 +1272,7 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
         : Object.values(resgolbackup)
       : [];
 
-    // 4. SUSUN STRUKTUR DATA PER BULAN
-    // Format: dataPerBulan[golongan][kodeMasa] = saldo
+    // 4. SUSUN STRUKTUR DATA PER BULAN UNTUK ARUS KAS
     var dataPerBulan = {};
     var setKodeGol = new Set();
 
@@ -1278,13 +1281,8 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
       var cabangData = String(g.cabang || g.cab || g.kode_cabang || "").trim();
       var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
 
-      // FILTER HANYA UNTUK CABANG YANG DIPILIH
       if (cabangData !== kodeCabang) return;
-
-      // HANYA GOLONGAN ARUS KAS (102 < x < 300)
       if (parseInt(kodeGol) <= 102 || parseInt(kodeGol) >= 300) return;
-
-      // PASTIKAN MASANYA MASIH DALAM TAHUN YANG SAMA DAN TIDAK MELEBIHI BULAN FILTER
       if (masaData > kodemasadicari) return;
       if (masaData.slice(-2) !== duadigittahunbelakang) return;
 
@@ -1301,23 +1299,46 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
       return parseInt(a) - parseInt(b);
     });
 
-    // 5. HITUNG SALDO AWAL KAS (Golongan 100-102 di bulan Januari)
-    var kodemasasebelumnya = "01" + duadigittahunbelakang;
+    // 5. HITUNG SALDO AWAL KAS (Mengambil Saldo Bulan Sebelumnya)
     var totalSaldoAwal = 0;
+    var bulanSebelumnya = bulanFilterInt - 1;
 
-    rawdatagolongan.forEach(function (s) {
-      var kodeGol = String(s.gol || s.golongan || "").trim();
-      var cabangData = String(s.cabang || s.cab || s.kode_cabang || "").trim();
-      var masaData = String(s.masa || s.periode || s.kode_masa || "").trim();
+    if (bulanSebelumnya === 0) {
+      // Jika bulan yang dipilih Januari, ambil saldo awal Januari
+      var kodemasasebelumnya = "01" + duadigittahunbelakang;
+      rawdatagolongan.forEach(function (s) {
+        var kodeGol = String(s.gol || s.golongan || "").trim();
+        var cabangData = String(
+          s.cabang || s.cab || s.kode_cabang || "",
+        ).trim();
+        var masaData = String(s.masa || s.periode || s.kode_masa || "").trim();
+        if (cabangData !== kodeCabang) return;
+        if (parseInt(kodeGol) > 102) return;
+        if (masaData === kodemasasebelumnya) {
+          totalSaldoAwal += +(s.awal || 0);
+        }
+      });
+    } else {
+      // Jika bulan Feb-Des, ambil saldo AKHIR bulan sebelumnya (lebih akurat)
+      var kodemasasebelumnya =
+        (bulanSebelumnya < 10 ? "0" + bulanSebelumnya : "" + bulanSebelumnya) +
+        duadigittahunbelakang;
+      rawdatagolongan.forEach(function (s) {
+        var kodeGol = String(s.gol || s.golongan || "").trim();
+        var cabangData = String(
+          s.cabang || s.cab || s.kode_cabang || "",
+        ).trim();
+        var masaData = String(s.masa || s.periode || s.kode_masa || "").trim();
+        if (cabangData !== kodeCabang) return;
+        if (parseInt(kodeGol) > 102) return;
+        if (masaData === kodemasasebelumnya) {
+          // Mengambil saldo akhir bulan lalu (db - cr)
+          totalSaldoAwal += +(s.awal || 0) + +(s.db || 0) - +(s.cr || 0);
+        }
+      });
+    }
 
-      if (cabangData !== kodeCabang) return;
-      if (parseInt(kodeGol) > 102) return; // Hanya Kas/Bank
-      if (masaData === kodemasasebelumnya) {
-        totalSaldoAwal += +(s.awal || 0);
-      }
-    });
-
-    // 6. AMBIL MUTASI KAS/BANK PER BULAN (Golongan 100-102)
+    // 6. AMBIL DATA PERKIRAAN (ex: perkiraan2026)
     var namaStorePerkTahun = "perkiraan" + filtertahunfull;
     var sumberData =
       typeof DBCache !== "undefined" &&
@@ -1390,7 +1411,6 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
     var namaCabTampil = mapMasterCab[kodeCabang] || kodeCabang;
     var htmlOutput = "";
 
-    // Tombol Aksi
     htmlOutput +=
       '<div style="display:flex; gap:10px; margin-bottom:15px; align-items:center; flex-wrap:wrap;">';
     htmlOutput +=
@@ -1405,13 +1425,11 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
       "</span>";
     htmlOutput += "</div>";
 
-    // Membuat Tabel Baru Khusus Per Bulan
     htmlOutput +=
       '<div style="overflow-x:auto; border:1px solid #ccc; border-radius:5px;">';
     htmlOutput +=
       '<table class="table table-bordered table-sm" style="font-size:0.85rem; margin-bottom:0; white-space:nowrap;">';
 
-    // THEAD
     htmlOutput += '<thead class="table-dark text-center"><tr>';
     htmlOutput +=
       '<th style="min-width:250px; text-align:left;">Uraian Arus Kas</th>';
@@ -1422,7 +1440,6 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
       '<th style="min-width:120px; background:#ffc107 !important; color:#000 !important;">TOTAL</th>';
     htmlOutput += "</tr></thead>";
 
-    // TBODY
     htmlOutput += "<tbody>";
 
     // Baris Saldo Awal Kas
@@ -1472,10 +1489,6 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
     var saldoBerjalan = totalSaldoAwal;
 
     arrBulan.forEach(function (b, index) {
-      // Saldo Berjalan = Saldo Awal + Total Arus Kas (Gol > 102) + Mutasi Kas itu sendiri (Gol 100-102)
-      // Catatan: Jika Gol 100-102 sudah masuk ke dataPerBulan, maka cukup jumlahkan semua gol.
-      // Namun karena di filter AWAL kita skip gol 100-102, kita tambahkan mapKasPerBulan secara terpisah.
-
       var totalArusBulanIni = 0;
       arrKodeGol.forEach(function (gol) {
         totalArusBulanIni +=
@@ -1484,9 +1497,6 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
             : 0;
       });
 
-      var mutasiKasBulanIni = mapKasPerBulan[b.kode] || 0;
-
-      // Logika penjumlahan disesuaikan dengan bagaimana system anda menghitung arus kas
       saldoBerjalan = saldoBerjalan + totalArusBulanIni;
       totalAkhirKeseluruhan = saldoBerjalan;
 
@@ -1513,6 +1523,13 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
         error.message +
         "</div>";
   }
+}
+
+function formatRupiah(angka) {
+  if (isNaN(angka)) return "0";
+  var number = parseFloat(angka);
+  var formatted = number.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,");
+  return formatted;
 }
 
 // Helper format Rupiah (Jika belum ada di file Anda)
