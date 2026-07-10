@@ -1267,128 +1267,100 @@ async function terapkanOpsiArusKasGabungan() {
     // ==========================================
     // 7. HITUNG SALDO AKHIR AKTIVA TETAP (DIRINCI PER NO PERKIRAAN)
     // ==========================================
-    var saldoAkhirAktivaTetapByCabang = {};
-    var namaStorePerkTahun = "perkiraan" + filtertahunfull;
-    var mapNamaPerkiraan = {};
-    var mapPerkiraanDifilter = [];
+    var mapNamaPerkiraan = {}; // Hanya untuk kamus nama (aktiva tetap nanti butuh)
+    var mapPerkiraanDifilter = []; // Wadah HASIL SELECT WHERE nya
 
-    // 1. PROSES PENGAMBILAN DATA MASTER
-    if (
+    // 1. AMBIL DATA DARI DB ATAU CACHE
+    var sumberData =
       typeof DBCache !== "undefined" &&
       DBCache[namaStorePerkTahun] &&
       Array.isArray(DBCache[namaStorePerkTahun])
-    ) {
-      DBCache[namaStorePerkTahun].forEach(function (mp) {
+        ? DBCache[namaStorePerkTahun]
+        : [];
+
+    if (sumberData.length === 0) {
+      try {
+        var rawPerkTahun = await db.getAll(namaStorePerkTahun);
+        if (rawPerkTahun) {
+          sumberData = Array.isArray(rawPerkTahun)
+            ? rawPerkTahun
+            : Object.values(rawPerkTahun);
+          if (typeof DBCache === "undefined") window.DBCache = {};
+          DBCache[namaStorePerkTahun] = sumberData;
+        }
+      } catch (e) {
+        console.log("Gagal ambil master perkiraan tahun");
+      }
+    }
+
+    console.log("Total data mentah dari DB: " + sumberData.length);
+
+    // ==========================================
+    // 2. EKSEKUSI LOGIKA FOXPRO:
+    // SELECT * FROM sumberData WHERE noPerk < "103" AND masa = "0526"
+    // ==========================================
+
+    mapPerkiraanDifilter = sumberData
+      .filter(function (mp) {
+        // Bersihkan data agar tidak error
         var nPerk = String(mp.noPerk || "").trim();
         var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
         var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim();
         var nSaldo = parseFloat(
           mp.saldoAkhir || mp.saldo_akhir || mp.akhir || 0,
         );
-        // TAMBAHKAN CABANG (Jika ada di DB master)
         var nCabang = String(
           mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
         ).trim();
 
-        if (nPerk) {
-          mapNamaPerkiraan[nPerk] = {
+        // HAPUS TITIK UNTUK PENGECEKAN ANGKA (misal '102.3000' jadi '1023000')
+        var perkBersih = nPerk.replace(/[^0-9]/g, "");
+        var angkaPerk = parseInt(perkBersih) || 0;
+
+        // --- INI DIA LOGIKA WHERE-NYA ---
+        // 1. nPerk < "103"  -> Di JS dikonversi: angkaPerk < 103000 (karena format 7 digit)
+        // 2. masa = "0526"  -> nMasa === kodemasadicari
+        var kondisi1 = angkaPerk < 103000;
+        var kondisi2 = nMasa === kodemasadicari;
+
+        if (kondisi1 && kondisi2) {
+          // Kalau memenuhi syarat, simpan namanya ke kamus kecil (untuk keperluan lain)
+          if (nPerk) mapNamaPerkiraan[nPerk] = nNama;
+
+          // Kembalikan TRUE agar masuk ke Array mapPerkiraanDifilter
+          return {
+            noPerk: nPerk,
             nama: nNama,
             masa: nMasa,
             saldo: nSaldo,
             cabang: nCabang,
-            noPerk: nPerk,
+            golongan: String(angkaPerk).substring(0, 3),
           };
         }
-      });
-    } else {
-      try {
-        var rawPerkTahun = await db.getAll(namaStorePerkTahun);
-        if (rawPerkTahun) {
-          var arrPerkTahun = Array.isArray(rawPerkTahun)
-            ? rawPerkTahun
-            : Object.values(rawPerkTahun);
-          if (typeof DBCache === "undefined") window.DBCache = {};
-          DBCache[namaStorePerkTahun] = arrPerkTahun;
 
-          arrPerkTahun.forEach(function (mp) {
-            var nPerk = String(mp.noPerk || "").trim();
-            var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
-            var nMasa = String(
-              mp.masa || mp.periode || mp.kode_masa || "",
-            ).trim();
-            var nSaldo = parseFloat(
-              mp.saldoAkhir || mp.saldo_akhir || mp.akhir || 0,
-            );
-            // TAMBAHKAN CABANG (Jika ada di DB master)
-            var nCabang = String(
-              mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
-            ).trim();
-
-            if (nPerk) {
-              mapNamaPerkiraan[nPerk] = {
-                nama: nNama,
-                masa: nMasa,
-                saldo: nSaldo,
-                cabang: nCabang,
-                noPerk: nPerk,
-              };
-            }
-          });
-        }
-      } catch (e) {
-        console.log("Gagal ambil master perkiraan tahun");
-      }
-    }
-    console.log("--- HASIL MAP PERKIRAAN (DENGAN CABANG) ---");
-    console.table(mapNamaPerkiraan);
-
-    // ==========================================
-    // BAGIAN 2: DEBUG SUPER KETAT UNTUK CARI PENYEBAB
-    // ==========================================
-    console.log(">>> CEK 1: Kode mulai masuk ke Bagian Filter");
-
-    var arraySemuaPerkiraan = Object.values(mapNamaPerkiraan);
-    console.log(
-      ">>> CEK 2: Jumlah total data master perkiraan = ",
-      arraySemuaPerkiraan.length,
-    );
-    console.log(
-      ">>> CEK 3: Isi variabel kodemasadicari = ",
-      kodemasadicari,
-      "(Tipe: " + typeof kodemasadicari + ")",
-    );
-
-    try {
-      mapPerkiraanDifilter = arraySemuaPerkiraan.filter(function (itemMap) {
-        // Debug isi 1 data paling atas untuk melihat strukturnya
-        if (arraySemuaPerkiraan.indexOf(itemMap) === 0) {
-          console.log(">>> CEK 4: Contoh isi 1 data paling atas:", itemMap);
-        }
-
-        var perkBersih = String(itemMap.noPerk).replace(/[^0-9]/g, "");
-        var kepalaPerk = perkBersih.substring(0, 3);
-
-        // Logika Filter
-        var cocokMasa = itemMap.masa === kodemasadicari;
-        var cocokKepala =
-          kepalaPerk === "100" || kepalaPerk === "101" || kepalaPerk === "102";
-
-        return cocokMasa && cocokKepala;
+        // Kalau tidak memenuhi, buang (return false / undefined)
+        return null;
+      })
+      .filter(function (item) {
+        // Filter sekali lagi untuk membuang hasil 'null' yang tidak memenuhi syarat di atas
+        return item !== null;
       });
 
-      console.log(
-        ">>> CEK 5: Filter SELESAI. Jumlah hasil filter yg masuk = ",
-        mapPerkiraanDifilter.length,
-      );
-    } catch (errorFilter) {
-      console.error(
-        ">>> ERROR! Kode Filter GAGAL DIJALANKAN: ",
-        errorFilter.message,
-      );
-    }
-    // ==========================================
-    console.log("--- HASIL FILTER (MENGGUNAKAN .filter) ---");
+    console.log(
+      "Hasil 'SELECT WHERE' (NoPerk < 103 & Masa = " +
+        kodemasadicari +
+        "): " +
+        mapPerkiraanDifilter.length +
+        " baris",
+    );
     console.table(mapPerkiraanDifilter);
+
+    // ==========================================
+    // 3. LANJUTAN KODE ANDA (DATA AKTIVA TETAP)
+    // ==========================================
+    if (rawdatagolongan && rawdatagolongan.length > 0) {
+      // ... (kode rawdatagolongan anda tetap persis seperti sebelumnya di sini) ...
+    }
 
     // 3. PROSES DATA GOLONGAN AKTIVA TETAP (Tetap Object)
     if (rawdatagolongan && rawdatagolongan.length > 0) {
