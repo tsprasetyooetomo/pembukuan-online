@@ -7,6 +7,7 @@
       content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no"
     />
     <title>Laporan — Sistem Bisnis</title>
+    <link rel="stylesheet" href="style.css" />
     <link
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
@@ -16,32 +17,8 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
     />
     <style>
-      :root {
-        --bg: #080c14;
-        --bg2: #0f1623;
-        --card: #141c2e;
-        --card2: #192340;
-        --brd: #1c2844;
-        --fg: #eaeef6;
-        --muted: #6b7fa0;
-        --accent: #f59e0b;
-        --accent-dim: rgba(245, 158, 11, 0.1);
-        --accent-glow: rgba(245, 158, 11, 0.3);
-        --danger: #ef4444;
-        --success: #22c55e;
-        --info: #38bdf8;
-        --r: 12px;
-      }
-      * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-        -webkit-tap-highlight-color: transparent;
-      }
       body {
         font-family: "Space Grotesk", sans-serif;
-        background: var(--bg);
-        color: var(--fg);
         min-height: 100vh;
         display: flex;
         flex-direction: column;
@@ -49,44 +26,6 @@
         justify-content: center;
         overflow-y: auto;
         overscroll-behavior-y: contain;
-      }
-
-      .bg-g {
-        position: fixed;
-        inset: 0;
-        z-index: 0;
-        pointer-events: none;
-      }
-      .bg-g::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background-image:
-          radial-gradient(
-            circle at 15% 15%,
-            rgba(245, 158, 11, 0.04) 0%,
-            transparent 50%
-          ),
-          radial-gradient(
-            circle at 85% 85%,
-            rgba(56, 189, 248, 0.03) 0%,
-            transparent 50%
-          );
-      }
-      .bg-g::after {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background-image:
-          linear-gradient(rgba(245, 158, 11, 0.012) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(245, 158, 11, 0.012) 1px, transparent 1px);
-        background-size: 40px 40px;
-        animation: gd 30s linear infinite;
-      }
-      @keyframes gd {
-        to {
-          transform: translate(40px, 40px);
-        }
       }
 
       #dashboardView {
@@ -273,54 +212,21 @@
         }
       }
 
-      .toast-container {
-        position: fixed;
-        top: 1rem;
-        right: 1rem;
-        z-index: 99999;
-        display: flex;
-        flex-direction: column;
-        gap: 0.5rem;
-        pointer-events: none;
-      }
-      .toast-item {
-        padding: 10px 18px;
-        border-radius: 8px;
-        font-size: 0.8rem;
-        font-weight: 600;
-        color: #fff;
-        pointer-events: auto;
-        animation: toastIn 0.3s ease;
-        font-family: "Space Grotesk", sans-serif;
-        max-width: 320px;
-      }
-      .toast-item.ok {
-        background: #16a34a;
-      }
-      .toast-item.err {
-        background: #dc2626;
-      }
-      .toast-item.wrn {
-        background: #d97706;
-      }
-      @keyframes toastIn {
-        from {
-          opacity: 0;
-          transform: translateX(30px);
-        }
-        to {
-          opacity: 1;
-          transform: translateX(0);
-        }
+      .toast-box {
+        position: fixed !important;
+        top: 1rem !important;
+        right: 1rem !important;
+        bottom: auto !important;
+        left: auto !important;
+        z-index: 99999 !important;
       }
     </style>
   </head>
   <body>
     <div class="bg-g"></div>
 
-    <!-- ========== DASHBOARD ========== -->
     <div id="dashboardView">
-      <h1>Laporan Eksekutif</h1>
+      <h1>Laporan Sistem Bisnis</h1>
       <p>Pilih modul laporan yang ingin Anda akses</p>
       <div class="menu-grid">
         <div class="menu-card" onclick="handleMenuClick('lapkeuangan')">
@@ -333,7 +239,6 @@
           <div class="card-title">Lap Keuangan</div>
           <span class="card-status status-online">RL Rekap Gabungan</span>
         </div>
-
         <div class="menu-card" onclick="handleMenuClick('aruskas')">
           <div class="card-icon">
             <i
@@ -344,7 +249,6 @@
           <div class="card-title">Arus Kas</div>
           <span class="card-status status-online">Arus Kas Gabungan</span>
         </div>
-
         <div class="menu-card" onclick="handleMenuClick('analisa')">
           <div class="card-icon">
             <i class="fa-solid fa-chart-pie" style="color: var(--accent)"></i>
@@ -355,7 +259,6 @@
       </div>
     </div>
 
-    <!-- ========== VIEWER PANEL ========== -->
     <div id="viewerPanel">
       <div class="vp-header">
         <h2 id="vpTitle">-</h2>
@@ -366,18 +269,21 @@
       <div id="viewerContent"></div>
     </div>
 
-    <!-- ========== FOOTER ========== -->
     <div class="footer-info" id="footerInfo">
       <span class="db-dot"></span>
       <span>Powered by Supabase & Railway</span>
     </div>
 
-    <div class="toast-container" id="toastContainer"></div>
+    <div class="toast-box" id="toasts"></div>
+
+    <script src="db_pbukuan.js"></script>
+    <script src="app_core.js"></script>
+    <script src="app_utility.js"></script>
+    <script src="app_laporan_gab.js"></script>
 
     <script>
       var URL_PEMBUKUAN = "pembukuan_telaga.html";
 
-      /* === CEK SESSION SAAT HALAMAN DIBUKA === */
       (function () {
         var token = localStorage.getItem("token");
         var role = localStorage.getItem("role");
@@ -386,21 +292,8 @@
         } else if (role !== "Viewer") {
           window.location.href = URL_PEMBUKUAN;
         }
-        /* kalau Viewer, biarkan di halaman ini */
       })();
 
-      function toast(m, t) {
-        var c = document.getElementById("toastContainer"),
-          e = document.createElement("div");
-        e.className = "toast-item " + (t || "ok");
-        e.textContent = m;
-        c.appendChild(e);
-        setTimeout(function () {
-          if (e.parentNode) e.parentNode.removeChild(e);
-        }, 3500);
-      }
-
-      /* === NAVIGASI === */
       function handleMenuClick(menu) {
         tampilkanViewerPanel(menu);
       }
@@ -425,12 +318,10 @@
 
         if (menu === "lapkeuangan") {
           t.textContent = "Lap Keuangan — RL Rekap Gabungan";
-          c.innerHTML =
-            '<div style="padding:3rem;text-align:center;color:var(--muted)">Fungsi renderRLRekapGabungan belum dimuat</div>';
+          c.innerHTML = renderRLRekapGabungan();
         } else if (menu === "aruskas") {
           t.textContent = "Arus Kas Gabungan";
-          c.innerHTML =
-            '<div style="padding:3rem;text-align:center;color:var(--muted)">Fungsi renderArusKasGabungan belum dimuat</div>';
+          c.innerHTML = renderArusKasGabungan();
         } else if (menu === "analisa") {
           t.textContent = "Analisa";
           c.innerHTML =
