@@ -1402,8 +1402,8 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       '<div style="display:flex; gap:10px; margin-bottom:15px; align-items:center;">';
     htmlOutput +=
       '<button onclick="kembaliKeGabungan()" style="padding:8px 16px; background:#6c757d; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">⬅ Kembali ke Gabungan</button>';
-    htmlOutput +=
-      '<button onclick="downloadExcelArusKasPerCabang()" style="padding:8px 16px; background:#198754; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📥 Download Excel</button>';
+    // htmlOutput +=
+    //   '<button onclick="downloadExcelArusKasPerCabang()" style="padding:8px 16px; background:#198754; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📥 Download Excel</button>';
     htmlOutput +=
       '<span style="font-weight:bold; font-size:1.1rem; color:#004085;">ARUS KAS PER BULAN - CABANG: ' +
       namaCabTampil +
@@ -1447,8 +1447,8 @@ function kembaliKeGabungan() {
       // Tombol download gabungan
       var htmlTombol =
         '<div style="display:flex; gap:10px; margin-bottom:15px; align-items:center;">';
-      htmlTombol +=
-        '<button onclick="downloadExcelArusKasGabungan()" style="padding:8px 16px; background:#198754; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📥 Download Excel Gabungan</button>';
+      //  htmlTombol +=
+      //   '<button onclick="downloadExcelArusKasGabungan()" style="padding:8px 16px; background:#198754; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📥 Download Excel Gabungan</button>';
       htmlTombol +=
         '<span style="font-weight:bold; font-size:1.1rem; color:#004085;">ARUS KAS GABUNGAN - MASA: ' +
         window._rlGabFilterMasa +
