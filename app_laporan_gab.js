@@ -1557,21 +1557,22 @@ function generateHTMLArusKasGabungan(
 
   // --- BARIS SALDO AWAL ---
   html +=
-    '<tr style="font-size: 0.85rem; background-color:#e8f5e9;"><td style="padding:8px; border:1px solid #000; text-align:center; font-weight:bold;">-</td>';
+    '<tr style="font-size: 0.85rem; background-color:#000000; color:#ffffff;"><td style="padding:8px; border:1px solid #fff; text-align:center; font-weight:bold;">-</td>';
   html +=
-    '<td style="padding:8px; border:1px solid #000; font-weight:bold;">SALDO AWAL</td>';
+    '<td style="padding:8px; border:1px solid #fff; font-weight:bold;">SALDO AWAL</td>';
   var saTotalGlobal = 0;
   daftarCabang.forEach(function (cab) {
     var saCab = totalSaldoAwalByCabang[cab] || 0;
     saTotalGlobal += saCab;
     var xNum = isForExcel ? ' x:num="' + saCab + '"' : "";
     html +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right;"' +
+      '<td style="padding:8px; border:1px solid #fff; text-align:right;"' +
       xNum +
       ">" +
       formatUang(saCab) +
       "</td>";
   });
+
   var xNumSaTotal = isForExcel ? ' x:num="' + saTotalGlobal + '"' : "";
   html +=
     '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;"' +
