@@ -1214,7 +1214,7 @@ async function terapkanOpsiArusKasGabungan() {
         if (!dataByCabang[cabangData][kodeGol])
           dataByCabang[cabangData][kodeGol] = 0;
 
-        var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
+        var saldoAkhir = -+(g.db || 0) + (g.cr || 0);
         dataByCabang[cabangData][kodeGol] += saldoAkhir;
       }
     });
