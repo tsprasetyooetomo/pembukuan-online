@@ -1107,8 +1107,7 @@ function renderArusKasGabungan() {
     '" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem;">' +
     "</div>" +
     '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiArusKasGabungan()">Terapkan</button>' +
-    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadArusKasGabunganExcel()"><i class="fa-solid fa-file-excel"></i> Download Excel</button>' +
-    '<button type="button" class="btn btn-s" style="font-size:.75rem; padding:4px 12px; background:#6f42c1; border-color:#6f42c1; color:#fff;" onclick="lihatGrafikAruskasGabungan()"><i class="fa-solid fa-chart-line"></i> Lihat Grafik</button>' +
+    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadExcelArusKasGabungan()"><i class="fa-solid fa-file-excel"></i> Download Excel</button>' +
     "</div>" +
     "</div>" +
     '<div id="tempat_tabel_rlgab" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
@@ -1117,6 +1116,435 @@ function renderArusKasGabungan() {
 
   return htmlLaporan;
 }
+// ==========================================
+// FUNGSI DOWNLOAD KE EXCEL
+// ==========================================
+function downloadExcelArusKasGabungan() {
+  if (!window._rlGabunganData || !window._rlGabFilterMasa) {
+    if (typeof toast === "function")
+      toast("Tidak ada data untuk diunduh", "err");
+    return;
+  }
+
+  var data = window._rlGabunganData;
+  var htmlExcel = generateHTMLArusKasGabungan(
+    data.daftarCabang,
+    data.arrKodeGol,
+    data.dataByCabang,
+    data.mapMasterGol,
+    data.mapMasterCab,
+    true, // <-- isForExcel = true
+    window._rlGabTotalSaldoAwal || {},
+    window._rlGabMapPerkiraan || [],
+  );
+
+  // Buat full HTML wrapper untuk Excel
+  var fullHtml = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+          xmlns:x="urn:schemas-microsoft-com:office:excel" 
+          xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta charset="UTF-8">
+      <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+      <x:Name>Arus Kas Gabungan</x:Name>
+      <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+      </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+      <style>
+        table { border-collapse: collapse; mso-number-format:"\\@"; }
+        td, th { mso-number-format:"\\@"; padding: 5px; border: 1px solid #000; }
+        .num { mso-number-format:"#,##0.00"; text-align: right; }
+        th { background-color: #f4f4f4; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <h2 style="text-align:center;">LAPORAN ARUS KAS GABUNGAN</h2>
+      <h3 style="text-align:center;">Masa: ${window._rlGabFilterMasa}</h3>
+      ${htmlExcel}
+    </body>
+    </html>
+  `;
+
+  // Download file
+  var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement("a");
+  link.href = url;
+  link.download =
+    "ArusKas_Gabungan_" + window._rlGabFilterMasa.replace(/-/g, "") + ".xls";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  if (typeof toast === "function") toast("File Excel berhasil diunduh!", "ok");
+}
+
+// ==========================================
+// FUNGSI ARUS KAS PER BULAN (Per Cabang)
+// ==========================================
+async function tampilkanRLPerCabangSD(kodeCabang) {
+  if (!window._rlGabFilterMasa) {
+    if (typeof toast === "function") toast("Data belum dimuat", "err");
+    return;
+  }
+
+  // Tutup tabel gabungan jika ada
+  var areaGab = document.getElementById("area_cetak_rlgab");
+  var areaTabel = document.getElementById("tempat_tabel_rlgab");
+
+  if (areaTabel) {
+    areaTabel.innerHTML =
+      '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data cabang ' +
+      kodeCabang +
+      "...</div>";
+  }
+
+  try {
+    var valmasa = window._rlGabFilterMasa; // format: "MM-YYYY"
+    var part = valmasa.split("-");
+    var filtertahunfull = part[0];
+    var filterbulan = part[1];
+    var duadigittahunbelakang = filtertahunfull.substring(2, 4);
+    var kodemasadicari = filterbulan + duadigittahunbelakang;
+    var namastoregolbackup = "golongan" + filtertahunfull;
+
+    // 1. AMBIL MASTER GOLONGAN
+    var rawMasterGol = await db.getAll("golongan");
+    var mapMasterGol = {};
+    if (rawMasterGol) {
+      var arrMasterGol = Array.isArray(rawMasterGol)
+        ? rawMasterGol
+        : Object.values(rawMasterGol);
+      arrMasterGol.forEach(function (m) {
+        var kode = String(m.gol || m.kode_gol || "").trim();
+        var nama = String(m.namaGol || m.nama || "").trim();
+        if (kode) mapMasterGol[kode] = nama;
+      });
+    }
+
+    // 2. AMBIL MASTER CABANG
+    var rawMasterCab = await db.getAll("cabang");
+    var mapMasterCab = {};
+    if (rawMasterCab) {
+      var arrMasterCab = Array.isArray(rawMasterCab)
+        ? rawMasterCab
+        : Object.values(rawMasterCab);
+      arrMasterCab.forEach(function (c) {
+        var kode = String(c.kode_cabang || c.kode || c.cab || "").trim();
+        var nama = String(c.nama_cabang || c.nama || c.cabang || "").trim();
+        if (kode && nama) mapMasterCab[kode] = nama;
+      });
+    }
+
+    // 3. AMBIL DATA GOLONGAN TAHUNAN
+    var resgolbackup = await db.getAll(namastoregolbackup);
+    var rawdatagolongan = resgolbackup
+      ? Array.isArray(resgolbackup)
+        ? resgolbackup
+        : Object.values(resgolbackup)
+      : [];
+
+    var dataByCabang = {};
+    var tahunDicari = kodemasadicari.slice(-2);
+
+    rawdatagolongan.forEach(function (g) {
+      var kodeGol = String(g.gol || g.golongan || "").trim();
+      var cabangData = String(g.cabang || g.cab || g.kode_cabang || "").trim();
+      var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
+
+      // FILTER HANYA UNTUK CABANG YANG DIPILIH
+      if (cabangData !== kodeCabang) return;
+
+      var tahunData = masaData.slice(-2);
+
+      if (
+        kodeGol > 102 &&
+        kodeGol < 300 &&
+        tahunData === tahunDicari &&
+        masaData <= kodemasadicari
+      ) {
+        if (!dataByCabang[cabangData]) dataByCabang[cabangData] = {};
+        if (!dataByCabang[cabangData][kodeGol])
+          dataByCabang[cabangData][kodeGol] = 0;
+
+        var saldoAkhir = -+(g.db || 0) + (g.cr || 0);
+        dataByCabang[cabangData][kodeGol] += saldoAkhir;
+      }
+    });
+
+    // 4. HITUNG SALDO AWAL
+    var tahunInt = parseInt(filtertahunfull);
+    var tahunDuaDigit = String(tahunInt).substring(2, 4);
+    var kodemasasebelumnya = "01" + tahunDuaDigit;
+    var totalSaldoAwalByCabang = {};
+
+    rawdatagolongan.forEach(function (s) {
+      var kodeGol = String(s.gol || s.golongan || "").trim();
+      var cabangData = String(s.cabang || s.cab || s.kode_cabang || "").trim();
+      var masaData = String(s.masa || s.periode || s.kode_masa || "").trim();
+
+      if (cabangData !== kodeCabang) return;
+
+      if (parseInt(kodeGol) < 103 && masaData === kodemasasebelumnya) {
+        if (totalSaldoAwalByCabang[cabangData] === undefined) {
+          totalSaldoAwalByCabang[cabangData] = 0;
+        }
+        totalSaldoAwalByCabang[cabangData] += +(s.awal || 0);
+      }
+    });
+
+    // 5. AMBIL DATA KAS/BANK
+    var namaStorePerkTahun = "perkiraan" + filtertahunfull;
+    var sumberData =
+      typeof DBCache !== "undefined" &&
+      DBCache[namaStorePerkTahun] &&
+      Array.isArray(DBCache[namaStorePerkTahun])
+        ? DBCache[namaStorePerkTahun]
+        : [];
+
+    if (sumberData.length === 0) {
+      try {
+        var rawPerkTahun = await db.getAll(namaStorePerkTahun);
+        if (rawPerkTahun) {
+          sumberData = Array.isArray(rawPerkTahun)
+            ? rawPerkTahun
+            : Object.values(rawPerkTahun);
+          if (typeof DBCache === "undefined") window.DBCache = {};
+          DBCache[namaStorePerkTahun] = sumberData;
+        }
+      } catch (e) {
+        console.log("Gagal ambil master perkiraan tahun");
+      }
+    }
+
+    var mapPerkiraanDifilter = sumberData
+      .filter(function (mp) {
+        var nPerk = String(mp.noPerk || "").trim();
+        var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
+        var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim();
+        var nSaldo = mp.hasOwnProperty("akhir")
+          ? parseFloat(mp.akhir)
+          : parseFloat(mp.saldoAkhir || mp.saldo_akhir || 0);
+        var nCabang = String(
+          mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
+        ).trim();
+        var perkBersih = nPerk.replace(/[^0-9]/g, "");
+        if (perkBersih.length === 0) return false;
+        var kepalaPerk = perkBersih.substring(0, 3);
+        return (
+          (kepalaPerk === "100" ||
+            kepalaPerk === "101" ||
+            kepalaPerk === "102") &&
+          nMasa === kodemasadicari &&
+          nCabang === kodeCabang // <-- Filter per cabang
+        );
+      })
+      .map(function (mp) {
+        var nPerk = String(mp.noPerk || "").trim();
+        var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
+        var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim();
+        var nSaldo = mp.hasOwnProperty("akhir")
+          ? parseFloat(mp.akhir)
+          : parseFloat(mp.saldoAkhir || mp.saldo_akhir || 0);
+        var nCabang = String(
+          mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
+        ).trim();
+        var perkBersih = nPerk.replace(/[^0-9]/g, "");
+        var kepalaPerk = perkBersih.substring(0, 3);
+        return {
+          noPerk: nPerk,
+          nama: nNama,
+          masa: nMasa,
+          saldo: nSaldo,
+          cabang: nCabang,
+          golongan: kepalaPerk,
+        };
+      });
+
+    // 6. SUSUN KOLOM & BARIS
+    var daftarCabang = Object.keys(dataByCabang).sort();
+    var setKodeGol = new Set();
+    daftarCabang.forEach(function (cab) {
+      Object.keys(dataByCabang[cab]).forEach(function (gol) {
+        setKodeGol.add(gol);
+      });
+    });
+    var arrKodeGol = Array.from(setKodeGol).sort(function (a, b) {
+      return parseInt(a) - parseInt(b);
+    });
+    arrKodeGol = arrKodeGol.filter(function (kodeGol) {
+      var totalSemuaCabang = 0;
+      daftarCabang.forEach(function (cab) {
+        totalSemuaCabang += dataByCabang[cab][kodeGol] || 0;
+      });
+      return totalSemuaCabang !== 0;
+    });
+
+    // Simpan untuk keperluan download Excel per cabang
+    window._rlPerCabangData = {
+      kodeCabang: kodeCabang,
+      daftarCabang,
+      arrKodeGol,
+      dataByCabang,
+      mapMasterGol,
+      mapMasterCab,
+      totalSaldoAwalByCabang,
+      mapPerkiraanDifilter,
+      filterMasa: valmasa,
+    };
+
+    // 7. RENDER HTML
+    var namaCabTampil = mapMasterCab[kodeCabang] || kodeCabang;
+    var htmlOutput = "";
+
+    // Tombol kembali & download
+    htmlOutput +=
+      '<div style="display:flex; gap:10px; margin-bottom:15px; align-items:center;">';
+    htmlOutput +=
+      '<button onclick="kembaliKeGabungan()" style="padding:8px 16px; background:#6c757d; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">⬅ Kembali ke Gabungan</button>';
+    htmlOutput +=
+      '<button onclick="downloadExcelArusKasPerCabang()" style="padding:8px 16px; background:#198754; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📥 Download Excel</button>';
+    htmlOutput +=
+      '<span style="font-weight:bold; font-size:1.1rem; color:#004085;">ARUS KAS PER BULAN - CABANG: ' +
+      namaCabTampil +
+      " | MASA: " +
+      valmasa +
+      "</span>";
+    htmlOutput += "</div>";
+
+    htmlOutput += generateHTMLArusKasGabungan(
+      daftarCabang,
+      arrKodeGol,
+      dataByCabang,
+      mapMasterGol,
+      mapMasterCab,
+      false,
+      totalSaldoAwalByCabang,
+      mapPerkiraanDifilter,
+    );
+
+    if (areaTabel) {
+      areaTabel.innerHTML = htmlOutput;
+    }
+  } catch (error) {
+    console.error("❌ Gagal memuat RL Per Cabang:", error);
+    if (areaTabel)
+      areaTabel.innerHTML =
+        '<div style="padding:3rem; text-align:center; color:darkred;">Error: ' +
+        error.message +
+        "</div>";
+  }
+}
+
+// ==========================================
+// FUNGSI KEMBALI KE GABUNGAN
+// ==========================================
+function kembaliKeGabungan() {
+  if (window._rlGabunganData) {
+    var data = window._rlGabunganData;
+    var areaTabel = document.getElementById("tempat_tabel_rlgab");
+    if (areaTabel) {
+      // Tombol download gabungan
+      var htmlTombol =
+        '<div style="display:flex; gap:10px; margin-bottom:15px; align-items:center;">';
+      htmlTombol +=
+        '<button onclick="downloadExcelArusKasGabungan()" style="padding:8px 16px; background:#198754; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📥 Download Excel Gabungan</button>';
+      htmlTombol +=
+        '<span style="font-weight:bold; font-size:1.1rem; color:#004085;">ARUS KAS GABUNGAN - MASA: ' +
+        window._rlGabFilterMasa +
+        "</span>";
+      htmlTombol += "</div>";
+
+      areaTabel.innerHTML =
+        htmlTombol +
+        generateHTMLArusKasGabungan(
+          data.daftarCabang,
+          data.arrKodeGol,
+          data.dataByCabang,
+          data.mapMasterGol,
+          data.mapMasterCab,
+          false,
+          window._rlGabTotalSaldoAwal || {},
+          window._rlGabMapPerkiraan || [],
+        );
+    }
+  } else {
+    // Jika data belum ada, panggil ulang fungsi utama
+    terapkanOpsiArusKasGabungan();
+  }
+}
+
+// ==========================================
+// FUNGSI DOWNLOAD EXCEL PER CABANG
+// ==========================================
+function downloadExcelArusKasPerCabang() {
+  if (!window._rlPerCabangData) {
+    if (typeof toast === "function")
+      toast("Tidak ada data untuk diunduh", "err");
+    return;
+  }
+
+  var data = window._rlPerCabangData;
+  var htmlExcel = generateHTMLArusKasGabungan(
+    data.daftarCabang,
+    data.arrKodeGol,
+    data.dataByCabang,
+    data.mapMasterGol,
+    data.mapMasterCab,
+    true,
+    data.totalSaldoAwalByCabang,
+    data.mapPerkiraanDifilter,
+  );
+
+  var namaCab = data.mapMasterCab[data.kodeCabang] || data.kodeCabang;
+
+  var fullHtml = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" 
+          xmlns:x="urn:schemas-microsoft-com:office:excel" 
+          xmlns="http://www.w3.org/TR/REC-html40">
+    <head>
+      <meta charset="UTF-8">
+      <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+      <x:Name>Arus Kas ${namaCab}</x:Name>
+      <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+      </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
+      <style>
+        table { border-collapse: collapse; mso-number-format:"\\@"; }
+        td, th { mso-number-format:"\\@"; padding: 5px; border: 1px solid #000; }
+        .num { mso-number-format:"#,##0.00"; text-align: right; }
+        th { background-color: #f4f4f4; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <h2 style="text-align:center;">LAPORAN ARUS KAS PER BULAN</h2>
+      <h3 style="text-align:center;">Cabang: ${namaCab} (${data.kodeCabang})</h3>
+      <h3 style="text-align:center;">Masa: ${data.filterMasa}</h3>
+      ${htmlExcel}
+    </body>
+    </html>
+  `;
+
+  var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
+  var url = URL.createObjectURL(blob);
+  var link = document.createElement("a");
+  link.href = url;
+  link.download =
+    "ArusKas_" +
+    namaCab.replace(/\s+/g, "_") +
+    "_" +
+    data.filterMasa.replace(/-/g, "") +
+    ".xls";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  if (typeof toast === "function") toast("File Excel berhasil diunduh!", "ok");
+}
+
+// ==========================================
+// FUNGSI UTAMA (UPDATE - SIMPAN DATA GLOBAL)
+// ==========================================
 async function terapkanOpsiArusKasGabungan() {
   var inputmasa = document.getElementById("filter_rlgab_masa");
   if (!inputmasa) return;
@@ -1186,8 +1614,7 @@ async function terapkanOpsiArusKasGabungan() {
       : [];
     var dataByCabang = {};
 
-    // 4. PROSES DATA (UNTUK PEMASUKAN & PENGELUARAN)
-    // 1. Ambil 2 angka digit tahun (contoh: "0526" -> "26")
+    // 4. PROSES DATA
     var tahunDicari = kodemasadicari.slice(-2);
 
     rawdatagolongan.forEach(function (g) {
@@ -1197,13 +1624,8 @@ async function terapkanOpsiArusKasGabungan() {
 
       if (!setValidCabang.has(cabangData)) return;
 
-      // 2. Ekstrak tahun dari data baris ini
       var tahunData = masaData.slice(-2);
 
-      // 3. LOGIKA BARU:
-      // - Harus tahun yang sama (misal sama-sama 26)
-      // - masaData harus KURANG DARI masa yang dipilih (<, bukan <=)
-      // - Otomatis jika kodemasadicari = "0126", tidak ada data yang memenuhi syarat < "0126"
       if (
         kodeGol > 102 &&
         kodeGol < 300 &&
@@ -1219,7 +1641,6 @@ async function terapkanOpsiArusKasGabungan() {
       }
     });
 
-    console.table(dataByCabang);
     // 5. SUSUN BARIS DAN KOLOM TABEL
     var daftarCabang = Object.keys(dataByCabang).sort();
     var setKodeGol = new Set();
@@ -1239,17 +1660,12 @@ async function terapkanOpsiArusKasGabungan() {
       return totalSemuaCabang !== 0;
     });
 
-    // 6. HITUNG TOTAL SALDO AWAL (GOL < 103) BULAN LALU
-    var kodemasasebelumnya = "";
+    // 6. HITUNG TOTAL SALDO AWAL
     var tahunInt = parseInt(filtertahunfull);
     var tahunDuaDigit = String(tahunInt).substring(2, 4);
-
-    // PERUBAHAN LOGIKA: Masa selalu diambil dari bulan "01" + 2 digit tahun yang dipilih
-    kodemasasebelumnya = "01" + tahunDuaDigit;
-
+    var kodemasasebelumnya = "01" + tahunDuaDigit;
     var totalSaldoAwalByCabang = {};
 
-    // Menggunakan data dari 'rawdatagolongan' yang berasal dari resgolbackup
     if (rawdatagolongan && rawdatagolongan.length > 0) {
       rawdatagolongan.forEach(function (s) {
         var kodeGol = String(s.gol || s.golongan || "").trim();
@@ -1260,7 +1676,6 @@ async function terapkanOpsiArusKasGabungan() {
 
         if (!setValidCabang.has(cabangData)) return;
 
-        // Filter berdasarkan golongan < 103 dan masa harus tepat "01YY"
         if (parseInt(kodeGol) < 103 && masaData === kodemasasebelumnya) {
           if (totalSaldoAwalByCabang[cabangData] === undefined) {
             totalSaldoAwalByCabang[cabangData] = 0;
@@ -1270,7 +1685,7 @@ async function terapkanOpsiArusKasGabungan() {
       });
     }
 
-    // 7. AMBIL & FILTER DATA KAS/BANK (NO PERK < 103)
+    // 7. AMBIL & FILTER DATA KAS/BANK
     var namaStorePerkTahun = "perkiraan" + filtertahunfull;
     var sumberData =
       typeof DBCache !== "undefined" &&
@@ -1337,14 +1752,7 @@ async function terapkanOpsiArusKasGabungan() {
         };
       });
 
-    console.log(
-      "Filter Kas/Bank (NoPerk < 103 & Masa = " +
-        kodemasadicari +
-        "): " +
-        mapPerkiraanDifilter.length +
-        " baris",
-    );
-
+    // ✅ SIMPAN DATA KE GLOBAL untuk fungsi lain
     window._rlGabunganData = {
       daftarCabang,
       arrKodeGol,
@@ -1352,6 +1760,8 @@ async function terapkanOpsiArusKasGabungan() {
       mapMasterGol,
       mapMasterCab,
     };
+    window._rlGabTotalSaldoAwal = totalSaldoAwalByCabang;
+    window._rlGabMapPerkiraan = mapPerkiraanDifilter;
 
     var outerArea = document.getElementById("area_cetak_rlgab");
     if (outerArea) {
@@ -1365,17 +1775,29 @@ async function terapkanOpsiArusKasGabungan() {
       area.style.height = "auto";
     }
 
-    // KIRIM mapPerkiraanDifilter SEBAGAI PARAMETER TERAKHIR
-    area.innerHTML = generateHTMLArusKasGabungan(
-      daftarCabang,
-      arrKodeGol,
-      dataByCabang,
-      mapMasterGol,
-      mapMasterCab,
-      false,
-      totalSaldoAwalByCabang,
-      mapPerkiraanDifilter,
-    );
+    // Tombol download di atas tabel
+    var htmlTombol =
+      '<div style="display:flex; gap:10px; margin-bottom:15px; align-items:center;">';
+    htmlTombol +=
+      '<button onclick="downloadExcelArusKasGabungan()" style="padding:8px 16px; background:#198754; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📥 Download Excel Gabungan</button>';
+    htmlTombol +=
+      '<span style="font-weight:bold; font-size:1.1rem; color:#004085;">ARUS KAS GABUNGAN - MASA: ' +
+      window._rlGabFilterMasa +
+      "</span>";
+    htmlTombol += "</div>";
+
+    area.innerHTML =
+      htmlTombol +
+      generateHTMLArusKasGabungan(
+        daftarCabang,
+        arrKodeGol,
+        dataByCabang,
+        mapMasterGol,
+        mapMasterCab,
+        false,
+        totalSaldoAwalByCabang,
+        mapPerkiraanDifilter,
+      );
   } catch (error) {
     console.error("❌ Gagal total RL Gabungan:", error);
     if (area)
@@ -1386,6 +1808,9 @@ async function terapkanOpsiArusKasGabungan() {
   }
 }
 
+// ==========================================
+// FUNGSI GENERATE HTML (TETAP SAMA + X:NUM UNTUK EXCEL)
+// ==========================================
 function generateHTMLArusKasGabungan(
   daftarCabang,
   arrKodeGol,
@@ -1394,7 +1819,7 @@ function generateHTMLArusKasGabungan(
   mapMasterCab,
   isForExcel,
   totalSaldoAwalByCabang,
-  mapPerkiraanDifilter, // <-- TAMBAHKAN INI
+  mapPerkiraanDifilter,
 ) {
   var html =
     '<div id="area_tabel_gabungan" style="width: 100%; overflow-x: auto; border: 1px solid #131010;"><table border="1" style="width:100%; min-width: 600px; border-collapse: collapse; text-align:left; color:#000; border: 1px solid #000;">';
@@ -1422,7 +1847,7 @@ function generateHTMLArusKasGabungan(
   });
 
   html +=
-    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:center; background-color:#d9e1f2; color:#00D2FF; font-weight:bold;">TOTAL</th>';
+    '<th rowspan="2" style="padding:10px; border:1px solid #000; text-align:center; background-color:#d9e1f2; color:#004085; font-weight:bold;">TOTAL</th>';
   html += "</tr><tr></tr></thead><tbody>";
 
   var arrPemasukan = [];
@@ -1536,15 +1961,17 @@ function generateHTMLArusKasGabungan(
     (daftarCabang.length + 3) +
     "' style='padding:8px; border:1px solid #000; font-weight:bold; background-color:#d1e7dd; color:#0f5132;'>PEMASUKAN</td></tr>";
 
-  // Saldo Awal
   html +=
     '<tr style="font-size: 0.85rem; background-color:#000000; color:#ffffff;"><td style="padding:8px; border:1px solid #fff; text-align:center; font-weight:bold;">-</td><td style="padding:8px; border:1px solid #fff; font-weight:bold;">SALDO AWAL</td>';
   var saTotalGlobal = 0;
   daftarCabang.forEach(function (cab) {
     var saCab = totalSaldoAwalByCabang[cab] || 0;
     saTotalGlobal += saCab;
+    var xNum = isForExcel ? ' x:num="' + saCab + '"' : "";
     html +=
-      '<td style="padding:8px; border:1px solid #fff; text-align:right;">' +
+      '<td style="padding:8px; border:1px solid #fff; text-align:right;"' +
+      xNum +
+      ">" +
       formatUang(saCab) +
       "</td>";
   });
@@ -1631,24 +2058,21 @@ function generateHTMLArusKasGabungan(
     '<tr><td colspan="' +
     (daftarCabang.length + 3) +
     '" style="height:15px; border:none; background:transparent;"></td></tr>';
+
   // ==========================================
-  // 4. SALDO AKHIR KAS & BANK (DITAMBAHKAN SEBELUM TOTAL AKHIR)
+  // 4. SALDO AKHIR KAS & BANK
   // ==========================================
   if (mapPerkiraanDifilter && mapPerkiraanDifilter.length > 0) {
-    // Kelompokkan berdasarkan NoPerk agar tidak duplikat di baris
     var mapNoPerkUnik = {};
     mapPerkiraanDifilter.forEach(function (item) {
       if (!mapNoPerkUnik[item.noPerk]) mapNoPerkUnik[item.noPerk] = item;
     });
     var arrNoPerkUnik = Object.keys(mapNoPerkUnik).sort();
-
-    // Variable untuk mengecek apakah ada data yang ditampilkan
     var adaDataKasBank = false;
 
     arrNoPerkUnik.forEach(function (noPerk) {
       var infoPerk = mapNoPerkUnik[noPerk];
 
-      // Hitung total terlebih dahulu sebelum render
       var totalRow = 0;
       daftarCabang.forEach(function (cab) {
         mapPerkiraanDifilter.forEach(function (item) {
@@ -1657,10 +2081,8 @@ function generateHTMLArusKasGabungan(
         });
       });
 
-      // ✅ SKIP jika totalRow = 0
       if (totalRow === 0) return;
 
-      // Tampilkan header hanya jika ada data yang akan ditampilkan
       if (!adaDataKasBank) {
         html +=
           "<tr><td colspan='" +
@@ -1679,7 +2101,6 @@ function generateHTMLArusKasGabungan(
         (infoPerk.nama || "-") +
         "</td>";
 
-      // Reset dan hitung ulang untuk display
       totalRow = 0;
       daftarCabang.forEach(function (cab) {
         var saldo = 0;
@@ -1699,15 +2120,12 @@ function generateHTMLArusKasGabungan(
         "</td></tr>";
     });
 
-    // SUBTOTAL KAS & BANK - hanya tampilkan jika adaDataKasBank
     if (adaDataKasBank) {
       var subtotalKasBank = hitungTotalGlobal(
         mapPerkiraanDifilter,
         "kasbank",
         true,
       );
-
-      // ✅ Opsional: Skip subtotal juga jika 0
       if (subtotalKasBank !== 0) {
         html += buatBarisSubtotal(
           "KAS & BANK",
@@ -1717,7 +2135,6 @@ function generateHTMLArusKasGabungan(
           true,
         );
       }
-
       html +=
         '<tr><td colspan="' +
         (daftarCabang.length + 3) +
@@ -1726,7 +2143,7 @@ function generateHTMLArusKasGabungan(
   }
 
   // ==========================================
-  // 5. GRAND TOTAL AKHIR (SELISIH + KAS & BANK)
+  // 5. GRAND TOTAL AKHIR
   // ==========================================
   var totalKasBankG = hitungTotalGlobal(mapPerkiraanDifilter, "kasbank", true);
   var grandTotalAkhir = selGrandTotal + totalKasBankG;
@@ -1743,7 +2160,6 @@ function generateHTMLArusKasGabungan(
       gtCab += dataByCabang[cab][g] || 0;
     });
 
-    // Tambahkan saldo Kas & Bank per cabang
     mapPerkiraanDifilter.forEach(function (item) {
       if (item.cabang === cab) gtCab -= item.saldo || 0;
     });
