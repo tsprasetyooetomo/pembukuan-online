@@ -1305,32 +1305,30 @@ async function terapkanOpsiArusKasGabungan() {
 
     mapPerkiraanDifilter = sumberData
       .filter(function (mp) {
-        // Bersihkan data agar tidak error
         var nPerk = String(mp.noPerk || "").trim();
         var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
         var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim();
-        var nSaldo = parseFloat(
-          mp.saldoAkhir || mp.saldo_akhir || mp.akhir || 0,
-        );
+        var nSaldo = parseFloat(mp.saldoAkhir || mp.akhir || 0); // Saya lihat fieldnya 'akhir', bukan 'saldoAkhir'
         var nCabang = String(
           mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
         ).trim();
 
-        // HAPUS TITIK UNTUK PENGECEKAN ANGKA (misal '102.3000' jadi '1023000')
         var perkBersih = nPerk.replace(/[^0-9]/g, "");
         var angkaPerk = parseInt(perkBersih) || 0;
 
-        // --- INI DIA LOGIKA WHERE-NYA ---
-        // 1. nPerk < "103"  -> Di JS dikonversi: angkaPerk < 103000 (karena format 7 digit)
-        // 2. masa = "0526"  -> nMasa === kodemasadicari
+        // --- TAMBAHKAN PENGAMAN INI ---
+        // Jika setelah dibersihkan dari titik/huruf hasilnya kosong (""), atau noPerk aslinya cuma titik, TOLAK!
+        if (perkBersih === "" || nPerk === ".") {
+          return null;
+        }
+        // -----------------------------
+
         var kondisi1 = angkaPerk < 103000;
         var kondisi2 = nMasa === kodemasadicari;
 
         if (kondisi1 && kondisi2) {
-          // Kalau memenuhi syarat, simpan namanya ke kamus kecil (untuk keperluan lain)
           if (nPerk) mapNamaPerkiraan[nPerk] = nNama;
 
-          // Kembalikan TRUE agar masuk ke Array mapPerkiraanDifilter
           return {
             noPerk: nPerk,
             nama: nNama,
@@ -1341,11 +1339,9 @@ async function terapkanOpsiArusKasGabungan() {
           };
         }
 
-        // Kalau tidak memenuhi, buang (return false / undefined)
         return null;
       })
       .filter(function (item) {
-        // Filter sekali lagi untuk membuang hasil 'null' yang tidak memenuhi syarat di atas
         return item !== null;
       });
 
