@@ -1745,7 +1745,7 @@ function generateHTMLArusKasGabungan(
 
     // Tambahkan saldo Kas & Bank per cabang
     mapPerkiraanDifilter.forEach(function (item) {
-      if (item.cabang === cab) gtCab += item.saldo || 0;
+      if (item.cabang === cab) gtCab -= item.saldo || 0;
     });
 
     gtGrandTotal += gtCab;
