@@ -1298,6 +1298,37 @@ async function terapkanOpsiArusKasGabungan() {
 
     console.log("Total data mentah dari DB: " + sumberData.length);
 
+    // INI YANG TADI LUPA SAYA TARUH
+    var namaStorePerkTahun = "perkiraan" + filtertahunfull;
+    var saldoAkhirAktivaTetapByCabang = {};
+    var mapNamaPerkiraan = {}; // Hanya untuk kamus nama (aktiva tetap nanti butuh)
+    var mapPerkiraanDifilter = []; // Wadah HASIL SELECT WHERE nya
+
+    // 1. AMBIL DATA DARI DB ATAU CACHE
+    var sumberData =
+      typeof DBCache !== "undefined" &&
+      DBCache[namaStorePerkTahun] &&
+      Array.isArray(DBCache[namaStorePerkTahun])
+        ? DBCache[namaStorePerkTahun]
+        : [];
+
+    if (sumberData.length === 0) {
+      try {
+        var rawPerkTahun = await db.getAll(namaStorePerkTahun);
+        if (rawPerkTahun) {
+          sumberData = Array.isArray(rawPerkTahun)
+            ? rawPerkTahun
+            : Object.values(rawPerkTahun);
+          if (typeof DBCache === "undefined") window.DBCache = {};
+          DBCache[namaStorePerkTahun] = sumberData;
+        }
+      } catch (e) {
+        console.log("Gagal ambil master perkiraan tahun");
+      }
+    }
+
+    console.log("Total data mentah dari DB: " + sumberData.length);
+
     // ==========================================
     // 2. EKSEKUSI LOGIKA FOXPRO (FINAL VERSION)
     // ==========================================
