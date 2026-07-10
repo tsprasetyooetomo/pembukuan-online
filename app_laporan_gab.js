@@ -1102,7 +1102,7 @@ function renderArusKasGabungan() {
     '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
-    '<input type="month" id="filter_rlgab_masa" value="' +
+    '<input type="month" id="filter_aruskas_masa" value="' +
     inputMonthValue +
     '" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem;">' +
     "</div>" +
@@ -1545,7 +1545,7 @@ function downloadExcelArusKasPerCabang() {
 // FUNGSI UTAMA (UPDATE - SIMPAN DATA GLOBAL)
 // ==========================================
 async function terapkanOpsiArusKasGabungan() {
-  var inputmasa = document.getElementById("filter_rlgab_masa");
+  var inputmasa = document.getElementById("filter_aruskas_masa");
   if (!inputmasa) return;
 
   var valmasa = inputmasa.value;
