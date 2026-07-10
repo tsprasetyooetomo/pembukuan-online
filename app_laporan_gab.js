@@ -1269,6 +1269,7 @@ async function terapkanOpsiArusKasGabungan() {
     // ==========================================
     // INI YANG TADI LUPA SAYA TARUH
     var namaStorePerkTahun = "perkiraan" + filtertahunfull;
+    var saldoAkhirAktivaTetapByCabang = {};
     var mapNamaPerkiraan = {}; // Hanya untuk kamus nama (aktiva tetap nanti butuh)
     var mapPerkiraanDifilter = []; // Wadah HASIL SELECT WHERE nya
 
