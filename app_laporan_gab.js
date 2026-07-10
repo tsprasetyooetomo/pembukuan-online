@@ -1163,7 +1163,6 @@ async function terapkanOpsiArusKasGabungan() {
     var rawMasterCab = await db.getAll("cabang");
     var mapMasterCab = {};
     var setValidCabang = new Set();
-
     if (rawMasterCab) {
       var arrMasterCab = Array.isArray(rawMasterCab)
         ? rawMasterCab
@@ -1211,11 +1210,9 @@ async function terapkanOpsiArusKasGabungan() {
         setKodeGol.add(gol);
       });
     });
-
     var arrKodeGol = Array.from(setKodeGol).sort(function (a, b) {
       return parseInt(a) - parseInt(b);
     });
-
     arrKodeGol = arrKodeGol.filter(function (kodeGol) {
       var totalSemuaCabang = 0;
       daftarCabang.forEach(function (cab) {
@@ -1224,9 +1221,7 @@ async function terapkanOpsiArusKasGabungan() {
       return totalSemuaCabang !== 0;
     });
 
-    // ==========================================
     // 6. HITUNG TOTAL SALDO AWAL (GOL < 103) BULAN LALU
-    // ==========================================
     var kodemasasebelumnya = "";
     var bulanInt = parseInt(filterbulan);
     var tahunInt = parseInt(filtertahunfull);
@@ -1243,7 +1238,6 @@ async function terapkanOpsiArusKasGabungan() {
 
     var rawSaldoAwal = await db.getAll(namaStoreSebelum);
     var totalSaldoAwalByCabang = {};
-
     if (rawSaldoAwal) {
       var arrSaldoAwal = Array.isArray(rawSaldoAwal)
         ? rawSaldoAwal
@@ -1254,7 +1248,6 @@ async function terapkanOpsiArusKasGabungan() {
           s.cabang || s.cab || s.kode_cabang || "",
         ).trim();
         var masaData = String(s.masa || s.periode || s.kode_masa || "").trim();
-
         if (!setValidCabang.has(cabangData)) return;
         if (parseInt(kodeGol) < 103 && masaData === kodemasasebelumnya) {
           if (totalSaldoAwalByCabang[cabangData] === undefined)
@@ -1264,16 +1257,8 @@ async function terapkanOpsiArusKasGabungan() {
       });
     }
 
-    // ==========================================
-    // 7. HITUNG SALDO AKHIR AKTIVA TETAP (DIRINCI PER NO PERKIRAAN)
-    // ==========================================
-    // INI YANG TADI LUPA SAYA TARUH
+    // 7. AMBIL & FILTER DATA KAS/BANK (NO PERK < 103)
     var namaStorePerkTahun = "perkiraan" + filtertahunfull;
-    var saldoAkhirAktivaTetapByCabang = {};
-    var mapNamaPerkiraan = {}; // Hanya untuk kamus nama (aktiva tetap nanti butuh)
-    var mapPerkiraanDifilter = []; // Wadah HASIL SELECT WHERE nya
-
-    // 1. AMBIL DATA DARI DB ATAU CACHE
     var sumberData =
       typeof DBCache !== "undefined" &&
       DBCache[namaStorePerkTahun] &&
@@ -1296,148 +1281,56 @@ async function terapkanOpsiArusKasGabungan() {
       }
     }
 
-    console.log("Total data mentah dari DB: " + sumberData.length);
-
-    // INI YANG TADI LUPA SAYA TARUH
-    var namaStorePerkTahun = "perkiraan" + filtertahunfull;
-    var saldoAkhirAktivaTetapByCabang = {};
-    var mapNamaPerkiraan = {}; // Hanya untuk kamus nama (aktiva tetap nanti butuh)
-    var mapPerkiraanDifilter = []; // Wadah HASIL SELECT WHERE nya
-
-    // 1. AMBIL DATA DARI DB ATAU CACHE
-    var sumberData =
-      typeof DBCache !== "undefined" &&
-      DBCache[namaStorePerkTahun] &&
-      Array.isArray(DBCache[namaStorePerkTahun])
-        ? DBCache[namaStorePerkTahun]
-        : [];
-
-    if (sumberData.length === 0) {
-      try {
-        var rawPerkTahun = await db.getAll(namaStorePerkTahun);
-        if (rawPerkTahun) {
-          sumberData = Array.isArray(rawPerkTahun)
-            ? rawPerkTahun
-            : Object.values(rawPerkTahun);
-          if (typeof DBCache === "undefined") window.DBCache = {};
-          DBCache[namaStorePerkTahun] = sumberData;
-        }
-      } catch (e) {
-        console.log("Gagal ambil master perkiraan tahun");
-      }
-    }
-
-    console.log("Total data mentah dari DB: " + sumberData.length);
-
-    // ==========================================
-    // 2. EKSEKUSI LOGIKA FOXPRO (FINAL VERSION)
-    // ==========================================
-
-    mapPerkiraanDifilter = sumberData
+    var mapPerkiraanDifilter = sumberData
       .filter(function (mp) {
         var nPerk = String(mp.noPerk || "").trim();
         var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
         var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim();
-
-        // PERBAIKAN PEMBACAAN SALDO:
-        // Cek apakah property 'akhir' benar-benar ada di data ini
-        var nSaldo = 0;
-        if (mp.hasOwnProperty("akhir")) {
-          nSaldo = parseFloat(mp.akhir); // Langsung ambil, biarpun 0 tetap 0
-        } else {
-          nSaldo = parseFloat(mp.saldoAkhir || mp.saldo_akhir || 0);
-        }
-
+        var nSaldo = mp.hasOwnProperty("akhir")
+          ? parseFloat(mp.akhir)
+          : parseFloat(mp.saldoAkhir || mp.saldo_akhir || 0);
         var nCabang = String(
           mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
         ).trim();
-
-        // 1. Bersihkan dari titik/huruf: '100.0000' -> '1000000'
         var perkBersih = nPerk.replace(/[^0-9]/g, "");
-
-        // 2. PENGAMAN: Tolak jika kosong atau isinya cuma titik/huruf
-        if (perkBersih.length === 0) {
-          return null;
-        }
-
-        // 3. Ambil 3 huruf depan: '1000000' -> '100'
+        if (perkBersih.length === 0) return false;
         var kepalaPerk = perkBersih.substring(0, 3);
-
-        // 4. Logika WHERE FoxPro:
-        var kondisiNoPerk =
-          kepalaPerk === "100" || kepalaPerk === "101" || kepalaPerk === "102";
-        var kondisiMasa = nMasa === kodemasadicari; // Pastikan kodemasadicari saat ini isinya '0526' jika ingin data bulan mei
-
-        if (kondisiNoPerk && kondisiMasa) {
-          if (nPerk) mapNamaPerkiraan[nPerk] = nNama;
-
-          return {
-            noPerk: nPerk,
-            nama: nNama,
-            masa: nMasa,
-            saldo: nSaldo,
-            cabang: nCabang,
-            golongan: kepalaPerk,
-          };
-        }
-
-        return null;
+        return (
+          (kepalaPerk === "100" ||
+            kepalaPerk === "101" ||
+            kepalaPerk === "102") &&
+          nMasa === kodemasadicari
+        );
       })
-      .filter(function (item) {
-        return item !== null;
+      .map(function (mp) {
+        var nPerk = String(mp.noPerk || "").trim();
+        var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
+        var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim();
+        var nSaldo = mp.hasOwnProperty("akhir")
+          ? parseFloat(mp.akhir)
+          : parseFloat(mp.saldoAkhir || mp.saldo_akhir || 0);
+        var nCabang = String(
+          mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
+        ).trim();
+        var perkBersih = nPerk.replace(/[^0-9]/g, "");
+        var kepalaPerk = perkBersih.substring(0, 3);
+        return {
+          noPerk: nPerk,
+          nama: nNama,
+          masa: nMasa,
+          saldo: nSaldo,
+          cabang: nCabang,
+          golongan: kepalaPerk,
+        };
       });
 
     console.log(
-      "Hasil 'SELECT WHERE' (NoPerk < 103 & Masa = " +
+      "Filter Kas/Bank (NoPerk < 103 & Masa = " +
         kodemasadicari +
         "): " +
         mapPerkiraanDifilter.length +
         " baris",
     );
-    console.table(mapPerkiraanDifilter);
-
-    // ==========================================
-    // 3. LANJUTAN KODE ANDA (DATA AKTIVA TETAP)
-    // ==========================================
-    if (rawdatagolongan && rawdatagolongan.length > 0) {
-      // ... (kode rawdatagolongan anda tetap persis seperti sebelumnya di sini) ...
-    }
-
-    // 3. PROSES DATA GOLONGAN AKTIVA TETAP (Tetap Object)
-    if (rawdatagolongan && rawdatagolongan.length > 0) {
-      daftarCabang.forEach(function (cab) {
-        saldoAkhirAktivaTetapByCabang[cab] = {};
-
-        rawdatagolongan.forEach(function (g) {
-          var kodeGol = String(g.gol || g.golongan || "").trim();
-          var cabangData = String(
-            g.cabang || g.cab || g.kode_cabang || "",
-          ).trim();
-          var masaData = String(
-            g.masa || g.periode || g.kode_masa || "",
-          ).trim();
-          var noPerkData = String(g.noPerk || g.noperk || "").trim();
-
-          if (
-            parseInt(kodeGol) >= 103 &&
-            cabangData === cab &&
-            masaData === kodemasadicari
-          ) {
-            var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
-            if (saldoAkhir !== 0 && noPerkData) {
-              saldoAkhirAktivaTetapByCabang[cab][noPerkData] = {
-                golongan: kodeGol,
-                masa: masaData,
-                nama: mapNamaPerkiraan[noPerkData]
-                  ? mapNamaPerkiraan[noPerkData].nama
-                  : "-",
-                saldo: saldoAkhir,
-              };
-            }
-          }
-        });
-      });
-    }
 
     window._rlGabunganData = {
       daftarCabang,
@@ -1459,6 +1352,7 @@ async function terapkanOpsiArusKasGabungan() {
       area.style.height = "auto";
     }
 
+    // KIRIM mapPerkiraanDifilter SEBAGAI PARAMETER TERAKHIR
     area.innerHTML = generateHTMLArusKasGabungan(
       daftarCabang,
       arrKodeGol,
@@ -1467,7 +1361,6 @@ async function terapkanOpsiArusKasGabungan() {
       mapMasterCab,
       false,
       totalSaldoAwalByCabang,
-      saldoAkhirAktivaTetapByCabang,
       mapPerkiraanDifilter,
     );
   } catch (error) {
@@ -1479,6 +1372,7 @@ async function terapkanOpsiArusKasGabungan() {
         "</div>";
   }
 }
+
 function generateHTMLArusKasGabungan(
   daftarCabang,
   arrKodeGol,
@@ -1487,7 +1381,7 @@ function generateHTMLArusKasGabungan(
   mapMasterCab,
   isForExcel,
   totalSaldoAwalByCabang,
-  saldoAkhirAktivaTetapByCabang,
+  mapPerkiraanDifilter, // <-- TAMBAHKAN INI
 ) {
   var html =
     '<div id="area_tabel_gabungan" style="width: 100%; overflow-x: auto; border: 1px solid #131010;"><table border="1" style="width:100%; min-width: 600px; border-collapse: collapse; text-align:left; color:#000; border: 1px solid #000;">';
@@ -1520,9 +1414,7 @@ function generateHTMLArusKasGabungan(
 
   var arrPemasukan = [];
   var arrPengeluaran = [];
-  var arrAktivaTetap = [];
 
-  // 1. Pisahkan Golongan untuk Pemasukan/Pengeluaran
   arrKodeGol.forEach(function (kodeGol) {
     var totalSemuaCabang = 0;
     daftarCabang.forEach(function (cab) {
@@ -1532,21 +1424,14 @@ function generateHTMLArusKasGabungan(
     else if (totalSemuaCabang > 0) arrPengeluaran.push(kodeGol);
   });
 
-  // 2. Kumpulkan No Perkiraan untuk Aktiva Tetap
-  var setNoPerkTetap = new Set();
-  daftarCabang.forEach(function (cab) {
-    if (saldoAkhirAktivaTetapByCabang[cab]) {
-      Object.keys(saldoAkhirAktivaTetapByCabang[cab]).forEach(
-        function (noPerk) {
-          setNoPerkTetap.add(noPerk);
-        },
-      );
-    }
-  });
-  arrAktivaTetap = Array.from(setNoPerkTetap).sort();
-
   // --- HELPER FUNCTIONS ---
-  function buatBarisSubtotal(namaGroup, arrGroup, tipeHitung, customColor) {
+  function buatBarisSubtotal(
+    namaGroup,
+    arrGroup,
+    tipeHitung,
+    customColor,
+    isKasBank,
+  ) {
     var color = customColor || "#0a58ca";
     var htmlSub =
       '<tr style="font-weight:bold; background-color:#f8f9fa !important;"><td colspan="2" style="padding:8px; border:1px solid #000; text-align:right; color:' +
@@ -1557,15 +1442,15 @@ function generateHTMLArusKasGabungan(
     var grandTotal = 0;
     daftarCabang.forEach(function (cab) {
       var totalCab = 0;
-      arrGroup.forEach(function (key) {
-        if (tipeHitung === "akhir_perk")
-          totalCab +=
-            (saldoAkhirAktivaTetapByCabang[cab] &&
-              saldoAkhirAktivaTetapByCabang[cab][key] &&
-              saldoAkhirAktivaTetapByCabang[cab][key].saldo) ||
-            0;
-        else totalCab += dataByCabang[cab][key] || 0;
-      });
+      if (isKasBank) {
+        arrGroup.forEach(function (item) {
+          if (item.cabang === cab) totalCab += item.saldo || 0;
+        });
+      } else {
+        arrGroup.forEach(function (key) {
+          totalCab += dataByCabang[cab][key] || 0;
+        });
+      }
       grandTotal += totalCab;
       htmlSub +=
         '<td style="padding:8px; border:1px solid #000; text-align:right; color:' +
@@ -1584,20 +1469,7 @@ function generateHTMLArusKasGabungan(
   }
 
   function buatBarisData(key, tipeHitung) {
-    var nama = "-";
-    if (tipeHitung === "akhir_perk") {
-      daftarCabang.forEach(function (c) {
-        if (
-          saldoAkhirAktivaTetapByCabang[c] &&
-          saldoAkhirAktivaTetapByCabang[c][key]
-        ) {
-          nama = saldoAkhirAktivaTetapByCabang[c][key].nama || "-";
-        }
-      });
-    } else {
-      nama = mapMasterGol[key] || "-";
-    }
-
+    var nama = mapMasterGol[key] || "-";
     var htmlRow = '<tr style="font-size: 0.85rem;">';
     htmlRow +=
       '<td style="padding:8px; border:1px solid #000; text-align:center; font-weight:bold;">' +
@@ -1605,18 +1477,9 @@ function generateHTMLArusKasGabungan(
       "</td>";
     htmlRow +=
       '<td style="padding:8px; border:1px solid #000;">' + nama + "</td>";
-
     var totalRow = 0;
     daftarCabang.forEach(function (cab) {
-      var saldo = 0;
-      if (tipeHitung === "akhir_perk")
-        saldo =
-          (saldoAkhirAktivaTetapByCabang[cab] &&
-            saldoAkhirAktivaTetapByCabang[cab][key] &&
-            saldoAkhirAktivaTetapByCabang[cab][key].saldo) ||
-          0;
-      else saldo = dataByCabang[cab][key] || 0;
-
+      var saldo = dataByCabang[cab][key] || 0;
       totalRow += saldo;
       var xNum = isForExcel ? ' x:num="' + saldo + '"' : "";
       htmlRow +=
@@ -1626,7 +1489,6 @@ function generateHTMLArusKasGabungan(
         formatUang(saldo) +
         "</td>";
     });
-
     var xNumTotal = isForExcel ? ' x:num="' + totalRow + '"' : "";
     htmlRow +=
       '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;"' +
@@ -1637,56 +1499,46 @@ function generateHTMLArusKasGabungan(
     return htmlRow;
   }
 
-  function hitungTotalGlobal(arrGroup, tipeHitung) {
+  function hitungTotalGlobal(arrGroup, tipeHitung, isKasBank) {
     var grandTotal = 0;
     daftarCabang.forEach(function (cab) {
-      arrGroup.forEach(function (key) {
-        if (tipeHitung === "akhir_perk")
-          grandTotal +=
-            (saldoAkhirAktivaTetapByCabang[cab] &&
-              saldoAkhirAktivaTetapByCabang[cab][key] &&
-              saldoAkhirAktivaTetapByCabang[cab][key].saldo) ||
-            0;
-        else grandTotal += dataByCabang[cab][key] || 0;
-      });
+      if (isKasBank) {
+        arrGroup.forEach(function (item) {
+          if (item.cabang === cab) grandTotal += item.saldo || 0;
+        });
+      } else {
+        arrGroup.forEach(function (key) {
+          grandTotal += dataByCabang[cab][key] || 0;
+        });
+      }
     });
     return grandTotal;
   }
 
   // ==========================================
-  // 1. RENDER PEMASUKAN (SALDO AWAL DI BARIS PERTAMA)
+  // 1. RENDER PEMASUKAN
   // ==========================================
   html +=
     "<tr><td colspan='" +
     (daftarCabang.length + 3) +
     "' style='padding:8px; border:1px solid #000; font-weight:bold; background-color:#d1e7dd; color:#0f5132;'>PEMASUKAN</td></tr>";
 
-  // --- BARIS SALDO AWAL ---
+  // Saldo Awal
   html +=
-    '<tr style="font-size: 0.85rem; background-color:#000000; color:#ffffff;"><td style="padding:8px; border:1px solid #fff; text-align:center; font-weight:bold;">-</td>';
-  html +=
-    '<td style="padding:8px; border:1px solid #fff; font-weight:bold;">SALDO AWAL</td>';
+    '<tr style="font-size: 0.85rem; background-color:#000000; color:#ffffff;"><td style="padding:8px; border:1px solid #fff; text-align:center; font-weight:bold;">-</td><td style="padding:8px; border:1px solid #fff; font-weight:bold;">SALDO AWAL</td>';
   var saTotalGlobal = 0;
   daftarCabang.forEach(function (cab) {
     var saCab = totalSaldoAwalByCabang[cab] || 0;
     saTotalGlobal += saCab;
-    var xNum = isForExcel ? ' x:num="' + saCab + '"' : "";
     html +=
-      '<td style="padding:8px; border:1px solid #fff; text-align:right;"' +
-      xNum +
-      ">" +
+      '<td style="padding:8px; border:1px solid #fff; text-align:right;">' +
       formatUang(saCab) +
       "</td>";
   });
-
-  var xNumSaTotal = isForExcel ? ' x:num="' + saTotalGlobal + '"' : "";
   html +=
-    '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;"' +
-    xNumSaTotal +
-    ">" +
+    '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;">' +
     formatUang(saTotalGlobal) +
     "</td></tr>";
-  // --- END BARIS SALDO AWAL ---
 
   if (arrPemasukan.length > 0) {
     arrPemasukan.forEach(function (key) {
@@ -1694,16 +1546,9 @@ function generateHTMLArusKasGabungan(
     });
   }
 
-  // Hitung Subtotal Pemasukan
-  var subTotalPemasukanG = saTotalGlobal;
-  daftarCabang.forEach(function (cab) {
-    arrPemasukan.forEach(function (g) {
-      subTotalPemasukanG += dataByCabang[cab][g] || 0;
-    });
-  });
+  var stPemTotal = 0;
   html +=
     '<tr style="font-weight:bold; background-color:#f8f9fa !important;"><td colspan="2" style="padding:8px; border:1px solid #000; text-align:right; color:#0f5132 !important; background-color:#f8f9fa !important;">SUBTOTAL PEMASUKAN</td>';
-  var stPemTotal = 0;
   daftarCabang.forEach(function (cab) {
     var stCab = totalSaldoAwalByCabang[cab] || 0;
     arrPemasukan.forEach(function (g) {
@@ -1731,12 +1576,18 @@ function generateHTMLArusKasGabungan(
     arrPengeluaran.forEach(function (key) {
       html += buatBarisData(key, "rl");
     });
-    html += buatBarisSubtotal("PENGELUARAN", arrPengeluaran, "rl", "#842029");
+    html += buatBarisSubtotal(
+      "PENGELUARAN",
+      arrPengeluaran,
+      "rl",
+      "#842029",
+      false,
+    );
   }
 
-  // 3. SELISIH (PEMASUKAN + PENGELUARAN)
-  var totalPengeluaranG = hitungTotalGlobal(arrPengeluaran, "rl");
-  var selisihGlobal = subTotalPemasukanG + totalPengeluaranG;
+  // 3. SELISIH
+  var totalPengeluaranG = hitungTotalGlobal(arrPengeluaran, "rl", false);
+  var selisihGlobal = stPemTotal + totalPengeluaranG;
   var bgSelisih = selisihGlobal >= 0 ? "#198754" : "#dc3545";
 
   html +=
@@ -1753,19 +1604,13 @@ function generateHTMLArusKasGabungan(
       selCab += dataByCabang[cab][g] || 0;
     });
     selGrandTotal += selCab;
-    var xNum = isForExcel ? ' x:num="' + selCab + '"' : "";
     html +=
-      '<td style="padding:10px; border:1px solid #000; text-align:right;" ' +
-      xNum +
-      ">" +
+      '<td style="padding:10px; border:1px solid #000; text-align:right;">' +
       formatUang(selCab) +
       "</td>";
   });
-  var xNumTotal = isForExcel ? ' x:num="' + selGrandTotal + '"' : "";
   html +=
-    '<td style="padding:10px; border:1px solid #000; text-align:right;"' +
-    xNumTotal +
-    ">" +
+    '<td style="padding:10px; border:1px solid #000; text-align:right;">' +
     formatUang(selGrandTotal) +
     "</td></tr>";
 
@@ -1775,27 +1620,72 @@ function generateHTMLArusKasGabungan(
     '" style="height:15px; border:none; background:transparent;"></td></tr>';
 
   // ==========================================
-  // 4. SALDO AKHIR (AKTIVA TETAP & LAINNYA) - DIRINCI 1 PER 1
+  // 4. SALDO AKHIR KAS & BANK (DITAMBAHKAN SEBELUM TOTAL AKHIR)
   // ==========================================
-  if (arrAktivaTetap.length > 0) {
+  if (mapPerkiraanDifilter && mapPerkiraanDifilter.length > 0) {
     html +=
       "<tr><td colspan='" +
       (daftarCabang.length + 3) +
-      "' style='padding:8px; border:1px solid #000; font-weight:bold; background-color:#e2e3e5; color:#383d41;'>SALDO AKHIR (AKTIVA TETAP & LAINNYA)</td></tr>";
-    arrAktivaTetap.forEach(function (noPerk) {
-      html += buatBarisData(noPerk, "akhir_perk");
+      "' style='padding:8px; border:1px solid #000; font-weight:bold; background-color:#cce5ff; color:#004085;'>SALDO AKHIR KAS & BANK (NO PERK < 103)</td></tr>";
+
+    // Kelompokkan berdasarkan NoPerk agar tidak duplikat di baris
+    var mapNoPerkUnik = {};
+    mapPerkiraanDifilter.forEach(function (item) {
+      if (!mapNoPerkUnik[item.noPerk]) mapNoPerkUnik[item.noPerk] = item;
     });
+    var arrNoPerkUnik = Object.keys(mapNoPerkUnik).sort();
+
+    arrNoPerkUnik.forEach(function (noPerk) {
+      var infoPerk = mapNoPerkUnik[noPerk];
+      html += '<tr style="font-size: 0.85rem;">';
+      html +=
+        '<td style="padding:8px; border:1px solid #000; text-align:center; font-weight:bold;">' +
+        noPerk +
+        "</td>";
+      html +=
+        '<td style="padding:8px; border:1px solid #000;">' +
+        (infoPerk.nama || "-") +
+        "</td>";
+
+      var totalRow = 0;
+      daftarCabang.forEach(function (cab) {
+        // Cari saldo untuk cabang ini di dalam array mapPerkiraanDifilter
+        var saldo = 0;
+        mapPerkiraanDifilter.forEach(function (item) {
+          if (item.noPerk === noPerk && item.cabang === cab)
+            saldo = item.saldo || 0;
+        });
+        totalRow += saldo;
+        html +=
+          '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+          formatUang(saldo) +
+          "</td>";
+      });
+      html +=
+        '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;">' +
+        formatUang(totalRow) +
+        "</td></tr>";
+    });
+
+    // SUBTOTAL KAS & BANK
     html += buatBarisSubtotal(
-      "SALDO AKHIR",
-      arrAktivaTetap,
-      "akhir_perk",
-      "#383d41",
+      "KAS & BANK",
+      mapPerkiraanDifilter,
+      "kasbank",
+      "#004085",
+      true,
     );
+    html +=
+      '<tr><td colspan="' +
+      (daftarCabang.length + 3) +
+      '" style="height:10px; border:none; background:transparent;"></td></tr>';
   }
 
-  // 5. GRAND TOTAL AKHIR (SELISIH + SALDO AKHIR AKTIVA TETAP)
-  var totalAktivaTetapG = hitungTotalGlobal(arrAktivaTetap, "akhir_perk");
-  var grandTotalAkhir = selGrandTotal + totalAktivaTetapG;
+  // ==========================================
+  // 5. GRAND TOTAL AKHIR (SELISIH + KAS & BANK)
+  // ==========================================
+  var totalKasBankG = hitungTotalGlobal(mapPerkiraanDifilter, "kasbank", true);
+  var grandTotalAkhir = selGrandTotal + totalKasBankG;
 
   html +=
     "<tr style='background-color:#343a40; color:#fff; font-weight:bold; font-size:1.1rem;'><td colspan='2' style='padding:12px; border:1px solid #000; text-align:right;'>TOTAL AKHIR</td>";
@@ -1808,28 +1698,20 @@ function generateHTMLArusKasGabungan(
     arrPengeluaran.forEach(function (g) {
       gtCab += dataByCabang[cab][g] || 0;
     });
-    arrAktivaTetap.forEach(function (noPerk) {
-      gtCab +=
-        (saldoAkhirAktivaTetapByCabang[cab] &&
-          saldoAkhirAktivaTetapByCabang[cab][noPerk] &&
-          saldoAkhirAktivaTetapByCabang[cab][noPerk].saldo) ||
-        0;
+
+    // Tambahkan saldo Kas & Bank per cabang
+    mapPerkiraanDifilter.forEach(function (item) {
+      if (item.cabang === cab) gtCab += item.saldo || 0;
     });
+
     gtGrandTotal += gtCab;
-    var xNum = isForExcel ? ' x:num="' + gtCab + '"' : "";
     html +=
-      '<td style="padding:12px; border:1px solid #000; text-align:right;" ' +
-      xNum +
-      ">" +
+      '<td style="padding:12px; border:1px solid #000; text-align:right;">' +
       formatUang(gtCab) +
       "</td>";
   });
-
-  var xNumTotalAkhir = isForExcel ? ' x:num="' + gtGrandTotal + '"' : "";
   html +=
-    '<td style="padding:12px; border:1px solid #000; text-align:right;" ' +
-    xNumTotalAkhir +
-    ">" +
+    '<td style="padding:12px; border:1px solid #000; text-align:right;">' +
     formatUang(gtGrandTotal) +
     "</td></tr>";
 
