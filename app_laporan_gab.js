@@ -1265,7 +1265,7 @@ async function terapkanOpsiArusKasGabungan() {
           if (totalSaldoAwalByCabang[cabangData] === undefined) {
             totalSaldoAwalByCabang[cabangData] = 0;
           }
-          totalSaldoAwalByCabang[cabangData] += +(s.db || 0) - +(s.cr || 0);
+          totalSaldoAwalByCabang[cabangData] += +(s.awal || 0);
         }
       });
     }
