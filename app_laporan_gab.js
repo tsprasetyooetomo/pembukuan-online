@@ -1329,6 +1329,7 @@ async function terapkanOpsiArusKasGabungan() {
                 masa: nMasa,
                 saldo: nSaldo,
                 cabang: nCabang,
+                noPerk: nPerk,
               };
             }
           });
@@ -1340,9 +1341,6 @@ async function terapkanOpsiArusKasGabungan() {
     console.log("--- HASIL MAP PERKIRAAN (DENGAN CABANG) ---");
     console.table(mapNamaPerkiraan);
 
-    // ==========================================
-    // BAGIAN 2: PROSES FILTER (HAPUS KODE LAMA ANDA, GANTI DENGAN INI)
-    // ==========================================
     // ==========================================
     // BAGIAN 2: DEBUG SUPER KETAT UNTUK CARI PENYEBAB
     // ==========================================
