@@ -1201,7 +1201,7 @@ async function terapkanOpsiArusKasGabungan() {
         dataByCabang[cabangData][kodeGol] += saldoAkhir;
       }
     });
-
+    console.table(dataByCabang);
     // 5. SUSUN BARIS DAN KOLOM TABEL
     var daftarCabang = Object.keys(dataByCabang).sort();
     var setKodeGol = new Set();
