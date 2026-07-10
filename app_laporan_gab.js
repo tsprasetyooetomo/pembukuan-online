@@ -1433,8 +1433,8 @@ function generateHTMLArusKasGabungan(
     daftarCabang.forEach(function (cab) {
       totalSemuaCabang += dataByCabang[cab][kodeGol] || 0;
     });
-    if (totalSemuaCabang < 0) arrPemasukan.push(kodeGol);
-    else if (totalSemuaCabang > 0) arrPengeluaran.push(kodeGol);
+    if (totalSemuaCabang > 0) arrPemasukan.push(kodeGol);
+    else if (totalSemuaCabang < 0) arrPengeluaran.push(kodeGol);
   });
 
   // --- HELPER FUNCTIONS ---
