@@ -1208,7 +1208,7 @@ async function terapkanOpsiArusKasGabungan() {
         kodeGol > 102 &&
         kodeGol < 300 &&
         tahunData === tahunDicari &&
-        masaData < kodemasadicari
+        masaData <= kodemasadicari
       ) {
         if (!dataByCabang[cabangData]) dataByCabang[cabangData] = {};
         if (!dataByCabang[cabangData][kodeGol])
