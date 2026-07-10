@@ -1182,7 +1182,7 @@ function downloadExcelArusKasGabungan() {
 // ==========================================
 // FUNGSI ARUS KAS PER BULAN (Per Cabang)
 // ==========================================
-async function tampilkanRLPerCabangSD(kodeCabang) {
+async function tampilkanArusKasPerCabangSD(kodeCabang) {
   if (!window._rlGabFilterMasa) {
     if (typeof toast === "function") toast("Data belum dimuat", "err");
     return;
@@ -1831,7 +1831,7 @@ function generateHTMLArusKasGabungan(
     var namaTampil = mapMasterCab[cab] || cab;
     if (!isForExcel) {
       html +=
-        '<th style="padding:10px; border:1px solid #000; text-align:center; background-color:#000000;"><span class="link-cabang-rl" style="color:#00D2FF; text-decoration:underline; cursor:pointer;" onclick="tampilkanRLPerCabangSD(\'' +
+        '<th style="padding:10px; border:1px solid #000; text-align:center; background-color:#000000;"><span class="link-cabang-rl" style="color:#00D2FF; text-decoration:underline; cursor:pointer;" onclick="tampilkanArusKasPerCabangSD(\'' +
         cab.replace(/'/g, "\\'") +
         "')\">" +
         namaTampil +
