@@ -1187,20 +1187,38 @@ async function terapkanOpsiArusKasGabungan() {
     var dataByCabang = {};
 
     // 4. PROSES DATA (UNTUK PEMASUKAN & PENGELUARAN)
+    // 1. Ambil 2 angka digit tahun (contoh: "0526" -> "26")
+    var tahunDicari = kodemasadicari.slice(-2);
+
     rawdatagolongan.forEach(function (g) {
       var kodeGol = String(g.gol || g.golongan || "").trim();
       var cabangData = String(g.cabang || g.cab || g.kode_cabang || "").trim();
       var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
 
       if (!setValidCabang.has(cabangData)) return;
-      if (kodeGol > 102 && kodeGol < 300 && masaData === kodemasadicari) {
+
+      // 2. Ekstrak tahun dari data baris ini
+      var tahunData = masaData.slice(-2);
+
+      // 3. LOGIKA BARU:
+      // - Harus tahun yang sama (misal sama-sama 26)
+      // - masaData harus KURANG DARI masa yang dipilih (<, bukan <=)
+      // - Otomatis jika kodemasadicari = "0126", tidak ada data yang memenuhi syarat < "0126"
+      if (
+        kodeGol > 102 &&
+        kodeGol < 300 &&
+        tahunData === tahunDicari &&
+        masaData < kodemasadicari
+      ) {
         if (!dataByCabang[cabangData]) dataByCabang[cabangData] = {};
         if (!dataByCabang[cabangData][kodeGol])
           dataByCabang[cabangData][kodeGol] = 0;
+
         var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
         dataByCabang[cabangData][kodeGol] += saldoAkhir;
       }
     });
+
     console.table(dataByCabang);
     // 5. SUSUN BARIS DAN KOLOM TABEL
     var daftarCabang = Object.keys(dataByCabang).sort();
