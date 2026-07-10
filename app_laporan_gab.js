@@ -1450,9 +1450,8 @@ function kembaliKeGabungan() {
       //  htmlTombol +=
       //   '<button onclick="downloadExcelArusKasGabungan()" style="padding:8px 16px; background:#198754; color:#fff; border:none; border-radius:4px; cursor:pointer; font-weight:bold;">📥 Download Excel Gabungan</button>';
       htmlTombol +=
-        '<span style="font-weight:bold; font-size:1.1rem; color:#004085;">ARUS KAS GABUNGAN - MASA: ' +
-        window._rlGabFilterMasa +
-        "</span>";
+        //   '<span style="font-weight:bold; font-size:1.1rem; color:#004085;">ARUS KAS GABUNGAN - MASA: ' +
+        window._rlGabFilterMasa + "</span>";
       htmlTombol += "</div>";
 
       areaTabel.innerHTML =
