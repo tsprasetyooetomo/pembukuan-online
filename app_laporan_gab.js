@@ -356,7 +356,7 @@ function generateHTMLRLGabungan(
         '"' +
         xNum +
         ">" +
-        formatUang(saldo) +
+        formatRupiah(saldo) +
         "</td>";
     });
 
@@ -368,7 +368,7 @@ function generateHTMLRLGabungan(
       '"' +
       xNumTotal +
       ">" +
-      formatUang(totalRow) +
+      formatRupiah(totalRow) +
       "</td>";
     html += "</tr>";
   });
@@ -431,7 +431,7 @@ function buatBarisSubtotalGabungan(
       '<td style="padding:8px; border:1px solid #000; text-align:right; color:#ffffff;"' +
       (isForExcel ? ' x:num="' + saldo + '"' : "") +
       ">" +
-      formatUang(saldo) +
+      formatRupiah(saldo) +
       "</td>";
   });
   html +=
@@ -440,7 +440,7 @@ function buatBarisSubtotalGabungan(
     '; color:#ffffff; font-weight:bold;"' +
     (isForExcel ? ' x:num="' + totalSub + '"' : "") +
     ">" +
-    formatUang(totalSub) +
+    formatRupiah(totalSub) +
     "</td>";
   html += "</tr>";
   return html;
@@ -482,7 +482,7 @@ function hitungBarisLaba(
       '<td style="padding:8px; border:1px solid #000; text-align:right; color:#ffffff;"' +
       (isForExcel ? ' x:num="' + saldoCab + '"' : "") +
       ">" +
-      formatUang(saldoCab) +
+      formatRupiah(saldoCab) +
       "</td>";
   });
   html +=
@@ -491,7 +491,7 @@ function hitungBarisLaba(
     '; color:#ffffff; font-weight:bold;"' +
     (isForExcel ? ' x:num="' + totalLaba + '"' : "") +
     ">" +
-    formatUang(totalLaba) +
+    formatRupiah(totalLaba) +
     "</td>";
   html += "</tr>";
   return html;
@@ -650,7 +650,7 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
           ";" +
           topBorder +
           '">' +
-          formatUang(val) +
+          formatRupiah(val) +
           "</td>";
       }
       html +=
@@ -659,7 +659,7 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
         ";" +
         topBorder +
         '">' +
-        formatUang(total) +
+        formatRupiah(total) +
         "</td></tr>";
     }
 
@@ -713,9 +713,9 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
         let val = num(rawVal);
         if (!subTotalPerBulan[bs]) subTotalPerBulan[bs] = 0;
         subTotalPerBulan[bs] += val;
-        html += `<td style="padding:6px;border:1px solid #444;text-align:right;color:${val >= 0 ? "#fff" : "#ffc107"}">${val !== 0 ? formatUang(val) : ""}</td>`;
+        html += `<td style="padding:6px;border:1px solid #444;text-align:right;color:${val >= 0 ? "#fff" : "#ffc107"}">${val !== 0 ? formatRupiah(val) : ""}</td>`;
       }
-      html += `<td style="padding:6px;border:1px solid #444;text-align:right;font-weight:bold;color:${item.total >= 0 ? "#fff" : "#ff6b6b"}">${formatUang(item.total)}</td></tr>`;
+      html += `<td style="padding:6px;border:1px solid #444;text-align:right;font-weight:bold;color:${item.total >= 0 ? "#fff" : "#ff6b6b"}">${formatRupiah(item.total)}</td></tr>`;
     }
 
     if (currentDigit !== null) {
@@ -869,18 +869,18 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
           (t.desc || "-") +
           "</td>" +
           '<td style="border:1px solid #444; padding:4px; text-align:right;">' +
-          formatUang(dbVal) +
+          formatRupiah(dbVal) +
           "</td>" +
           '<td style="border:1px solid #444; padding:4px; text-align:right;">' +
-          formatUang(crVal) +
+          formatRupiah(crVal) +
           "</td></tr>";
       });
 
       tableHtml +=
         '<tr style="background:#1b5e20; font-weight:bold;"><td colspan="4" style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">TOTAL YTD</td><td style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">' +
-        formatUang(totalDb) +
+        formatRupiah(totalDb) +
         '</td><td style="border:1px solid #444; padding:5px; text-align:right; color:#fff;">' +
-        formatUang(totalCr) +
+        formatRupiah(totalCr) +
         "</td></tr></tbody></table></div>";
       container.innerHTML = tableHtml;
     })
@@ -979,9 +979,9 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
     var ctx = winGrafik.document
       .getElementById("chart_rlgab_cabang_baru")
       .getContext("2d");
-    var formatUangLokal =
-      typeof formatUang === "function"
-        ? formatUang
+    var formatRupiahLokal =
+      typeof formatRupiah === "function"
+        ? formatRupiah
         : function (val) {
             return val.toLocaleString("id-ID");
           };
@@ -1041,7 +1041,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
               label: (context) =>
                 context.dataset.label +
                 ": " +
-                formatUangLokal(context.parsed.y),
+                formatRupiahLokal(context.parsed.y),
             },
           },
         },
@@ -1050,7 +1050,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
             beginAtZero: true,
             ticks: {
               color: "#333",
-              callback: (value) => formatUangLokal(value),
+              callback: (value) => formatRupiahLokal(value),
             },
             grid: { color: "rgba(0,0,0,0.05)" },
           },
@@ -1525,13 +1525,6 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
   }
 }
 
-function formatRupiah(angka) {
-  if (isNaN(angka)) return "0";
-  var number = parseFloat(angka);
-  var formatted = number.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,");
-  return formatted;
-}
-
 // Helper format Rupiah (Jika belum ada di file Anda)
 function formatRupiah(angka) {
   if (isNaN(angka)) return "0";
@@ -1996,14 +1989,14 @@ function generateHTMLArusKasGabungan(
         '<td style="padding:8px; border:1px solid #000; text-align:right; color:' +
         color +
         ' !important; background-color:#f8f9fa !important;">' +
-        formatUang(totalCab) +
+        formatRupiah(totalCab) +
         "</td>";
     });
     htmlSub +=
       '<td style="padding:8px; border:1px solid #000; text-align:right; color:' +
       color +
       ' !important; background-color:#f8f9fa !important;">' +
-      formatUang(grandTotal) +
+      formatRupiah(grandTotal) +
       "</td></tr>";
     return htmlSub;
   }
@@ -2026,7 +2019,7 @@ function generateHTMLArusKasGabungan(
         '<td style="padding:8px; border:1px solid #000; text-align:right;"' +
         xNum +
         ">" +
-        formatUang(saldo) +
+        formatRupiah(saldo) +
         "</td>";
     });
     var xNumTotal = isForExcel ? ' x:num="' + totalRow + '"' : "";
@@ -2034,7 +2027,7 @@ function generateHTMLArusKasGabungan(
       '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;"' +
       xNumTotal +
       ">" +
-      formatUang(totalRow) +
+      formatRupiah(totalRow) +
       "</td></tr>";
     return htmlRow;
   }
@@ -2074,12 +2067,12 @@ function generateHTMLArusKasGabungan(
       '<td style="padding:8px; border:1px solid #fff; text-align:right;"' +
       xNum +
       ">" +
-      formatUang(saCab) +
+      formatRupiah(saCab) +
       "</td>";
   });
   html +=
     '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;">' +
-    formatUang(saTotalGlobal) +
+    formatRupiah(saTotalGlobal) +
     "</td></tr>";
 
   if (arrPemasukan.length > 0) {
@@ -2099,12 +2092,12 @@ function generateHTMLArusKasGabungan(
     stPemTotal += stCab;
     html +=
       '<td style="padding:8px; border:1px solid #000; text-align:right; color:#0f5132 !important; background-color:#f8f9fa !important;">' +
-      formatUang(stCab) +
+      formatRupiah(stCab) +
       "</td>";
   });
   html +=
     '<td style="padding:8px; border:1px solid #000; text-align:right; color:#0f5132 !important; background-color:#f8f9fa !important;">' +
-    formatUang(stPemTotal) +
+    formatRupiah(stPemTotal) +
     "</td></tr>";
 
   // ==========================================
@@ -2148,12 +2141,12 @@ function generateHTMLArusKasGabungan(
     selGrandTotal += selCab;
     html +=
       '<td style="padding:10px; border:1px solid #000; text-align:right;">' +
-      formatUang(selCab) +
+      formatRupiah(selCab) +
       "</td>";
   });
   html +=
     '<td style="padding:10px; border:1px solid #000; text-align:right;">' +
-    formatUang(selGrandTotal) +
+    formatRupiah(selGrandTotal) +
     "</td></tr>";
 
   html +=
@@ -2213,12 +2206,12 @@ function generateHTMLArusKasGabungan(
         totalRow += saldo;
         html +=
           '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
-          formatUang(saldo) +
+          formatRupiah(saldo) +
           "</td>";
       });
       html +=
         '<td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;">' +
-        formatUang(totalRow) +
+        formatRupiah(totalRow) +
         "</td></tr>";
     });
 
@@ -2269,12 +2262,12 @@ function generateHTMLArusKasGabungan(
     gtGrandTotal += gtCab;
     html +=
       '<td style="padding:12px; border:1px solid #000; text-align:right;">' +
-      formatUang(gtCab) +
+      formatRupiah(gtCab) +
       "</td>";
   });
   html +=
     '<td style="padding:12px; border:1px solid #000; text-align:right;">' +
-    formatUang(gtGrandTotal) +
+    formatRupiah(gtGrandTotal) +
     "</td></tr>";
 
   html += "</tbody></table></div>";
