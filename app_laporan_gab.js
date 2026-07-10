@@ -1343,25 +1343,51 @@ async function terapkanOpsiArusKasGabungan() {
     // ==========================================
     // BAGIAN 2: PROSES FILTER (HAPUS KODE LAMA ANDA, GANTI DENGAN INI)
     // ==========================================
+    // ==========================================
+    // BAGIAN 2: DEBUG SUPER KETAT UNTUK CARI PENYEBAB
+    // ==========================================
+    console.log(">>> CEK 1: Kode mulai masuk ke Bagian Filter");
 
-    // 1. Ubah Object menjadi Array terlebih dahulu
     var arraySemuaPerkiraan = Object.values(mapNamaPerkiraan);
+    console.log(
+      ">>> CEK 2: Jumlah total data master perkiraan = ",
+      arraySemuaPerkiraan.length,
+    );
+    console.log(
+      ">>> CEK 3: Isi variabel kodemasadicari = ",
+      kodemasadicari,
+      "(Tipe: " + typeof kodemasadicari + ")",
+    );
 
-    // 2. Gunakan perintah .filter() (Mirip SEEK/FIND massal)
-    mapPerkiraanDifilter = arraySemuaPerkiraan.filter(function (itemMap) {
-      // Bersihkan noPerk dari titik (misal '100.0001' jadi '1000001')
-      var perkBersih = String(itemMap.noPerk).replace(/[^0-9]/g, "");
+    try {
+      mapPerkiraanDifilter = arraySemuaPerkiraan.filter(function (itemMap) {
+        // Debug isi 1 data paling atas untuk melihat strukturnya
+        if (arraySemuaPerkiraan.indexOf(itemMap) === 0) {
+          console.log(">>> CEK 4: Contoh isi 1 data paling atas:", itemMap);
+        }
 
-      // Ambil 3 huruf depan untuk mengetahui golongannya (jadinya '100')
-      var kepalaPerk = perkBersih.substring(0, 3);
+        var perkBersih = String(itemMap.noPerk).replace(/[^0-9]/g, "");
+        var kepalaPerk = perkBersih.substring(0, 3);
 
-      // Logika filter: Masa harus sama DAN Kepala harus 100, 101, atau 102
-      return (
-        itemMap.masa === kodemasadicari &&
-        (kepalaPerk === "100" || kepalaPerk === "101" || kepalaPerk === "102")
+        // Logika Filter
+        var cocokMasa = itemMap.masa === kodemasadicari;
+        var cocokKepala =
+          kepalaPerk === "100" || kepalaPerk === "101" || kepalaPerk === "102";
+
+        return cocokMasa && cocokKepala;
+      });
+
+      console.log(
+        ">>> CEK 5: Filter SELESAI. Jumlah hasil filter yg masuk = ",
+        mapPerkiraanDifilter.length,
       );
-    });
-
+    } catch (errorFilter) {
+      console.error(
+        ">>> ERROR! Kode Filter GAGAL DIJALANKAN: ",
+        errorFilter.message,
+      );
+    }
+    // ==========================================
     console.log("--- HASIL FILTER (MENGGUNAKAN .filter) ---");
     console.table(mapPerkiraanDifilter);
 
