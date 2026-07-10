@@ -1270,9 +1270,8 @@ async function terapkanOpsiArusKasGabungan() {
     var saldoAkhirAktivaTetapByCabang = {};
     var namaStorePerkTahun = "perkiraan" + filtertahunfull;
     var mapNamaPerkiraan = {};
-    // ... kode awal tetap sama ...
-    var mapNamaPerkiraan = {};
 
+    // 1. PROSES PENGAMBILAN DATA (DITAMBAH MASA DAN SALDO)
     if (
       typeof DBCache !== "undefined" &&
       DBCache[namaStorePerkTahun] &&
@@ -1281,15 +1280,17 @@ async function terapkanOpsiArusKasGabungan() {
       DBCache[namaStorePerkTahun].forEach(function (mp) {
         var nPerk = String(mp.noPerk || "").trim();
         var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
-
-        // AMBIL SALDO AKHIR (SESUAIKAN NAMA FIELD DB ANDA)
-        // Ganti 'saldoAkhirDb' dengan field yang benar dari database Anda (misal: mp.saldo, mp.ending_balance, dll)
-        var nSaldo = parseFloat(mp.saldoAkhirDb || 0);
+        var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim(); // Ambil Masa
+        // !!! SESUAIKAN 'mp.saldoAkhir' DENGAN FIELD DB ANDA !!!
+        var nSaldo = parseFloat(
+          mp.saldoAkhir || mp.saldo_akhir || mp.akhir || 0,
+        ); // Ambil Saldo
 
         if (nPerk) {
           mapNamaPerkiraan[nPerk] = {
             nama: nNama,
-            saldo: nSaldo, // ---> SALDO AKHIR MASUK KE SINI
+            masa: nMasa,
+            saldo: nSaldo,
           };
         }
       });
@@ -1306,14 +1307,19 @@ async function terapkanOpsiArusKasGabungan() {
           arrPerkTahun.forEach(function (mp) {
             var nPerk = String(mp.noPerk || "").trim();
             var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
-
-            // AMBIL SALDO AKHIR (SESUAIKAN NAMA FIELD DB ANDA)
-            var nSaldo = parseFloat(mp.saldoAkhirDb || 0);
+            var nMasa = String(
+              mp.masa || mp.periode || mp.kode_masa || "",
+            ).trim(); // Ambil Masa
+            // !!! SESUAIKAN 'mp.saldoAkhir' DENGAN FIELD DB ANDA !!!
+            var nSaldo = parseFloat(
+              mp.saldoAkhir || mp.saldo_akhir || mp.akhir || 0,
+            ); // Ambil Saldo
 
             if (nPerk) {
               mapNamaPerkiraan[nPerk] = {
                 nama: nNama,
-                saldo: nSaldo, // ---> SALDO AKHIR MASUK KE SINI
+                masa: nMasa,
+                saldo: nSaldo,
               };
             }
           });
@@ -1322,12 +1328,17 @@ async function terapkanOpsiArusKasGabungan() {
         console.log("Gagal ambil master perkiraan tahun");
       }
     }
-    // ... kode lanjutan untuk memproses ke Array ...
-    console.log("--- ISI MAP NAMA PERKIRAAN ---");
+
+    // Untuk cek di console, sekarang sudah ada masa dan saldonya
+    console.log("--- ISI MAP NAMA PERKIRAAN + MASA + SALDO ---");
     console.table(mapNamaPerkiraan);
+
+    // 2. PROSES PENGOLAHAN DATA GOLONGAN
     if (rawdatagolongan && rawdatagolongan.length > 0) {
       daftarCabang.forEach(function (cab) {
-        saldoAkhirAktivaTetapByCabang[cab] = {};
+        var arrDataSementara = [];
+
+        // ... Data Aktiva Tetap dari rawdatagolongan ...
         rawdatagolongan.forEach(function (g) {
           var kodeGol = String(g.gol || g.golongan || "").trim();
           var cabangData = String(
@@ -1345,14 +1356,51 @@ async function terapkanOpsiArusKasGabungan() {
           ) {
             var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
             if (saldoAkhir !== 0 && noPerkData) {
-              saldoAkhirAktivaTetapByCabang[cab][noPerkData] = {
+              arrDataSementara.push({
+                noPerk: noPerkData,
                 golongan: kodeGol,
-                nama: mapNamaPerkiraan[noPerkData] || "-",
+                masa: masaData,
+                nama: mapNamaPerkiraan[noPerkData]
+                  ? mapNamaPerkiraan[noPerkData].nama
+                  : "-",
                 saldo: saldoAkhir,
-              };
+                tipe: "detail",
+              });
             }
           }
         });
+
+        // 3. SISIPKAN ISI MAP PERKIRAAN SEBAGAI BARIS TERSSENDIRI SEBELUM TOTAL
+        // (Ditandai dengan tipe "mapping" agar bisa dibedakan di HTML nanti)
+        for (var keyPerk in mapNamaPerkiraan) {
+          var itemMap = mapNamaPerkiraan[keyPerk];
+          arrDataSementara.push({
+            noPerk: keyPerk,
+            golongan: "[MAP]",
+            masa: itemMap.masa, // MASA DARI MAP
+            nama: itemMap.nama, // NAMA DARI MAP
+            saldo: itemMap.saldo, // SALDO DARI MAP
+            tipe: "mapping", // PENANDA BARIS INI BUKAN DATA ASLI
+          });
+        }
+
+        // 4. TAMBAHKAN TOTAL AKHIR DI PALING BAWAH
+        var totalAkhir = 0;
+        arrDataSementara.forEach(function (item) {
+          if (item.tipe === "detail") totalAkhir += item.saldo; // Hanya jumlah yang detail asli
+        });
+
+        arrDataSementara.push({
+          noPerk: "",
+          golongan: "",
+          masa: "",
+          nama: "TOTAL AKHIR AKTIVA TETAP",
+          saldo: totalAkhir,
+          tipe: "total",
+        });
+
+        // Simpan ke variabel utama
+        saldoAkhirAktivaTetapByCabang[cab] = arrDataSementara;
       });
     }
 
