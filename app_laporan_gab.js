@@ -1343,7 +1343,7 @@ async function terapkanOpsiArusKasGabungan() {
       var itemMap = mapNamaPerkiraan[keyPerk];
       var angkaDepanPerk = parseInt(keyPerk.substring(0, 3)) || 0;
 
-      if (itemMap.masa === kodemasadicari && angkaDepanPerk < 103000) {
+      if (itemMap.masa === kodemasadicari && angkaDepanPerk < 1030000) {
         mapPerkiraanDifilter.push({
           noPerk: keyPerk,
           cabang: itemMap.cabang, // --> MASUKKAN CABANG KE SINI
