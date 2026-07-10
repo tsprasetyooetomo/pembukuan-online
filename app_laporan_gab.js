@@ -1340,35 +1340,29 @@ async function terapkanOpsiArusKasGabungan() {
     console.log("--- HASIL MAP PERKIRAAN (DENGAN CABANG) ---");
     console.table(mapNamaPerkiraan);
 
-    // 2. PROSES FILTER MAP PERKIRAAN
-    // 2. PROSES FILTER MAP PERKIRAAN (CARA PALING AMAN MEMAKAI TEKS)
-    for (var keyPerk in mapNamaPerkiraan) {
-      var itemMap = mapNamaPerkiraan[keyPerk];
+    // ==========================================
+    // BAGIAN 2: PROSES FILTER (HAPUS KODE LAMA ANDA, GANTI DENGAN INI)
+    // ==========================================
 
-      // 1. Hapus titik atau karakter aneh lainnya dulu
-      var perkBersih = String(keyPerk).replace(/[^0-9]/g, "");
+    // 1. Ubah Object menjadi Array terlebih dahulu
+    var arraySemuaPerkiraan = Object.values(mapNamaPerkiraan);
 
-      // 2. Ambil 3 karakter terdepan saja (misal "100.0001" jadi "100", "500" tetap "500")
+    // 2. Gunakan perintah .filter() (Mirip SEEK/FIND massal)
+    mapPerkiraanDifilter = arraySemuaPerkiraan.filter(function (itemMap) {
+      // Bersihkan noPerk dari titik (misal '100.0001' jadi '1000001')
+      var perkBersih = String(itemMap.noPerk).replace(/[^0-9]/g, "");
+
+      // Ambil 3 huruf depan untuk mengetahui golongannya (jadinya '100')
       var kepalaPerk = perkBersih.substring(0, 3);
 
-      // 3. Filter menggunakan teks (STRING), BUKAN angka
-      // Artinya: HANYA yang berkepala "100", "101", "102" yang boleh masuk
-      if (
+      // Logika filter: Masa harus sama DAN Kepala harus 100, 101, atau 102
+      return (
         itemMap.masa === kodemasadicari &&
         (kepalaPerk === "100" || kepalaPerk === "101" || kepalaPerk === "102")
-      ) {
-        mapPerkiraanDifilter.push({
-          noPerk: keyPerk, // Tampilkan format asli dengan titik
-          cabang: itemMap.cabang,
-          golongan: kepalaPerk, // Langsung pakai teks yang sudah difilter
-          masa: itemMap.masa,
-          nama: itemMap.nama,
-          saldo: itemMap.saldo,
-        });
-      }
-    }
+      );
+    });
 
-    console.log("--- HASIL FILTER MAP PERKIRAAN (DENGAN CABANG) ---");
+    console.log("--- HASIL FILTER (MENGGUNAKAN .filter) ---");
     console.table(mapPerkiraanDifilter);
 
     // 3. PROSES DATA GOLONGAN AKTIVA TETAP (Tetap Object)
