@@ -1296,6 +1296,7 @@ async function terapkanOpsiArusKasGabungan() {
             masa: nMasa,
             saldo: nSaldo,
             cabang: nCabang,
+            noPerk: nPerk,
           };
         }
       });
