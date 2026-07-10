@@ -1618,16 +1618,10 @@ function generateHTMLArusKasGabungan(
     '<tr><td colspan="' +
     (daftarCabang.length + 3) +
     '" style="height:15px; border:none; background:transparent;"></td></tr>';
-
   // ==========================================
   // 4. SALDO AKHIR KAS & BANK (DITAMBAHKAN SEBELUM TOTAL AKHIR)
   // ==========================================
   if (mapPerkiraanDifilter && mapPerkiraanDifilter.length > 0) {
-    html +=
-      "<tr><td colspan='" +
-      (daftarCabang.length + 3) +
-      "' style='padding:8px; border:1px solid #000; font-weight:bold; background-color:#cce5ff; color:#004085;'>SALDO AKHIR KAS & BANK (NO PERK < 103)</td></tr>";
-
     // Kelompokkan berdasarkan NoPerk agar tidak duplikat di baris
     var mapNoPerkUnik = {};
     mapPerkiraanDifilter.forEach(function (item) {
@@ -1635,8 +1629,33 @@ function generateHTMLArusKasGabungan(
     });
     var arrNoPerkUnik = Object.keys(mapNoPerkUnik).sort();
 
+    // Variable untuk mengecek apakah ada data yang ditampilkan
+    var adaDataKasBank = false;
+
     arrNoPerkUnik.forEach(function (noPerk) {
       var infoPerk = mapNoPerkUnik[noPerk];
+
+      // Hitung total terlebih dahulu sebelum render
+      var totalRow = 0;
+      daftarCabang.forEach(function (cab) {
+        mapPerkiraanDifilter.forEach(function (item) {
+          if (item.noPerk === noPerk && item.cabang === cab)
+            totalRow += item.saldo || 0;
+        });
+      });
+
+      // ✅ SKIP jika totalRow = 0
+      if (totalRow === 0) return;
+
+      // Tampilkan header hanya jika ada data yang akan ditampilkan
+      if (!adaDataKasBank) {
+        html +=
+          "<tr><td colspan='" +
+          (daftarCabang.length + 3) +
+          "' style='padding:8px; border:1px solid #000; font-weight:bold; background-color:#cce5ff; color:#004085;'>SALDO AKHIR KAS & BANK (NO PERK < 103)</td></tr>";
+        adaDataKasBank = true;
+      }
+
       html += '<tr style="font-size: 0.85rem;">';
       html +=
         '<td style="padding:8px; border:1px solid #000; text-align:center; font-weight:bold;">' +
@@ -1647,9 +1666,9 @@ function generateHTMLArusKasGabungan(
         (infoPerk.nama || "-") +
         "</td>";
 
-      var totalRow = 0;
+      // Reset dan hitung ulang untuk display
+      totalRow = 0;
       daftarCabang.forEach(function (cab) {
-        // Cari saldo untuk cabang ini di dalam array mapPerkiraanDifilter
         var saldo = 0;
         mapPerkiraanDifilter.forEach(function (item) {
           if (item.noPerk === noPerk && item.cabang === cab)
@@ -1667,18 +1686,30 @@ function generateHTMLArusKasGabungan(
         "</td></tr>";
     });
 
-    // SUBTOTAL KAS & BANK
-    html += buatBarisSubtotal(
-      "KAS & BANK",
-      mapPerkiraanDifilter,
-      "kasbank",
-      "#004085",
-      true,
-    );
-    html +=
-      '<tr><td colspan="' +
-      (daftarCabang.length + 3) +
-      '" style="height:10px; border:none; background:transparent;"></td></tr>';
+    // SUBTOTAL KAS & BANK - hanya tampilkan jika adaDataKasBank
+    if (adaDataKasBank) {
+      var subtotalKasBank = hitungTotalGlobal(
+        mapPerkiraanDifilter,
+        "kasbank",
+        true,
+      );
+
+      // ✅ Opsional: Skip subtotal juga jika 0
+      if (subtotalKasBank !== 0) {
+        html += buatBarisSubtotal(
+          "KAS & BANK",
+          mapPerkiraanDifilter,
+          "kasbank",
+          "#004085",
+          true,
+        );
+      }
+
+      html +=
+        '<tr><td colspan="' +
+        (daftarCabang.length + 3) +
+        '" style="height:10px; border:none; background:transparent;"></td></tr>';
+    }
   }
 
   // ==========================================
