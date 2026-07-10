@@ -1267,6 +1267,8 @@ async function terapkanOpsiArusKasGabungan() {
     // ==========================================
     // 7. HITUNG SALDO AKHIR AKTIVA TETAP (DIRINCI PER NO PERKIRAAN)
     // ==========================================
+    // INI YANG TADI LUPA SAYA TARUH
+    var namaStorePerkTahun = "perkiraan" + filtertahunfull;
     var mapNamaPerkiraan = {}; // Hanya untuk kamus nama (aktiva tetap nanti butuh)
     var mapPerkiraanDifilter = []; // Wadah HASIL SELECT WHERE nya
 
