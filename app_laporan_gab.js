@@ -1339,15 +1339,26 @@ async function terapkanOpsiArusKasGabungan() {
     }
 
     // 2. PROSES FILTER MAP PERKIRAAN
+    // 2. PROSES FILTER MAP PERKIRAAN (CARA PALING AMAN MEMAKAI TEKS)
     for (var keyPerk in mapNamaPerkiraan) {
       var itemMap = mapNamaPerkiraan[keyPerk];
-      var angkaDepanPerk = parseInt(keyPerk.substring(0, 3)) || 0;
 
-      if (itemMap.masa === kodemasadicari && angkaDepanPerk < 1030000) {
+      // 1. Hapus titik atau karakter aneh lainnya dulu
+      var perkBersih = String(keyPerk).replace(/[^0-9]/g, "");
+
+      // 2. Ambil 3 karakter terdepan saja (misal "100.0001" jadi "100", "500" tetap "500")
+      var kepalaPerk = perkBersih.substring(0, 3);
+
+      // 3. Filter menggunakan teks (STRING), BUKAN angka
+      // Artinya: HANYA yang berkepala "100", "101", "102" yang boleh masuk
+      if (
+        itemMap.masa === kodemasadicari &&
+        (kepalaPerk === "100" || kepalaPerk === "101" || kepalaPerk === "102")
+      ) {
         mapPerkiraanDifilter.push({
-          noPerk: keyPerk,
-          cabang: itemMap.cabang, // --> MASUKKAN CABANG KE SINI
-          golongan: String(angkaDepanPerk),
+          noPerk: keyPerk, // Tampilkan format asli dengan titik
+          cabang: itemMap.cabang,
+          golongan: kepalaPerk, // Langsung pakai teks yang sudah difilter
           masa: itemMap.masa,
           nama: itemMap.nama,
           saldo: itemMap.saldo,
