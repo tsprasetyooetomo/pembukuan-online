@@ -161,6 +161,11 @@
         font-weight: 700;
         margin: 0;
       }
+      .vp-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
       .vp-back {
         display: inline-flex;
         align-items: center;
@@ -179,6 +184,24 @@
       .vp-back:hover {
         border-color: var(--accent);
         color: var(--accent);
+      }
+      .btn-logout {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 6px 16px;
+        border-radius: 8px;
+        border: 1px solid rgba(220, 38, 38, 0.4);
+        background: rgba(220, 38, 38, 0.1);
+        color: var(--danger);
+        font-size: 0.8rem;
+        cursor: pointer;
+        font-family: inherit;
+        transition: all 0.2s;
+      }
+      .btn-logout:hover {
+        background: rgba(220, 38, 38, 0.2);
+        border-color: var(--danger);
       }
       #viewerContent {
         width: 100%;
@@ -226,7 +249,7 @@
     <div class="bg-g"></div>
 
     <div id="dashboardView">
-      <h1>Laporan Eksekutif</h1>
+      <h1>Laporan Sistem Bisnis</h1>
       <p>Pilih modul laporan yang ingin Anda akses</p>
       <div class="menu-grid">
         <div class="menu-card" onclick="handleMenuClick('lapkeuangan')">
@@ -257,14 +280,30 @@
           <span class="card-status status-soon">Segera Hadir</span>
         </div>
       </div>
+
+      <!-- Logout di halaman dashboard juga -->
+      <div style="margin-top: 2.5rem">
+        <button
+          class="btn-logout"
+          onclick="doLogout()"
+          style="padding: 8px 24px; font-size: 0.85rem"
+        >
+          <i class="fa-solid fa-right-from-bracket"></i> Logout
+        </button>
+      </div>
     </div>
 
     <div id="viewerPanel">
       <div class="vp-header">
         <h2 id="vpTitle">-</h2>
-        <button class="vp-back" onclick="kembaliKeDashboard()">
-          <i class="fa-solid fa-arrow-left"></i> Kembali ke Dashboard
-        </button>
+        <div class="vp-actions">
+          <button class="vp-back" onclick="kembaliKeDashboard()">
+            <i class="fa-solid fa-arrow-left"></i> Kembali
+          </button>
+          <button class="btn-logout" onclick="doLogout()">
+            <i class="fa-solid fa-right-from-bracket"></i> Logout
+          </button>
+        </div>
       </div>
       <div id="viewerContent"></div>
     </div>
@@ -327,6 +366,19 @@
           c.innerHTML =
             '<div style="background:var(--card);padding:3rem;border-radius:var(--r);border:1px solid var(--brd);text-align:center;color:var(--muted)"><i class="fa-solid fa-chart-pie" style="font-size:3rem;color:var(--accent);display:block;margin-bottom:1rem"></i><h3 style="color:var(--fg);margin-bottom:.5rem">Modul Analisa</h3><p>Sedang dalam pengembangan.</p></div>';
         }
+      }
+
+      function doLogout() {
+        localStorage.removeItem("token");
+        localStorage.removeItem("nama");
+        localStorage.removeItem("cabang");
+        localStorage.removeItem("role");
+        if (typeof toast === "function") {
+          toast("Berhasil logout, mengalihkan ke Dashboard...", "ok");
+        }
+        setTimeout(function () {
+          window.location.href = "index.html";
+        }, 800);
       }
     </script>
   </body>
