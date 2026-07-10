@@ -1337,6 +1337,8 @@ async function terapkanOpsiArusKasGabungan() {
         console.log("Gagal ambil master perkiraan tahun");
       }
     }
+    console.log("--- HASIL MAP PERKIRAAN (DENGAN CABANG) ---");
+    console.table(mapNamaPerkiraan);
 
     // 2. PROSES FILTER MAP PERKIRAAN
     // 2. PROSES FILTER MAP PERKIRAAN (CARA PALING AMAN MEMAKAI TEKS)
