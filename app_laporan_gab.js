@@ -1270,6 +1270,8 @@ async function terapkanOpsiArusKasGabungan() {
     var saldoAkhirAktivaTetapByCabang = {};
     var namaStorePerkTahun = "perkiraan" + filtertahunfull;
     var mapNamaPerkiraan = {};
+    // ... kode awal tetap sama ...
+    var mapNamaPerkiraan = {};
 
     if (
       typeof DBCache !== "undefined" &&
@@ -1279,7 +1281,17 @@ async function terapkanOpsiArusKasGabungan() {
       DBCache[namaStorePerkTahun].forEach(function (mp) {
         var nPerk = String(mp.noPerk || "").trim();
         var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
-        if (nPerk) mapNamaPerkiraan[nPerk] = nNama;
+
+        // AMBIL SALDO AKHIR (SESUAIKAN NAMA FIELD DB ANDA)
+        // Ganti 'saldoAkhirDb' dengan field yang benar dari database Anda (misal: mp.saldo, mp.ending_balance, dll)
+        var nSaldo = parseFloat(mp.saldoAkhirDb || 0);
+
+        if (nPerk) {
+          mapNamaPerkiraan[nPerk] = {
+            nama: nNama,
+            saldo: nSaldo, // ---> SALDO AKHIR MASUK KE SINI
+          };
+        }
       });
     } else {
       try {
@@ -1290,16 +1302,27 @@ async function terapkanOpsiArusKasGabungan() {
             : Object.values(rawPerkTahun);
           if (typeof DBCache === "undefined") window.DBCache = {};
           DBCache[namaStorePerkTahun] = arrPerkTahun;
+
           arrPerkTahun.forEach(function (mp) {
             var nPerk = String(mp.noPerk || "").trim();
             var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
-            if (nPerk) mapNamaPerkiraan[nPerk] = nNama;
+
+            // AMBIL SALDO AKHIR (SESUAIKAN NAMA FIELD DB ANDA)
+            var nSaldo = parseFloat(mp.saldoAkhirDb || 0);
+
+            if (nPerk) {
+              mapNamaPerkiraan[nPerk] = {
+                nama: nNama,
+                saldo: nSaldo, // ---> SALDO AKHIR MASUK KE SINI
+              };
+            }
           });
         }
       } catch (e) {
         console.log("Gagal ambil master perkiraan tahun");
       }
     }
+    // ... kode lanjutan untuk memproses ke Array ...
     console.log("--- ISI MAP NAMA PERKIRAAN ---");
     console.table(mapNamaPerkiraan);
     if (rawdatagolongan && rawdatagolongan.length > 0) {
