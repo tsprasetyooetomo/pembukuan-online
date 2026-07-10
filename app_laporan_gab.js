@@ -1300,7 +1300,8 @@ async function terapkanOpsiArusKasGabungan() {
         console.log("Gagal ambil master perkiraan tahun");
       }
     }
-
+    console.log("--- ISI MAP NAMA PERKIRAAN ---");
+    console.table(mapNamaPerkiraan);
     if (rawdatagolongan && rawdatagolongan.length > 0) {
       daftarCabang.forEach(function (cab) {
         saldoAkhirAktivaTetapByCabang[cab] = {};
