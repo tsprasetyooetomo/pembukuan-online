@@ -1270,7 +1270,7 @@ async function terapkanOpsiArusKasGabungan() {
     var saldoAkhirAktivaTetapByCabang = {};
     var namaStorePerkTahun = "perkiraan" + filtertahunfull;
     var mapNamaPerkiraan = {};
-    var mapPerkiraanDifilter = []; // <-- VARIABEL BARU UNTUK MENAMPUNG YG SUDAH DIFILTER
+    var mapPerkiraanDifilter = [];
 
     // 1. PROSES PENGAMBILAN DATA MASTER
     if (
@@ -1285,9 +1285,18 @@ async function terapkanOpsiArusKasGabungan() {
         var nSaldo = parseFloat(
           mp.saldoAkhir || mp.saldo_akhir || mp.akhir || 0,
         );
+        // TAMBAHKAN CABANG (Jika ada di DB master)
+        var nCabang = String(
+          mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
+        ).trim();
 
         if (nPerk) {
-          mapNamaPerkiraan[nPerk] = { nama: nNama, masa: nMasa, saldo: nSaldo };
+          mapNamaPerkiraan[nPerk] = {
+            nama: nNama,
+            masa: nMasa,
+            saldo: nSaldo,
+            cabang: nCabang,
+          };
         }
       });
     } else {
@@ -1309,12 +1318,17 @@ async function terapkanOpsiArusKasGabungan() {
             var nSaldo = parseFloat(
               mp.saldoAkhir || mp.saldo_akhir || mp.akhir || 0,
             );
+            // TAMBAHKAN CABANG (Jika ada di DB master)
+            var nCabang = String(
+              mp.cabang || mp.cab || mp.kode_cabang || "GABUNGAN",
+            ).trim();
 
             if (nPerk) {
               mapNamaPerkiraan[nPerk] = {
                 nama: nNama,
                 masa: nMasa,
                 saldo: nSaldo,
+                cabang: nCabang,
               };
             }
           });
@@ -1324,7 +1338,7 @@ async function terapkanOpsiArusKasGabungan() {
       }
     }
 
-    // 2. PROSES FILTER MAP PERKIRAAN (Masa sesuai & NoPerk < 103)
+    // 2. PROSES FILTER MAP PERKIRAAN
     for (var keyPerk in mapNamaPerkiraan) {
       var itemMap = mapNamaPerkiraan[keyPerk];
       var angkaDepanPerk = parseInt(keyPerk.substring(0, 3)) || 0;
@@ -1332,6 +1346,7 @@ async function terapkanOpsiArusKasGabungan() {
       if (itemMap.masa === kodemasadicari && angkaDepanPerk < 103) {
         mapPerkiraanDifilter.push({
           noPerk: keyPerk,
+          cabang: itemMap.cabang, // --> MASUKKAN CABANG KE SINI
           golongan: String(angkaDepanPerk),
           masa: itemMap.masa,
           nama: itemMap.nama,
@@ -1340,13 +1355,13 @@ async function terapkanOpsiArusKasGabungan() {
       }
     }
 
-    console.log("--- HASIL FILTER MAP PERKIRAAN (NO PERK < 103) ---");
+    console.log("--- HASIL FILTER MAP PERKIRAAN (DENGAN CABANG) ---");
     console.table(mapPerkiraanDifilter);
 
-    // 3. PROSES DATA GOLONGAN AKTIVA TETAP (DIKEMBALIKAN KE OBJECT AGAR TOTAL AKHIR TIDAK TERGANGGU)
+    // 3. PROSES DATA GOLONGAN AKTIVA TETAP (Tetap Object)
     if (rawdatagolongan && rawdatagolongan.length > 0) {
       daftarCabang.forEach(function (cab) {
-        saldoAkhirAktivaTetapByCabang[cab] = {}; // KEMBALI MENJADI OBJECT
+        saldoAkhirAktivaTetapByCabang[cab] = {};
 
         rawdatagolongan.forEach(function (g) {
           var kodeGol = String(g.gol || g.golongan || "").trim();
@@ -1399,7 +1414,6 @@ async function terapkanOpsiArusKasGabungan() {
       area.style.height = "auto";
     }
 
-    // 4. KIRIMKAN mapPerkiraanDifilter SEBAGAI PARAMETER TAMBAHAN KE FUNGSI HTML
     area.innerHTML = generateHTMLArusKasGabungan(
       daftarCabang,
       arrKodeGol,
@@ -1409,7 +1423,7 @@ async function terapkanOpsiArusKasGabungan() {
       false,
       totalSaldoAwalByCabang,
       saldoAkhirAktivaTetapByCabang,
-      mapPerkiraanDifilter, // <-- PARAMETER BARU YANG DIFILTER
+      mapPerkiraanDifilter,
     );
   } catch (error) {
     console.error("❌ Gagal total RL Gabungan:", error);
