@@ -941,14 +941,14 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
   });
 
   // 1. Buka jendela baru
-  var lebar = 900,
-    tinggi = 600;
+  var lebar = 1000,
+    tinggi = 700;
   var kiri = (screen.width - lebar) / 2,
     atas = (screen.height - tinggi) / 2;
 
   var winGrafik = window.open(
     "",
-    "GrafikRLCabang",
+    "GrafikRLCabang3D",
     "width=" +
       lebar +
       ",height=" +
@@ -965,98 +965,205 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
     return;
   }
 
-  // 2. Isi struktur HTML dan panggil pustaka Chart.js di jendela baru
+  // 2. Isi struktur HTML dengan ECharts + ECharts GL (untuk 3D)
   winGrafik.document.open();
-  winGrafik.document
-    .write(`<!DOCTYPE html><html><head><title>Grafik R/L Gabungan Per Cabang</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"><\/script>
-    <style>body{margin:0;padding:20px;font-family:sans-serif;background-color:#f8f9fa;} .container{width:100%;height:calc(100vh - 40px);background:#ffffff;padding:15px;box-sizing:border-box;border-radius:8px;box-shadow:0 0 10px rgba(0,0,0,0.1);}</style>
-    </head><body><div class="container"><canvas id="chart_rlgab_cabang_baru"></canvas></div></body></html>`);
+  winGrafik.document.write(
+    `<!DOCTYPE html>
+    <html>
+    <head>
+      <title>Grafik 3D — R/L Gabungan Per Cabang</title>
+      <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"><\/script>
+      <script src="https://cdn.jsdelivr.net/npm/echarts-gl@2.0.9/dist/echarts-gl.min.js"><\/script>
+      <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0b0f19; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
+        .header {
+          text-align: center; padding: 15px 20px;
+          background: linear-gradient(135deg, #141c2e 0%, #0f1623 100%);
+          border-bottom: 1px solid #1c2844;
+          display: flex; justify-content: space-between; align-items: center;
+        }
+        .header h2 { font-size: 1.1rem; color: #f59e0b; }
+        .legend-box { display: flex; gap: 15px; flex-wrap: wrap; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #8899b0; }
+        .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+        #chart3d { width: 100%; height: calc(100vh - 60px); }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h2>Laba Rugi Gabungan — 3D View</h2>
+        <div class="legend-box">
+          <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>PENJUALAN</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>HPP</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#ef4444"></div>BY. ADM & UMUM</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#facc15"></div>BY. LAINNYA</div>
+          <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>LABA/RUGI</div>
+        </div>
+      </div>
+      <div id="chart3d"></div>
+    </body>
+    </html>`,
+  );
   winGrafik.document.close();
 
-  // 3. Gambar chart setelah jendela baru selesai dimuat
+  // 3. Gambar chart 3D setelah jendela selesai dimuat
   winGrafik.onload = function () {
-    var ctx = winGrafik.document
-      .getElementById("chart_rlgab_cabang_baru")
-      .getContext("2d");
     var formatRupiahLokal =
-      typeof formatRupiah === "function"
-        ? formatRupiah
+      typeof formatUang === "function"
+        ? formatUang
         : function (val) {
             return val.toLocaleString("id-ID");
           };
 
-    new winGrafik.Chart(ctx, {
-      type: "bar",
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: "PENJUALAN BERSIH",
-            data: dataPenjualan,
-            borderColor: "#1f7a43",
-            backgroundColor: "rgba(31, 122, 67, 0.7)",
-            borderWidth: 1,
-          },
-          {
-            label: "TOTAL HPP",
-            data: dataHPP,
-            borderColor: "#0d6efd",
-            backgroundColor: "rgba(13, 110, 253, 0.7)",
-            borderWidth: 1,
-          },
-          {
-            label: "TOTAL BY. ADM & UMUM",
-            data: dataAdmUmum,
-            borderColor: "#dc3545",
-            backgroundColor: "rgba(220, 53, 69, 0.7)",
-            borderWidth: 1,
-          },
-          {
-            label: "TOTAL PEND & BY LAIN2",
-            data: dataLain2,
-            borderColor: "#ffc107",
-            backgroundColor: "rgba(255, 193, 7, 0.7)",
-            borderWidth: 1,
-          },
-          {
-            label: "LABA / RUGI BERSIH (RL)",
-            data: dataRL,
-            borderColor: "#B8860B",
-            backgroundColor: "rgba(255, 215, 0, 0.7)",
-            borderWidth: 2,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: {
-            position: "top",
-            labels: { color: "#333", font: { size: 11 } },
-          },
-          tooltip: {
-            callbacks: {
-              label: (context) =>
-                context.dataset.label +
-                ": " +
-                formatRupiahLokal(context.parsed.y),
+    var chartDom = winGrafik.document.getElementById("chart3d");
+    var myChart = winGrafik.echarts.init(chartDom, "dark");
+
+    // Konfigurasi warna
+    var warna = {
+      penjualan: "#22c55e",
+      hpp: "#3b82f6",
+      adm: "#ef4444",
+      lain: "#facc15",
+      laba: "#f59e0b",
+    };
+
+    // Fungsi helper untuk buat data series 3D
+    function buatSeries3D(namaData, label, warnaHex, xIndex) {
+      var data3D = [];
+      namaData.forEach(function (val, i) {
+        data3D.push([i, xIndex, val > 0 ? val : 0]);
+      });
+      return {
+        type: "bar3D",
+        name: label,
+        data: data3D,
+        shading: "realistic",
+        realisticMaterial: {
+          roughness: 0.4,
+          metalness: 0.1,
+          textureTiling: 1,
+        },
+        label: {
+          show: false,
+        },
+        itemStyle: {
+          color: warnaHex,
+          opacity: 0.9,
+        },
+        emphasis: {
+          label: {
+            show: true,
+            formatter: function (params) {
+              return label + "\\n" + formatRupiahLokal(params.value[2]);
+            },
+            textStyle: {
+              color: "#fff",
+              fontSize: 12,
+              backgroundColor: "rgba(0,0,0,0.7)",
+              padding: [6, 10],
+              borderRadius: 4,
             },
           },
+          itemStyle: { color: "#ffffff" },
         },
-        scales: {
-          y: {
-            beginAtZero: true,
-            ticks: {
-              color: "#333",
-              callback: (value) => formatRupiahLokal(value),
-            },
-            grid: { color: "rgba(0,0,0,0.05)" },
-          },
-          x: { ticks: { color: "#333" }, grid: { display: false } },
+        bevelSize: 0.5,
+        barSize: 14,
+        gap: 4,
+      };
+    }
+
+    // Hitung offset X supaya berkelompok rapi per cabang
+    var groupGap = 5;
+    var barWidth = 14;
+    var barGap = 2;
+    var groupWidth = 5 * barWidth + 4 * barGap;
+
+    var option = {
+      tooltip: {
+        formatter: function (params) {
+          return (
+            "<b>" +
+            labels[params.value[0]] +
+            "</b><br/>" +
+            params.seriesName +
+            ": <b>" +
+            formatRupiahLokal(params.value[2]) +
+            "</b>"
+          );
         },
       },
+      xAxis3D: {
+        type: "category",
+        data: labels,
+        axisLabel: { color: "#8899b0", fontSize: 11 },
+        axisLine: { lineStyle: { color: "#1c2844" } },
+        splitLine: { show: false },
+      },
+      yAxis3D: {
+        type: "category",
+        data: ["PENJUALAN", "HPP", "BY.ADM&UMUM", "BY.LAINNYA", "LABA/RUGI"],
+        axisLabel: { color: "#8899b0", fontSize: 10 },
+        axisLine: { lineStyle: { color: "#1c2844" } },
+        splitLine: { show: false },
+      },
+      zAxis3D: {
+        type: "value",
+        axisLabel: {
+          color: "#8899b0",
+          fontSize: 10,
+          formatter: function (val) {
+            return formatRupiahLokal(val);
+          },
+        },
+        axisLine: { lineStyle: { color: "#1c2844" } },
+        splitLine: { lineStyle: { color: "#1c2844", type: "dashed" } },
+      },
+      grid3D: {
+        boxWidth: 200,
+        boxDepth: 80,
+        boxHeight: 100,
+        viewControl: {
+          distance: 280,
+          alpha: 25,
+          beta: 35,
+          autoRotate: false,
+          rotateSensitivity: 3,
+          zoomSensitivity: 2,
+          panSensitivity: 1,
+          damping: 0.85,
+        },
+        light: {
+          main: {
+            intensity: 1.2,
+            shadow: true,
+            shadowQuality: "high",
+            alpha: 40,
+            beta: 40,
+          },
+          ambient: { intensity: 0.4 },
+        },
+        environment: "none",
+        postEffect: {
+          enable: true,
+          bloom: { enable: true, bloomIntensity: 0.05 },
+          SSAO: { enable: true, radius: 3, intensity: 1.2 },
+        },
+      },
+      series: [
+        buatSeries3D(dataPenjualan, "PENJUALAN BERSIH", warna.penjualan, 0),
+        buatSeries3D(dataHPP, "TOTAL HPP", warna.hpp, 1),
+        buatSeries3D(dataAdmUmum, "TOTAL BY. ADM & UMUM", warna.adm, 2),
+        buatSeries3D(dataLain2, "TOTAL BY. LAINNYA", warna.lain, 3),
+        buatSeries3D(dataRL, "LABA / RUGI BERSIH", warna.laba, 4),
+      ],
+    };
+
+    myChart.setOption(option);
+
+    // Auto resize saat jendela di-resize
+    winGrafik.addEventListener("resize", function () {
+      myChart.resize();
     });
   };
 }
