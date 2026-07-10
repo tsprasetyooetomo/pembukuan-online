@@ -1241,35 +1241,30 @@ async function terapkanOpsiArusKasGabungan() {
 
     // 6. HITUNG TOTAL SALDO AWAL (GOL < 103) BULAN LALU
     var kodemasasebelumnya = "";
-    var bulanInt = parseInt(filterbulan);
     var tahunInt = parseInt(filtertahunfull);
-    if (bulanInt === 1) {
-      bulanInt = 12;
-      tahunInt--;
-    } else {
-      bulanInt--;
-    }
-    var bulanSebelum = String(bulanInt).padStart(2, "0");
-    var tahunSebelum = String(tahunInt);
-    kodemasasebelumnya = bulanSebelum + tahunSebelum.substring(2, 4);
-    var namaStoreSebelum = "golongan" + tahunSebelum;
+    var tahunDuaDigit = String(tahunInt).substring(2, 4);
 
-    var rawSaldoAwal = await db.getAll(namaStoreSebelum);
+    // PERUBAHAN LOGIKA: Masa selalu diambil dari bulan "01" + 2 digit tahun yang dipilih
+    kodemasasebelumnya = "01" + tahunDuaDigit;
+
     var totalSaldoAwalByCabang = {};
-    if (rawSaldoAwal) {
-      var arrSaldoAwal = Array.isArray(rawSaldoAwal)
-        ? rawSaldoAwal
-        : Object.values(rawSaldoAwal);
-      arrSaldoAwal.forEach(function (s) {
+
+    // Menggunakan data dari 'rawdatagolongan' yang berasal dari resgolbackup
+    if (rawdatagolongan && rawdatagolongan.length > 0) {
+      rawdatagolongan.forEach(function (s) {
         var kodeGol = String(s.gol || s.golongan || "").trim();
         var cabangData = String(
           s.cabang || s.cab || s.kode_cabang || "",
         ).trim();
         var masaData = String(s.masa || s.periode || s.kode_masa || "").trim();
+
         if (!setValidCabang.has(cabangData)) return;
+
+        // Filter berdasarkan golongan < 103 dan masa harus tepat "01YY"
         if (parseInt(kodeGol) < 103 && masaData === kodemasasebelumnya) {
-          if (totalSaldoAwalByCabang[cabangData] === undefined)
+          if (totalSaldoAwalByCabang[cabangData] === undefined) {
             totalSaldoAwalByCabang[cabangData] = 0;
+          }
           totalSaldoAwalByCabang[cabangData] += +(s.db || 0) - +(s.cr || 0);
         }
       });
