@@ -52,7 +52,14 @@ async function loginSystem() {
 
       // Sembunyikan login box
       document.getElementById("loginBox").style.display = "none";
-
+      // ↓↓↓ TAMBAHKAN INI ↓↓↓
+      if (data.user.role === "Viewer") {
+        setTimeout(function () {
+          window.location.href = "laporan.html";
+        }, 500);
+        return;
+      }
+      // ↑↑↑ SAMPAI SINI ↑↑↑
       // Reload agar init() di app_init.js jalan ulang membaca token baru
       setTimeout(() => {
         window.location.reload();
