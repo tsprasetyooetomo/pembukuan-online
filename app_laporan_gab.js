@@ -1271,7 +1271,7 @@ async function terapkanOpsiArusKasGabungan() {
     var namaStorePerkTahun = "perkiraan" + filtertahunfull;
     var mapNamaPerkiraan = {};
 
-    // 1. PROSES PENGAMBILAN DATA (DITAMBAH MASA DAN SALDO)
+    // 1. PROSES PENGAMBILAN DATA MASTER (Tetap ambil semua dulu dari DB)
     if (
       typeof DBCache !== "undefined" &&
       DBCache[namaStorePerkTahun] &&
@@ -1280,11 +1280,11 @@ async function terapkanOpsiArusKasGabungan() {
       DBCache[namaStorePerkTahun].forEach(function (mp) {
         var nPerk = String(mp.noPerk || "").trim();
         var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
-        var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim(); // Ambil Masa
+        var nMasa = String(mp.masa || mp.periode || mp.kode_masa || "").trim();
         // !!! SESUAIKAN 'mp.saldoAkhir' DENGAN FIELD DB ANDA !!!
         var nSaldo = parseFloat(
           mp.saldoAkhir || mp.saldo_akhir || mp.akhir || 0,
-        ); // Ambil Saldo
+        );
 
         if (nPerk) {
           mapNamaPerkiraan[nPerk] = {
@@ -1309,11 +1309,11 @@ async function terapkanOpsiArusKasGabungan() {
             var nNama = String(mp.desc || mp.namaPerkiraan || "").trim();
             var nMasa = String(
               mp.masa || mp.periode || mp.kode_masa || "",
-            ).trim(); // Ambil Masa
+            ).trim();
             // !!! SESUAIKAN 'mp.saldoAkhir' DENGAN FIELD DB ANDA !!!
             var nSaldo = parseFloat(
               mp.saldoAkhir || mp.saldo_akhir || mp.akhir || 0,
-            ); // Ambil Saldo
+            );
 
             if (nPerk) {
               mapNamaPerkiraan[nPerk] = {
@@ -1329,16 +1329,14 @@ async function terapkanOpsiArusKasGabungan() {
       }
     }
 
-    // Untuk cek di console, sekarang sudah ada masa dan saldonya
-    console.log("--- ISI MAP NAMA PERKIRAAN + MASA + SALDO ---");
+    console.log("--- ISI MAP NAMA PERKIRAAN (SEBELUM FILTER) ---");
     console.table(mapNamaPerkiraan);
 
-    // 2. PROSES PENGOLAHAN DATA GOLONGAN
+    // 2. PROSES PENGOLAHAN DATA GOLONGAN AKTIVA TETAP (>= 103)
     if (rawdatagolongan && rawdatagolongan.length > 0) {
       daftarCabang.forEach(function (cab) {
         var arrDataSementara = [];
 
-        // ... Data Aktiva Tetap dari rawdatagolongan ...
         rawdatagolongan.forEach(function (g) {
           var kodeGol = String(g.gol || g.golongan || "").trim();
           var cabangData = String(
@@ -1349,6 +1347,7 @@ async function terapkanOpsiArusKasGabungan() {
           ).trim();
           var noPerkData = String(g.noPerk || g.noperk || "").trim();
 
+          // Filter Aktiva Tetap (Gol >= 103)
           if (
             parseInt(kodeGol) >= 103 &&
             cabangData === cab &&
@@ -1370,36 +1369,43 @@ async function terapkanOpsiArusKasGabungan() {
           }
         });
 
-        // 3. SISIPKAN ISI MAP PERKIRAAN SEBAGAI BARIS TERSSENDIRI SEBELUM TOTAL
-        // (Ditandai dengan tipe "mapping" agar bisa dibedakan di HTML nanti)
+        // 3. SISIPKAN DATA DARI MAP PERKIRAAN DENGAN FILTER KETAT
+        // Syarat: Masa = kodemasadicari DAN NoPerk < 103 (Artinya 101, 102, dll)
         for (var keyPerk in mapNamaPerkiraan) {
           var itemMap = mapNamaPerkiraan[keyPerk];
-          arrDataSementara.push({
-            noPerk: keyPerk,
-            golongan: "[MAP]",
-            masa: itemMap.masa, // MASA DARI MAP
-            nama: itemMap.nama, // NAMA DARI MAP
-            saldo: itemMap.saldo, // SALDO DARI MAP
-            tipe: "mapping", // PENANDA BARIS INI BUKAN DATA ASLI
-          });
+
+          // Ambil angka depan dari NoPerk (misal "1021" jadi 102)
+          var angkaDepanPerk = parseInt(keyPerk.substring(0, 3)) || 0;
+
+          if (itemMap.masa === kodemasadicari && angkaDepanPerk < 103) {
+            arrDataSementara.push({
+              noPerk: keyPerk,
+              golongan: String(angkaDepanPerk), // Ditulis golongannya misal 102
+              masa: itemMap.masa,
+              nama: itemMap.nama,
+              saldo: itemMap.saldo,
+              tipe: "mapping",
+            });
+          }
         }
 
         // 4. TAMBAHKAN TOTAL AKHIR DI PALING BAWAH
         var totalAkhir = 0;
         arrDataSementara.forEach(function (item) {
-          if (item.tipe === "detail") totalAkhir += item.saldo; // Hanya jumlah yang detail asli
+          if (item.tipe === "detail" || item.tipe === "mapping") {
+            totalAkhir += item.saldo; // Totalnya dijumlah dari data Aktiva Tetap + yang disisipkan dari Map
+          }
         });
 
         arrDataSementara.push({
           noPerk: "",
           golongan: "",
           masa: "",
-          nama: "TOTAL AKHIR AKTIVA TETAP",
+          nama: "TOTAL AKHIR",
           saldo: totalAkhir,
           tipe: "total",
         });
 
-        // Simpan ke variabel utama
         saldoAkhirAktivaTetapByCabang[cab] = arrDataSementara;
       });
     }
@@ -1412,7 +1418,6 @@ async function terapkanOpsiArusKasGabungan() {
       mapMasterCab,
     };
 
-    // Render UI
     var outerArea = document.getElementById("area_cetak_rlgab");
     if (outerArea) {
       outerArea.style.height = "auto";
@@ -1444,7 +1449,6 @@ async function terapkanOpsiArusKasGabungan() {
         "</div>";
   }
 }
-
 function generateHTMLArusKasGabungan(
   daftarCabang,
   arrKodeGol,
