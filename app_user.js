@@ -14,22 +14,14 @@ async function renderUser() {
     var roleTag =
       r.role === "Admin"
         ? '<span class="tag tag-db">Admin</span>'
-        : r.role === "Kasir"
-          ? '<span class="tag tag-cr">Kasir</span>'
+        : r.role === "Manager"
+          ? '<span class="tag tag-mgr">Manager</span>' // DITAMBAHKAN
           : r.role === "Akunting"
             ? '<span class="tag tag-cr">Akunting</span>'
-            : '<span class="tag tag-awal">Viewer</span>';
-    return [
-      r.username,
-      r.nama,
-      roleTag,
-      r.cabang || "Pusat",
-      data.length > 1
-        ? crudActions(r.id, "users")
-        : "<button class=\"btn btn-g btn-sm\" onclick=\"editRow('users','" +
-          r.id +
-          '\')"><i class="fa-solid fa-pen"></i></button>',
-    ];
+            : r.role === "Kasir"
+              ? '<span class="tag tag-cr">Kasir</span>'
+              : '<span class="tag tag-awal">Viewer</span>';
+    return [r.username, r.nama, roleTag, r.cabang || "Pusat"];
   });
   return (
     bulkBarHTML("users", "User") +
