@@ -42,7 +42,10 @@ async function renderUser() {
       buildTable(["Username", "Nama", "Role", "Cabang", "Aksi"], rows, {
         bulkStore: "users",
         bulkIds: ids,
-        actions: null,
+        actions: function (r, i) {
+          return crudActions(data[i].id, "users");
+        },
+
         emptyMsg: "Belum ada user",
       }),
     )
