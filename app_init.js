@@ -282,6 +282,8 @@ function buildSidebar() {
 
     if (userRole === "ADMIN") {
       itemsBolehTampil = grp.items;
+    } else if (userRole === "MANAGER") {
+      itemsBolehTampil = grp.items.filter((item) => item.id !== "UserMgmt");
     } else if (userRole === "AKUNTING") {
       if (
         ![
