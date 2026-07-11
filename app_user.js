@@ -45,7 +45,6 @@ async function renderUser() {
         actions: function (r, i) {
           return crudActions(data[i].id, "users");
         },
-
         emptyMsg: "Belum ada user",
       }),
     )
