@@ -85,6 +85,9 @@ function formUser(editId) {
       (d && d.role === "Kasir" ? " selected" : "") +
       ">Kasir</option>" +
       "<option" +
+      (d && d.role === "Manager" ? " selected" : "") +
+      ">Manager</option>" +
+      "<option" +
       (d && d.role === "Viewer" ? " selected" : "") +
       ">Viewer</option></select></div>" +
       // 🛠️ PERBAIKAN: Menggunakan getCabangOpts() agar dropdown otomatis dinamis
