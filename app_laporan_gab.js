@@ -918,7 +918,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
     return mapMasterCab[cab] || cab;
   });
 
-  function hitungSubTotalPerCabang(digitTarget, isPenjualan) {
+  function hitungSubTotalPerCabang(digitTarget) {
     return daftarCabang.map(function (cab) {
       var total = 0;
       Object.keys(dataByCabang[cab] || {}).forEach(function (kodeGol) {
@@ -926,29 +926,28 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
           total += dataByCabang[cab][kodeGol];
         }
       });
-      if (isPenjualan) total = total * -1;
       return total;
     });
   }
 
-  var dataPenjualan = hitungSubTotalPerCabang("3", true);
-  var dataHPP = hitungSubTotalPerCabang("4", false);
-  var dataAdmUmum = hitungSubTotalPerCabang("5", false);
-  var dataLain2 = hitungSubTotalPerCabang("6", false);
+  var dataPenjualan = hitungSubTotalPerCabang("3");
+  var dataHPP = hitungSubTotalPerCabang("4");
+  var dataAdmUmum = hitungSubTotalPerCabang("5");
+  var dataLain2 = hitungSubTotalPerCabang("6");
 
   var dataRL = dataPenjualan.map(function (val, index) {
     return val - dataHPP[index] - dataAdmUmum[index] - dataLain2[index];
   });
 
   // 1. Buka jendela baru
-  var lebar = 1000,
-    tinggi = 700;
+  var lebar = 1200,
+    tinggi = 650;
   var kiri = (screen.width - lebar) / 2,
     atas = (screen.height - tinggi) / 2;
 
   var winGrafik = window.open(
     "",
-    "GrafikRLCabang3D",
+    "GrafikRLCabangBarDonut",
     "width=" +
       lebar +
       ",height=" +
@@ -965,34 +964,37 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
     return;
   }
 
-  // 2. Isi struktur HTML dengan ECharts + ECharts GL (untuk 3D)
+  // 2. Isi struktur HTML (Cukup ECharts biasa, tanpa GL)
   winGrafik.document.open();
   winGrafik.document.write(
     `<!DOCTYPE html>
     <html>
     <head>
-      <title>Grafik 3D — R/L Gabungan Per Cabang</title>
+      <title>Grafik R/L Gabungan Per Cabang</title>
       <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"><\/script>
-      <script src="https://cdn.jsdelivr.net/npm/echarts-gl@2.0.9/dist/echarts-gl.min.js"><\/script>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { background: #0b0f19; color: #fff; font-family: 'Segoe UI', sans-serif; overflow: hidden; }
         .header {
-          text-align: center; padding: 15px 20px;
+          text-align: center; padding: 12px 20px;
           background: linear-gradient(135deg, #141c2e 0%, #0f1623 100%);
           border-bottom: 1px solid #1c2844;
-          display: flex; justify-content: space-between; align-items: center;
+          display: flex; justify-content: center; align-items: center; gap: 25px;
         }
         .header h2 { font-size: 1.1rem; color: #f59e0b; }
         .legend-box { display: flex; gap: 15px; flex-wrap: wrap; }
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #8899b0; }
         .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
-        #chart3d { width: 100%; height: calc(100vh - 60px); }
+        .charts-container {
+          display: flex; width: 100%; height: calc(100vh - 50px);
+        }
+        #chartBar { width: 65%; height: 100%; border-right: 1px solid #1c2844; }
+        #chartDonut { width: 35%; height: 100%; }
       </style>
     </head>
     <body>
       <div class="header">
-        <h2>Laba Rugi Gabungan — 3D View</h2>
+        <h2>Laba Rugi Gabungan</h2>
         <div class="legend-box">
           <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>PENJUALAN</div>
           <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>HPP</div>
@@ -1001,13 +1003,16 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
           <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>LABA/RUGI</div>
         </div>
       </div>
-      <div id="chart3d"></div>
+      <div class="charts-container">
+        <div id="chartBar"></div>
+        <div id="chartDonut"></div>
+      </div>
     </body>
     </html>`,
   );
   winGrafik.document.close();
 
-  // 3. Gambar chart 3D setelah jendela selesai dimuat
+  // 3. Gambar chart setelah jendela selesai dimuat
   winGrafik.onload = function () {
     var formatRupiahLokal =
       typeof formatUang === "function"
@@ -1016,10 +1021,12 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
             return val.toLocaleString("id-ID");
           };
 
-    var chartDom = winGrafik.document.getElementById("chart3d");
-    var myChart = winGrafik.echarts.init(chartDom, "dark");
+    // Inisialisasi 2 Chart terpisah
+    var barDom = winGrafik.document.getElementById("chartBar");
+    var donutDom = winGrafik.document.getElementById("chartDonut");
+    var barChart = winGrafik.echarts.init(barDom, "dark");
+    var donutChart = winGrafik.echarts.init(donutDom, "dark");
 
-    // Konfigurasi warna
     var warna = {
       penjualan: "#22c55e",
       hpp: "#3b82f6",
@@ -1028,86 +1035,50 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
       laba: "#f59e0b",
     };
 
-    // Fungsi helper untuk buat data series 3D
-    function buatSeries3D(namaData, label, warnaHex, xIndex) {
-      var data3D = [];
-      namaData.forEach(function (val, i) {
-        data3D.push([i, xIndex, val > 0 ? val : 0]);
-      });
-      return {
-        type: "bar3D",
-        name: label,
-        data: data3D,
-        shading: "realistic",
-        realisticMaterial: {
-          roughness: 0.4,
-          metalness: 0.1,
-          textureTiling: 1,
-        },
-        label: {
-          show: false,
-        },
-        itemStyle: {
-          color: warnaHex,
-          opacity: 0.9,
-        },
-        emphasis: {
-          label: {
-            show: true,
-            formatter: function (params) {
-              return label + "\\n" + formatRupiahLokal(params.value[2]);
-            },
-            textStyle: {
-              color: "#fff",
-              fontSize: 12,
-              backgroundColor: "rgba(0,0,0,0.7)",
-              padding: [6, 10],
-              borderRadius: 4,
-            },
-          },
-          itemStyle: { color: "#ffffff" },
-        },
-        bevelSize: 0.5,
-        barSize: 14,
-        gap: 4,
-      };
-    }
-
-    // Hitung offset X supaya berkelompok rapi per cabang
-    var groupGap = 5;
-    var barWidth = 14;
-    var barGap = 2;
-    var groupWidth = 5 * barWidth + 4 * barGap;
-
-    var option = {
+    // ==================== 1. OPSI GRAFIK BATANG ====================
+    var optionBar = {
       tooltip: {
+        trigger: "axis",
+        axisPointer: { type: "shadow" },
+        backgroundColor: "rgba(15, 23, 42, 0.9)",
+        borderColor: "#1c2844",
+        textStyle: { color: "#fff", fontSize: 12 },
         formatter: function (params) {
-          return (
-            "<b>" +
-            labels[params.value[0]] +
-            "</b><br/>" +
-            params.seriesName +
-            ": <b>" +
-            formatRupiahLokal(params.value[2]) +
-            "</b>"
-          );
+          var tip = "<b>" + params[0].name + "</b><br/>";
+          params.forEach(function (p) {
+            // Khusus penjualan, tambahin tanda minus di tooltip agar sesuai konteks akuntansi
+            var val = p.seriesName === "PENJUALAN" ? -p.value : p.value;
+            tip +=
+              '<span style="display:inline-block;margin-right:5px;border-radius:2px;width:10px;height:10px;background-color:' +
+              p.color +
+              ';"></span>' +
+              p.seriesName +
+              ": <b>" +
+              formatRupiahLokal(val) +
+              "</b><br/>";
+          });
+          return tip;
         },
       },
-      xAxis3D: {
+      legend: { show: false }, // Legend sudah di-handle oleh HTML Header
+      grid: {
+        left: "3%",
+        right: "4%",
+        bottom: "3%",
+        top: "10%",
+        containLabel: true,
+      },
+      xAxis: {
         type: "category",
         data: labels,
-        axisLabel: { color: "#8899b0", fontSize: 11 },
+        axisLabel: {
+          color: "#8899b0",
+          fontSize: 10,
+          rotate: labels.length > 6 ? 30 : 0,
+        },
         axisLine: { lineStyle: { color: "#1c2844" } },
-        splitLine: { show: false },
       },
-      yAxis3D: {
-        type: "category",
-        data: ["PENJUALAN", "HPP", "BY.ADM&UMUM", "BY.LAINNYA", "LABA/RUGI"],
-        axisLabel: { color: "#8899b0", fontSize: 10 },
-        axisLine: { lineStyle: { color: "#1c2844" } },
-        splitLine: { show: false },
-      },
-      zAxis3D: {
+      yAxis: {
         type: "value",
         axisLabel: {
           color: "#8899b0",
@@ -1116,58 +1087,159 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
             return formatRupiahLokal(val);
           },
         },
-        axisLine: { lineStyle: { color: "#1c2844" } },
         splitLine: { lineStyle: { color: "#1c2844", type: "dashed" } },
       },
-      grid3D: {
-        boxWidth: 200,
-        boxDepth: 80,
-        boxHeight: 100,
-        viewControl: {
-          distance: 280,
-          alpha: 25,
-          beta: 35,
-          autoRotate: false,
-          rotateSensitivity: 3,
-          zoomSensitivity: 2,
-          panSensitivity: 1,
-          damping: 0.85,
-        },
-        light: {
-          main: {
-            intensity: 1.2,
-            shadow: true,
-            shadowQuality: "high",
-            alpha: 40,
-            beta: 40,
-          },
-          ambient: { intensity: 0.4 },
-        },
-        environment: "none",
-        postEffect: {
-          enable: true,
-          bloom: { enable: true, bloomIntensity: 0.05 },
-          SSAO: { enable: true, radius: 3, intensity: 1.2 },
-        },
-      },
       series: [
-        buatSeries3D(dataPenjualan, "PENJUALAN BERSIH", warna.penjualan, 0),
-        buatSeries3D(dataHPP, "TOTAL HPP", warna.hpp, 1),
-        buatSeries3D(dataAdmUmum, "TOTAL BY. ADM & UMUM", warna.adm, 2),
-        buatSeries3D(dataLain2, "TOTAL BY. LAINNYA", warna.lain, 3),
-        buatSeries3D(dataRL, "LABA / RUGI BERSIH", warna.laba, 4),
+        {
+          name: "PENJUALAN",
+          type: "bar",
+          data: dataPenjualan.map((v) => Math.abs(v)),
+          itemStyle: { color: warna.penjualan, borderRadius: [2, 2, 0, 0] },
+          barMaxWidth: 20,
+        },
+        {
+          name: "HPP",
+          type: "bar",
+          data: dataHPP,
+          itemStyle: { color: warna.hpp, borderRadius: [2, 2, 0, 0] },
+          barMaxWidth: 20,
+        },
+        {
+          name: "BY. ADM & UMUM",
+          type: "bar",
+          data: dataAdmUmum,
+          itemStyle: { color: warna.adm, borderRadius: [2, 2, 0, 0] },
+          barMaxWidth: 20,
+        },
+        {
+          name: "BY. LAINNYA",
+          type: "bar",
+          data: dataLain2,
+          itemStyle: { color: warna.lain, borderRadius: [2, 2, 0, 0] },
+          barMaxWidth: 20,
+        },
+        {
+          name: "LABA/RUGI",
+          type: "bar",
+          data: dataRL,
+          itemStyle: {
+            color: function (params) {
+              return params.value >= 0 ? warna.laba : "#ef4444"; // Merah jika rugi
+            },
+            borderRadius: [2, 2, 0, 0],
+          },
+          barMaxWidth: 20,
+        },
       ],
     };
 
-    myChart.setOption(option);
+    // ==================== 2. OPSI GRAFIK DONAT ====================
+    // Hitung total keseluruhan dari seluruh cabang untuk donat
+    var totalPenjualan = dataPenjualan.reduce((a, b) => a + Math.abs(b), 0);
+    var totalHPP = dataHPP.reduce((a, b) => a + b, 0);
+    var totalAdm = dataAdmUmum.reduce((a, b) => a + b, 0);
+    var totalLain = dataLain2.reduce((a, b) => a + b, 0);
+    var totalRL = dataRL.reduce((a, b) => a + b, 0);
+
+    var optionDonut = {
+      title: {
+        text: "Total Proporsi\nGabungan",
+        left: "center",
+        top: "center",
+        textStyle: {
+          color: "#fff",
+          fontSize: 14,
+          fontWeight: "normal",
+          lineHeight: 20,
+        },
+      },
+      tooltip: {
+        trigger: "item",
+        backgroundColor: "rgba(15, 23, 42, 0.9)",
+        borderColor: "#1c2844",
+        textStyle: { color: "#fff", fontSize: 12 },
+        formatter: function (params) {
+          var val = params.name === "PENJUALAN" ? -params.value : params.value;
+          return (
+            "<b>" +
+            params.name +
+            "</b><br/>Nilai: " +
+            formatRupiahLokal(val) +
+            " (" +
+            params.percent +
+            "%)"
+          );
+        },
+      },
+      series: [
+        {
+          type: "pie",
+          radius: ["45%", "70%"],
+          center: ["50%", "50%"],
+          avoidLabelOverlap: true,
+          itemStyle: {
+            borderRadius: 5,
+            borderColor: "#0b0f19",
+            borderWidth: 2,
+          },
+          label: {
+            show: true,
+            color: "#8899b0",
+            fontSize: 11,
+            formatter: "{b}\n{d}%",
+          },
+          labelLine: { lineStyle: { color: "#1c2844" } },
+          emphasis: {
+            label: {
+              show: true,
+              fontSize: 13,
+              fontWeight: "bold",
+              color: "#fff",
+            },
+            itemStyle: {
+              shadowBlur: 10,
+              shadowOffsetX: 0,
+              shadowColor: "rgba(0, 0, 0, 0.5)",
+            },
+          },
+          data: [
+            {
+              value: totalPenjualan,
+              name: "PENJUALAN",
+              itemStyle: { color: warna.penjualan },
+            },
+            { value: totalHPP, name: "HPP", itemStyle: { color: warna.hpp } },
+            {
+              value: totalAdm,
+              name: "BY. ADM & UMUM",
+              itemStyle: { color: warna.adm },
+            },
+            {
+              value: totalLain,
+              name: "BY. LAINNYA",
+              itemStyle: { color: warna.lain },
+            },
+            {
+              value: Math.abs(totalRL),
+              name: totalRL >= 0 ? "LABA BERSIH" : "RUGI BERSIH",
+              itemStyle: { color: totalRL >= 0 ? warna.laba : "#ef4444" },
+            },
+          ],
+        },
+      ],
+    };
+
+    // Render ke masing-masing div
+    barChart.setOption(optionBar);
+    donutChart.setOption(optionDonut);
 
     // Auto resize saat jendela di-resize
     winGrafik.addEventListener("resize", function () {
-      myChart.resize();
+      barChart.resize();
+      donutChart.resize();
     });
   };
 }
-
 // ==========================================
 // FUNGSI AKSI TOMBOL LIHAT GRAFIK
 // ==========================================
