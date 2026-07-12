@@ -912,7 +912,6 @@ async function renderGrafikRLGabungan(
     gambarChartNow(daftarCabang, dataByCabang, mapMasterCab);
   }
 }
-
 function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
   var labels = daftarCabang.map(function (cab) {
     return mapMasterCab[cab] || cab;
@@ -935,11 +934,15 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
   var dataAdmUmum = hitungSubTotalPerCabang("5");
   var dataLain2 = hitungSubTotalPerCabang("6");
 
+  // PERBAIKAN UTAMA:
+  // Gunakan Math.abs() untuk Penjualan saat menghitung RL, karena di database biasanya Penjualan sudah minus (Kredit)
   var dataRL = dataPenjualan.map(function (val, index) {
-    return val - dataHPP[index] - dataAdmUmum[index] - dataLain2[index];
+    var penjualanBersih = Math.abs(val);
+    return (
+      penjualanBersih - dataHPP[index] - dataAdmUmum[index] - dataLain2[index]
+    );
   });
 
-  // 1. Buka jendela baru
   var lebar = 1200,
     tinggi = 650;
   var kiri = (screen.width - lebar) / 2,
@@ -964,7 +967,6 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
     return;
   }
 
-  // 2. Isi struktur HTML (Cukup ECharts biasa, tanpa GL)
   winGrafik.document.open();
   winGrafik.document.write(
     `<!DOCTYPE html>
@@ -985,9 +987,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
         .legend-box { display: flex; gap: 15px; flex-wrap: wrap; }
         .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.75rem; color: #8899b0; }
         .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
-        .charts-container {
-          display: flex; width: 100%; height: calc(100vh - 50px);
-        }
+        .charts-container { display: flex; width: 100%; height: calc(100vh - 50px); }
         #chartBar { width: 65%; height: 100%; border-right: 1px solid #1c2844; }
         #chartDonut { width: 35%; height: 100%; }
       </style>
@@ -1012,7 +1012,6 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
   );
   winGrafik.document.close();
 
-  // 3. Gambar chart setelah jendela selesai dimuat
   winGrafik.onload = function () {
     var formatRupiahLokal =
       typeof formatUang === "function"
@@ -1021,7 +1020,6 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
             return val.toLocaleString("id-ID");
           };
 
-    // Inisialisasi 2 Chart terpisah
     var barDom = winGrafik.document.getElementById("chartBar");
     var donutDom = winGrafik.document.getElementById("chartDonut");
     var barChart = winGrafik.echarts.init(barDom, "dark");
@@ -1035,7 +1033,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
       laba: "#f59e0b",
     };
 
-    // ==================== 1. OPSI GRAFIK BATANG ====================
+    // ==================== 1. GRAFIK BATANG ====================
     var optionBar = {
       tooltip: {
         trigger: "axis",
@@ -1046,7 +1044,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
         formatter: function (params) {
           var tip = "<b>" + params[0].name + "</b><br/>";
           params.forEach(function (p) {
-            // Khusus penjualan, tambahin tanda minus di tooltip agar sesuai konteks akuntansi
+            // Tampilkan penjualan sebagai minus di tooltip untuk konteks akuntansi
             var val = p.seriesName === "PENJUALAN" ? -p.value : p.value;
             tip +=
               '<span style="display:inline-block;margin-right:5px;border-radius:2px;width:10px;height:10px;background-color:' +
@@ -1060,7 +1058,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
           return tip;
         },
       },
-      legend: { show: false }, // Legend sudah di-handle oleh HTML Header
+      legend: { show: false },
       grid: {
         left: "3%",
         right: "4%",
@@ -1093,7 +1091,9 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
         {
           name: "PENJUALAN",
           type: "bar",
-          data: dataPenjualan.map((v) => Math.abs(v)),
+          data: dataPenjualan.map(function (v) {
+            return Math.abs(v);
+          }),
           itemStyle: { color: warna.penjualan, borderRadius: [2, 2, 0, 0] },
           barMaxWidth: 20,
         },
@@ -1124,7 +1124,7 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
           data: dataRL,
           itemStyle: {
             color: function (params) {
-              return params.value >= 0 ? warna.laba : "#ef4444"; // Merah jika rugi
+              return params.value >= 0 ? warna.laba : "#ef4444";
             },
             borderRadius: [2, 2, 0, 0],
           },
@@ -1133,17 +1133,27 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
       ],
     };
 
-    // ==================== 2. OPSI GRAFIK DONAT ====================
-    // Hitung total keseluruhan dari seluruh cabang untuk donat
-    var totalPenjualan = dataPenjualan.reduce((a, b) => a + Math.abs(b), 0);
-    var totalHPP = dataHPP.reduce((a, b) => a + b, 0);
-    var totalAdm = dataAdmUmum.reduce((a, b) => a + b, 0);
-    var totalLain = dataLain2.reduce((a, b) => a + b, 0);
-    var totalRL = dataRL.reduce((a, b) => a + b, 0);
+    // ==================== 2. GRAFIK DONAT ====================
+    // Hitung total keseluruhan secara absolut untuk Donat agar tidak error
+    var totalPenjualan = dataPenjualan.reduce(function (a, b) {
+      return a + Math.abs(b);
+    }, 0);
+    var totalHPP = dataHPP.reduce(function (a, b) {
+      return a + Math.abs(b);
+    }, 0);
+    var totalAdm = dataAdmUmum.reduce(function (a, b) {
+      return a + Math.abs(b);
+    }, 0);
+    var totalLain = dataLain2.reduce(function (a, b) {
+      return a + Math.abs(b);
+    }, 0);
+    var totalRL = dataRL.reduce(function (a, b) {
+      return a + b;
+    }, 0);
 
     var optionDonut = {
       title: {
-        text: "Total Proporsi\nGabungan",
+        text: "Komposisi\nGabungan",
         left: "center",
         top: "center",
         textStyle: {
@@ -1229,17 +1239,16 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
       ],
     };
 
-    // Render ke masing-masing div
     barChart.setOption(optionBar);
     donutChart.setOption(optionDonut);
 
-    // Auto resize saat jendela di-resize
     winGrafik.addEventListener("resize", function () {
       barChart.resize();
       donutChart.resize();
     });
   };
 }
+
 // ==========================================
 // FUNGSI AKSI TOMBOL LIHAT GRAFIK
 // ==========================================
