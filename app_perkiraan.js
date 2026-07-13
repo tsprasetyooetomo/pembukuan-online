@@ -1507,7 +1507,7 @@ async function renderGroup() {
   });
 
   return (
-    bulkBarHTML("group", "Group") +
+    bulkBarHTML("groupproject", "Group Project") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem">Tampilkan ' +
     getLimitOptsHTML() +
@@ -1521,7 +1521,7 @@ async function renderGroup() {
     "</div>" +
     wrapTable(
       buildTable(["Kode Group", "Nama Group"], rows, {
-        bulkStore: "group",
+        bulkStore: "groupproject",
         bulkIds: idsLimit,
         actions: function (r, i) {
           return crudActions(dataLimit[i].id, "group");
