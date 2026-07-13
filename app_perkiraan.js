@@ -1571,16 +1571,16 @@ async function saveGroup(e, id) {
 
     if (id) {
       // MODE EDIT (UPDATE)
-      var r = await db.get("group", id);
+      var r = await db.get("groupproject", id);
       if (r) {
         await db.put(
-          "group",
+          "groupproject",
           Object.assign({}, r, { id: id, kode: kode, nama: nama }),
         );
       }
     } else {
       // MODE TAMBAH BARU
-      await db.add("group", { id: uid(), kode: kode, nama: nama });
+      await db.add("groupproject", { id: uid(), kode: kode, nama: nama });
     }
 
     await refreshCache();
