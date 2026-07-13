@@ -42,6 +42,7 @@ async function loginSystem() {
       localStorage.setItem("nama", data.user.nama);
       localStorage.setItem("cabang", data.user.kode_cabang);
       localStorage.setItem("role", data.user.role);
+      localStorage.setItem("group", data.user.group);
       // localStorage.setItem("role", "ADMIN");
 
       if (typeof toast === "function") {
