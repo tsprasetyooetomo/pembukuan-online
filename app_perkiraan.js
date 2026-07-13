@@ -700,15 +700,41 @@ async function savePerk(e, id) {
 
 /* ---------- Kode Bank/Kas ---------- */
 PANEL_MAP.kode = renderKodeBank;
-
 async function renderKodeBank() {
   var rawData = DBCache.kodeBank || [];
-  var data = filterByCabang(rawData);
 
+  // --- 1. FILTER (CABANG & GROUP) ---
+  var data = filterByCabang(rawData);
+  var activeGroup = getActiveGroupFilter();
+
+  if (activeGroup) {
+    data = data.filter(function (r) {
+      return (r.group || "") === activeGroup;
+    });
+  }
+
+  // --- 2. SORTING ---
   data.sort(function (a, b) {
     var cabangA = String(a.cabang || "");
     var cabangB = String(b.cabang || "");
-    return cabangA.localeCompare(cabangB, undefined, {
+    var compareCabang = cabangA.localeCompare(cabangB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (compareCabang !== 0) return compareCabang;
+
+    // Urutkan berdasarkan Group
+    var groupA = String(a.group || "");
+    var groupB = String(b.group || "");
+    var compareGroup = groupA.localeCompare(groupB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (compareGroup !== 0) return compareGroup;
+
+    var kodeA = String(a.kodebank || "");
+    var kodeB = String(b.kodebank || "");
+    return kodeA.localeCompare(kodeB, undefined, {
       numeric: true,
       sensitivity: "base",
     });
@@ -724,8 +750,6 @@ async function renderKodeBank() {
     return r.id;
   });
 
-  console.log("Navigate ke 1: " + currentPanel);
-
   function countRef(kode) {
     var tc = 0;
     (DBCache.transaksi || []).forEach(function (t) {
@@ -733,6 +757,7 @@ async function renderKodeBank() {
     });
     return tc;
   }
+
   function lookupPerk(noper) {
     if (!noper) return "-";
     var p = (DBCache.perkiraan || []).find(function (x) {
@@ -743,15 +768,19 @@ async function renderKodeBank() {
       : '<span style="color:var(--accent)">⚠ ' + esc(noper) + "</span>";
   }
 
+  // --- 3. RENDER BARIS ---
   var rows = dataLimit.map(function (r) {
     return [
       r.kodebank,
       r.penjelasan || "-",
       lookupPerk(r.noper),
       '<span style="color:var(--success)">' + countRef(r.kodebank) + "</span>",
+      r.group || "-", // <-- KOLOM GROUP DITAMBAHKAN
       lookupCabangLabel(r.cabang),
     ];
   });
+
+  // --- 4. FOOTER (TOTAL) ---
   var totalTrans = data.reduce(function (s, r) {
     return s + countRef(r.kodebank);
   }, 0);
@@ -760,14 +789,20 @@ async function renderKodeBank() {
     "-",
     "-",
     '<span style="color:var(--success)">' + totalTrans + "</span>",
-    "-",
+    "-", // Footer Kolom Group
+    "-", // Footer Kolom Cabang
   ];
+
+  // --- 5. RETURN HTML ---
   return (
     bulkBarHTML("kodeBank", "kodeBank") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
     "Filter Cabang: " +
     getCabangFilterHTML() +
+    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+    "Filter Group: " +
+    getGroupFilterHTML() + // <-- DROPDOWN FILTER GROUP DITAMBAHKAN
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
     getLimitOptsHTML() +
@@ -788,6 +823,7 @@ async function renderKodeBank() {
           "Penjelasan",
           "No Perkiraan",
           "Jml Transaksi",
+          "Group", // <-- HEADER KOLOM GROUP DITAMBAHKAN
           "Cabang",
         ],
         rows,
@@ -804,6 +840,7 @@ async function renderKodeBank() {
     )
   );
 }
+
 function formKodeBank(id) {
   var isEdit = !!id;
   var data = isEdit
@@ -818,6 +855,11 @@ function formKodeBank(id) {
     ">" +
     getCabangOpts(data.cabang) +
     "</select></div>" +
+    '<div class="fg"><label>Group</label><select id="fKbGroup" class="in"' + // <-- INPUT GROUP DITAMBAHKAN
+    (isEdit ? " disabled" : "") +
+    ">" +
+    getGroupOpts(data.group) +
+    "</select></div>" +
     '<div class="fg"><label>Kode Bank</label><input id="fKbKode" class="in" value="' +
     esc(data.kodebank || "") +
     '"></div>' +
@@ -830,7 +872,6 @@ function formKodeBank(id) {
     '<div class="fg"><label>Saldo Awal</label><input id="fKbAwal" type="number" class="in" value="' +
     esc(data.awal || 0) +
     '"></div>' +
-    /* ✅ TAMBAHAN: INPUT TANGGAL SALDO AWAL */
     '<div class="fg"><label>Tgl Saldo Awal</label><input id="fKbTglAwal" type="date" class="in" value="' +
     esc(data.tgl_awal || "") +
     '"></div>';
@@ -847,11 +888,11 @@ function formKodeBank(id) {
 }
 
 async function saveKodeBank(e, editId) {
-  // ✅ 1. Kunci browser agar tidak memicu hard refresh bawaan
   if (e && e.preventDefault) e.preventDefault();
 
   try {
     var cabang = $("fKbCab").value;
+    var group = $("fKbGroup").value; // <-- AMBIL NILAI GROUP
     var kodebank = $("fKbKode").value.trim();
     var penjelasan = $("fKbPenjelasan").value.trim();
     var noper = $("fKbNoper").value.trim();
@@ -866,7 +907,6 @@ async function saveKodeBank(e, editId) {
     if (editId) {
       console.log("Menjalankan Mode EDIT untuk ID:", editId);
 
-      // Ambal data lama dari IndexedDB lokal browser
       var r = await db.get("kodeBank", editId);
       if (r) {
         var updated = Object.assign({}, r, {
@@ -874,11 +914,12 @@ async function saveKodeBank(e, editId) {
           penjelasan: penjelasan,
           noper: noper,
           cabang: cabang,
+          group: group, // <-- GROUP DIMASUKKAN KE UPDATE
           awal: awal,
           tgl_awal: tgl_awal,
         });
 
-        // ✅ 2. TEMBAK KE BACKEND SERVER (Menyimpan permanen di file SQLite Drive D)
+        // TEMBAK KE BACKEND SERVER
         var response = await fetch(
           API_BASE_URL + "/api/data/kodeBank/" + editId,
           {
@@ -893,10 +934,8 @@ async function saveKodeBank(e, editId) {
           throw new Error(errJson.error || "Gagal update ke server backend");
         }
 
-        // ✅ 3. Sinkronisasi data ke IndexedDB browser agar tetap sama
+        // Sinkronisasi ke IndexedDB & Cache
         await db.put("kodeBank", updated);
-
-        // ✅ 4. Perbarui data cache layar (DBCache)
         var idx = DBCache.kodeBank.findIndex((x) => x.id === editId);
         if (idx !== -1) {
           DBCache.kodeBank[idx] = updated;
@@ -914,11 +953,12 @@ async function saveKodeBank(e, editId) {
         penjelasan: penjelasan,
         noper: noper,
         cabang: cabang,
+        group: group, // <-- GROUP DIMASUKKAN KE OBJEK BARU
         awal: awal,
         tgl_awal: tgl_awal,
       };
 
-      // ✅ 5. TEMBAK DATA BARU KE BACKEND SERVER (Jika backend Anda mendukung POST rute dinamis ini)
+      // TEMBAK DATA BARU KE BACKEND SERVER
       var response = await fetch(API_BASE_URL + "/api/data/kodeBank", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -932,20 +972,18 @@ async function saveKodeBank(e, editId) {
         );
       }
 
-      // ✅ 6. Sinkronisasi data baru ke IndexedDB dan DBCache browser
+      // Sinkronisasi ke IndexedDB & Cache
       await db.add("kodeBank", newObj);
       DBCache.kodeBank.push(newObj);
       console.log("✅ Data baru sukses ditambahkan");
     }
 
-    // ✅ 7. Eksekusi visual update secara mulus tanpa mengganggu siklus browser
+    // Eksekusi visual update
     setTimeout(async function () {
       console.log("Menutup modal...");
       closeModal();
-
       toast(editId ? "Diperbarui" : "Ditambahkan", "ok");
 
-      // Render ulang isi tabel komponen secara instan tanpa lompat halaman/dashboard
       if (typeof renderCurrentPanel === "function") {
         await renderCurrentPanel();
       } else if (typeof safeRenderCurrentPanel === "function") {
@@ -958,7 +996,52 @@ async function saveKodeBank(e, editId) {
   }
 }
 
+function getGroupFilterHTML() {
+  var groups = DBCache.group || [];
+  var active = getActiveGroupFilter();
+  var html =
+    '<select class="in" style="padding:2px 5px;font-size:.8rem" onchange="applyFilterAndRender()">';
+  html += '<option value="">Semua Group</option>';
+  groups.forEach(function (g) {
+    html +=
+      '<option value="' +
+      esc(g.id || "") +
+      '"' +
+      (active === (g.id || "") ? " selected" : "") +
+      ">" +
+      esc(g.nama || "-") +
+      "</option>";
+  });
+  html += "</select>";
+  return html;
+}
+
+function getGroupOpts(selectedId) {
+  var groups = DBCache.group || [];
+  var html = '<option value="">-- Pilih Group --</option>';
+  groups.forEach(function (g) {
+    html +=
+      '<option value="' +
+      esc(g.id || "") +
+      '"' +
+      ((selectedId || "") === (g.id || "") ? " selected" : "") +
+      ">" +
+      esc(g.nama || "-") +
+      "</option>";
+  });
+  return html;
+}
+
+function getActiveGroupFilter() {
+  // Sesuaikan selector ini jika struktur HTML filter Anda berbeda
+  var el = document.querySelector('[onchange="applyFilterAndRender()"]');
+  // Jika ada dua select (Cabang & Group), lebih aman pakai ID.
+  // Contoh jika diberi ID: return document.getElementById('filterGroup') ? document.getElementById('filterGroup').value : "";
+  return el ? el.value : "";
+}
+
 /* ---------- Clear All Data Server Lokal SQLite ---------- */
+
 async function clearAllData(storeName) {
   var labelMap = {
     golongan: "Golongan",
