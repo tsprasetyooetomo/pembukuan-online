@@ -1405,9 +1405,6 @@ function formSaldoKasirAwal(id) {
   openModal(isEdit ? "Edit Saldo Kasir" : "Tambah Saldo Kasir", html, foot);
 }
 
-// ========================================================
-// 3. SAVE SALDO KASIR AWAL
-// ✅ FIX: Nama fungsi diubah menjadi saveSaldoKasirAwal (A besar)
 async function saveSaldoKasirAwal(e, editId) {
   if (e && e.preventDefault) e.preventDefault();
 
