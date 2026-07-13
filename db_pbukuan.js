@@ -19,66 +19,20 @@ class PembukuanDB {
 
     // Definisi Skema Tabel
     this.stores = [
-      {
-        name: "golongan",
-        cols: [{ name: "gol" }, { name: "cabang" }],
-        uniqueGroup: ["gol", "cabang"],
-      },
-      {
-        name: "perkiraan",
-        cols: [{ name: "noPerk" }, { name: "gol" }, { name: "cabang" }],
-        uniqueGroup: ["noPerk", "cabang"],
-      },
-      {
-        name: "transaksi",
-        cols: [
-          { name: "tanggal" },
-          { name: "noreff" },
-          { name: "kodeTrans" },
-          { name: "cabang" },
-          { name: "kodeBank" },
-          { name: "dariKePada" },
-          { name: "noperkiraan" },
-          { name: "desc" },
-          { name: "total" },
-          { name: "db" },
-          { name: "cr" },
-        ],
-      },
-      { name: "users", cols: [{ name: "username", unique: true }] },
-      { name: "formatRL", cols: [] },
-      { name: "formatNeraca", cols: [] },
-      { name: "postedMonths", cols: [{ name: "id", unique: true }] },
-      {
-        name: "kodeBank",
-        cols: [{ name: "kodebank" }, { name: "cabang" }],
-        uniqueGroup: ["kodebank", "cabang"],
-      },
-      { name: "cabang", cols: [] },
-      {
-        name: "detiltransaksi",
-        cols: [
-          { name: "tanggal" },
-          { name: "noreff" },
-          { name: "kodeTrans" },
-          { name: "cabang" },
-          { name: "desc" },
-          { name: "rupiah" },
-          { name: "debet" },
-          { name: "kredit" },
-          { name: "kode" },
-        ],
-      },
-      {
-        name: "saldo_harian",
-        cols: [
-          { name: "cabang" },
-          { name: "char4" },
-          { name: "tanggal" },
-          { name: "saldo_akhir" },
-        ],
-        uniqueGroup: ["cabang", "char4", "tanggal"],
-      },
+      { name: "golongan" },
+      { name: "perkiraan" },
+      { name: "transaksi" },
+      { name: "users" },
+      { name: "formatRL" },
+      { name: "formatNeraca" },
+      { name: "postedMonths" },
+      { name: "kodeBank" },
+      { name: "cabang" },
+      { name: "detiltransaksi" },
+      { name: "groupproject" }, // <-- TAMBAHKAN INI
+      { name: "saldoKasir" },
+      { name: "mutasikasir" },
+      { name: "saldokasirawal" },
     ];
   }
 
