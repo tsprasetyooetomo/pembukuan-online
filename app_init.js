@@ -285,7 +285,7 @@ function buildSidebar() {
       itemsBolehTampil = grp.items;
     } else if (userRole === "MANAGER") {
       itemsBolehTampil = grp.items.filter(
-        (item) => item.id !== "UserMgmt" && item.id !== "cbg",
+        (item) => item.id !== "UserMgmt" && item.id !== "group",
       );
     } else if (userRole === "AKUNTING") {
       if (
@@ -297,7 +297,9 @@ function buildSidebar() {
           "USER",
         ].includes(grp.group)
       )
-        itemsBolehTampil = grp.items.filter((item) => item.id !== "group");
+        itemsBolehTampil = grp.items.filter(
+          (item) => item.id !== "cbg" && item.id !== "group",
+        );
     } else if (userRole === "KASIR") {
       itemsBolehTampil = grp.items.filter((item) =>
         ["saldoKasir", "mutasikasir", "kaskasir"].includes(item.id),
