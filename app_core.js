@@ -2569,7 +2569,8 @@ async function injectGroupMassalKeTahunan() {
   toast("Proses inject dimulai, lihat Console (F12) untuk progress.", "wrn");
 
   var baseUrl = window.location.origin + "/api/data/";
-  var tahunList = ["2022", "2023", "2024", "2025", "2026"];
+  //var tahunList = ["2022", "2023", "2024", "2025", "2026"];
+  var tahunList = ["2022"];
   var tabelList = ["golongan", "perkiraan", "transaksi"];
 
   var totalDisuntik = 0;
