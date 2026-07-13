@@ -32,7 +32,7 @@ const ALLOWED_TABLES = [
   "kodeBank",
   "cabang",
   "detiltransaksi",
-  "group",
+  "groupproject",
   "saldoKasir",
   "mutasikasir",
   "saldokasirawal",
