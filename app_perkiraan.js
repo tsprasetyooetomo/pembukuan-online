@@ -997,7 +997,7 @@ async function saveKodeBank(e, editId) {
 }
 
 function getGroupFilterHTML() {
-  var groups = DBCache.group || [];
+  var groups = DBCache.groupproject || [];
   var active = getActiveGroupFilter();
   var html =
     '<select class="in" style="padding:2px 5px;font-size:.8rem" onchange="applyFilterAndRender()">';
@@ -1017,7 +1017,7 @@ function getGroupFilterHTML() {
 }
 
 function getGroupOpts(selectedId) {
-  var groups = DBCache.group || [];
+  var groups = DBCache.groupproject || [];
   var html = '<option value="">-- Pilih Group --</option>';
   groups.forEach(function (g) {
     html +=
@@ -1482,7 +1482,7 @@ async function saveSaldoKasirAwal(e, editId) {
 PANEL_MAP.group = renderGroup;
 
 async function renderGroup() {
-  var data = DBCache.group || [];
+  var data = DBCache.groupproject || [];
   data.sort(function (a, b) {
     var kodeA = String(a.kode || "");
     var kodeB = String(b.kode || "");
@@ -1535,7 +1535,7 @@ async function renderGroup() {
 function formGroup(id) {
   var isEdit = !!id;
   var data = isEdit
-    ? (DBCache.group || []).find(function (d) {
+    ? (DBCache.groupproject || []).find(function (d) {
         return d.id === id;
       }) || {}
     : {};
