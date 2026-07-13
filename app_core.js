@@ -379,20 +379,28 @@ async function refreshCache() {
     // 🚀 KELOMPOK 1: Data Master INDUK (WAJIB GLOBAL, TIDAK BOLEH DIFILTER)
     // Kita pakai fetch() murni untuk mem-bypass kode lama di db_pbukuan.js
     // Supaya daftar User & Daftar Cabang selalu lengkap untuk dropdown.
-    const [users, formatRL, formatNeraca, postedMonths, allCabang] =
-      await Promise.all([
-        fetch(baseUrl + "users").then((r) => r.json()),
-        fetch(baseUrl + "formatRL").then((r) => r.json()),
-        fetch(baseUrl + "formatNeraca").then((r) => r.json()),
-        fetch(baseUrl + "postedMonths").then((r) => r.json()),
-        fetch(baseUrl + "cabang").then((r) => r.json()),
-      ]);
+    const [
+      users,
+      formatRL,
+      formatNeraca,
+      postedMonths,
+      allCabang,
+      groupproject,
+    ] = await Promise.all([
+      fetch(baseUrl + "users").then((r) => r.json()),
+      fetch(baseUrl + "formatRL").then((r) => r.json()),
+      fetch(baseUrl + "formatNeraca").then((r) => r.json()),
+      fetch(baseUrl + "postedMonths").then((r) => r.json()),
+      fetch(baseUrl + "cabang").then((r) => r.json()),
+      fetch(baseUrl + "groupproject").then((r) => r.json()),
+    ]);
 
     // Simpan Master Induk
     DBCache.users = users;
     DBCache.formatRL = formatRL;
     DBCache.formatNeraca = formatNeraca;
     DBCache.postedMonths = postedMonths;
+    DBCache.groupproject = groupproject;
 
     // ✅ LOGIKA FILTER DROPDOWN CABANG
     if (
@@ -554,6 +562,7 @@ function bulkShowConfirm(store) {
     kodeBank: "Kode Bank",
     cabang: "Cabang",
     saldoKasirAwal: "saldoKasirAwal",
+    groupproject: "Group Project",
   };
   var storeLabel = labelMap[store] || store;
   openModal(
