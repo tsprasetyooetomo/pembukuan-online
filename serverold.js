@@ -469,9 +469,13 @@ app.put("/api/data/:storeName/:id", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
     const { storeName, id } = req.params;
-    if (!isValidTable(storeName))
+    const lowerStoreName = storeName.toLowerCase(); // ✅ PINDAHKAN KE ATAS
+
+    // ✅ CEK MENGGUNAKAN YANG SUDAH DI-LOWERCASE
+    if (!isValidTable(lowerStoreName)) {
       return res.status(400).json({ error: "Invalid Table" });
-    const lowerStoreName = storeName.toLowerCase();
+    }
+
     const result = await db.query(
       `SELECT data FROM ${lowerStoreName} WHERE id = $1`,
       [id],
