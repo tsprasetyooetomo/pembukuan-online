@@ -1045,8 +1045,18 @@ function getGroupFilterHTML() {
 
   for (var i = 0; i < list.length; i++) {
     var g = list[i];
+
+    // Nilai yang dikirim/disimpan (Gunakan kode, jika tidak ada baru gunakan id)
     var val = typeof g === "object" ? g.kode || g.id : g;
-    var txt = typeof g === "object" ? g.nama || g.label : g;
+
+    // Tampilan teks: KODE - NAMA (Contoh: TLGA - TELAGA)
+    var txt =
+      typeof g === "object"
+        ? g.kode && g.nama
+          ? g.kode + " - " + g.nama
+          : g.nama || g.kode
+        : g;
+
     var selected = active === val ? " selected" : "";
     html += '<option value="' + val + '"' + selected + ">" + txt + "</option>";
   }
@@ -1058,13 +1068,20 @@ function getGroupOpts(selectedId) {
   var groups = DBCache.groupproject || [];
   var html = '<option value="">-- Pilih Group --</option>';
   groups.forEach(function (g) {
+    // Ambil data kode dan nama
+    var groupKode = g.kode || "";
+    var groupNama = g.nama || "-";
+
+    // Gabungkan teks untuk tampilan (Contoh: TLGA - TELAGA)
+    var labelTeks = groupKode ? groupKode + " - " + groupNama : groupNama;
+
     html +=
       '<option value="' +
-      esc(g.id || "") +
+      esc(groupKode) + // Menggunakan KODE sebagai value yang disimpan
       '"' +
-      ((selectedId || "") === (g.id || "") ? " selected" : "") +
+      ((selectedId || "") === groupKode ? " selected" : "") + // Pengecekan aktif berdasarkan kode
       ">" +
-      esc(g.nama || "-") +
+      esc(labelTeks) + // Menampilkan KODE dan NAMA
       "</option>";
   });
   return html;
