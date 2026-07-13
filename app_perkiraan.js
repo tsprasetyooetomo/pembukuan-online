@@ -237,29 +237,36 @@ async function exportTableToExcel(storeName, fileNamePrefix) {
 }
 /* ---------- Golongan Perkiraan ---------- */
 PANEL_MAP.gol = renderGol;
-
 async function renderGol() {
   var rawData = DBCache.golongan || [];
   var data = filterByCabang(rawData);
 
-  // 👈 TAMBAHKAN PROSES SORTING BERTINGKAT DI SINI
-  // Urutkan berdasarkan Cabang, lalu berdasarkan Golongan
+  // --- 1. FILTER GROUP ---
+  var activeGroup = getActiveGroupFilter();
+  if (activeGroup) {
+    data = data.filter(function (r) {
+      return (r.group || "") === activeGroup;
+    });
+  }
+
+  // --- 2. SORTING BERTINGKAT (Cabang -> Group -> Golongan) ---
   data.sort(function (a, b) {
     var cabangA = String(a.cabang || "");
     var cabangB = String(b.cabang || "");
-
-    // 1. Bandingkan Kode Cabang terlebih dahulu
     var compareCabang = cabangA.localeCompare(cabangB, undefined, {
       numeric: true,
       sensitivity: "base",
     });
+    if (compareCabang !== 0) return compareCabang;
 
-    // 2. Jika Kode Cabang berbeda, langsung kembalikan hasil perbandingan cabang
-    if (compareCabang !== 0) {
-      return compareCabang;
-    }
+    var groupA = String(a.group || "");
+    var groupB = String(b.group || "");
+    var compareGroup = groupA.localeCompare(groupB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (compareGroup !== 0) return compareGroup;
 
-    // 3. Jika Kode Cabang SAMA, urutkan berdasarkan Kode Golongan
     var golA = String(a.gol || "");
     var golB = String(b.gol || "");
     return golA.localeCompare(golB, undefined, {
@@ -272,10 +279,12 @@ async function renderGol() {
     return r.id;
   });
   bulkInit("golongan", ids);
+
   var dataLimit = data.slice(0, _viewLimit);
   var idsLimit = dataLimit.map(function (r) {
     return r.id;
   });
+
   var rows = dataLimit.map(function (r) {
     var ak = num(r.awal) + num(r.db) - num(r.cr);
     return [
@@ -285,9 +294,12 @@ async function renderGol() {
       fmtN(r.db),
       fmtN(r.cr),
       '<span class="tag tag-akhir">' + fmtN(ak) + "</span>",
+      r.group || "-", // <-- KOLOM GROUP DITAMBAHKAN
       lookupCabangLabel(r.cabang),
     ];
   });
+
+  // Sesuaikan jumlah footer (sekarang ada 8 kolom)
   var foot = [
     "",
     "",
@@ -303,14 +315,19 @@ async function renderGol() {
       }, 0),
     ),
     "",
-    "",
+    "", // Footer Group
+    "", // Footer Cabang
   ];
+
   return (
-    bulkBarHTML("golongan", "GOlongan") +
+    bulkBarHTML("golongan", "Golongan") + // Typo "GOlongan" saya perbaiki jadi "Golongan"
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
     "Filter Cabang: " +
     getCabangFilterHTML() +
+    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+    "Filter Group: " +
+    getGroupFilterHTML() + // <-- FILTER GROUP DITAMBAHKAN
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
     getLimitOptsHTML() +
@@ -326,7 +343,16 @@ async function renderGol() {
     "</div></div>" +
     wrapTable(
       buildTable(
-        ["Gol", "Nama Golongan", "Awal", "Debit", "Kredit", "Akhir", "Cabang"],
+        [
+          "Gol",
+          "Nama Golongan",
+          "Awal",
+          "Debit",
+          "Kredit",
+          "Akhir",
+          "Group",
+          "Cabang",
+        ], // Header Group ditambahkan
         rows,
         {
           numCols: [2, 3, 4, 5],
@@ -350,11 +376,17 @@ function formGol(id) {
         return d.id === id;
       }) || {}
     : {};
+
   var html =
     '<div class="fg"><label>Cabang</label><select id="fGolCab" class="in"' +
     (isEdit ? " disabled" : "") +
     ">" +
     getCabangOpts(data.cabang) +
+    "</select></div>" +
+    '<div class="fg"><label>Group</label><select id="fGolGroup" class="in"' + // <-- INPUT GROUP DITAMBAHKAN
+    (isEdit ? " disabled" : "") +
+    ">" +
+    getGroupOpts(data.group) +
     "</select></div>" +
     '<div class="fg"><label>Kode Golongan</label><input id="fGolKode" class="in" value="' +
     esc(data.gol || "") +
@@ -365,6 +397,7 @@ function formGol(id) {
     '<div class="fg"><label>Saldo Awal</label><input id="fGolAwal" type="number" class="in" value="' +
     esc(data.awal || 0) +
     '"></div>';
+
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
     '<button type="button" class="btn btn-a" onclick="saveGol(event, \'' +
@@ -376,12 +409,17 @@ function formGol(id) {
   openModal(isEdit ? "Edit Golongan" : "Tambah Golongan", html, foot);
 }
 
-async function saveGol(id) {
+// ✅ PERBAIKAN: Ditambahkan "e" di parameter untuk cegah Error 500
+async function saveGol(e, id) {
+  if (e && e.preventDefault) e.preventDefault();
+
   try {
     var cabang = $("fGolCab").value;
+    var group = $("fGolGroup").value; // <-- AMBIL NILAI GROUP
     var gol = $("fGolKode").value.trim();
     var namaGol = $("fGolNama").value.trim();
     var awal = num($("fGolAwal").value);
+
     if (!gol || !namaGol) return toast("Kode dan Nama wajib diisi", "err");
 
     if (id) {
@@ -392,10 +430,11 @@ async function saveGol(id) {
           namaGol: namaGol,
           awal: awal,
           cabang: cabang,
+          group: group, // <-- GROUP DIMASUKKAN KE UPDATE
         });
         await db.put("golongan", updated);
 
-        // MANUAL CACHE UPDATE (PENGGANTI refreshCache)
+        // MANUAL CACHE UPDATE
         var idx = DBCache.golongan.findIndex((x) => x.id === id);
         if (idx !== -1) DBCache.golongan[idx] = updated;
       }
@@ -409,14 +448,14 @@ async function saveGol(id) {
         db: 0,
         cr: 0,
         cabang: cabang,
+        group: group, // <-- GROUP DIMASUKKAN KE OBJEK BARU
       };
       await db.add("golongan", newObj);
 
-      // MANUAL CACHE UPDATE (PENGGANTI refreshCache)
+      // MANUAL CACHE UPDATE
       DBCache.golongan.push(newObj);
     }
 
-    // await refreshCache("golongan"); // DIHAPUS UNTUK MENCEGAH RELOAD/RESET
     closeModal();
     toast("Tersimpan!", "ok");
     safeRenderCurrentPanel();
