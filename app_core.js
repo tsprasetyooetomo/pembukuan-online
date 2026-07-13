@@ -2573,7 +2573,7 @@ async function injectGroupMassalKeTahunan() {
   var tabelList = ["golongan", "perkiraan", "transaksi"];
 
   var totalDisuntik = 0;
-  var batchSize = 50;
+  var batchSize = 100;
 
   for (var t = 0; t < tahunList.length; t++) {
     var tahun = tahunList[t];
