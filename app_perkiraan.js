@@ -1404,20 +1404,11 @@ async function renderSaldoKasirAwal() {
     return str;
   }
 
-  // Fungsi untuk mencari nama group berdasarkan ID
-  function lookupGroupLabel(groupId) {
-    if (!groupId) return "-";
-    var g = (DBCache.groupproject || []).find(function (x) {
-      return (x.id || x.kode) === groupId;
-    });
-    return g ? g.nama || g.label || "-" : "-";
-  }
-
   var rows = dataLimit.map(function (r) {
     return [
       r.cabang || "-",
       r.nama_cabang || "-",
-      lookupGroupLabel(r.group), // <-- KOLOM GROUP DITAMBAHKAN
+      r.group || "-", // <-- MENGIKUTI RENDER CABANG
       formatTgl(r.tgl_awal),
       formatUang(r.akhir || 0),
     ];
@@ -1427,7 +1418,6 @@ async function renderSaldoKasirAwal() {
     return s + (num(r.akhir) || 0);
   }, 0);
 
-  // Sesuaikan jumlah footer (5 kolom)
   var foot = [
     "Total: " + data.length + " record",
     "-",
@@ -1441,7 +1431,7 @@ async function renderSaldoKasirAwal() {
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
     "Filter Group: " +
-    getGroupFilterHTML() + // <-- FILTER GROUP DITAMBAHKAN
+    getGroupFilterHTML() +
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
     getLimitOptsHTML() +
@@ -1457,7 +1447,7 @@ async function renderSaldoKasirAwal() {
     "</div></div>" +
     wrapTable(
       buildTable(
-        ["Cabang", "Nama Cabang", "Group", "Tanggal", "Saldo Awal"], // Header Group ditambahkan
+        ["Cabang", "Nama Cabang", "Group", "Tanggal", "Saldo Awal"],
         rows,
         {
           foot: foot,
@@ -1472,9 +1462,6 @@ async function renderSaldoKasirAwal() {
     )
   );
 }
-
-// ========================================================
-// 2. FORM SALDO KASIR AWAL
 function formSaldoKasirAwal(id) {
   var isEdit = !!id;
   var data = isEdit
