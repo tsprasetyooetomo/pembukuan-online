@@ -353,106 +353,72 @@ app.get("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
 
   try {
-    // YANG BARU (DITAMBAH toLowerCase):
     const { storeName } = req.params;
-    //const storeName = rawName.toLowerCase();
-    const filterCabang = req.query.cabang; // Tangkap parameter ?cabang=XX dari frontend
+    const filterCabang = req.query.cabang;
+    const filterGroup = req.query.group; // ✅ 1. TANGKAP PARAMETER GROUP DARI FRONTEND
 
     if (!isValidTable(storeName)) {
       return res.status(400).json({ error: "Invalid Table" });
     }
-    console.log("cabang:", filterCabang);
 
     const lowerStoreName = storeName.toLowerCase();
 
-    // 2. Daftar tabel yang memiliki kolom cabang di dalam objek JSON-nya
-    const tabelWajibFilter = [
-      "golongan",
-      "perkiraan",
-      "transaksi",
-      "users",
-      "formatrl",
-      "formatneraca",
-      "postedmonths",
-      "kodebank",
-      "cabang",
-      //"detiltransaksi",
-      "saldokasirawal",
-      "saldokasir",
-      "mutasikasir",
-      "golongan2022",
-      "golongan2023",
-      "golongan2024",
-      "golongan2025",
-      "golongan2026",
-      "perkiraan2022",
-      "perkiraan2023",
-      "perkiraan2024",
-      "perkiraan2025",
-      "perkiraan2026",
-      "transaksi2022",
-      "transaksi2023",
-      "transaksi2024",
-      "transaksi2025",
-      "transaksi2026",
-    ];
-
-    let result;
-
-    // ✅ LOGIKA BARU:
-    // Jika filterCabang kosong ("") atau berisi kata "PUSAT", maka AMBIL SEMUA DATA
+    // Tabel yang wajib difilter (TAMBAHKAN GROUP KE DALAM LOGIKA)
     if (
-      !filterCabang ||
-      filterCabang.trim() === "" ||
-      filterCabang.toUpperCase() === "PUSAT"
+      filterCabang &&
+      filterCabang.trim() !== "" &&
+      filterCabang.toUpperCase() !== "PUSAT"
     ) {
-      result = await db.query(`SELECT data FROM ${lowerStoreName}`);
-      console.log(
-        `System: SQL Fetch SEMUA DATA (PUSAT/TANPA CABANG) | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
-      );
-    } else if (tabelWajibFilter.includes(lowerStoreName)) {
-      // Selain itu (misalnya: 01, 02, 03, termasuk 00), maka DIFILTER
-
       if (!/^[a-zA-Z0-9\-_ ]+$/.test(filterCabang)) {
         return res.status(400).json({ error: "Kode cabang tidak valid" });
       }
 
-      const queryStr = `
-        SELECT data FROM ${lowerStoreName} 
-        WHERE data LIKE $1 OR data LIKE $2 OR data LIKE $3 OR data LIKE $4
-      `;
+      // ✅ 2. LOGIKA FILTER GABUNGAN (CABANG + GROUP)
+      let whereClause = `data LIKE $1 OR data LIKE $2 OR data LIKE $3 OR data LIKE $4`;
+      let params = [
+        `%"cabang":"${filterCabang}"%`,
+        `%"cabang": "${filterCabang}"%`,
+        `%"kode_cabang":"${filterCabang}"%`,
+        `%"kode_cabang": "${filterCabang}"%`,
+      ];
 
-      // Contoh filterCabang = "03"
-      const param1 = `%"cabang":"${filterCabang}"%`; // Tanpa spasi
-      const param2 = `%"cabang": "${filterCabang}"%`; // Dengan spasi
-      const param3 = `%"kode_cabang":"${filterCabang}"%`; // Tanpa spasi
-      const param4 = `%"kode_cabang": "${filterCabang}"%`; // Dengan spasi
+      // Jika parameter group juga dikirim dari frontend, tambahkan ke filter SQL
+      if (filterGroup && filterGroup.trim() !== "") {
+        if (!/^[a-zA-Z0-9\-_ ]+$/.test(filterGroup)) {
+          return res.status(400).json({ error: "Kode group tidak valid" });
+        }
+        // Tambahkan syarat AND (Harus cocok cabangnya DAN groupnya)
+        whereClause += ` AND (data LIKE $5 OR data LIKE $6)`;
+        params.push(`%"group":"${filterGroup}"%`);
+        params.push(`%"group": "${filterGroup}"%`);
+      }
 
-      result = await db.query(queryStr, [param1, param2, param3, param4]);
+      const queryStr = `SELECT data FROM ${lowerStoreName} WHERE ${whereClause}`;
+      var result = await db.query(queryStr, params);
 
       console.log(
-        `System: SQL Fetch TERFILTER cabang ${filterCabang} | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
+        `System: SQL Fetch TERFILTER cabang ${filterCabang} & group ${filterGroup} | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
       );
     } else {
-      // Jika tabel tidak masuk daftar wajib filter (misal tabel lain di masa depan)
-      result = await db.query(`SELECT data FROM ${lowerStoreName}`);
+      // Jika PUSAT atau tanpa filter cabang
+      var result = await db.query(`SELECT data FROM ${lowerStoreName}`);
       console.log(
-        `System: SQL Fetch SEMUA DATA (TABEL BIASA) | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
+        `System: SQL Fetch SEMUA DATA | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
       );
     }
 
-    // Parsing semua baris dari database ke format JSON Objek
+    // Parsing semua baris
     const allData = result.rows.map((r) =>
       typeof r.data === "string" ? JSON.parse(r.data) : r.data,
     );
 
-    // Kirim langsung hasil data ke frontend
     res.json(allData);
   } catch (e) {
     console.error("🔥 ERROR FETCH DATA API:", e.message);
     res.status(500).json({ error: e.message });
   }
 });
+
 // 4. GET BY ID
 app.get("/api/data/:storeName/:id", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
