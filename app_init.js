@@ -182,6 +182,7 @@ function buildSidebar() {
           label: "Saldo Kasir",
           icon: "fa-building-columns",
         },
+        { id: "group", label: "Group", icon: "fa-network-wired" },
       ],
     },
     {
