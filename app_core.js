@@ -2561,57 +2561,50 @@ PANEL_MAP.importD = renderImport;
 // Panggil fungsi ini sekali lewat Console Browser (F12),
 // lalu hapus fungsinya setelah selesai.
 // ========================================================
+// ========================================================
+// 🔧 FUNGSI INJECT MASSAL (VERSI ADA PROGRESSNYA)
+// ========================================================
 async function injectGroupMassalKeTahunan() {
   console.log("🚀 MEMULAI INJECT MASSAL GROUP 'TLGA' KE TABEL TAHUNAN...");
-  toast(
-    "Proses inject massal dimulai, mohon tunggu jangan tutup web...",
-    "wrn",
-  );
+  toast("Proses inject dimulai, lihat Console (F12) untuk progress.", "wrn");
 
   var baseUrl = window.location.origin + "/api/data/";
   var tahunList = ["2022", "2023", "2024", "2025", "2026"];
   var tabelList = ["golongan", "perkiraan", "transaksi"];
 
   var totalDisuntik = 0;
-  var batchSize = 25;
+  var batchSize = 50;
 
   for (var t = 0; t < tahunList.length; t++) {
     var tahun = tahunList[t];
 
     for (var i = 0; i < tabelList.length; i++) {
-      var namaTabel = tabelList[i] + tahun; // contoh: golongan2024
-
-      console.log(`⏳ Mengambil data tabel ${namaTabel}...`);
+      var namaTabel = tabelList[i] + tahun;
 
       try {
-        // 1. AMBIL SEMUA DATA TABEL TAHUNAN INI DARI SERVER
         var response = await fetch(baseUrl + namaTabel);
-        if (!response.ok) {
-          console.warn(`⚠️ Tabel ${namaTabel} tidak ada di server, dilewati.`);
-          continue; // Lewati jika tabel tahun itu tidak ada
-        }
+        if (!response.ok) continue;
 
         var data = await response.json();
         var needUpdate = [];
 
-        // 2. CEK SATU PER SATU, SIAPA YANG BELUM PUNYA GROUP
         data.forEach(function (row) {
           if (
             typeof row.group === "undefined" ||
             row.group === null ||
             row.group === ""
           ) {
-            row.group = "TLGA"; // Suntik di memory
-            needUpdate.push(row); // Masukkan ke antrian update
+            row.group = "TLGA";
+            needUpdate.push(row);
           }
         });
 
-        // 3. KIRIM KE DATABASE SECARA BERTAHAP
         if (needUpdate.length > 0) {
           console.log(
-            `   📦 Ditemukan ${needUpdate.length} data kosong di ${namaTabel}. Mengirim ke server...`,
+            `📦 ${namaTabel}: Ditemukan ${needUpdate.length} data. Mulai mengirim...`,
           );
 
+          // PROSES BERKAH DENGAN LOG PROGRESS
           for (var b = 0; b < needUpdate.length; b += batchSize) {
             var batch = needUpdate.slice(b, b + batchSize);
 
@@ -2622,9 +2615,15 @@ async function injectGroupMassalKeTahunan() {
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(item),
                 }).catch(function (e) {
-                  console.error("Gagal update ID: " + item.id, e.message);
+                  console.error("Gagal ID: " + item.id);
                 });
               }),
+            );
+
+            // ✅ TAMPILKAN PROGRESS DI CONSOLE
+            var prosesSekarang = Math.min(b + batchSize, needUpdate.length);
+            console.log(
+              `   ⏳ ${namaTabel} Progress: ${prosesSekarang} / ${needUpdate.length}`,
             );
 
             // Jeda 100ms biar server tidak kewalahan
@@ -2636,20 +2635,18 @@ async function injectGroupMassalKeTahunan() {
           }
 
           totalDisuntik += needUpdate.length;
+          console.log(`   ✅ ${namaTabel} SELESAI.\n`);
         } else {
-          console.log(
-            `   ✅ Tabel ${namaTabel} sudah aman (semua sudah punya group).`,
-          );
+          console.log(`✅ ${namaTabel}: Sudah aman (0 data perlu diubah).`);
         }
       } catch (error) {
-        console.error(`❌ Error di tabel ${namaTabel}:`, error.message);
+        console.error(`❌ Error di ${namaTabel}:`, error.message);
       }
     }
   }
 
-  console.log(
-    "🎉 SELESAI! Total data yang berhasil disuntik 'TLGA' ke database: " +
-      totalDisuntik,
-  );
-  toast("Inject massal selesai! Total: " + totalDisuntik + " data.", "ok");
+  console.log("==================================================");
+  console.log("🎉 SELESAI! Total data tersuntik: " + totalDisuntik);
+  console.log("==================================================");
+  toast("Inject massal SELESAI! Total: " + totalDisuntik + " data.", "ok");
 }
