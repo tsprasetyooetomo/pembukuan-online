@@ -443,6 +443,84 @@ async function refreshCache() {
 
     DBCache.mutasikasir = mutasikasir;
 
+    // ========================================================
+    // 🚀 1. AUTO-INJECTOR KE MEMORY (Agar tampilan langsung TLGA)
+    // ========================================================
+    var targetTables = [
+      "golongan",
+      "perkiraan",
+      "kodeBank",
+      "cabang",
+      "saldoKasir",
+      "saldokasirawal",
+      "mutasikasir",
+    ];
+
+    var needDbUpdate = []; // Array untuk menampung data yang perlu diupdate ke server
+
+    targetTables.forEach(function (tableName) {
+      if (DBCache[tableName] && Array.isArray(DBCache[tableName])) {
+        DBCache[tableName].forEach(function (row) {
+          // Jika belum punya group, set ke "TLGA" di memory
+          if (
+            typeof row.group === "undefined" ||
+            row.group === null ||
+            row.group === ""
+          ) {
+            row.group = "TLGA";
+
+            // Masukkan ke antrian untuk dikirim ke database
+            needDbUpdate.push({ store: tableName, id: row.id, data: row });
+          }
+
+          // Untuk mutasi kasir
+          if (tableName === "mutasikasir" && Array.isArray(row.detil)) {
+            row.detil.forEach(function (det) {
+              if (
+                typeof det.group === "undefined" ||
+                det.group === null ||
+                det.group === ""
+              ) {
+                det.group = "TLGA";
+              }
+            });
+          }
+        });
+      }
+    });
+
+    // ========================================================
+    // 🚀 2. AUTO-SYNC KE DATABASE SUPABASE (Sekaligus)
+    // ========================================================
+    if (needDbUpdate.length > 0) {
+      console.log(
+        "⏳ Menemukan " +
+          needDbUpdate.length +
+          " data tanpa group. Mengirim ke Database...",
+      );
+
+      // Kirim secara paralel menggunakan Promise.all agar cepat
+      await Promise.all(
+        needDbUpdate.map(function (item) {
+          return fetch(
+            API_BASE_URL + "/api/data/" + item.store + "/" + item.id,
+            {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(item.data),
+            },
+          ).catch(function (e) {
+            console.error("Gagal update group untuk ID: " + item.id, e.message);
+          });
+        }),
+      );
+      console.log(
+        "✅ Berhasil menyuntikkan 'TLGA' ke " +
+          needDbUpdate.length +
+          " data di Database Supabase.",
+      );
+    }
+
     console.log(
       "✅ Cache master berhasil dimuat. Data cabang ditemukan:",
       DBCache.cabang.length,
@@ -450,47 +528,6 @@ async function refreshCache() {
   } catch (error) {
     console.error("❌ Gagal memuat cache master:", error);
   }
-
-  // ====================================================================
-  // AUTO-INJECTOR: Otomatis menambahkan properti "group" ke semua tabel
-  // Letakkan kode ini di bagian setelah DBCache diisi dari server
-  // ====================================================================
-  function autoInjectGroupToCache() {
-    // Daftar tabel yang WAJIB memiliki kolom group (sesuaikan jika ada yang kurang)
-    var targetTables = [
-      "golongan",
-      "perkiraan",
-      "transaksi",
-      "kodeBank",
-      "cabang",
-      "saldoKasir",
-      "mutasikasir",
-      "saldokasirawal",
-      "detiltransaksi",
-    ];
-
-    targetTables.forEach(function (tableName) {
-      // Jika tabel tersebut ada di DBCache dan isinya array
-      if (DBCache[tableName] && Array.isArray(DBCache[tableName])) {
-        DBCache[tableName].forEach(function (row) {
-          // Jika baris ini belum punya properti "group", sistém secara otomatis menambahkan "-" (kosong)
-          if (typeof row.group === "undefined" || row.group === null) {
-            row.group = ""; // Bisa diisi "" atau "-"
-          }
-        });
-      }
-    });
-
-    console.log(
-      "✅ Auto-Injector Group: Semua tabel telah dicek & disesuaikan.",
-    );
-  }
-
-  // Panggil fungsi ini sekali saja saat aplikasi pertama kali dimuat atau saat refresh cache
-  // Contoh:
-  // await refreshCache();
-  // autoInjectGroupToCache();
-  // renderDashboard();
 }
 
 async function refreshCache2(onlyStore) {
