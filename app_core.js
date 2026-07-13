@@ -454,21 +454,6 @@ async function refreshCache() {
       "saldokasir",
       "saldokasirawal",
       "mutasikasir",
-      "golongan2022",
-      "golongan2023",
-      "golongan2024",
-      "golongan2025",
-      "golongan2026",
-      "perkiraan2022",
-      "perkiraan2023",
-      "perkiraan2024",
-      "perkiraan2025",
-      "perkiraan2026",
-      "transaksi2022",
-      "transaksi2023",
-      "transaksi2024",
-      "transaksi2025",
-      "transaksi2026",
     ];
 
     var needDbUpdate = []; // Array untuk menampung data yang perlu diupdate ke server
@@ -2570,3 +2555,101 @@ function renderImport() {
   );
 }
 PANEL_MAP.importD = renderImport;
+
+// ========================================================
+// 🔧 FUNGSI INJECT MASSAL SEKALI PAKAI (BUAT DATA LAMA)
+// Panggil fungsi ini sekali lewat Console Browser (F12),
+// lalu hapus fungsinya setelah selesai.
+// ========================================================
+async function injectGroupMassalKeTahunan() {
+  console.log("🚀 MEMULAI INJECT MASSAL GROUP 'TLGA' KE TABEL TAHUNAN...");
+  toast(
+    "Proses inject massal dimulai, mohon tunggu jangan tutup web...",
+    "wrn",
+  );
+
+  var baseUrl = window.location.origin + "/api/data/";
+  var tahunList = ["2022", "2023", "2024", "2025", "2026"];
+  var tabelList = ["golongan", "perkiraan", "transaksi"];
+
+  var totalDisuntik = 0;
+  var batchSize = 25;
+
+  for (var t = 0; t < tahunList.length; t++) {
+    var tahun = tahunList[t];
+
+    for (var i = 0; i < tabelList.length; i++) {
+      var namaTabel = tabelList[i] + tahun; // contoh: golongan2024
+
+      console.log(`⏳ Mengambil data tabel ${namaTabel}...`);
+
+      try {
+        // 1. AMBIL SEMUA DATA TABEL TAHUNAN INI DARI SERVER
+        var response = await fetch(baseUrl + namaTabel);
+        if (!response.ok) {
+          console.warn(`⚠️ Tabel ${namaTabel} tidak ada di server, dilewati.`);
+          continue; // Lewati jika tabel tahun itu tidak ada
+        }
+
+        var data = await response.json();
+        var needUpdate = [];
+
+        // 2. CEK SATU PER SATU, SIAPA YANG BELUM PUNYA GROUP
+        data.forEach(function (row) {
+          if (
+            typeof row.group === "undefined" ||
+            row.group === null ||
+            row.group === ""
+          ) {
+            row.group = "TLGA"; // Suntik di memory
+            needUpdate.push(row); // Masukkan ke antrian update
+          }
+        });
+
+        // 3. KIRIM KE DATABASE SECARA BERTAHAP
+        if (needUpdate.length > 0) {
+          console.log(
+            `   📦 Ditemukan ${needUpdate.length} data kosong di ${namaTabel}. Mengirim ke server...`,
+          );
+
+          for (var b = 0; b < needUpdate.length; b += batchSize) {
+            var batch = needUpdate.slice(b, b + batchSize);
+
+            await Promise.all(
+              batch.map(function (item) {
+                return fetch(baseUrl + namaTabel + "/" + item.id, {
+                  method: "PUT",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify(item),
+                }).catch(function (e) {
+                  console.error("Gagal update ID: " + item.id, e.message);
+                });
+              }),
+            );
+
+            // Jeda 100ms biar server tidak kewalahan
+            if (b + batchSize < needUpdate.length) {
+              await new Promise(function (resolve) {
+                setTimeout(resolve, 100);
+              });
+            }
+          }
+
+          totalDisuntik += needUpdate.length;
+        } else {
+          console.log(
+            `   ✅ Tabel ${namaTabel} sudah aman (semua sudah punya group).`,
+          );
+        }
+      } catch (error) {
+        console.error(`❌ Error di tabel ${namaTabel}:`, error.message);
+      }
+    }
+  }
+
+  console.log(
+    "🎉 SELESAI! Total data yang berhasil disuntik 'TLGA' ke database: " +
+      totalDisuntik,
+  );
+  toast("Inject massal selesai! Total: " + totalDisuntik + " data.", "ok");
+}
