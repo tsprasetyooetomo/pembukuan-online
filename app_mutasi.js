@@ -471,6 +471,9 @@ async function SafeaddDetil() {
   if (!noper || !penjelasan || rp <= 0)
     return toast("No Perkiraan, Penjelasan, dan Rp wajib diisi!", "err");
 
+  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
+  var activeGroup = localStorage.getItem("group") || "";
+
   _mutSession.isLocked = true;
   $("m_cab").disabled = true;
   $("m_kb").disabled = true;
@@ -490,6 +493,7 @@ async function SafeaddDetil() {
       db: rp,
       cr: 0,
       kodeTrans: "",
+      group: activeGroup, // ✅ GROUP DIMASUKKAN KE DATABASE
     });
 
     await refreshCache("transaksi");
@@ -2140,6 +2144,9 @@ async function simpanPerubahanKasirDetil(idYangDiedit) {
   if (!kode || !penjelasan || rp <= 0)
     return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
 
+  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
+  var activeGroup = localStorage.getItem("group") || "";
+
   try {
     await db.put(
       "mutasikasir",
@@ -2148,6 +2155,7 @@ async function simpanPerubahanKasirDetil(idYangDiedit) {
         desc: penjelasan,
         total: rp,
         db: rp,
+        group: activeGroup, // ✅ GROUP DIMASUKKAN KE UPDATE
       }),
     );
     closeModal();
