@@ -490,33 +490,55 @@ async function refreshCache() {
     });
 
     // ========================================================
-    // 🚀 2. AUTO-SYNC KE DATABASE SUPABASE (Sekaligus)
+    // 🚀 2. AUTO-SYNC KE DATABASE SECARA BERTAHAP (AMAN DARI CRASH)
     // ========================================================
     if (needDbUpdate.length > 0) {
       console.log(
         "⏳ Menemukan " +
           needDbUpdate.length +
-          " data tanpa group. Mengirim ke Database...",
+          " data tanpa group. Memperbarui database secara bertahap...",
       );
 
-      // Kirim secara paralel menggunakan Promise.all agar cepat
-      await Promise.all(
-        needDbUpdate.map(function (item) {
-          return fetch(
-            API_BASE_URL + "/api/data/" + item.store + "/" + item.id,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(item.data),
-            },
-          ).catch(function (e) {
-            console.error("Gagal update group untuk ID: " + item.id, e.message);
+      var batchSize = 25; // Kirim 25 data per gelombang agar browser tidak crash
+      var updatedCount = 0;
+
+      for (var i = 0; i < needDbUpdate.length; i += batchSize) {
+        var batch = needDbUpdate.slice(i, i + batchSize);
+
+        // Proses 25 data secara paralel, lalu tunggu sampai selesai
+        await Promise.all(
+          batch.map(function (item) {
+            return fetch(
+              API_BASE_URL + "/api/data/" + item.store + "/" + item.id,
+              {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(item.data),
+              },
+            )
+              .then(function () {
+                updatedCount++;
+              })
+              .catch(function (e) {
+                console.error(
+                  "Gagal update group untuk ID: " + item.id,
+                  e.message,
+                );
+              });
+          }),
+        );
+
+        // Beri jeda 100ms sebelum gelombang berikutnya, supaya server & browser bisa bernafas
+        if (i + batchSize < needDbUpdate.length) {
+          await new Promise(function (resolve) {
+            setTimeout(resolve, 100);
           });
-        }),
-      );
+        }
+      }
+
       console.log(
         "✅ Berhasil menyuntikkan 'TLGA' ke " +
-          needDbUpdate.length +
+          updatedCount +
           " data di Database Supabase.",
       );
     }
