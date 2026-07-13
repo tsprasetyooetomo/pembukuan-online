@@ -456,11 +456,8 @@ class PembukuanDB {
   }
 
   // ✅ KODE BARU (Bisa menerima 1 atau 2 parameter)
-
   _getAllBrowser(s, cabangParam) {
     // 1. Tentukan filter cabang
-    // Jika ada parameter kedua (dari refreshCache), gunakan itu.
-    // Jika tidak ada, ambil dari localStorage.
     let cabang = "";
     if (
       cabangParam !== undefined &&
@@ -472,22 +469,38 @@ class PembukuanDB {
       cabang = localStorage.getItem("cabang") || "";
     }
 
-    // 2. Jika PUSAT atau kosong, hapus filternya (biar backend kirim semua data)
+    // Jika PUSAT atau kosong, hapus filternya (biar backend kirim semua data)
     if (!cabang || cabang.toUpperCase() === "PUSAT") {
       cabang = "";
     }
 
-    // 3. Bangun URL
-    const url =
-      cabang && cabang !== "undefined"
-        ? API_BASE_URL + "/api/data/" + s + "?cabang=" + cabang
-        : API_BASE_URL + "/api/data/" + s;
+    // ✅ 2. AMBIL FILTER GROUP DARI LOCALSTORAGE
+    let group = localStorage.getItem("group") || "";
+
+    // 3. Bangun URL (DITAMBAHKAN LOGIKA PARAMETER GROUP)
+    let url = API_BASE_URL + "/api/data/" + s;
+    let params = [];
+
+    if (cabang && cabang !== "undefined") {
+      params.push("cabang=" + cabang);
+    }
+
+    // Jika group-nya ada (misal: "TLGA"), tambahkan ke parameter URL
+    if (group && group !== "undefined" && group.trim() !== "") {
+      params.push("group=" + group);
+    }
+
+    // Gabungkan parameter dengan tanda "?"
+    if (params.length > 0) {
+      url += "?" + params.join("&");
+    }
 
     // 4. Fetch data
     return fetch(url).then(function (r) {
       return r.json();
     });
   }
+
   _delBrowser(s, id) {
     return fetch(API_BASE_URL + "/api/data/" + s + "/" + id, {
       method: "DELETE",
