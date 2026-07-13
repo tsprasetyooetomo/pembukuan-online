@@ -995,23 +995,22 @@ async function saveKodeBank(e, editId) {
     toast("Gagal simpan: " + err.message, "err");
   }
 }
-
 function getGroupFilterHTML() {
-  var groups = DBCache.groupproject || [];
+  var list = DBCache.groupproject || [];
   var active = getActiveGroupFilter();
   var html =
-    '<select class="in" style="padding:2px 5px;font-size:.8rem" onchange="applyFilterAndRender()">';
-  html += '<option value="">Semua Group</option>';
-  groups.forEach(function (g) {
-    html +=
-      '<option value="' +
-      esc(g.id || "") +
-      '"' +
-      (active === (g.id || "") ? " selected" : "") +
-      ">" +
-      esc(g.nama || "-") +
-      "</option>";
-  });
+    '<select style="font-size:.72rem;padding:2px 4px;border-radius:4px;border:1px solid var(--brd);background:var(--bg);color:var(--fg);cursor:pointer" onchange="changeGroupFilter(this.value)">';
+
+  var selectedAll = active === "" ? " selected" : "";
+  html += '<option value=""' + selectedAll + ">SEMUA GROUP</option>";
+
+  for (var i = 0; i < list.length; i++) {
+    var g = list[i];
+    var val = typeof g === "object" ? g.kode || g.id : g;
+    var txt = typeof g === "object" ? g.nama || g.label : g;
+    var selected = active === val ? " selected" : "";
+    html += '<option value="' + val + '"' + selected + ">" + txt + "</option>";
+  }
   html += "</select>";
   return html;
 }
