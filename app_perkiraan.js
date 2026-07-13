@@ -1143,10 +1143,28 @@ async function clearAllData(storeName) {
 
 /* ---------- Cabang ---------- */
 PANEL_MAP.cbg = renderCabang;
-
 async function renderCabang() {
-  var data = DBCache.cabang || [];
+  var rawData = DBCache.cabang || [];
+
+  // --- 1. FILTER GROUP ---
+  var data = rawData;
+  var activeGroup = getActiveGroupFilter();
+  if (activeGroup) {
+    data = data.filter(function (r) {
+      return (r.group || "") === activeGroup;
+    });
+  }
+
+  // --- 2. SORTING (Group, lalu Kode Cabang) ---
   data.sort(function (a, b) {
+    var groupA = String(a.group || "");
+    var groupB = String(b.group || "");
+    var compareGroup = groupA.localeCompare(groupB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (compareGroup !== 0) return compareGroup;
+
     var kodeA = String(a.kode || "");
     var kodeB = String(b.kode || "");
     return kodeA.localeCompare(kodeB, undefined, {
@@ -1166,31 +1184,44 @@ async function renderCabang() {
   });
 
   var rows = dataLimit.map(function (r) {
-    return [r.kode || "-", r.nama || "-"];
+    return [
+      r.kode || "-",
+      r.nama || "-",
+      r.group || "-", // <-- KOLOM GROUP DITAMBAHKAN
+    ];
   });
 
   return (
     bulkBarHTML("cabang", "Cabang") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
-    '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem">Tampilkan ' +
+    '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
+    "Filter Group: " +
+    getGroupFilterHTML() + // <-- FILTER GROUP DITAMBAHKAN
+    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+    "Tampilkan " +
     getLimitOptsHTML() +
     " dari " +
     data.length +
-    " record</div>" +
+    " record" +
+    "</div>" +
     '<div style="display:flex;gap:.4rem">' +
     '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'cabang\', \'Data_Cabang\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
     '<button type="button" class="btn btn-a" onclick="formCabang()"><i class="fa-solid fa-plus"></i> Tambah Cabang</button>' +
     "</div>" +
     "</div>" +
     wrapTable(
-      buildTable(["Kode Cabang", "Nama Cabang"], rows, {
-        bulkStore: "cabang",
-        bulkIds: idsLimit,
-        actions: function (r, i) {
-          return crudActions(dataLimit[i].id, "cabang");
+      buildTable(
+        ["Kode Cabang", "Nama Cabang", "Group"], // Header Group ditambahkan
+        rows,
+        {
+          bulkStore: "cabang",
+          bulkIds: idsLimit,
+          actions: function (r, i) {
+            return crudActions(dataLimit[i].id, "cabang");
+          },
+          emptyMsg: "Belum ada data cabang",
         },
-        emptyMsg: "Belum ada data cabang",
-      }),
+      ),
     )
   );
 }
@@ -1204,6 +1235,11 @@ function formCabang(id) {
     : {};
 
   var html =
+    '<div class="fg"><label>Group</label><select id="fCabGroup" class="in"' + // <-- INPUT GROUP DITAMBAHKAN
+    (isEdit ? " disabled" : "") +
+    ">" +
+    getGroupOpts(data.group) +
+    "</select></div>" +
     '<div class="fg"><label>Kode Cabang</label><input id="fCabKode" class="in" value="' +
     esc(data.kode || "") +
     '"></div>' +
@@ -1223,42 +1259,60 @@ function formCabang(id) {
 }
 
 async function saveCabang(e, id) {
+  if (e && e.preventDefault) e.preventDefault(); // Pencegahan Error 500
+
   try {
+    var group = $("fCabGroup").value; // <-- AMBIL NILAI GROUP
     var kode = $("fCabKode").value.trim();
     var nama = $("fCabNama").value.trim();
+
     if (kode.length === 1 && !isNaN(kode)) {
       kode = "0" + kode;
     }
-    // Pastikan input terisi
+
     if (!kode || !nama) return toast("Kode dan Nama wajib diisi", "err");
 
     if (id) {
       // MODE EDIT (UPDATE)
       var r = await db.get("cabang", id);
       if (r) {
-        // PERBAIKAN DISINI:
-        // Selalu sertakan 'id' secara eksplisit agar tidak hilang
-        await db.put(
-          "cabang",
-          Object.assign({}, r, { id: id, kode: kode, nama: nama }),
-          // Perhatikan saya tambahkan: { id: id, ... }
-        );
+        var updated = Object.assign({}, r, {
+          id: id,
+          kode: kode,
+          nama: nama,
+          group: group, // <-- GROUP DIMASUKKAN KE UPDATE
+        });
+        await db.put("cabang", updated);
+
+        // MANUAL CACHE UPDATE
+        var idx = DBCache.cabang.findIndex((x) => x.id === id);
+        if (idx !== -1) DBCache.cabang[idx] = updated;
       }
     } else {
       // MODE TAMBAH BARU
-      // Pastikan 'id' yang dibuat unik
-      await db.add("cabang", { id: uid(), kode: kode, nama: nama });
+      var newId = uid();
+      var newObj = {
+        id: newId,
+        kode: kode,
+        nama: nama,
+        group: group, // <-- GROUP DIMASUKKAN KE OBJEK BARU
+      };
+      await db.add("cabang", newObj);
+
+      // MANUAL CACHE UPDATE
+      DBCache.cabang.push(newObj);
     }
 
-    await refreshCache();
+    // await refreshCache(); // SUDAH DIHAPUS (Dialihkan ke manual cache di atas)
     closeModal();
     toast("Tersimpan!", "ok");
     safeRenderCurrentPanel();
   } catch (err) {
     toast("Gagal simpan: " + err.message, "err");
-    console.error(err); // Tambahkan ini untuk debug di console browser
+    console.error(err);
   }
 }
+
 /* ---------- Tambahan Filter Cabang ---------- */
 function changeCabangFilter(val) {
   currentCabang = val;
