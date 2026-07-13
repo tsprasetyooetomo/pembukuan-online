@@ -1345,7 +1345,24 @@ async function renderSaldoKasirAwal() {
   var rawData = DBCache.saldokasirawal || [];
   var data = filterByCabang(rawData);
 
+  // --- 1. FILTER GROUP ---
+  var activeGroup = getActiveGroupFilter();
+  if (activeGroup) {
+    data = data.filter(function (r) {
+      return (r.group || "") === activeGroup;
+    });
+  }
+
+  // --- 2. SORTING (Group -> Tanggal Terbaru) ---
   data.sort(function (a, b) {
+    var groupA = String(a.group || "");
+    var groupB = String(b.group || "");
+    var compareGroup = groupA.localeCompare(groupB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (compareGroup !== 0) return compareGroup;
+
     var tglA = a.tgl_awal || "";
     var tglB = b.tgl_awal || "";
     if (tglA < tglB) return 1;
@@ -1370,10 +1387,20 @@ async function renderSaldoKasirAwal() {
     return str;
   }
 
+  // Fungsi untuk mencari nama group berdasarkan ID
+  function lookupGroupLabel(groupId) {
+    if (!groupId) return "-";
+    var g = (DBCache.groupproject || []).find(function (x) {
+      return (x.id || x.kode) === groupId;
+    });
+    return g ? g.nama || g.label || "-" : "-";
+  }
+
   var rows = dataLimit.map(function (r) {
     return [
       r.cabang || "-",
       r.nama_cabang || "-",
+      lookupGroupLabel(r.group), // <-- KOLOM GROUP DITAMBAHKAN
       formatTgl(r.tgl_awal),
       formatUang(r.akhir || 0),
     ];
@@ -1383,8 +1410,10 @@ async function renderSaldoKasirAwal() {
     return s + (num(r.akhir) || 0);
   }, 0);
 
+  // Sesuaikan jumlah footer (5 kolom)
   var foot = [
     "Total: " + data.length + " record",
+    "-",
     "-",
     "-",
     '<span style="font-weight:bold;">' + formatUang(totalSaldo) + "</span>",
@@ -1394,6 +1423,9 @@ async function renderSaldoKasirAwal() {
     bulkBarHTML("saldoKasirAwal", "saldoKasirAwal") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
+    "Filter Group: " +
+    getGroupFilterHTML() + // <-- FILTER GROUP DITAMBAHKAN
+    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
     getLimitOptsHTML() +
     " dari " +
@@ -1407,24 +1439,27 @@ async function renderSaldoKasirAwal() {
     '<button type="button" class="btn btn-a" onclick="formSaldoKasirAwal()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
     wrapTable(
-      buildTable(["Cabang", "Nama Cabang", "Tanggal", "Saldo Awal"], rows, {
-        foot: foot,
-        bulkStore: "saldoKasirAwal",
-        bulkIds: idsLimit,
-        actions: function (r, i) {
-          return crudActions(dataLimit[i].id, "saldokasirawal");
+      buildTable(
+        ["Cabang", "Nama Cabang", "Group", "Tanggal", "Saldo Awal"], // Header Group ditambahkan
+        rows,
+        {
+          foot: foot,
+          bulkStore: "saldoKasirAwal",
+          bulkIds: idsLimit,
+          actions: function (r, i) {
+            return crudActions(dataLimit[i].id, "saldokasirawal");
+          },
+          emptyMsg: "Belum ada data Saldo Kasir awal",
         },
-        emptyMsg: "Belum ada data Saldo Kasir awal",
-      }),
+      ),
     )
   );
 }
+
 // ========================================================
 // 2. FORM SALDO KASIR AWAL
 function formSaldoKasirAwal(id) {
   var isEdit = !!id;
-
-  // ✅ FIX: Cari data dari DBCache.saldoKasirAwal (A besar)
   var data = isEdit
     ? (DBCache.saldokasirawal || []).find(function (d) {
         return d.id === id;
@@ -1440,6 +1475,12 @@ function formSaldoKasirAwal(id) {
     ">" +
     getCabangOpts(data.cabang) +
     "</select></div>" +
+    '<div class="fg"><label>Group</label>' + // <-- INPUT GROUP DITAMBAHKAN
+    '<select id="fSkGroup" class="in"' +
+    (isEdit ? " disabled" : "") +
+    ">" +
+    getGroupOpts(data.group) +
+    "</select></div>" +
     '<div class="fg"><label>Tanggal Saldo</label><input id="fSkTgl" type="date" class="in" value="' +
     esc(data.tgl_awal || "") +
     '"></div>' +
@@ -1447,7 +1488,6 @@ function formSaldoKasirAwal(id) {
     esc(displaySaldo) +
     '"></div>';
 
-  // ✅ FIX: Ganti saveSaldoKasirawal menjadi saveSaldoKasirAwal (A besar)
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
     '<button type="button" class="btn btn-a" onclick="saveSaldoKasirAwal(event, \'' +
@@ -1470,9 +1510,19 @@ async function saveSaldoKasirAwal(e, editId) {
       cabangEl && cabangEl.options[cabangEl.selectedIndex]
         ? cabangEl.options[cabangEl.selectedIndex].text
         : "";
-
     if (nama_cabang.includes(" - ")) {
       nama_cabang = nama_cabang.split(" - ")[1];
+    }
+
+    // --- AMBIL DATA GROUP ---
+    var groupEl = $("fSkGroup");
+    var group = groupEl ? groupEl.value : "";
+    var nama_group =
+      groupEl && groupEl.options[groupEl.selectedIndex]
+        ? groupEl.options[groupEl.selectedIndex].text
+        : "";
+    if (nama_group.includes(" - ")) {
+      nama_group = nama_group.split(" - ")[1];
     }
 
     var tgl_awal = $("fSkTgl") ? $("fSkTgl").value : "";
@@ -1486,12 +1536,13 @@ async function saveSaldoKasirAwal(e, editId) {
     if (!tgl_awal) return toast("Tanggal wajib diisi", "err");
 
     if (editId) {
-      // ✅ FIX: Standarisasi db.get dan db.put menggunakan "saldoKasirAwal"
       var r = await db.get("saldokasirawal", editId);
       if (r) {
         var updated = Object.assign({}, r, {
           cabang: cabang,
           nama_cabang: nama_cabang,
+          group: group, // <-- GROUP DIMASUKKAN KE UPDATE
+          nama_group: nama_group, // <-- NAMA GROUP DISIMPAN
           tgl_awal: tgl_awal,
           db: vdb,
           cr: vcr,
@@ -1528,6 +1579,8 @@ async function saveSaldoKasirAwal(e, editId) {
         id: newId,
         cabang: cabang,
         nama_cabang: nama_cabang,
+        group: group, // <-- GROUP DIMASUKKAN KE OBJEK BARU
+        nama_group: nama_group, // <-- NAMA GROUP DISIMPAN
         tgl_awal: tgl_awal,
         db: vdb,
         cr: vcr,
@@ -1548,7 +1601,6 @@ async function saveSaldoKasirAwal(e, editId) {
         );
       }
 
-      // ✅ FIX: Standarisasi db.add menggunakan "saldoKasirAwal"
       await db.add("saldokasirawal", newObj);
       DBCache.saldokasirawal.push(newObj);
     }
@@ -1564,7 +1616,7 @@ async function saveSaldoKasirAwal(e, editId) {
       }
     }, 100);
   } catch (err) {
-    console.error("❌ ERROR TERDETEKSI:", err);
+    console.error("❌ ERROR TERDETEKTI:", err);
     toast("Gagal simpan: " + err.message, "err");
   }
 }
