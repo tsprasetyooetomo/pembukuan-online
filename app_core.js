@@ -451,7 +451,7 @@ async function refreshCache() {
       "perkiraan",
       "kodeBank",
       "cabang",
-      "saldoKasir",
+      "saldokasir",
       "saldokasirawal",
       "mutasikasir",
       "golongan2022",
