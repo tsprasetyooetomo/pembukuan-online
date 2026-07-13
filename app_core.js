@@ -450,6 +450,47 @@ async function refreshCache() {
   } catch (error) {
     console.error("❌ Gagal memuat cache master:", error);
   }
+
+  // ====================================================================
+  // AUTO-INJECTOR: Otomatis menambahkan properti "group" ke semua tabel
+  // Letakkan kode ini di bagian setelah DBCache diisi dari server
+  // ====================================================================
+  function autoInjectGroupToCache() {
+    // Daftar tabel yang WAJIB memiliki kolom group (sesuaikan jika ada yang kurang)
+    var targetTables = [
+      "golongan",
+      "perkiraan",
+      "transaksi",
+      "kodeBank",
+      "cabang",
+      "saldoKasir",
+      "mutasikasir",
+      "saldokasirawal",
+      "detiltransaksi",
+    ];
+
+    targetTables.forEach(function (tableName) {
+      // Jika tabel tersebut ada di DBCache dan isinya array
+      if (DBCache[tableName] && Array.isArray(DBCache[tableName])) {
+        DBCache[tableName].forEach(function (row) {
+          // Jika baris ini belum punya properti "group", sistém secara otomatis menambahkan "-" (kosong)
+          if (typeof row.group === "undefined" || row.group === null) {
+            row.group = ""; // Bisa diisi "" atau "-"
+          }
+        });
+      }
+    });
+
+    console.log(
+      "✅ Auto-Injector Group: Semua tabel telah dicek & disesuaikan.",
+    );
+  }
+
+  // Panggil fungsi ini sekali saja saat aplikasi pertama kali dimuat atau saat refresh cache
+  // Contoh:
+  // await refreshCache();
+  // autoInjectGroupToCache();
+  // renderDashboard();
 }
 
 async function refreshCache2(onlyStore) {
