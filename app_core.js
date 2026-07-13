@@ -454,6 +454,21 @@ async function refreshCache() {
       "saldoKasir",
       "saldokasirawal",
       "mutasikasir",
+      "golongan2022",
+      "golongan2023",
+      "golongan2024",
+      "golongan2025",
+      "golongan2026",
+      "perkiraan2022",
+      "perkiraan2023",
+      "perkiraan2024",
+      "perkiraan2025",
+      "perkiraan2026",
+      "transaksi2022",
+      "transaksi2023",
+      "transaksi2024",
+      "transaksi2025",
+      "transaksi2026",
     ];
 
     var needDbUpdate = []; // Array untuk menampung data yang perlu diupdate ke server
