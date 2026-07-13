@@ -5,24 +5,33 @@
 PANEL_MAP.userMgmt = renderUser;
 
 async function renderUser() {
-  var data = DBCache.users;
+  var data = DBCache.users || [];
   var ids = data.map(function (r) {
     return r.id;
   });
   bulkInit("users", ids);
+
   var rows = data.map(function (r) {
     var roleTag =
       r.role === "Admin"
         ? '<span class="tag tag-db">Admin</span>'
         : r.role === "Manager"
-          ? '<span class="tag tag-mgr">Manager</span>' // DITAMBAHKAN
+          ? '<span class="tag tag-mgr">Manager</span>'
           : r.role === "Akunting"
             ? '<span class="tag tag-cr">Akunting</span>'
             : r.role === "Kasir"
               ? '<span class="tag tag-cr">Kasir</span>'
               : '<span class="tag tag-awal">Viewer</span>';
-    return [r.username, r.nama, roleTag, r.cabang || "Pusat"];
+
+    return [
+      r.username,
+      r.nama,
+      roleTag,
+      r.cabang || "Pusat",
+      r.group || "-", // <-- KOLOM GROUP DITAMBAHKAN
+    ];
   });
+
   return (
     bulkBarHTML("users", "User") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem">' +
@@ -31,27 +40,31 @@ async function renderUser() {
     " user</div>" +
     '<button class="btn btn-a" onclick="formUser()"><i class="fa-solid fa-user-plus"></i> Tambah User</button></div>' +
     wrapTable(
-      buildTable(["Username", "Nama", "Role", "Cabang", "Aksi"], rows, {
-        bulkStore: "users",
-        bulkIds: ids,
-        actions: function (r, i) {
-          return crudActions(data[i].id, "users");
+      buildTable(
+        ["Username", "Nama", "Role", "Cabang", "Group", "Aksi"], // Header Group ditambahkan
+        rows,
+        {
+          bulkStore: "users",
+          bulkIds: ids,
+          actions: function (r, i) {
+            return crudActions(data[i].id, "users");
+          },
+          emptyMsg: "Belum ada user",
         },
-        emptyMsg: "Belum ada user",
-      }),
+      ),
     )
   );
 }
 
 function formUser(editId) {
   var d = editId
-    ? DBCache.users.find(function (r) {
+    ? (DBCache.users || []).find(function (r) {
         return r.id === editId;
       })
     : null;
 
-  // Ambil data cabang lama, jika data baru default-nya adalah "Pusat"
   var selectedCabang = d ? d.cabang || "Pusat" : "Pusat";
+  var selectedGroup = d ? d.group || "" : ""; // <-- AMBIL GROUP LAMA
 
   openModal(
     d ? "Edit User" : "Tambah User",
@@ -68,7 +81,6 @@ function formUser(editId) {
       "<option" +
       (d && d.role === "Admin" ? " selected" : "") +
       ">Admin</option>" +
-      // 🛠️ PENAMBAHAN ROLE AKUNTING:
       "<option" +
       (d && d.role === "Akunting" ? " selected" : "") +
       ">Akunting</option>" +
@@ -81,10 +93,13 @@ function formUser(editId) {
       "<option" +
       (d && d.role === "Viewer" ? " selected" : "") +
       ">Viewer</option></select></div>" +
-      // 🛠️ PERBAIKAN: Menggunakan getCabangOpts() agar dropdown otomatis dinamis
       '<div class="fg"><label>Cabang</label><select id="f_uCabang">' +
       getCabangOpts(selectedCabang) +
       "</select></div></div>" +
+      // <-- INPUT GROUP DITAMBAHKAN
+      '<div class="fg"><label>Group</label><select id="f_uGroup">' +
+      getGroupOpts(selectedGroup) +
+      "</select></div>" +
       '<div class="fg"><label>Password ' +
       (d ? "(kosongkan jika tidak diubah)" : '<span class="req">*</span>') +
       "</label>" +
@@ -96,18 +111,22 @@ function formUser(editId) {
           esc(d.username) +
           "</span></div>"
         : ""),
-    '<button class="btn btn-g" onclick="closeModal()">Batal</button><button class="btn btn-a" onclick="saveUser(\'' +
+    '<button class="btn btn-g" onclick="closeModal()">Batal</button><button class="btn btn-a" onclick="saveUser(event, \'' +
       (editId || "") +
-      "')\">Simpan</button>",
+      "')\">Simpan</button>", // <-- EVENT DITAMBAHKAN
   );
 }
 
-async function saveUser(editId) {
-  var username = $("f_uUser").value.trim(),
-    nama = $("f_uNama").value.trim(),
-    role = $("f_uRole").value,
-    cabang = $("f_uCabang").value.trim(),
-    password = $("f_uPass").value;
+// ✅ PARAMETER (e, editId) DITAMBAHKAN
+async function saveUser(e, editId) {
+  if (e && e.preventDefault) e.preventDefault();
+
+  var username = $("f_uUser").value.trim();
+  var nama = $("f_uNama").value.trim();
+  var role = $("f_uRole").value;
+  var cabang = $("f_uCabang").value.trim();
+  var group = $("f_uGroup").value; // <-- AMBIL NILAI GROUP
+  var password = $("f_uPass").value;
 
   if (!username || !nama) {
     toast("Username dan Nama wajib", "err");
@@ -121,30 +140,42 @@ async function saveUser(editId) {
   if (editId) {
     var r = await db.get("users", editId);
     if (r) {
-      Object.assign(r, { nama: nama, role: role, cabang: cabang });
+      Object.assign(r, {
+        nama: nama,
+        role: role,
+        cabang: cabang,
+        group: group, // <-- GROUP DIMASUKKAN KE UPDATE
+      });
       if (password) r.password = password;
       await db.put("users", r);
+
+      // MANUAL CACHE UPDATE
+      var idx = DBCache.users.findIndex((x) => x.id === editId);
+      if (idx !== -1) DBCache.users[idx] = r;
     }
   } else {
-    /* Cek duplikat username */
-    var dup = DBCache.users.find(function (u) {
+    var dup = (DBCache.users || []).find(function (u) {
       return u.username === username;
     });
     if (dup) {
       toast('Username "' + username + '" sudah digunakan', "err");
       return;
     }
-    await db.add("users", {
+    var newObj = {
       id: uid(),
       username: username,
       nama: nama,
       role: role,
       cabang: cabang,
+      group: group, // <-- GROUP DIMASUKKAN KE OBJEK BARU
       password: password,
-    });
+    };
+    await db.add("users", newObj);
+    DBCache.users.push(newObj); // MANUAL CACHE UPDATE
   }
+
   closeModal();
   toast(editId ? "User diperbarui" : "User ditambahkan", "ok");
-  await refreshCache();
+  // await refreshCache(); // DIHAPUS (Sudah dihandle manual cache di atas)
   navigate(currentPanel);
 }
