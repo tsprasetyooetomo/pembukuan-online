@@ -427,30 +427,41 @@ async function saveGol(id) {
 
 /* ---------- No Perkiraan ---------- */
 PANEL_MAP.perk = renderPerk;
-
 async function renderPerk() {
   var rawData = DBCache.perkiraan || [];
 
-  // --- 1. FILTER ---
-  var data = filterByCabang(rawData);
+  // --- 1. FILTER (CABANG & GROUP) ---
+  var data = filterByCabang(rawData); // Fungsi filterByCabang diasumsikan sudah ada
+  var activeGroup = getActiveGroupFilter(); // Fungsi helper untuk ambil nilai filter group (bisa diganti sesuai sistem Anda)
 
-  // ✅ DEBUG 1: Cek Berapa banyak data yang kena filter cabang
-  console.log("🔍 DEBUG 1 (Raw):", rawData.length);
-  console.log("🔍 DEBUG 2 (Filter Cabang):", data.length);
+  if (activeGroup) {
+    data = data.filter(function (r) {
+      return (r.group || "") === activeGroup;
+    });
+  }
+
+  // ✅ DEBUG: Cek Filter
+  console.log("🔍 DEBUG (Raw):", rawData.length);
+  console.log("🔍 DEBUG (Filter Cabang & Group):", data.length);
 
   // --- 2. SORTING ---
   data.sort(function (a, b) {
     var cabangA = String(a.cabang || "");
     var cabangB = String(b.cabang || "");
-
     var compareCabang = cabangA.localeCompare(cabangB, undefined, {
       numeric: true,
       sensitivity: "base",
     });
+    if (compareCabang !== 0) return compareCabang;
 
-    if (compareCabang !== 0) {
-      return compareCabang;
-    }
+    // Urutkan berdasarkan Group jika ada
+    var groupA = String(a.group || "");
+    var groupB = String(b.group || "");
+    var compareGroup = groupA.localeCompare(groupB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+    if (compareGroup !== 0) return compareGroup;
 
     var noPerkA = String(a.noPerk || "");
     var noPerkB = String(b.noPerk || "");
@@ -471,15 +482,10 @@ async function renderPerk() {
     return r.id;
   });
 
-  // ✅ DEBUG 3: Cek Berapa banyak data yang masuk ke limit
-  console.log("🔍 DEBUG 3 (Limit terpotong):", dataLimit.length);
-  console.log("🔍 DEBUG 4 (Nilai _viewLimit):", _viewLimit);
-
-  // --- 4. RENDER BARIS (Dengan Proteksi Error) ---
+  // --- 4. RENDER BARIS ---
   var rows = dataLimit.map(function (r, index) {
     try {
       var ak = num(r.awal) + num(r.db) - num(r.cr);
-
       return [
         r.gol,
         r.noPerk,
@@ -488,11 +494,12 @@ async function renderPerk() {
         fmtN(r.db),
         fmtN(r.cr),
         '<span class="tag tag-akhir">' + fmtN(ak) + "</span>",
+        r.group || "-", // Kolom Group ditambahkan
         lookupCabangLabel(r.cabang),
       ];
     } catch (err) {
       console.error("❌ ERROR DI BARIS " + index + " (ID: " + r.id + "):", err);
-      return ["Error", "Error", "Error", 0, 0, 0, 0, "-"];
+      return ["Error", "Error", "Error", 0, 0, 0, 0, "-", "-"];
     }
   });
 
@@ -518,6 +525,7 @@ async function renderPerk() {
     ),
     "",
     "",
+    "", // Disesuaikan dengan jumlah kolom (9 kolom)
   ];
 
   // --- 6. RETURN HTML ---
@@ -527,6 +535,9 @@ async function renderPerk() {
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
     "Filter Cabang: " +
     getCabangFilterHTML() +
+    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+    "Filter Group: " +
+    getGroupFilterHTML() + // <-- TAMBAHKAN INI
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
     getLimitOptsHTML() +
@@ -550,8 +561,9 @@ async function renderPerk() {
           "Debit",
           "Kredit",
           "Akhir",
+          "Group",
           "Cabang",
-        ],
+        ], // Header kolom ditambah
         rows,
         {
           numCols: [3, 4, 5, 6],
@@ -575,11 +587,17 @@ function formPerk(id) {
         return d.id === id;
       }) || {}
     : {};
+
   var html =
     '<div class="fg"><label>Cabang</label><select id="fPerkCab" class="in"' +
     (isEdit ? " disabled" : "") +
     ">" +
     getCabangOpts(data.cabang) +
+    "</select></div>" +
+    '<div class="fg"><label>Group</label><select id="fPerkGroup" class="in"' +
+    (isEdit ? " disabled" : "") +
+    ">" + // <-- TAMBAHKAN INPUT GROUP
+    getGroupOpts(data.group) + // Fungsi helper untuk generate <option> Group
     "</select></div>" +
     '<div class="fg"><label>Golongan</label><input id="fPerkGol" class="in" value="' +
     esc(data.gol || "") +
@@ -593,6 +611,7 @@ function formPerk(id) {
     '<div class="fg"><label>Saldo Awal</label><input id="fPerkAwal" type="number" class="in" value="' +
     esc(data.awal || 0) +
     '"></div>';
+
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
     '<button type="button" class="btn btn-a" onclick="savePerk(event, \'' +
@@ -604,25 +623,34 @@ function formPerk(id) {
   openModal(isEdit ? "Edit Perkiraan" : "Tambah Perkiraan", html, foot);
 }
 
-async function savePerk(id) {
+async function savePerk(e, id) {
+  // Tambahkan 'e' di parameter agar sesuai dengan onclick="savePerk(event, ...)"
   try {
     var cabang = $("fPerkCab").value;
+    var group = $("fPerkGroup").value; // <-- AMBIL NILAI GROUP
     var gol = $("fPerkGol").value.trim();
     var noPerk = $("fPerkNo").value.trim();
     var desc = $("fPerkDesc").value.trim();
     var awal = num($("fPerkAwal").value);
+
     if (!noPerk || !desc)
       return toast("No Perkiraan dan Deskripsi wajib diisi", "err");
     if (!cabang) return toast("Cabang wajib dipilih", "err");
-    // PINDAHKAN VALIDASI DUPLIKAT KE DALAM BLOK "IF (!ID)"
+    // if (!group) return toast("Group wajib dipilih", "err"); // (Hapus komentar ini jika Group juga wajib)
+
+    // VALIDASI DUPLIKAT (No Perk + Cabang + Group)
     if (!id) {
       var dupPerk = (DBCache.perkiraan || []).find(function (p) {
-        return p.noPerk === noPerk && (p.cabang || "Pusat") === cabang;
+        return (
+          p.noPerk === noPerk &&
+          (p.cabang || "Pusat") === cabang &&
+          (p.group || "") === group
+        );
       });
 
       if (dupPerk) {
         return toast(
-          'No Perkiraan "' + noPerk + '" sudah ada di cabang ini',
+          'No Perkiraan "' + noPerk + '" untuk Group & Cabang ini sudah ada',
           "wrn",
         );
       }
@@ -637,6 +665,7 @@ async function savePerk(id) {
           desc: desc,
           awal: awal,
           cabang: cabang,
+          group: group, // <-- SIMPAN GROUP
         });
         await db.put("perkiraan", updated);
         // MANUAL CACHE UPDATE
@@ -654,13 +683,13 @@ async function savePerk(id) {
         db: 0,
         cr: 0,
         cabang: cabang,
+        group: group, // <-- SIMPAN GROUP
       };
       await db.add("perkiraan", newObj);
       // MANUAL CACHE UPDATE
       DBCache.perkiraan.push(newObj);
     }
 
-    // await refreshCache("perkiraan"); // DIHAPUS
     closeModal();
     toast(id ? "Diperbarui" : "Ditambahkan", "ok");
     safeRenderCurrentPanel();
@@ -1365,5 +1394,118 @@ async function saveSaldoKasirAwal(e, editId) {
   } catch (err) {
     console.error("❌ ERROR TERDETEKSI:", err);
     toast("Gagal simpan: " + err.message, "err");
+  }
+}
+PANEL_MAP.group = renderGroup;
+
+async function renderGroup() {
+  var data = DBCache.group || [];
+  data.sort(function (a, b) {
+    var kodeA = String(a.kode || "");
+    var kodeB = String(b.kode || "");
+    return kodeA.localeCompare(kodeB, undefined, {
+      numeric: true,
+      sensitivity: "base",
+    });
+  });
+
+  var ids = data.map(function (r) {
+    return r.id;
+  });
+  bulkInit("group", ids);
+
+  var dataLimit = data.slice(0, _viewLimit);
+  var idsLimit = dataLimit.map(function (r) {
+    return r.id;
+  });
+
+  var rows = dataLimit.map(function (r) {
+    return [r.kode || "-", r.nama || "-"];
+  });
+
+  return (
+    bulkBarHTML("group", "Group") +
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
+    '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem">Tampilkan ' +
+    getLimitOptsHTML() +
+    " dari " +
+    data.length +
+    " record</div>" +
+    '<div style="display:flex;gap:.4rem">' +
+    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'group\', \'Data_Group\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
+    '<button type="button" class="btn btn-a" onclick="formGroup()"><i class="fa-solid fa-plus"></i> Tambah Group</button>' +
+    "</div>" +
+    "</div>" +
+    wrapTable(
+      buildTable(["Kode Group", "Nama Group"], rows, {
+        bulkStore: "group",
+        bulkIds: idsLimit,
+        actions: function (r, i) {
+          return crudActions(dataLimit[i].id, "group");
+        },
+        emptyMsg: "Belum ada data group",
+      }),
+    )
+  );
+}
+
+function formGroup(id) {
+  var isEdit = !!id;
+  var data = isEdit
+    ? (DBCache.group || []).find(function (d) {
+        return d.id === id;
+      }) || {}
+    : {};
+
+  var html =
+    '<div class="fg"><label>Kode Group</label><input id="fGrpKode" class="in" value="' +
+    esc(data.kode || "") +
+    '"></div>' +
+    '<div class="fg"><label>Nama Group</label><input id="fGrpNama" class="in" value="' +
+    esc(data.nama || "") +
+    '"></div>';
+
+  var foot =
+    '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
+    '<button type="button" class="btn btn-a" onclick="saveGroup(event, \'' +
+    (id || "") +
+    "')\">" +
+    (isEdit ? "Update" : "Simpan") +
+    "</button>";
+
+  openModal(isEdit ? "Edit Group" : "Tambah Group", html, foot);
+}
+
+async function saveGroup(e, id) {
+  try {
+    var kode = $("fGrpKode").value.trim();
+    var nama = $("fGrpNama").value.trim();
+    if (kode.length === 1 && !isNaN(kode)) {
+      kode = "0" + kode;
+    }
+    // Pastikan input terisi
+    if (!kode || !nama) return toast("Kode dan Nama wajib diisi", "err");
+
+    if (id) {
+      // MODE EDIT (UPDATE)
+      var r = await db.get("group", id);
+      if (r) {
+        await db.put(
+          "group",
+          Object.assign({}, r, { id: id, kode: kode, nama: nama }),
+        );
+      }
+    } else {
+      // MODE TAMBAH BARU
+      await db.add("group", { id: uid(), kode: kode, nama: nama });
+    }
+
+    await refreshCache();
+    closeModal();
+    toast("Tersimpan!", "ok");
+    safeRenderCurrentPanel();
+  } catch (err) {
+    toast("Gagal simpan: " + err.message, "err");
+    console.error(err);
   }
 }
