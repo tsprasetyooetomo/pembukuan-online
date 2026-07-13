@@ -297,7 +297,7 @@ function buildSidebar() {
           "USER",
         ].includes(grp.group)
       )
-        itemsBolehTampil = grp.items.filter((item) => item.id !== "cbg");
+        itemsBolehTampil = grp.items.filter((item) => item.id !== "group");
     } else if (userRole === "KASIR") {
       itemsBolehTampil = grp.items.filter((item) =>
         ["saldoKasir", "mutasikasir", "kaskasir"].includes(item.id),
