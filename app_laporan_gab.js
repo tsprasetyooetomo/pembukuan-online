@@ -1244,7 +1244,6 @@ function gambarChartNow(daftarCabang, dataByCabang, mapMasterCab) {
     });
   };
 }
-
 function lihatGrafikRLGabungan() {
   if (
     !window._rlGabunganData ||
@@ -1255,22 +1254,11 @@ function lihatGrafikRLGabungan() {
       toast("Silakan klik 'Terapkan' terlebih dahulu untuk memuat data", "wrn");
     return;
   }
+
+  // Ambil data lalu kirim ke fungsi pembuka jendela baru
   var d = window._rlGabunganData;
   renderGrafikRLGabungan(d.daftarCabang, d.dataByCabang, d.mapMasterCab);
 }
-if (
-  !window._rlGabunganData ||
-  !window._rlGabunganData.daftarCabang ||
-  window._rlGabunganData.daftarCabang.length === 0
-) {
-  if (typeof toast === "function")
-    toast("Silakan klik 'Terapkan' terlebih dahulu untuk memuat data", "wrn");
-  return;
-}
-
-// Ambil data lalu kirim ke fungsi pembuka jendela baru
-var d = window._rlGabunganData;
-renderGrafikRLGabungan(d.daftarCabang, d.dataByCabang, d.mapMasterCab);
 
 PANEL_MAP.arusKas = renderArusKasGabungan;
 
