@@ -1105,6 +1105,7 @@ async function refreshSaldoKasir() {
     console.log("🔍 Tidak ketemu di saldokasir, mencari ke saldokasirawal...");
 
     try {
+      // KODE BARU YANG DIPERBAIKI:
       var rawSaldoRawal = await db.getAll("saldokasirawal");
       var arrSaldoRawal = rawSaldoRawal
         ? Array.isArray(rawSaldoRawal)
