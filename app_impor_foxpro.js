@@ -18,6 +18,12 @@ const AppImporFoxpro = {
       opsiTahun += `<option value="${y}">${y}</option>`;
     }
 
+    // ✅ AMBIL OPSI GROUP
+    let opsiGroup = `<option value="" disabled selected>-- Pilih Group --</option>`;
+    if (typeof getGroupOpts === "function") {
+      opsiGroup = getGroupOpts("");
+    }
+
     return `
       <div style="max-width: 700px; margin: 1rem auto; padding: 2rem; background: rgba(255,255,255,0.03); border-radius: 8px; border: 1px solid rgba(255,255,255,0.05); max-height: 90vh; overflow-y: auto;">
         <h2 style="margin-bottom: 1rem; font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; color: #fff; display: flex; align-items: center; gap: 0.75rem; position: sticky; top: 0; background: rgba(20,20,30,0.95); padding: 1rem 0; z-index: 10;">
@@ -34,6 +40,14 @@ const AppImporFoxpro = {
             <label style="display: block; color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Kode Cabang</label>
             <select id="impCabang" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace;">
               ${opsiCabang}
+            </select>
+          </div>
+
+          <div style="margin-bottom: 1.5rem;">
+            <label style="display: block; color: #94a3b8; font-size: 0.85rem; margin-bottom: 0.5rem; font-weight: 500;">Group</label>
+            <!-- ✅ TAMBAHKAN DROPDOWN GROUP DI SINI -->
+            <select id="impGroup" required style="width: 100%; padding: 0.75rem; background: #000; border: 1px solid #333; border-radius: 4px; color: #ffffff; font-family: 'JetBrains Mono', monospace;">
+              ${opsiGroup}
             </select>
           </div>
 
@@ -85,6 +99,9 @@ const AppImporFoxpro = {
       .getElementById("impCabang")
       ?.addEventListener("change", () => this.validate());
     document
+      .getElementById("impGroup")
+      ?.addEventListener("change", () => this.validate()); // ✅ TAMBAHKAN EVENT LISTENER GROUP
+    document
       .getElementById("impTahun")
       ?.addEventListener("change", () => this.validate());
     document
@@ -131,6 +148,7 @@ const AppImporFoxpro = {
 
   validate() {
     const kode = document.getElementById("impCabang")?.value || "";
+    const group = document.getElementById("impGroup")?.value || ""; // ✅ AMBIL NILAI GROUP
     const tahun4 = document.getElementById("impTahun")?.value || "";
     const listFile = document.getElementById("listFile");
     const infoMasa = document.getElementById("infoMasa");
@@ -177,9 +195,10 @@ const AppImporFoxpro = {
 
     if (listFile) listFile.innerHTML = html;
     if (infoMasa)
-      infoMasa.innerHTML = `<i class="fa-solid fa-info-circle"></i> Siap upload: ${bulanValid.length} bulan | Cabang ${kode} | Tahun ${tahun4}`;
+      infoMasa.innerHTML = `<i class="fa-solid fa-info-circle"></i> Siap upload: ${bulanValid.length} bulan | Cabang ${kode} | Group ${group} | Tahun ${tahun4}`;
 
-    const ok = bulanValid.length > 0 && kode && tahun4;
+    // ✅ WAJIB ISI GROUP UNTUK AKTIFKAN TOMBOL
+    const ok = bulanValid.length > 0 && kode && group && tahun4;
     if (btn) {
       btn.disabled = !ok;
       btn.style.opacity = ok ? "1" : "0.5";
@@ -197,6 +216,7 @@ const AppImporFoxpro = {
     const progressLog = document.getElementById("progressLog");
 
     const kode = document.getElementById("impCabang")?.value;
+    const group = document.getElementById("impGroup")?.value; // ✅ AMBIL NILAI GROUP
     const tahun4 = document.getElementById("impTahun")?.value;
 
     try {
@@ -205,7 +225,6 @@ const AppImporFoxpro = {
       progressBox.style.display = "block";
       progressLog.innerHTML = "";
 
-      // Hitung total bulan lengkap
       let totalBulan = 0;
       for (let i = 1; i <= 12; i++) {
         const bln = String(i).padStart(2, "0");
@@ -234,6 +253,7 @@ const AppImporFoxpro = {
 
           const fd = new FormData();
           fd.append("kode_cabang", kode);
+          fd.append("group", group); // ✅ KIRIM NILAI GROUP KE BACKEND
           fd.append("tahun", tahun4);
           fd.append("bulan", bln);
           fd.append("masa", bln + cdg.info.tahun2digit);
@@ -248,7 +268,6 @@ const AppImporFoxpro = {
             let lastLine = "";
             xhr.onreadystatechange = function () {
               if (xhr.readyState === 3) {
-                // streaming SSE
                 const lines = xhr.responseText.split("\n\n");
                 const newLine = lines[lines.length - 2];
                 if (
@@ -259,8 +278,6 @@ const AppImporFoxpro = {
                   lastLine = newLine;
                   try {
                     const data = JSON.parse(newLine.replace("data: ", ""));
-
-                    // Hitung progress global: bulan sebelumnya + progress bulan ini
                     const baseProgress = ((bulanKe - 1) / totalBulan) * 100;
                     const currentProgress =
                       (data.percent / 100) * (100 / totalBulan);
@@ -272,18 +289,14 @@ const AppImporFoxpro = {
                     progressBar.textContent = totalProgress + "%";
                     progressText.textContent = `Bulan ${bln} ${bulanKe}/${totalBulan} - ${data.message}`;
 
-                    // Log detail
                     if (data.message) {
                       progressLog.innerHTML += `<div style="margin-bottom:2px">${new Date().toLocaleTimeString()} ${data.message}</div>`;
                       progressLog.scrollTop = progressLog.scrollHeight;
                     }
 
                     if (data.percent === 100) {
-                      if (!data.success) {
-                        reject(new Error(data.message));
-                      } else {
-                        resolve(data);
-                      }
+                      if (!data.success) reject(new Error(data.message));
+                      else resolve(data);
                     }
                   } catch (err) {}
                 }
@@ -297,7 +310,7 @@ const AppImporFoxpro = {
       }
 
       toast(
-        `Sukses! ${totalBulan} bulan data cabang ${kode} tahun ${tahun4} terupload`,
+        `Sukses! ${totalBulan} bulan data cabang ${kode} group ${group} tahun ${tahun4} terupload`,
         "ok",
       );
       progressBar.style.width = "100%";
