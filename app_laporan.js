@@ -3352,7 +3352,6 @@ async function downloadBukuBesarExcel() {
   toast("File Excel berhasil diunduh.", "success");
 }
 /* ---------- ekspor ke xls---------- */
-PANEL_MAP.expXls = renderExpXls;
 
 PANEL_MAP.rlLebar = renderRLLebar;
 
