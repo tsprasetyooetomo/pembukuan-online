@@ -1058,8 +1058,13 @@ async function getSaldoAwalKasir(cabang, tglAwal) {
       DBCache.saldoKasirawal = await db.getAll("saldoKasirawal");
     }
 
-    var rawDataAwal = DBCache.saldoKasirawal || [];
-
+    // KODE BARU YANG DIPERBAIKI:
+    var resAwal = await db.getAll("saldokasirawal");
+    var rawDataAwal = resAwal
+      ? Array.isArray(resAwal)
+        ? resAwal
+        : Object.values(resAwal)
+      : [];
     // Filter cabang dan tanggal yang <= tglAwal
     var filteredSaldoAwal = rawDataAwal.filter(function (s) {
       var sCab = s.cabang || "Pusat";
