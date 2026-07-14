@@ -2332,14 +2332,24 @@ async function executeHapusMutasiPerCabang() {
   }
 
   var daftarBulan = [
-    { v: "01", n: "Januari" }, { v: "02", n: "Februari" }, { v: "03", n: "Maret" },
-    { v: "04", n: "April" }, { v: "05", n: "Mei" }, { v: "06", n: "Juni" },
-    { v: "07", n: "Juli" }, { v: "08", n: "Agustus" }, { v: "09", n: "September" },
-    { v: "10", n: "Oktober" }, { v: "11", n: "November" }, { v: "12", n: "Desember" },
+    { v: "01", n: "Januari" },
+    { v: "02", n: "Februari" },
+    { v: "03", n: "Maret" },
+    { v: "04", n: "April" },
+    { v: "05", n: "Mei" },
+    { v: "06", n: "Juni" },
+    { v: "07", n: "Juli" },
+    { v: "08", n: "Agustus" },
+    { v: "09", n: "September" },
+    { v: "10", n: "Oktober" },
+    { v: "11", n: "November" },
+    { v: "12", n: "Desember" },
   ];
-  var opsiBulanHtml = daftarBulan.map(function (b) {
-    return `<option value="${b.v}">${b.n}</option>`;
-  }).join("");
+  var opsiBulanHtml = daftarBulan
+    .map(function (b) {
+      return `<option value="${b.v}">${b.n}</option>`;
+    })
+    .join("");
 
   var cabFilterOpts = '<option value="">-- Semua Cabang --</option>';
   if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
@@ -2347,19 +2357,23 @@ async function executeHapusMutasiPerCabang() {
     sortedList.sort(function (a, b) {
       return String(a.kode || "").localeCompare(String(b.kode || ""));
     });
-    cabFilterOpts += sortedList.map(function (c) {
-      var displayNama = c.nama ? ` (${c.nama})` : "";
-      return `<option value="${c.kode}">${c.kode}${displayNama}</option>`;
-    }).join("");
+    cabFilterOpts += sortedList
+      .map(function (c) {
+        var displayNama = c.nama ? ` (${c.nama})` : "";
+        return `<option value="${c.kode}">${c.kode}${displayNama}</option>`;
+      })
+      .join("");
   }
 
   // ✅ OPSI GROUP: Siapkan dropdown Group
   var activeGroupLabel = localStorage.getItem("group") || "TLGA";
   var daftarGroup = ["TLGA", "TLTA", "KBJ", "SBI"]; // Sesuaikan dengan daftar group Anda
-  var opsiGroupHtml = daftarGroup.map(function (g) {
-    var sel = g === activeGroupLabel ? "selected" : "";
-    return `<option value="${g}" ${sel}>${g}</option>`;
-  }).join("");
+  var opsiGroupHtml = daftarGroup
+    .map(function (g) {
+      var sel = g === activeGroupLabel ? "selected" : "";
+      return `<option value="${g}" ${sel}>${g}</option>`;
+    })
+    .join("");
 
   openModal(
     "Filter Hapus Data " + label,
@@ -2408,89 +2422,102 @@ async function executeHapusMutasiPerCabang() {
     </div>`,
   );
 
-  document.getElementById("btnKonfirmasiHapusMutasi").onclick = async function () {
-    var grp = document.getElementById("del_group").value; // ✅ OPSI GROUP: Ambil nilai
-    var bln = document.getElementById("del_bulan").value;
-    var thn = document.getElementById("del_tahun").value;
-    var cbg = document.getElementById("del_cabang").value;
+  document.getElementById("btnKonfirmasiHapusMutasi").onclick =
+    async function () {
+      var grp = document.getElementById("del_group").value; // ✅ OPSI GROUP: Ambil nilai
+      var bln = document.getElementById("del_bulan").value;
+      var thn = document.getElementById("del_tahun").value;
+      var cbg = document.getElementById("del_cabang").value;
 
-    if (!cbg) {
-      return toast("Kode Cabang wajib dipilih!", "err");
-    }
-
-    var infoFilter = `\nGroup: ${grp}\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg}`;
-
-    if (!confirm("PERINGATAN!\n\nData " + label + " dengan kriteria berikut akan dihapus permanen dari Server:" + infoFilter + "\n\nLanjutkan?")) {
-      return;
-    }
-
-    closeModal();
-    toast("Menghubungi server untuk menghapus data...", "inf");
-
-    try {
-      // 1. PANGGIL API clear-all-data
-      var response = await fetch("/api/clear-all-data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          storeName: "mutasikasir",
-          cabang: cbg,
-          tahun: thn,
-          bulan: bln,
-          group: grp, // ✅ OPSI GROUP: Kirim parameter group ke server
-        }),
-      });
-
-      var result = await response.json();
-      if (!response.ok || !result.success) {
-        throw new Error(result.message || "Gagal menghubungi server");
+      if (!cbg) {
+        return toast("Kode Cabang wajib dipilih!", "err");
       }
 
-      // 2. HAPUS DI CACHE MEMORY (LOCAL BROWSER)
-      var dataDipertahankan = [];
-      var allData = DBCache.mutasikasir || [];
+      var infoFilter = `\nGroup: ${grp}\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg}`;
 
-      for (var i = 0; i < allData.length; i++) {
-        var item = allData[i];
-        var cocokCabang = item.cabang === cbg;
-        
-        // ✅ OPSI GROUP: Tambahkan filter group di cache lokal
-        var cocokGroup = String(item.group || "").trim() === grp;
+      if (
+        !confirm(
+          "PERINGATAN!\n\nData " +
+            label +
+            " dengan kriteria berikut akan dihapus permanen dari Server:" +
+            infoFilter +
+            "\n\nLanjutkan?",
+        )
+      ) {
+        return;
+      }
 
-        var cocokTahun = true;
-        if (thn) cocokTahun = item.tanggal && item.tanggal.startsWith(thn);
+      closeModal();
+      toast("Menghubungi server untuk menghapus data...", "inf");
 
-        var cocokBulan = true;
-        if (thn && bln) {
-          cocokBulan = item.tanggal && item.tanggal.startsWith(thn + "-" + bln);
+      try {
+        // 1. PANGGIL API clear-all-data
+        var response = await fetch("/api/clear-all-data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            storeName: "mutasikasir",
+            cabang: cbg,
+            tahun: thn,
+            bulan: bln,
+            group: grp, // ✅ OPSI GROUP: Kirim parameter group ke server
+          }),
+        });
+
+        var result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result.message || "Gagal menghubungi server");
         }
 
-        // ✅ OPSI GROUP: Tambahkan cocokGroup di kondisi pengecekan
-        if (cocokCabang && cocokGroup && cocokTahun && cocokBulan) {
-          // Dihapus (tidak masuk array)
-        } else {
-          dataDipertahankan.push(item); // Dipertahankan
+        // 2. HAPUS DI CACHE MEMORY (LOCAL BROWSER)
+        var dataDipertahankan = [];
+        var allData = DBCache.mutasikasir || [];
+
+        for (var i = 0; i < allData.length; i++) {
+          var item = allData[i];
+          var cocokCabang = item.cabang === cbg;
+
+          // ✅ OPSI GROUP: Tambahkan filter group di cache lokal
+          var cocokGroup = String(item.group || "").trim() === grp;
+
+          var cocokTahun = true;
+          if (thn) cocokTahun = item.tanggal && item.tanggal.startsWith(thn);
+
+          var cocokBulan = true;
+          if (thn && bln) {
+            cocokBulan =
+              item.tanggal && item.tanggal.startsWith(thn + "-" + bln);
+          }
+
+          // ✅ OPSI GROUP: Tambahkan cocokGroup di kondisi pengecekan
+          if (cocokCabang && cocokGroup && cocokTahun && cocokBulan) {
+            // Dihapus (tidak masuk array)
+          } else {
+            dataDipertahankan.push(item); // Dipertahankan
+          }
         }
+
+        DBCache.mutasikasir = dataDipertahankan;
+
+        // 3. REFRESH UI TAMPILAN
+        renderKasirDetilTable();
+        updateKasirHeaderNominal();
+        await hitungSaldoOtomatis();
+
+        if (typeof buildGroupedNoreff === "function") {
+          buildGroupedNoreff();
+        }
+        renderKasirNoreffList();
+
+        toast(
+          `✅ Berhasil menghapus ${result.changes} data ${label} dari Server`,
+          "ok",
+        );
+      } catch (err) {
+        console.error(err);
+        toast("Gagal memproses penghapusan: " + err.message, "err");
       }
-
-      DBCache.mutasikasir = dataDipertahankan;
-
-      // 3. REFRESH UI TAMPILAN
-      renderKasirDetilTable();
-      updateKasirHeaderNominal();
-      await hitungSaldoOtomatis();
-
-      if (typeof buildGroupedNoreff === "function") {
-        buildGroupedNoreff();
-      }
-      renderKasirNoreffList();
-
-      toast(`✅ Berhasil menghapus ${result.changes} data ${label} dari Server`, "ok");
-    } catch (err) {
-      console.error(err);
-      toast("Gagal memproses penghapusan: " + err.message, "err");
-    }
-  };
+    };
 }
 // ✅ OBJEK LOGIKA IMPORT DBF KASIR (SERVER-SIDE)
 const AppImporKasirDBF = {
@@ -2533,6 +2560,16 @@ const AppImporKasirDBF = {
       opsiBulan += `<option value="${val}">${b}</option>`;
     });
 
+    // ✅ TAMBAHKAN OPSI GROUP
+    let activeGroupLabel = localStorage.getItem("group") || "TLGA";
+    let daftarGroup = ["TLGA", "TLTA", "KBJ", "SBI"]; // Sesuaikan daftar group Anda
+    let opsiGroupHtml = daftarGroup
+      .map((g) => {
+        let sel = g === activeGroupLabel ? "selected" : "";
+        return `<option value="${g}" ${sel}>${g}</option>`;
+      })
+      .join("");
+
     return `
       <div style="max-width: 500px; padding: 1rem;">
         <div style="margin-bottom: 1rem; font-size:.85rem; color:var(--muted); background:rgba(0,0,0,0.2); padding:.5rem; border-radius:6px;">
@@ -2543,6 +2580,12 @@ const AppImporKasirDBF = {
           <div class="fg" style="margin-bottom: 1rem;">
             <label>Cabang Tujuan</label>
             <select id="impKasirCab" required class="in">${opsiCabang}</select>
+          </div>
+
+          <!-- ✅ TAMBAHKAN DROPDOWN GROUP DI FORM -->
+          <div class="fg" style="margin-bottom: 1rem;">
+            <label>Group Data</label>
+            <select id="impKasirGroup" required class="in">${opsiGroupHtml}</select>
           </div>
 
           <div style="display:flex; gap:.5rem; margin-bottom: 1rem;">
@@ -2611,12 +2654,14 @@ const AppImporKasirDBF = {
     const progressText = document.getElementById("kasirProgressText");
 
     const cabang = document.getElementById("impKasirCab")?.value;
+    const groupVal = document.getElementById("impKasirGroup")?.value; // ✅ AMBIL NILAI GROUP
     const hapusThn = document.getElementById("impKasirThn")?.value || "";
     const hapusBln = document.getElementById("impKasirBln")?.value || "";
     const fileDbf = document.getElementById("fileDbfKasir")?.files[0];
 
-    if (!cabang || !fileDbf)
-      return toast("Cabang dan File wajib diisi!", "err");
+    if (!cabang || !fileDbf || !groupVal)
+      // ✅ VALIDASI: Group wajib diisi
+      return toast("Cabang, Group, dan File wajib diisi!", "err");
     if (hapusBln && !hapusThn)
       return toast("Jika pilih bulan, tahun wajib dipilih!", "err");
 
@@ -2631,6 +2676,7 @@ const AppImporKasirDBF = {
 
       const fd = new FormData();
       fd.append("cabang", cabang);
+      fd.append("group", groupVal); // ✅ KIRIM NILAI GROUP KE SERVER
       if (hapusThn) fd.append("hapus_tahun", hapusThn);
       if (hapusBln) fd.append("hapus_bulan", hapusBln);
       fd.append("file_dbf", fileDbf);
@@ -2698,7 +2744,6 @@ const AppImporKasirDBF = {
     }
   },
 };
-
 // ✅ FUNGSI UNTUK DIPANGGIL OLEH TOMBOL DI MUTASI KASIR
 function promptImportKasirDBF() {
   if (typeof openModal === "function") {
