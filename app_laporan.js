@@ -28,13 +28,9 @@ if (typeof gPerks === "undefined") {
   };
 }
 
-// =========================================================================
-// FUNGSI RENDER AWAL (UI Only - Tidak Load Data)
-// =========================================================================
 function renderNeraca() {
   // A. SIAPKAN NILAI DEFAULT SAAT PERTAMA KALI DIBUKA
   if (typeof window._neracaFilterCabang === "undefined") {
-    // Cek cabang aktif, jika tidak ada default ke "Pusat"
     window._neracaFilterCabang =
       typeof currentCabang !== "undefined" &&
       currentCabang !== "SEMUA" &&
@@ -46,7 +42,6 @@ function renderNeraca() {
   if (typeof window._neracaFilterMasa === "undefined") {
     var d = new Date();
     var bln = ("0" + (d.getMonth() + 1)).slice(-2);
-    // Format "MM-YYYY"
     window._neracaFilterMasa = bln + "-" + d.getFullYear();
   }
 
@@ -54,57 +49,37 @@ function renderNeraca() {
     window._neracaModeBackup = false;
   }
 
-  // Pecah Masa untuk kebutuhan format Input HTML
-  // Input: "05-2026" -> Output: "2026-05"
   var partMasa = window._neracaFilterMasa.split("-");
   var filterBulan = partMasa[0];
   var filterTahunFull = partMasa[1];
-
-  // Format input value untuk type="month" (harus YYYY-MM)
   var inputMonthValue = filterTahunFull + "-" + filterBulan;
 
-  // B. SIAPKAN OPSI DROPDOWN CABANG
-  // B. SIAPKAN OPSI DROPDOWN CABANG
   var rawCabang = DBCache.cabang || [];
-  var daftarCabangObj = []; // Menyimpan object {id, nama}
+  var daftarCabangObj = [];
 
   rawCabang.forEach(function (c) {
-    // 1. Cari ID (Kode) - Prioritas kolom 'cabang', jika kosong cek 'kode'
     var id = (c.cabang || c.kode || "").trim();
-
-    // 2. Cari Nama Tampilan - Prioritas kolom 'nama', jika kosong pakai ID saja
     var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
-
-    // 3. Masukkan ke list hanya jika ID-nya ada (supaya tidak kosong)
     if (id) {
-      daftarCabangObj.push({
-        id: id, // Contoh: "00"
-        nama: nama, // Contoh: "TELAGA BEKASI"
-      });
+      daftarCabangObj.push({ id: id, nama: nama });
     }
   });
 
-  // Sort Cabang berdasarkan ID
   daftarCabangObj.sort(function (a, b) {
     return a.id.localeCompare(b.id, undefined, { numeric: true });
   });
 
-  // Jika kosong total, isi default "PUSAT"
   if (daftarCabangObj.length === 0) {
     daftarCabangObj.push({ id: "PUSAT", nama: "PUSAT" });
   }
 
-  // Tentukan mana yang selected
   var kodeDefault = window._neracaFilterCabang;
-  if (!kodeDefault) kodeDefault = daftarCabangObj[0].id; // Ambil ID pertama sebagai default
+  if (!kodeDefault) kodeDefault = daftarCabangObj[0].id;
 
-  // Buat HTML
   var opsiCabangHtml = daftarCabangObj
     .map(function (item) {
       var sel =
         item.id.toLowerCase() === kodeDefault.toLowerCase() ? "selected" : "";
-
-      // 👉 Value = ID ("00"), Teks = NAMA ("TELAGA BEKASI")
       return (
         '<option value="' +
         item.id +
@@ -117,17 +92,14 @@ function renderNeraca() {
     })
     .join("");
 
-  // C. RENDER HTML ANTARMUKA KOSONG (Siap Menunggu Input)
-  // Kita tidak render tabel data di sini, hanya filter formnya
   var htmlLaporan =
-    // 🌟 1. FRAME UTAMA: Diubah ke display: block dengan batas tinggi tetap dan overflow disembunyikan
     '<div id="area_cetak_neraca" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
-    // --- JUDUL ---
     '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan Neraca</h3>' +
-    // --- FILTER PANEL ---
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
-    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
+    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span style="color:var(--accent);">' +
+    (localStorage.getItem("group") || "TLGA") +
+    "</span> | PILIHAN TAMPILAN:</div>" +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
     '<input type="month" id="filter_neraca_masa" value="' +
@@ -143,17 +115,13 @@ function renderNeraca() {
     '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiNeraca()">' +
     "Terapkan" +
     "</button>" +
-    // ✅ TAMBAHKAN TOMBOL DOWNLOAD INI
     '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadNeracaExcel()">' +
     '<i class="fa-solid fa-file-excel"></i> Download Excel' +
     "</button>" +
     "</div>" +
-    // 🌟 2. WADAH SCROLL UTAMA: Menggunakan tinggi kalkulasi pasti agar scroll vertikal/horizontal aktif total
     '<div class="table-responsive-container" style="width:100%; max-width:100%; height:380px; max-height:380px; overflow:auto; display:block; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box; margin:0 auto; clear:both;">' +
     "<style>" +
-    // min-width 900px memaksa tabel melebar ke samping sehingga scroll horizontal AKTIF
     "#tempat_tabel_preview table { width: 100% !important; min-width: 900px !important; border-collapse: collapse !important; table-layout: auto !important; margin:0 !important; }" +
-    // position sticky memaksa judul kolom tetap membeku di atas saat di-scroll ke bawah
     "#tempat_tabel_preview th { padding: 8px 12px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; }" +
     "#tempat_tabel_preview td { padding: 8px 12px !important; white-space: nowrap !important; border: 1px solid var(--brd); }" +
     "</style>" +
@@ -166,13 +134,10 @@ function renderNeraca() {
   return htmlLaporan;
 }
 
-// ✅ PERBAIKAN: Mengubah 'sync' menjadi 'async' agar await berfungsi
 // =========================================================================
-// FUNGSI UTAMA: TAMPILKAN NERACA (Mengambil & Filter Data Golongan)
+// FUNGSI UTAMA: TAMPILKAN NERACA
 // =========================================================================
 async function terapkanOpsiNeraca() {
-  // 1. Ambil input dari user
-
   var inputmasa = document.getElementById("filter_neraca_masa");
   var selectcabang = document.getElementById("filter_neraca_cabang");
 
@@ -191,32 +156,28 @@ async function terapkanOpsiNeraca() {
   }
 
   closeModal();
-  // 2. Parsing tanggal
   var part = valmasa.split("-");
   var filtertahunfull = part[0];
   var filterbulan = part[1];
   var duadigittahunbelakang = filtertahunfull.substring(2, 4);
 
-  window._neracafiltermasa = filterbulan + "-" + filtertahunfull;
-  window._neracafiltercabang = valcabang;
-  window._neracamodebackup = true;
+  window._neracaFilterMasa = filterbulan + "-" + filtertahunfull; // Diperbaiki kapitalisasi variabel
+  window._neracaFilterCabang = valcabang; // Diperbaiki kapitalisasi variabel
+  window._neracaModeBackup = true;
 
   var kodemasadicari = filterbulan + duadigittahunbelakang;
   var namastoregolbackup = "golongan" + filtertahunfull;
 
-  // Cari kontainer penampung
   var area =
     document.getElementById("contentarea") ||
     document.getElementById("tempat_tabel_preview");
 
-  // 🔄 LANGSUNG BERSIHKAN LAYAR SEJAK AWAL (Tampilkan Loading)
   if (area) {
     area.innerHTML =
       '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 memuat data golongan...</div>';
   }
 
   try {
-    // 3. Ambil data dari database
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
       ? Array.isArray(resgolbackup)
@@ -224,9 +185,7 @@ async function terapkanOpsiNeraca() {
         : Object.values(resgolbackup)
       : [];
 
-    // ===================================================
-    // 4. LOGIKA FILTER DIAGNOSTIK (MEMAKSA DATA TETAP MUNCUL)
-    // ===================================================
+    // Filter Data
     window.golterfilter = rawdatagolongan
       .filter(function (g) {
         var kodeGolongan = parseInt(
@@ -234,8 +193,9 @@ async function terapkanOpsiNeraca() {
           10,
         );
         var cocokGolongan = kodeGolongan < 300;
+        var activeGroup = localStorage.getItem("group") || "TLGA";
+        var cocokGroup = String(g.group || "").trim() === activeGroup;
 
-        // Ambil nilai asli dari objek database untuk kita periksa
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
@@ -243,35 +203,17 @@ async function terapkanOpsiNeraca() {
         var cocokCabang =
           valcabang === "ALL" || valcabang === "" || cabangData === valcabang;
 
-        // ✅ AMBIL NILAI DB DAN CR
         var nilaiDb = parseFloat(g.db || g.debit || 0);
         var nilaiCr = parseFloat(g.cr || g.kredit || 0);
         var nilaiAwal = parseFloat(g.awal || 0);
-        // ✅ SYARAT BARU: DB dan CR tidak boleh 0 (<> 0)
         var adaNilai = nilaiAwal + nilaiDb + nilaiCr !== 0;
-
-        // 🔍 PRINT DIAGNOSTIK KE CONSOLE (Tekan F12 untuk melihat ini)
-        // console.log("=== DIAGNOSTIK DATA ===");
-        // console.log(
-        //  "Masa di DB:",
-        //   "'" + masaData + "'",
-        //  "VS Yang Dicari:",
-        //  "'" + kodemasadicari + "'",
-        // );
-        //  console.log(
-        //  "Cabang di DB:",
-        //  "'" + cabangData + "'",
-        //  "VS Yang Dicari:",
-        //   "'" + valcabang + "'",
-        // );
-
-        // KITA BYPASS DULU: Kembalikan true agar data tidak hilang dari tabel saat ditonton
 
         return (
           cocokGolongan &&
+          cocokGroup &&
           masaData === kodemasadicari &&
-          cabangData === valcabang &&
-          adaNilai // ← Tambahkan syarat ini di sini
+          cocokCabang &&
+          adaNilai
         );
       })
       .sort(function (a, b) {
@@ -279,8 +221,6 @@ async function terapkanOpsiNeraca() {
         var golB = parseInt(b.gol || b.golongan || b.kode_golongan || 0, 10);
         return golA - golB;
       });
-
-    // console.log("📊 Jumlah baris yang dipaksa muncul:", golterfilter.length);
 
     if (golterfilter.length === 0) {
       if (area) {
@@ -290,10 +230,7 @@ async function terapkanOpsiNeraca() {
       return;
     }
 
-    // 5. Tentukan kolom manual
     var headers = ["gol", "namaGol", "masa", "akhir", "cabang"];
-
-    // 6. Jalankan Render HTML Judul & Tabel Baru
     var html = "";
 
     document.documentElement.style.overflow = "auto";
@@ -307,16 +244,11 @@ async function terapkanOpsiNeraca() {
       area.style.height = "auto";
     }
 
-    var labelCabang = String(valcabang).trim().toUpperCase();
-    if (labelCabang === "ALL" || !labelCabang) {
-      labelCabang = "SEMUA CABANG";
-    }
     var subAwal = 0;
     var subDb = 0;
     var subCr = 0;
-    var currentGolPrefix = ""; // Untuk mendeteksi perubahan golongan (1 ke 2)
+    var currentGolPrefix = "";
 
-    // Tabel Laporan
     html +=
       '<div style="width: 100%; overflow-x: auto; border: 1px solid #ddd; -webkit-overflow-scrolling: touch;">';
     html +=
@@ -332,6 +264,7 @@ async function terapkanOpsiNeraca() {
     });
     html += "</tr></thead>";
     html += "<tbody>";
+
     golterfilter.forEach(function (item) {
       html += '<tr style="font-size: 0.85rem;">';
       headers.forEach(function (h) {
@@ -347,10 +280,7 @@ async function terapkanOpsiNeraca() {
         var nilaiDb = parseFloat(item.db || item.debit || 0);
         var nilaiCr = parseFloat(item.cr || item.kredit || 0);
 
-        // ✅ CEK PERPINDAHAN GOLONGAN (Dari 1 ke 2)
         if (currentGolPrefix !== "" && itemPrefix !== currentGolPrefix) {
-          // Jika berpindah, sisipkan baris Subtotal untuk golongan sebelumnya
-
           html +=
             '<tr style="font-size:0.85rem; font-weight:bold; background:#ffffff; color:#000000;">';
           html +=
@@ -361,21 +291,15 @@ async function terapkanOpsiNeraca() {
             '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap; color:#000000;">' +
             formatUang(subAwal + subDb - subCr) +
             "</td>";
-
           html += '<td style="padding:2px; border:1px solid #000;"></td>';
-
           html += "</tr>";
 
-          // Reset subtotal untuk golongan baru
           subAwal = 0;
           subDb = 0;
           subCr = 0;
         }
 
-        // Update prefix golongan saat ini
         currentGolPrefix = itemPrefix;
-
-        // ✅ AKUMULASIKAN KE SUBTOTAL
         subAwal += nilaiAwal;
         subDb += nilaiDb;
         subCr += nilaiCr;
@@ -387,7 +311,6 @@ async function terapkanOpsiNeraca() {
               : item.golongan !== undefined
                 ? item.golongan
                 : "";
-          // ✅ TAMBAHKAN STYLE LINK DAN EVENT ONCLICK DI SINI
           styleTambahan =
             "cursor: pointer; color: green; font-weight: bold; text-decoration: underline;";
         } else if (h === "namaGol")
@@ -409,23 +332,20 @@ async function terapkanOpsiNeraca() {
         if (h !== "akhir" && h !== "gol")
           styleTambahan = "white-space: nowrap;";
 
-        // ✅ JIKA KOLOM GOL, TAMBAHKAN ONCLICK
-        // ✅ JIKA KOLOM GOL, TAMBAHKAN ONCLICK + KIRIM MASA & CABANG
         if (h === "gol") {
           html +=
             "<td onclick=\"lihatDetilPerkiraan('" +
             val +
             "', '" +
-            kodemasadicari + // ← kirim masa (format: "MMYY")
+            kodemasadicari +
             "', '" +
-            valcabang + // ← kirim kode cabang (misal: "01" atau "ALL")
+            valcabang +
             '\')" style="padding:10px; border:1px solid #000; ' +
             styleTambahan +
             '">' +
             val +
             "</td>";
         } else {
-          // Kolom lain biasa
           html +=
             '<td style="padding:10px; border:1px solid #000; ' +
             styleTambahan +
@@ -437,8 +357,6 @@ async function terapkanOpsiNeraca() {
       html += "</tr>";
     });
 
-    // ✅ SUBTOTAL UNTUK GOLONGAN TERAKHIR (Golongan 2)
-    // Karena loop sudah selesai, subtotal golongan 2 belum dicetak, maka cetak sekarang
     if (currentGolPrefix !== "") {
       html +=
         '<tr style="font-size:0.85rem; font-weight:bold; background:#ffffff; color:#000000;">';
@@ -450,12 +368,10 @@ async function terapkanOpsiNeraca() {
         '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap; color:#000000;">' +
         formatUang(subAwal + subDb - subCr) +
         "</td>";
-
       html += '<td style="padding:2px; border:1px solid #000;"></td>';
       html += "</tr>";
     }
 
-    // ✅ TOTAL KESELURUHAN NERACA (Background putih, tulisan hitam pekat)
     var totalAwal = golterfilter.reduce(function (sum, item) {
       return sum + (parseFloat(item.awal || 0) || 0);
     }, 0);
@@ -474,7 +390,6 @@ async function terapkanOpsiNeraca() {
       '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap; color:#000000;">' +
       formatUang(totalAwal + totalDb - totalCr) +
       "</td>";
-
     html +=
       '<td style="padding:10px; border:1px solid #000; color:#000000;"></td>';
     html += "</tr>";
@@ -482,7 +397,6 @@ async function terapkanOpsiNeraca() {
     html += "</tbody></table>";
     html += "</div>";
 
-    // Tampilkan tabel baru menggantikan teks loading
     area.innerHTML = html;
   } catch (error) {
     console.error("❌ Gagal total:", error);
@@ -495,26 +409,30 @@ async function terapkanOpsiNeraca() {
   }
 }
 
+// =========================================================================
+// FUNGSI LIHAT DETIL TRANSAKSI (BUKU BESAR)
+// =========================================================================
 function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
-  // ← TAMBAH PARAMETER cabang
-
-  // 1. Parsing Tahun dari format MMYY (karena dikirim dari lihatDetilPerkiraan sudah bentuk MMYY)
   var duadigittahun = masa.substring(2, 4);
   var tahun = "20" + duadigittahun;
   var namaStore = "transaksi" + tahun;
 
-  var popupId = "popup_transaksi_" + Date.now();
+  // ✅ TAMBAHAN GROUP: AMBIL GROUP AKTIF
+  var activeGroup = localStorage.getItem("group") || "TLGA";
 
-  // ✅ CEK NILAI TERIMA
-  // console.log("📥 [TERIMA] Masa:", masa, "| Cabang:", cabang);
+  var popupId = "popup_transaksi_" + Date.now();
 
   var popupHtml =
     '<div id="' +
     popupId +
     '" style="position:fixed; top:20px; right:20px; width:45%; max-width:650px; max-height:90vh; background:white; border:1px solid #aaa; box-shadow:0 5px 15px rgba(0,0,0,0.5); z-index:10001; display:flex; flex-direction:column; border-radius:6px;">' +
     '<div style="padding:10px; background:#f0f0f0; border-bottom:1px solid #ccc; display:flex; justify-content:space-between; align-items:center; border-radius:6px 6px 0 0;">' +
+    // ✅ TAMBAHAN GROUP: TAMPILKAN DI JUDUL POPUP
     '<strong style="font-size:0.9rem; color:#333;">Detil Transaksi: ' +
     noPerkiraan +
+    ' <small style="color:#888;">(Group: ' +
+    activeGroup +
+    ")</small>" +
     "</strong>" +
     "<button onclick=\"document.getElementById('" +
     popupId +
@@ -533,44 +451,33 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
   db.getAll(namaStore)
     .then(function (rawData) {
       var listTrans = Array.isArray(rawData) ? rawData : [];
-
-      // Masa sudah dalam format MMYY, jadi langsung gunakan
       var masaCari = masa;
-      //  console.log("🔢 [HASIL] Masa Dicari di DB:", masaCari);
 
-      // ✅ GUNAKAN PARAMETER CABANG YANG DITERIMA DARI ONCLICK
       var cabInput = String(cabang || "")
         .trim()
         .toUpperCase();
-
-      // ✅ PERBAIKAN LOGIKA MAPPING CABANG
       var cabFilter = cabInput;
-      if (cabInput === "PUSAT") {
-        cabFilter = "00"; // Jika user pilih PUSAT, cari kode 00
-      }
+      if (cabInput === "PUSAT") cabFilter = "00";
 
-      console.log(
-        "🔍 Mencori Cabang Input:",
-        cabInput,
-        "-> Dikonversi ke Kode DB:",
-        cabFilter,
-      );
-
-      // Filter Data
       var detilTrans = listTrans.filter(function (t) {
         var tNo = String(t.noperkiraan || "").trim();
         var tCab = String(t.cabang || "")
           .trim()
-          .toUpperCase(); // Pastikan uppercase
+          .toUpperCase();
         var tMasa = String(t.masa || "").trim();
 
-        // ✅ LOGIKA CABANG: Jika "ALL", abaikan filter cabang. Jika spesifik, harus cocok.
         var cocokCabang = true;
         if (cabFilter !== "ALL" && cabFilter !== "") {
           cocokCabang = tCab === cabFilter;
         }
 
-        return tNo === noPerkiraan && tMasa === masaCari && cocokCabang;
+        // ✅ TAMBAHAN GROUP: FILTER GROUP DI DATABASE TRANSAKSI
+        var tGroup = String(t.group || "").trim();
+        var cocokGroup = tGroup === activeGroup;
+
+        return (
+          tNo === noPerkiraan && tMasa === masaCari && cocokCabang && cocokGroup
+        );
       });
 
       if (detilTrans.length === 0) {
@@ -579,6 +486,8 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
           "Data tidak ditemukan.<br><br>" +
           "<small>Dicari No Perkiraan: " +
           noPerkiraan +
+          " | Group: " +
+          activeGroup +
           " | Masa: " +
           masaCari +
           " | Cabang Kode: " +
@@ -588,7 +497,6 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
         return;
       }
 
-      // Render Tabel
       var tableHtml =
         '<div style="overflow-x:auto; background-color:#000000; color:#ffffff;">' +
         '<table style="width:100%; border-collapse:collapse; font-size:0.75rem; min-width:500px; background-color:#000000; color:#ffffff;">' +
@@ -633,7 +541,6 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
           "</tr>";
       });
 
-      // ✅ TAMBAHAN: Baris Total di bawah tabel
       tableHtml +=
         '<tr style="background:#f4f4f4; font-weight:bold;">' +
         '<td colspan="3" style="border:1px solid #ccc; padding:5px; text-align:right;">TOTAL</td>' +
@@ -656,14 +563,13 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
         "</div>";
     });
 }
+
 function downloadNeracaExcel() {
-  // 1. Pastikan data mentah ada
   if (!window.golterfilter || window.golterfilter.length === 0) {
     if (typeof toast === "function") toast("Tidak ada data tabel.", "err");
     return;
   }
 
-  // 2. Ambil elemen tabel yang tampil di layar
   var area = document.getElementById("tempat_tabel_preview");
   var table = area ? area.querySelector("table") : null;
 
@@ -673,21 +579,15 @@ function downloadNeracaExcel() {
   }
 
   try {
-    // 3. Clone tabel agar tampilan web tidak berubah
     var tableClone = table.cloneNode(true);
 
-    // 4. Loop semua baris untuk memformat sel
     for (var i = 0; i < tableClone.rows.length; i++) {
       var row = tableClone.rows[i];
-
-      // Hapus event handler onclick jika ada (agar bersih di Excel)
       for (var j = 0; j < row.cells.length; j++) {
         row.cells[j].removeAttribute("onclick");
       }
 
-      // Cek Jumlah Kolom: [0]GOL, [1]NAMA, [2]MASA, [3]SALDO, [4]CABANG
       if (row.cells.length >= 5) {
-        // --- PROSES KOLOM MASA (Index 2) ---
         var cellMasa = row.cells[2];
         var textMasa = cellMasa.innerText || cellMasa.textContent;
         cellMasa.innerHTML = '<span style="color:white;">\'</span>' + textMasa;
@@ -696,7 +596,6 @@ function downloadNeracaExcel() {
           "mso-number-format:\\@; " + (cellMasa.getAttribute("style") || ""),
         );
 
-        // --- PROSES KOLOM CABANG (Index 4) ---
         var cellCabang = row.cells[4];
         var textCabang = cellCabang.innerText || cellCabang.textContent;
         cellCabang.innerHTML =
@@ -706,17 +605,13 @@ function downloadNeracaExcel() {
           "mso-number-format:\\@; " + (cellCabang.getAttribute("style") || ""),
         );
 
-        // --- PROSES KOLOM ANGKA (SALDO AKHIR - Index 3) ---
         var cellSaldo = row.cells[3];
         var textSaldo = cellSaldo.innerText || cellSaldo.textContent;
-        // Bersihkan format mata uang (titik ribuan)
         var nilaiAngka = textSaldo.replace(/\./g, "").replace(/,/g, ".");
         var numVal = parseFloat(nilaiAngka);
 
         if (!isNaN(numVal)) {
-          // Set atribut x:num agar Excel tahu ini angka
           cellSaldo.setAttribute("x:num", numVal);
-          // ✅ PERBAIKAN DI SINI: Menambahkan tanda kurung ( ) setelah setAttribute
           cellSaldo.setAttribute(
             "style",
             "mso-number-format:#\.##0; text-align:right; " +
@@ -726,7 +621,6 @@ function downloadNeracaExcel() {
       }
     }
 
-    // 5. Proses Download
     var htmlContent = tableClone.outerHTML;
     var blob = new Blob(["\ufeff", htmlContent], {
       type: "application/vnd.ms-excel",
@@ -740,7 +634,11 @@ function downloadNeracaExcel() {
       /[^a-zA-Z0-9\-]/g,
       "_",
     );
-    a.download = "Laporan_Neraca_" + masa + ".xls";
+
+    // ✅ TAMBAHAN GROUP: MASUKKAN NAMA GROUP KE FILENAME EXCEL
+    var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+    a.download =
+      "Laporan_Neraca_" + masa + "_Group_" + activeGroupLabel + ".xls";
 
     document.body.appendChild(a);
     a.click();
@@ -754,16 +652,19 @@ function downloadNeracaExcel() {
     if (typeof toast === "function") toast("Gagal download.", "err");
   }
 }
-async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
-  // ← tambah parameter masa & cabang
 
-  // 1. Ambil Tahun dari parameter masa yang dikirim
+// =========================================================================
+// FUNGSI LIHAT DETIL PERKIRAAN (DARI KLIK GOLONGAN)
+// =========================================================================
+async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
   var duadigittahun = masa.substring(2, 4);
   var tahunAktif = "20" + duadigittahun;
   var namaStoreBackup = "perkiraan" + tahunAktif;
   var kodeMasa = masa;
 
-  // 2. Tampilkan Loading
+  // ✅ TAMBAHAN GROUP: AMBIL GROUP AKTIF
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
   openModal(
     "Detil Perkiraan: " + kodeGol,
     '<div style="text-align:center; padding:2rem;"><span class="spinner"></span><br>Memuat data...</div>',
@@ -771,11 +672,9 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
   );
 
   try {
-    // 3. Ambil Data
     var rawData = await db.getAll(namaStoreBackup);
     var listPerkiraan = Array.isArray(rawData) ? rawData : [];
 
-    // 4. Filter Data (Golongan + Masa + Cabang)
     var detilFilter = listPerkiraan.filter(function (p) {
       var noPerk = String(p.noPerk || p.noperkiraan || "").trim();
       var prefixGol = noPerk.substring(0, 3);
@@ -783,32 +682,32 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
       var masaData = String(p.masa || p.periode || p.kode_masa || "").trim();
       var cabangData = String(p.cabang || p.cab || p.kode_cabang || "").trim();
 
-      // ✅ Filter berdasarkan Golongan DAN Masa
       var cocokGolMasa =
         prefixGol === String(kodeGol).trim() && masaData === masa;
 
-      // ✅ Jika user memilih "ALL" / kosong di filter utama, tampilkan semua cabang
-      //    Jika memilih cabang tertentu (misal "01"), filter cabangnya
       var cocokCabang = true;
       var cabangUpper = String(cabang).trim().toUpperCase();
       if (cabangUpper !== "ALL" && cabangUpper !== "") {
         cocokCabang = cabangData === String(cabang).trim();
       }
 
-      return cocokGolMasa && cocokCabang;
+      // ✅ TAMBAHAN GROUP: FILTER GROUP DI DATABASE PERKIRAAN
+      var groupData = String(p.group || "").trim();
+      var cocokGroup = groupData === activeGroup;
+
+      return cocokGolMasa && cocokCabang && cocokGroup; // Tambahkan cocokGroup di sini
     });
 
-    // ... Sisanya tetap sama (kode render tabel HTML) ...
-    // 5. Render Tabel jika ada data
     if (detilFilter.length === 0) {
       $("modalBody").innerHTML =
         '<div style="text-align:center; padding:1rem; color:var(--muted);">Tidak ada data perkiraan untuk Golongan ' +
         kodeGol +
         " di tahun " +
         tahunAktif +
+        " untuk Group: " +
+        activeGroup +
         ".</div>";
 
-      // Atur posisi tetap meski kosong
       setTimeout(function () {
         var modalEl =
           document.querySelector(".modal") || document.getElementById("modal");
@@ -823,7 +722,6 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
       return;
     }
 
-    // Bangun HTML Tabel
     var htmlTable =
       '<div style="max-height:500px; overflow-y:auto; border:1px solid var(--brd);">' +
       '<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">' +
@@ -854,13 +752,12 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
         '<td style="border:1px solid #ccc; padding:6px;">' +
         g +
         "</td>" +
-        // ✅ TOMBOL KLIK PADA NOMOR PERKIRAAN + KIRIM MASA & CABANG
         "<td onclick=\"lihatDetilTransaksi('" +
         no +
         "', '" +
         kodeMasa +
         "', '" +
-        cabang + // ← tambahkan parameter cabang di sini
+        cabang +
         "')\" " +
         'style="border:1px solid #ccc; padding:6px; cursor:pointer; color:green; font-weight:bold; text-decoration:underline;">' +
         no +
@@ -885,33 +782,23 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
 
     htmlTable += "</tbody></table></div>";
 
-    // Tampilkan ke Modal Body
     $("modalBody").innerHTML = htmlTable;
-
-    // Footer Tombol Tutup
     $("modalFoot").innerHTML =
       '<button class="btn btn-g" onclick="closeModal()">Tutup</button>';
 
-    // ✅ 6. ATUR POSISI POPUP (KIRI ATAS)
-    // ✅ 6. ATUR POSISI POPUP (KIRI ATAS)
     setTimeout(function () {
       var modalEl =
         document.querySelector(".modal") || document.getElementById("modal");
       if (modalEl) {
         modalEl.style.position = "fixed";
-
-        // 1. POSISI KE KIRI
         modalEl.style.top = "20px";
-        modalEl.style.left = "20px"; // Menempel 20px dari kiri
-        modalEl.style.right = "auto"; // ← PENTING: Reset right agar tidak konflik
-        modalEl.style.margin = "0"; // ← PENTING: Hapus margin auto dari CSS bawaan
-        modalEl.style.transform = "none"; // ← PENTING: Matikan transformasi tengah
-
-        // 2. Atur ukuran agar tidak terlalu lebar
+        modalEl.style.left = "20px";
+        modalEl.style.right = "auto";
+        modalEl.style.margin = "0";
+        modalEl.style.transform = "none";
         modalEl.style.maxWidth = "45%";
         modalEl.style.width = "600px";
-
-        modalEl.style.zIndex = "10000"; // Pastikan di atas elemen lain
+        modalEl.style.zIndex = "10000";
       }
     }, 50);
   } catch (error) {
@@ -922,7 +809,6 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
       "</div>";
   }
 }
-// Fungsi Global untuk Download Excel
 
 /* ---------- Detil Neraca ---------- */
 PANEL_MAP.detilNeraca = renderDetilNeraca;
@@ -1000,7 +886,9 @@ async function renderDetilNeraca() {
     '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan Neraca (Detil Perkiraan)</h3>' +
     // --- FILTER PANEL ---
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">' +
-    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
+    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span style="color:var(--accent);">' +
+    (localStorage.getItem("group") || "TLGA") +
+    "</span> | PILIHAN TAMPILAN:</div>" +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
     '<input type="month" id="filter_neraca_masa" value="' +
@@ -1098,6 +986,8 @@ async function terapkanOpsiDetilNeraca() {
       .filter(function (p) {
         var kodeGol = parseInt(p.gol || p.golongan || 0, 10);
         var cocokGolongan = kodeGol < 300;
+        var activeGroup = localStorage.getItem("group") || "TLGA";
+        var cocokGroup = String(p.group || "").trim() === activeGroup;
 
         var cabangData = String(p.cabang || "").trim();
         var masaData = String(p.masa || "").trim();
@@ -1111,7 +1001,9 @@ async function terapkanOpsiDetilNeraca() {
         var nilaiCr = parseFloat(p.cr || 0);
         var adaNilai = nilaiAwal + nilaiDb + nilaiCr !== 0;
 
-        return cocokGolongan && cocokMasa && cocokCabang && adaNilai;
+        return (
+          cocokGolongan && cocokGroup && cocokMasa && cocokCabang && adaNilai
+        );
       })
       .sort(function (a, b) {
         // Urutkan berdasarkan No Perkiraan agar subtotal kelompok 3 digit berurutan rapi
@@ -1321,19 +1213,18 @@ async function terapkanOpsiDetilNeraca() {
   }
 }
 
-// =========================================================================
-// FUNGSI LIHAT BUKU BESAR (MODIFIKASI DARI lihatDetilTransaksi)
-// Menerima: noPerkiraan, masa (format MMYY), cabang
-// =========================================================================
 function lihatBukuBesar(noPerkiraan, masa, cabang) {
   // Parsing Tahun
   var duadigittahun = masa.substring(2, 4);
   var tahun = "20" + duadigittahun;
   var namaStore = "transaksi" + tahun;
 
+  // ✅ 1. AMBIL LABEL GROUP AKTIF
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
   var popupId = "popup_bukubesar_" + Date.now();
 
-  // HTML Popup
+  // HTML Popup (✅ 2. Tambahkan Keterangan Group di Judul Popup)
   var popupHtml =
     '<div id="' +
     popupId +
@@ -1343,7 +1234,9 @@ function lihatBukuBesar(noPerkiraan, masa, cabang) {
     '<strong style="font-size:0.95rem;">Buku Besar: ' +
     noPerkiraan +
     "</strong><br>" +
-    '<span style="font-size:0.75rem; opacity:0.8;">Cabang: ' +
+    '<span style="font-size:0.75rem; opacity:0.8;">Group: <b>' +
+    activeGroup +
+    "</b> | Cabang: " +
     cabang.toUpperCase() +
     " | Masa: " +
     masa +
@@ -1385,7 +1278,13 @@ function lihatBukuBesar(noPerkiraan, masa, cabang) {
         var cocokCabang =
           cabFilter === "ALL" || cabFilter === "" || tCab === cabFilter;
 
-        return tNo === noPerkiraan && tMasa === masa && cocokCabang;
+        // ✅ 3. TAMBAHKAN FILTER GROUP DI DATA TRANSAKSI
+        var tGroup = String(t.group || "").trim();
+        var cocokGroup = tGroup === activeGroup;
+
+        return (
+          tNo === noPerkiraan && tMasa === masa && cocokCabang && cocokGroup
+        );
       });
 
       if (detilTrans.length === 0) {
@@ -1394,6 +1293,8 @@ function lihatBukuBesar(noPerkiraan, masa, cabang) {
           "Tidak ada transaksi untuk akun ini.<br><br>" +
           "<small>No. Perkiraan: " +
           noPerkiraan +
+          " | Group: " +
+          activeGroup +
           " | Masa: " +
           masa +
           " | Cabang: " +
@@ -1443,7 +1344,8 @@ function lihatBukuBesar(noPerkiraan, masa, cabang) {
           '<td style="padding:6px; border-bottom:1px solid #eee;color: #000;">' +
           tgl +
           "</td>" +
-          '<td style="padding:6px; border-bottom:1px solid #eee;color: #000;">' +
+          // ✅ 4. TAMBAHKAN mso-number-format DI NO REFF AGAR TIDAK KESALAH FORMAT ANGKA
+          '<td style="padding:6px; border-bottom:1px solid #eee;color: #000; mso-number-format:\\@;">' +
           ref +
           "</td>" +
           '<td style="padding:6px; border-bottom:1px solid #eee;color: #000;">' +
@@ -1500,12 +1402,10 @@ async function downloadNeracaDetilExcel() {
   try {
     var tableClone = table.cloneNode(true);
     // 2. Hapus Kolom Aksi (Kolom terakhir)
-    // Kita loop semua baris (termasuk header) dan hapus cell di index terakhir
     for (var i = 0; i < tableClone.rows.length; i++) {
       var row = tableClone.rows[i];
-      // Cek apakah baris ini memiliki cukup kolom (index 6 adalah kolom Aksi)
       if (row.cells.length > 6) {
-        row.deleteCell(-1); // -1 artinya hapus sel paling belakang
+        row.deleteCell(-1);
       }
     }
     for (var i = 1; i < tableClone.rows.length; i++) {
@@ -1513,12 +1413,7 @@ async function downloadNeracaDetilExcel() {
       if (row.cells.length > 0) {
         var cellNoPerk = row.cells[0];
         var textPerk = cellNoPerk.innerText || cellNoPerk.textContent;
-
-        // --- MODIFIKASI: Tambah Petik Satu di Depan ---
-        // Kita bungkus petik satu dalam span berwarna putih agar di layar Excel terlihat hilang,
-        // tapi Excel tetap membacanya sebagai force text.
         var textPerkExcel = '<span style="color:white;">\'</span>' + textPerk;
-
         cellNoPerk.innerHTML = textPerkExcel;
         cellNoPerk.setAttribute(
           "style",
@@ -1527,7 +1422,6 @@ async function downloadNeracaDetilExcel() {
       }
     }
 
-    // Format Header
     if (tableClone.rows.length > 0) {
       tableClone.rows[0].cells[0].setAttribute(
         "style",
@@ -1548,12 +1442,17 @@ async function downloadNeracaDetilExcel() {
       /[^a-zA-Z0-9\-]/g,
       "_",
     );
-    a.download = "Neraca_Detil_" + masa + ".xls";
+
+    // ✅ PERBAIKAN: TAMBAHKAN NAMA GROUP DI FILENAME EXCEL
+    var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+    a.download = "Neraca_Detil_" + masa + "_Group_" + activeGroupLabel + ".xls";
 
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    if (typeof toast === "function")
+      toast("File Excel Neraca Detil sedang didownload...", "ok");
   } catch (err) {
     console.error(err);
     if (typeof toast === "function") toast("Gagal download.", "err");
@@ -1628,6 +1527,9 @@ function renderRLRekap() {
     })
     .join("");
 
+  // ✅ 1. AMBIL LABEL GROUP AKTIF
+  var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+
   // C. RENDER HTML ANTARMUKA KOSONG
   var htmlLaporan =
     '<div id="area_cetak_rlrekap" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
@@ -1635,8 +1537,11 @@ function renderRLRekap() {
     // --- JUDUL ---
     '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Rekap </h3>' +
     // --- FILTER PANEL ---
-    '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
-    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
+    '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem;">' +
+    // ✅ 2. TAMPILKAN GROUP DI JUDUL FILTER
+    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span style="color:var(--accent);">' +
+    activeGroupLabel +
+    "</span> | PILIHAN TAMPILAN:</div>" +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
     '<input type="month" id="filter_rlrekap_masa" value="' +
@@ -1652,8 +1557,6 @@ function renderRLRekap() {
     '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiRLRekap()">' +
     "Terapkan" +
     "</button>" +
-    // ✅ TAMBAHKAN TOMBOL DOWNLOAD EXCEL
-    // '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLDetilExcel()">' +
     '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadRLRekapExcel()">' +
     '<i class="fa-solid fa-file-excel"></i> Download Excel' +
     "</button>" +
@@ -1707,9 +1610,10 @@ async function terapkanOpsiRLRekap() {
   }
 
   try {
-    // ✅ 1. AMBIL DATA MASTER GOLONGAN (UNTUK NAMA)
-    // ✅ 1. AMBIL DATA MASTER GOLONGAN (DIFILTER CABANG)
-    // Gunakan nama store master yang benar (kemungkinan besar "golongan" tanpa tahun)
+    // ✅ 3. SIAPKAN FILTER GROUP
+    var activeGroup = localStorage.getItem("group") || "TLGA";
+
+    // ✅ 1. AMBIL DATA MASTER GOLONGAN (DIFILTER CABANG & GROUP)
     var rawMasterGol = await db.getAll("golongan");
     var mapMasterGol = {};
 
@@ -1720,17 +1624,17 @@ async function terapkanOpsiRLRekap() {
       arrMasterGol.forEach(function (m) {
         var kode = String(m.gol || m.kode_gol || "").trim();
         var nama = String(m.namaGol || m.nama || "").trim();
-
-        // ✅ Ambil kode cabang dari datanya
         var cabangMaster = String(m.cabang || "").trim();
 
-        // ✅ FILTER: Hanya masukkan ke dictionary jika cabangnya cocok dengan yang dipilih user
-        if (kode && cabangMaster === valcabang) {
+        // ✅ 4. FILTER MASTER JUGA BERDASARKAN GROUP
+        var groupMaster = String(m.group || "").trim();
+
+        if (kode && cabangMaster === valcabang && groupMaster === activeGroup) {
           mapMasterGol[kode] = nama;
         }
       });
     }
-    //  console.table(mapMasterGol);
+
     // ✅ 2. AMBIL DATA BACKUP (UNTUK NILAI DB & CR)
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
@@ -1752,10 +1656,12 @@ async function terapkanOpsiRLRekap() {
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
 
-        var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
+        // ✅ 5. FILTER GROUP DI DATA BACKUP
+        var cocokGroup = String(g.group || "").trim() === activeGroup;
 
         return (
           cocokGolongan &&
+          cocokGroup &&
           masaData === kodemasadicari &&
           cabangData === valcabang
         );
@@ -1780,8 +1686,12 @@ async function terapkanOpsiRLRekap() {
         var tahunMasa = masaData.substring(2, 6);
         var bulanMasa = masaData.substring(0, 2);
 
+        // ✅ 6. FILTER GROUP DI DATA AKUMULASI LALU
+        var cocokGroup = String(g.group || "").trim() === activeGroup;
+
         return (
           cocokGolongan &&
+          cocokGroup &&
           cabangData === valcabang &&
           tahunMasa === duadigittahunbelakang &&
           parseInt(bulanMasa) < parseInt(filterbulan)
@@ -1800,7 +1710,9 @@ async function terapkanOpsiRLRekap() {
     if (golBulanIni.length === 0) {
       if (area)
         area.innerHTML =
-          '<div style="padding:3rem; text-align:center; color:var(--muted);">🔍 Data RL Rekap kosong / tidak ada saldo.</div>';
+          '<div style="padding:3rem; text-align:center; color:var(--muted);">🔍 Data RL Rekap kosong / tidak ada saldo untuk Group: <b>' +
+          activeGroup +
+          "</b></div>";
       return;
     }
 
@@ -1809,22 +1721,16 @@ async function terapkanOpsiRLRekap() {
       .map(function (item) {
         var kodeGol = String(item.gol || item.golongan || "");
         var akmLalu = mapAkmBulanLalu[kodeGol] || 0;
-
-        // Hitung saldo bulan ini
         var bulanIni = +(item.db || 0) - +(item.cr || 0);
-
-        // Hitung Saldo Total
         var saldoTotal = bulanIni + akmLalu;
 
         return {
           ...item,
           namaGol: mapMasterGol[kodeGol] || item.namaGol || "-",
           akmBulanLalu: akmLalu,
-          // Simpan sementara untuk di-filter
           _saldoTotal: saldoTotal,
         };
       })
-      // ✅ FILTER DI SINI: Buang baris jika Total Saldo Akhirnya NOL
       .filter(function (item) {
         return item._saldoTotal !== 0;
       });
@@ -1844,7 +1750,14 @@ async function terapkanOpsiRLRekap() {
       area.style.height = "auto";
     }
 
-    html += generateHTMLRLRekap(finalData, kodemasadicari, valcabang, false);
+    // ✅ 7. KIRIM activeGroup KE GENERATOR HTML UNTUK DITAMPILKAN DI FOOTER EXCEL
+    html += generateHTMLRLRekap(
+      finalData,
+      kodemasadicari,
+      valcabang,
+      false,
+      activeGroup,
+    );
     area.innerHTML = html;
   } catch (error) {
     console.error("❌ Gagal total RL Rekap:", error);
@@ -1862,11 +1775,15 @@ async function downloadRLRekapExcel() {
       toast("Tidak ada data RL Rekap untuk didownload", "err");
     return;
   }
+  // ✅ AMBIL GROUP UNTUK EXCEL
+  var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+
   var htmlContent = generateHTMLRLRekap(
     window.golterfilterrl,
     window._rlRekapFilterMasa,
     window._rlRekapFilterCabang,
     true,
+    activeGroupLabel, // ✅ KIRIM KE GENERATOR
   );
   var fullHtml =
     `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
@@ -1877,8 +1794,13 @@ async function downloadRLRekapExcel() {
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
   a.href = url;
+  // ✅ TAMBAHKAN GROUP DI NAMA FILE EXCEL
   a.download =
-    "Laporan_RL_Rekap_" + (window._rlRekapFilterMasa || "Export") + ".xls";
+    "Laporan_RL_Rekap_" +
+    (window._rlRekapFilterMasa || "Export") +
+    "_Group_" +
+    activeGroupLabel +
+    ".xls";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -1887,7 +1809,13 @@ async function downloadRLRekapExcel() {
     toast("File Excel RL Rekap sedang didownload...", "ok");
 }
 
-function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
+function generateHTMLRLRekap(
+  dataRL,
+  kodemasadicari,
+  valcabang,
+  isForExcel,
+  activeGroupLabel,
+) {
   var html = "";
   if (!isForExcel) {
     html +=
@@ -2239,6 +2167,14 @@ function generateHTMLRLRekap(dataRL, kodemasadicari, valcabang, isForExcel) {
     true,
   );
 
+  // ✅ TAMBAHKAN INFORMASI GROUP DI FOOTER JIKA INI UNTUK EXCEL
+  if (isForExcel && activeGroupLabel) {
+    html +=
+      "<tr><td colspan='7' style='padding:10px; border:none; font-size:11px; color:#555; text-align:left;'>Group: " +
+      activeGroupLabel +
+      "</td></tr>";
+  }
+
   html += "</tbody></table></div>";
   return html;
 }
@@ -2249,7 +2185,6 @@ PANEL_MAP.rlDetil = renderRLDetil;
 // 1. FUNGSI RENDER ANTARMUKA RL DETIL (KOSONG)
 // =========================================================================
 function renderRLDetil() {
-  // A. SIAPKAN NILAI DEFAULT (Sudah diganti jadi _rlDetil)
   if (typeof window._rlDetilFilterCabang === "undefined") {
     window._rlDetilFilterCabang =
       typeof currentCabang !== "undefined" &&
@@ -2301,13 +2236,18 @@ function renderRLDetil() {
     })
     .join("");
 
-  // C. RENDER HTML (✅ ID Sudah diganti jadi rldetil)
+  // ✅ 1. AMBIL LABEL GROUP AKTIF
+  var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+
   var htmlLaporan =
     '<div id="area_cetak_rldetil" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
     '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan RL Detil (Rugi Laba Rinci)</h3>' +
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
-    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 PILIHAN TAMPILAN:</div>' +
+    // ✅ 2. TAMPILKAN GROUP DI JUDUL FILTER
+    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span style="color:var(--accent);">' +
+    activeGroupLabel +
+    "</span> | PILIHAN TAMPILAN:</div>" +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
     '<input type="month" id="filter_rldetil_masa" value="' +
@@ -2337,7 +2277,6 @@ function renderRLDetil() {
   return htmlLaporan;
 }
 
-// ✅ Nama fungsi sudah diperbaiki (tidak ada huruf R kelebihan)
 async function terapkanOpsiRLDetil() {
   var inputmasa = document.getElementById("filter_rldetil_masa");
   var selectcabang = document.getElementById("filter_rldetil_cabang");
@@ -2369,6 +2308,9 @@ async function terapkanOpsiRLDetil() {
   }
 
   try {
+    // ✅ 3. SIAPKAN FILTER GROUP
+    var activeGroup = localStorage.getItem("group") || "TLGA";
+
     // 1. AMBIL MASTER
     var rawMasterGol = await db.getAll("perkiraan");
     var mapMasterGol = {};
@@ -2380,7 +2322,9 @@ async function terapkanOpsiRLDetil() {
         var kode = String(m.noPerk || m.kode_perkiraan || "").trim();
         var nama = String(m.desc || m.nama || "").trim();
         var cabangMaster = String(m.cabang || "").trim();
-        if (kode && cabangMaster === valcabang) {
+        // ✅ 4. FILTER MASTER JUGA BERDASARKAN GROUP
+        var groupMaster = String(m.group || "").trim();
+        if (kode && cabangMaster === valcabang && groupMaster === activeGroup) {
           mapMasterGol[kode] = nama;
         }
       });
@@ -2403,8 +2347,13 @@ async function terapkanOpsiRLDetil() {
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
+
+        // ✅ 5. FILTER GROUP DI DATA BACKUP
+        var cocokGroup = String(g.group || "").trim() === activeGroup;
+
         return (
           cocokGolongan &&
+          cocokGroup &&
           masaData === kodemasadicari &&
           cabangData === valcabang
         );
@@ -2428,8 +2377,13 @@ async function terapkanOpsiRLDetil() {
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
         var tahunMasa = masaData.substring(2, 6);
         var bulanMasa = masaData.substring(0, 2);
+
+        // ✅ 6. FILTER GROUP DI DATA AKUMULASI LALU
+        var cocokGroup = String(g.group || "").trim() === activeGroup;
+
         return (
           cocokGolongan &&
+          cocokGroup &&
           cabangData === valcabang &&
           tahunMasa === duadigittahunbelakang &&
           parseInt(bulanMasa) < parseInt(filterbulan)
@@ -2446,7 +2400,9 @@ async function terapkanOpsiRLDetil() {
     if (golBulanIni.length === 0) {
       if (area)
         area.innerHTML =
-          '<div style="padding:3rem; text-align:center; color:var(--muted);">🔍 Data RL Detil kosong / tidak ada saldo.</div>';
+          '<div style="padding:3rem;text-align:center;color:var(--muted);">🔍 Data RL Detil kosong / tidak ada saldo untuk Group: <b>' +
+          activeGroup +
+          "</b></div>";
       return;
     }
 
@@ -2483,14 +2439,20 @@ async function terapkanOpsiRLDetil() {
       area.style.height = "auto";
     }
 
-    // ✅ Nama fungsi generator sudah diperbaiki (hilangkan huruf p)
-    html += generateHTMLRLDetil(finalData, kodemasadicari, valcabang, false);
+    // ✅ 7. KIRIM activeGroup KE GENERATOR HTML UNTUK DITAMPILKAN DI FOOTER EXCEL
+    html += generateHTMLRLDetil(
+      finalData,
+      kodemasadicari,
+      valcabang,
+      false,
+      activeGroup,
+    );
     area.innerHTML = html;
   } catch (error) {
     console.error("❌ Gagal total RL Detil:", error);
     if (area)
       area.innerHTML =
-        '<div style="padding:3rem; text-align:center; color:darkred;">Error: ' +
+        '<div style="padding:3rem;text-align:center;color:darkred;">Error: ' +
         error.message +
         "</div>";
   }
@@ -2502,11 +2464,14 @@ async function downloadRLDetilExcel() {
       toast("Tidak ada data RL Detil untuk didownload", "err");
     return;
   }
+  var activeGroupLabel = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP UNTUK EXCEL
+
   var htmlContent = generateHTMLRLDetil(
     window.golterfilterrl,
     window._rlDetilFilterMasa,
     window._rlDetilFilterCabang,
     true,
+    activeGroupLabel, // ✅ KIRIM KE GENERATOR
   );
   var fullHtml =
     `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>RL Detil</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>` +
@@ -2517,7 +2482,11 @@ async function downloadRLDetilExcel() {
   var a = document.createElement("a");
   a.href = url;
   a.download =
-    "Laporan_RL_Detil_" + (window._rlDetilFilterMasa || "Export") + ".xls";
+    "Laporan_RL_Detil_" +
+    (window._rlDetilFilterMasa || "Export") +
+    "_Group_" +
+    activeGroupLabel +
+    ".xls"; // ✅ TAMBAHKAN GROUP DI NAMA FILE EXCEL
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -2527,11 +2496,20 @@ async function downloadRLDetilExcel() {
 }
 
 // ✅ Nama fungsi sudah diperbaiki (tanpa huruf p di belakang)
-function generateHTMLRLDetil(dataRL, kodemasadicari, valcabang, isForExcel) {
+function generateHTMLRLDetil(
+  dataRL,
+  kodemasadicari,
+  valcabang,
+  isForExcel,
+  activeGroupLabel,
+) {
   var html = "";
   if (!isForExcel) {
+    // ✅ TAMPILKAN GROUP DI INFO ATAS TABEL
     html +=
-      '<div style="margin-bottom:.7rem; font-size:.78rem; color: var(--muted);">3xx = Penjualan &bull; 4xx = HPP &bull; 5xx = By Adm & Umum &bull; 6xx = Beban Lainnya</div>';
+      '<div style="margin-bottom:.7rem; font-size:.78rem; color: var(--muted);">3xx = Penjualan &bull; 4xx = HPP &bull; 5xx = By Adm & Umum &bull; 6xx = Beban Lainnya | <b style="color:var(--accent)">GROUP: ' +
+      (activeGroupLabel || "-") +
+      "</b></div>";
   }
   html +=
     '<div style="width: 100%; overflow-x: auto; border: 1px solid #ddd;">';
@@ -2627,7 +2605,6 @@ function generateHTMLRLDetil(dataRL, kodemasadicari, valcabang, isForExcel) {
 
   for (var i = 0; i < dataRL.length; i++) {
     var item = dataRL[i];
-    // ✅ YANG DIPERBAIKI: Pakai noPerk bukan gol
     var kodeGol = parseInt(item.noPerk || item.kode_perkiraan || 0, 10);
     var itemDigit = String(kodeGol).charAt(0);
 
@@ -2716,7 +2693,6 @@ function generateHTMLRLDetil(dataRL, kodemasadicari, valcabang, isForExcel) {
     sumAkhir += valAkhir;
 
     html += '<tr style="font-size: 0.85rem;">';
-    // ✅ YANG DIPERBAIKI: Ambil nilai noPerk
     var golVal =
       item.noPerk !== undefined
         ? item.noPerk
@@ -2742,7 +2718,6 @@ function generateHTMLRLDetil(dataRL, kodemasadicari, valcabang, isForExcel) {
         "</td>";
     }
 
-    // ✅ YANG DIPERBAIKI: Pakai namaPerkiraan
     html +=
       '<td style="padding:10px; border:1px solid #000; white-space:nowrap;">' +
       (item.desc || "-") +
@@ -2863,14 +2838,13 @@ function generateHTMLRLDetil(dataRL, kodemasadicari, valcabang, isForExcel) {
   var lrAkhir = g3.akhir + g4.akhir + g5.akhir + g6.akhir;
   html +=
     "<tr><td colspan='7' style='border:1px solid #000; padding:6px; background-color:#fff;'></td></tr>";
-  buatBarisSubtotal(
-    "LABA / RUGI BERSIH",
-    lrBulanIni,
-    lrAkmLalu,
-    lrAkhir,
-    "#d1e7dd",
-    true,
-  );
+
+  // ✅ TAMPILKAN GROUP DI BARIS LABA RUGI BERSIH
+  var lrText = isForExcel
+    ? "LABA / RUGI BERSIH (GROUP: " + activeGroupLabel + ")"
+    : "LABA / RUGI BERSIH";
+
+  buatBarisSubtotal(lrText, lrBulanIni, lrAkmLalu, lrAkhir, "#d1e7dd", true);
 
   html += "</tbody></table></div>";
   return html;
@@ -2878,32 +2852,26 @@ function generateHTMLRLDetil(dataRL, kodemasadicari, valcabang, isForExcel) {
 /* ---------- Buku Besar ---------- */
 PANEL_MAP.bukuBesar = renderBukuBesar;
 AFTER_RENDER.bukuBesar = refreshBukuBesar;
+
 function renderBukuBesar() {
-  // 1. SIAPKAN OPSI DROPDOWN CABANG
   var rawCabang = DBCache.cabang || [];
   var daftarCabangObj = [];
 
   rawCabang.forEach(function (c) {
-    var id = (c.cabang || c.kode || "").trim(); // Kode Cabang (untuk Value)
-    var nama = (c.nama || c.cabang || "Tanpa Nama").trim(); // Nama Cabang (untuk Tampilan)
+    var id = (c.cabang || c.kode || "").trim();
+    var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
     if (id) {
-      daftarCabangObj.push({
-        id: id, // Ini yang jadi Value
-        nama: nama, // Ini yang jadi Teks Tampilan
-      });
+      daftarCabangObj.push({ id: id, nama: nama });
     }
   });
 
-  // ✅ URUTKAN BERDASARKAN KODE CABANG (Numeric: 00, 01, 02, 10)
   daftarCabangObj.sort(function (a, b) {
     return a.id.localeCompare(b.id, undefined, { numeric: true });
   });
 
-  // ✅ TAMPILKAN NAMA, VALUE ADALAH KODE
   var opsiCabangHtml = '<option value="ALL">SEMUA CABANG</option>';
   daftarCabangObj.forEach(function (item) {
     opsiCabangHtml +=
-      // value=Kode, Teks=Nama
       '<option value="' +
       item.id +
       '">' +
@@ -2911,7 +2879,6 @@ function renderBukuBesar() {
       "</option>";
   });
 
-  // 2. SIAPKAN OPSI DROPDOWN PERKIRAAN
   var opts = DBCache.perkiraan
     .map(function (p) {
       return (
@@ -2933,35 +2900,27 @@ function renderBukuBesar() {
     .join("");
 
   return (
-    // Filter Panel
     '<div class="flt" style="align-items: flex-end;">' +
-    // Cabang
     '<div class="fg"><label>Cabang</label><select id="bb_cabang" onchange="updatePerkiraanOptions()"><option value="">-- Pilih Cabang --</option>' +
     opsiCabangHtml +
     "</select></div>" +
-    // Perkiraan
     '<div class="fg"><label>No Perkiraan <span class="req">*</span></label><select id="bb_perk"><option value="">-- Pilih --</option>' +
     opts +
     "</select></div>" +
-    // Masa Dari
     '<div class="fg"><label>Masa Dari (MMYY)</label><input type="text" id="bb_masa_dari" placeholder="0524" maxlength="4" style="text-transform:uppercase; width:100px;"></div>' +
-    // Masa S/D
     '<div class="fg"><label>Masa S/D (MMYY)</label><input type="text" id="bb_masa_sampai" placeholder="0824" maxlength="4" style="text-transform:uppercase; width:100px;"></div>' +
-    // Tombol Terapkan
     '<div class="fg"><label>&nbsp;</label><button type="button" class="btn btn-g" onclick="refreshBukuBesar()" style="padding:6px 12px;">Terapkan</button></div>' +
-    // Tombol Excel
     '<div class="fg"><label>&nbsp;</label><button type="button" class="btn btn-b" onclick="downloadBukuBesarExcel()" style="background:#217346; border-color:#217346; padding:6px 12px;"><i class="fa-solid fa-file-excel"></i> Excel</button></div>' +
     "</div>" +
-    // Wadah Tabel
     '<div id="bukuBesarTbl" style="margin-top:1rem;"></div>'
   );
 }
+
 window.updatePerkiraanOptions = function () {
   var valcabang = $("bb_cabang").value;
   var selectPerk = $("bb_perk");
   var options = selectPerk.querySelectorAll("option");
 
-  // 1. Filter dan tampung option yang cocok ke dalam array
   var filteredOptions = [];
   options.forEach(function (opt) {
     if (opt.value === "") return;
@@ -2971,7 +2930,6 @@ window.updatePerkiraanOptions = function () {
     }
   });
 
-  // 2. Urutkan array berdasarkan teks di dalam option (A-Z)
   filteredOptions.sort(function (a, b) {
     return a.textContent.localeCompare(b.textContent, undefined, {
       numeric: true,
@@ -2979,7 +2937,6 @@ window.updatePerkiraanOptions = function () {
     });
   });
 
-  // 3. Reset dropdown dan masukkan kembali option yang sudah urut
   selectPerk.innerHTML = '<option value="">-- Pilih --</option>';
   filteredOptions.forEach(function (opt) {
     selectPerk.appendChild(opt);
@@ -3001,16 +2958,19 @@ async function refreshBukuBesar() {
   var pk = await db.get("perkiraan", pid);
   if (!pk) return;
 
+  // ✅ 1. AMBIL GROUP AKTIF
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
   window._bbCurrentData = {
     cabang: cabang,
     masaDari: masaDari,
     masaSampai: masaSampai,
     perkiraan: pk,
+    group: activeGroup, // Simpan group untuk keperluan Excel
   };
 
   var allTransactions = [];
 
-  // Fungsi ambil tahun dari format MMYY (0226 -> 2026)
   function getTahunFromMasa(kode4digit) {
     if (!kode4digit || kode4digit.length < 4) return null;
     var yy = kode4digit.substring(2, 4);
@@ -3030,52 +2990,53 @@ async function refreshBukuBesar() {
     tahunMulai = tahunAkhir;
   }
 
-  // ✅ 1. TAMPILKAN INDIKATOR PROGRES AWAL
-  $("bukuBesarTbl").innerHTML =
-    '<div class="empty-msg">' +
-    '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> ' +
-    "Mengambil data transaksi tahun <b>" +
-    tahunMulai +
-    "</b>...</div>";
+  // HAPUS KODE LOOP LAMA ANDA, GANTI DENGAN INI:
 
-  // ✅ 2. LOOP DENGAN UPDATE PROGRES
+  // ✅ 1. Tampilkan pesan awal (Hanya sekali, biarkan spinner berputar bebas)
+  $("bukuBesarTbl").innerHTML =
+    '<div class="empty-msg"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> Mengambil data transaksi multi-tahun...</div>';
+
+  // Beri jeda 50ms biar UI sempat render spinner
+  await new Promise((resolve) => setTimeout(resolve, 50));
+
+  // ✅ 2. Kumpulkan semua tahun ke dalam array Promise (Paralel Super Cepat)
+  var tahunPromises = [];
   var th = tahunMulai;
   while (th <= tahunAkhir) {
     var namaStore = "transaksi" + th;
-
-    // Update teks loading setiap ganti tahun
-    $("bukuBesarTbl").innerHTML =
-      '<div class="empty-msg">' +
-      '<i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> ' +
-      "Mengambil data transaksi tahun <b>" +
-      th +
-      "</b>...</div>";
-
-    try {
-      var rawData = await db.getAll(namaStore);
-      var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
-      allTransactions = allTransactions.concat(listTh);
-    } catch (e) {
-      console.log("Tabel " + namaStore + " dilewati (belum ada).");
-    }
+    // Kita kumpulkan promise-nya, DILARANG langsung await di sini
+    tahunPromises.push(db.getAll(namaStore));
     th++;
   }
 
-  // ✅ 3. UBAH PROGRES MENJADI "MEMPROSES DATA"
+  // ✅ 3. Eksekusi semua pengambilan data secara BERSAMAAN (Bebas Freeze)
+  try {
+    var results = await Promise.all(tahunPromises);
+
+    // ✅ 4. Gabungkan hasilnya setelah semua selesai
+    var allTransactions = [];
+    results.forEach(function (rawData) {
+      var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
+      allTransactions = allTransactions.concat(listTh);
+    });
+  } catch (err) {
+    console.error("Gagal mengambil data salah satu tahun:", err);
+  }
+
+  // ✅ 5. Ubah UI menjadi "Menyusun data..." (Sekali lagi, setelah data lengkap)
   $("bukuBesarTbl").innerHTML =
-    '<div class="empty-msg">' +
-    '<i class="fa-solid fa-calculator fa-spin" style="margin-right:8px;"></i> ' +
-    "Menyusun " +
+    '<div class="empty-msg"><i class="fa-solid fa-calculator fa-spin" style="margin-right:8px;"></i> Menyusun ' +
     allTransactions.length +
     " data transaksi...</div>";
 
-  // Beri jeda 50ms agar browser sempat merender teks "Menyusun data" sebelum proses berat dimulai
+  // Beri jeda 50ms lagi biar UI berubah sebelum masuk ke proses sorting/filter berat
   await new Promise((resolve) => setTimeout(resolve, 50));
 
   // ============================================================
-  // FILTER DATA
+  // KODE FILTER DATA DI BAWAH TETAP PERSIS (TIDAK PERLU DIUBAH)
   // ============================================================
   var data = allTransactions.filter(function (t) {
+    // ... kode filter tetap sama di bawah sini ...
     var tNoPerk = String(t.noperkiraan || "").trim();
     var pNoPerk = String(pk.noPerk).trim();
 
@@ -3096,10 +3057,13 @@ async function refreshBukuBesar() {
 
     if (!validMasa) return false;
 
+    // ✅ 2. TAMBAHKAN FILTER GROUP
+    var cocokGroup = String(t.group || "").trim() === activeGroup;
+    if (!cocokGroup) return false;
+
     return true;
   });
 
-  // Fungsi Tanggal Handle Objek Date
   function formatTglTransaksi(str) {
     if (!str) return "-";
     if (str instanceof Date) {
@@ -3116,7 +3080,6 @@ async function refreshBukuBesar() {
     return dd + "/" + mm + "/" + yyyy;
   }
 
-  // SORTING LINTAS TAHUN SUPER AMAN
   data.sort(function (a, b) {
     var masaA = String(a.masa || "").trim();
     var masaB = String(b.masa || "").trim();
@@ -3182,6 +3145,7 @@ async function refreshBukuBesar() {
     masaDari: masaDari,
     masaSampai: masaSampai,
     tahunMulai: tahunMulai,
+    group: activeGroup, // ✅ 3. KIRIM KE EXCEL
   };
 
   var labelMasa = "";
@@ -3190,7 +3154,7 @@ async function refreshBukuBesar() {
   else if (masaSampai) labelMasa = "S/d " + masaSampai;
   else labelMasa = "Semua (" + tahunMulai + ")";
 
-  // ✅ 4. RENDER TABEL AKHIR (INI AKAN MENIMPA TEKS LOADING)
+  // ✅ 4. TAMPILKAN GROUP DI JUDUL TABEL
   $("bukuBesarTbl").innerHTML =
     '<div style="margin-bottom:.5rem; display:flex; justify-content:space-between; align-items:center; font-size:.82rem;font-weight:600">' +
     "<div>" +
@@ -3204,7 +3168,9 @@ async function refreshBukuBesar() {
     labelMasa +
     " | Cabang: " +
     (cabang === "ALL" ? "Semua" : cabang) +
-    "</div>" +
+    " | <span style='color:var(--accent);font-weight:bold;'>GROUP: " +
+    activeGroup +
+    "</span></div>" +
     "</div>" +
     wrapTable(
       buildTable(
@@ -3221,16 +3187,13 @@ async function refreshBukuBesar() {
         {
           numCols: [4, 5, 6],
           foot: foot,
-          emptyMsg: "Tidak ada transaksi",
+          emptyMsg: "Tidak ada transaksi untuk group ini",
         },
       ),
     );
 }
-//=======================================================================
-// FUNGSI DOWNLOAD EXCEL BUKU BESAR
-// =========================================================================
+
 async function downloadBukuBesarExcel() {
-  // ✅ CEK: Apakah data sudah ada (sudah dihitung sebelumnya)?
   if (!window._bbExcelReady) {
     toast(
       "Silakan klik 'Terapkan' terlebih dahulu untuk menampilkan data.",
@@ -3239,14 +3202,13 @@ async function downloadBukuBesarExcel() {
     return;
   }
 
-  // Langsung ambil data yang sudah disiapkan
   var r = window._bbExcelReady;
   var pk = r.pk;
   var cabang = r.cabang;
   var rows = r.rows;
   var foot = r.foot;
+  var activeGroup = r.group || "TLGA";
 
-  // Fungsi format tanggal untuk Excel
   function formatTglTransaksi(str) {
     if (!str) return "-";
     if (str instanceof Date) {
@@ -3263,13 +3225,9 @@ async function downloadBukuBesarExcel() {
     return dd + "/" + mm + "/" + yyyy;
   }
 
-  // ============================================================
-  // SUSUN HTML EXCEL (Langsung dari array rows)
-  // ============================================================
   var html =
     '<table border="1" style="border-collapse:collapse; font-family:Arial, sans-serif;">';
 
-  // Header
   html +=
     '<tr style="background:#f4f4f4; font-weight:bold; text-align:center;">';
   html += '<td style="padding:8px; border:1px solid #000;">TANGGAL</td>';
@@ -3281,11 +3239,8 @@ async function downloadBukuBesarExcel() {
   html += '<td style="padding:8px; border:1px solid #000;">SALDO</td>';
   html += "</tr>";
 
-  // Looping rows yang sudah jadi
   rows.forEach(function (row) {
     html += "<tr>";
-
-    // Kolom Tanggal (Baris pertama = "Saldo Awal", selain itu pakai formatTglTransaksi)
     var isSaldoAwal = row[0] === "Saldo Awal";
 
     html +=
@@ -3315,10 +3270,9 @@ async function downloadBukuBesarExcel() {
       (row[5] || "") +
       "</td>";
 
-    // Kolom Saldo (Hapus tag <span> karena tidak bagus di Excel)
     var saldoText = row[6];
     if (typeof saldoText === "string") {
-      saldoText = saldoText.replace(/<[^>]*>?/gm, ""); // Buang HTML tag <span class="tag...">
+      saldoText = saldoText.replace(/<[^>]*>?/gm, "");
     }
 
     html +=
@@ -3328,7 +3282,6 @@ async function downloadBukuBesarExcel() {
     html += "</tr>";
   });
 
-  // Baris Footer (Total)
   html += '<tr style="font-weight:bold; background:#f9f9f9;">';
   html +=
     '<td colspan="4" style="padding:8px; border:1px solid #000; text-align:right;">' +
@@ -3351,7 +3304,6 @@ async function downloadBukuBesarExcel() {
   html += "</tr>";
   html += "</table>";
 
-  // Info Akun di Excel
   var labelMasaExl = "";
   if (r.masaDari && r.masaSampai)
     labelMasaExl = r.masaDari + " s/d " + r.masaSampai;
@@ -3365,25 +3317,33 @@ async function downloadBukuBesarExcel() {
     (cabang === "ALL" ? "Semua" : cabang) +
     " | Periode: " +
     labelMasaExl +
-    "</p>";
+    " | <b>Group: " +
+    activeGroup +
+    "</b></p>";
 
+  // ✅ PERBAIKAN: Menghapus Backtick (``) dan menggantinya dengan tanda petik ('')
   var fullHtml =
-    `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-    <head><meta charset="UTF-8">
-    <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Buku Besar</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->
-    </head>
-    <body>` +
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">' +
+    '<head><meta charset="UTF-8">' +
+    "<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Buku Besar</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->" +
+    "</head>" +
+    "<body>" +
     infoAkun +
     html +
-    `</body></html>`;
+    "</body></html>";
 
-  // Download langsung
   var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
   a.href = url;
   a.download =
-    "BukuBesar_" + pk.noPerk + "_" + labelMasaExl.replace(/\s+/g, "_") + ".xls";
+    "BukuBesar_" +
+    pk.noPerk +
+    "_" +
+    labelMasaExl.replace(/\s+/g, "_") +
+    "_Group_" +
+    activeGroup +
+    ".xls";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -3391,212 +3351,8 @@ async function downloadBukuBesarExcel() {
 
   toast("File Excel berhasil diunduh.", "success");
 }
-/* ---------- Export XLS ---------- */
+/* ---------- ekspor ke xls---------- */
 PANEL_MAP.expXls = renderExpXls;
-
-async function renderExpXls() {
-  var opts = DBCache.perkiraan
-    .map(function (p) {
-      return (
-        '<option value="' +
-        p.id +
-        '">' +
-        esc(p.gol) +
-        " - " +
-        esc(p.noPerk) +
-        " - " +
-        esc(p.desc) +
-        "</option>"
-      );
-    })
-    .join("");
-  return (
-    '<div style="max-width:500px"><div style="background:var(--card);border:1px solid var(--brd);border-radius:var(--r);padding:1.2rem">' +
-    '<h3 style="font-size:.9rem;margin-bottom:.8rem"><i class="fa-solid fa-file-excel" style="color:var(--success)"></i> Export ke Excel</h3>' +
-    '<div class="fg"><label>Jenis Laporan</label><select id="ex_type" onchange="toggleExpOpts()">' +
-    '<option value="perkiraan">Perkiraan</option><option value="transaksi">Transaksi</option>' +
-    '<option value="bukuBesar">Buku Besar</option><option value="neraca">Neraca</option>' +
-    '<option value="detilNeraca">Detil Neraca</option><option value="rlRekap">RL Rekap</option><option value="rlDetil">RL Detil</option></select></div>' +
-    '<div id="ex_perkOpts" class="fg" style="display:none"><label>No Perkiraan</label><select id="ex_perk"><option value="">-- Pilih --</option>' +
-    opts +
-    "</select></div>" +
-    '<div style="margin-top:.8rem"><button class="btn btn-a" onclick="doExportXls()"><i class="fa-solid fa-download"></i> Download</button></div></div></div>'
-  );
-}
-function toggleExpOpts() {
-  $("ex_perkOpts").style.display =
-    $("ex_type").value === "bukuBesar" ? "block" : "none";
-}
-async function doExportXls() {
-  var type = $("ex_type").value,
-    wb = XLSX.utils.book_new();
-  if (type === "perkiraan") {
-    var d = [
-      ["Gol", "No Perk", "Desc", "Awal", "DB", "CR", "Akhir", "Cabang"],
-    ].concat(
-      DBCache.perkiraan.map(function (p) {
-        return [
-          p.gol,
-          p.noPerk,
-          p.desc,
-          p.awal,
-          p.db,
-          p.cr,
-          num(p.awal) + num(p.db) - num(p.cr),
-          p.cabang,
-        ];
-      }),
-    );
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "Perkiraan");
-  } else if (type === "transaksi") {
-    var d = [
-      [
-        "Tanggal",
-        "No Ref",
-        "Kode Bank",
-        "Kode Trans",
-        "Dari/Kepada",
-        "Desc",
-        "Total",
-        "DB",
-        "CR",
-        "Cabang",
-      ],
-    ].concat(
-      DBCache.transaksi.map(function (t) {
-        return [
-          t.tanggal,
-          t.noreff,
-          t.kodeBank,
-          t.kodeTrans,
-          t.dariKePada,
-          t.desc,
-          t.total,
-          t.db,
-          t.cr,
-          t.cabang,
-        ];
-      }),
-    );
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "Transaksi");
-  } else if (type === "bukuBesar") {
-    var pk = await db.get("perkiraan", $("ex_perk").value);
-    if (!pk) {
-      toast("Pilih perkiraan", "err");
-      return;
-    }
-    var data = DBCache.transaksi
-      .filter(function (t) {
-        return t.kodeTrans === pk.noPerk;
-      })
-      .sort(function (a, b) {
-        return (a.tanggal || "").localeCompare(b.tanggal || "");
-      });
-    var d = [
-      [pk.gol + " - " + pk.noPerk + " - " + pk.desc],
-      [],
-      ["Tanggal", "No Ref", "Dari/Kepada", "Desc", "DB", "CR", "Saldo"],
-      ["Saldo Awal", "", "", "", "", "-", pk.awal],
-    ];
-    var s = num(pk.awal);
-    data.forEach(function (t) {
-      s += num(t.db) - num(t.cr);
-      d.push([t.tanggal, t.noreff, t.dariKePada, t.desc, t.db, t.cr, s]);
-    });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "Buku Besar");
-  } else if (type === "neraca") {
-    var gols = DBCache.golongan,
-      perks = DBCache.perkiraan;
-    var d = [["NERACA"], [], ["AKTIVA"], ["Gol", "Nama", "Saldo"]];
-    var tAk = 0;
-    gols
-      .filter(function (g) {
-        return g.gol.startsWith("1");
-      })
-      .forEach(function (g) {
-        var t = gPerks(g.gol, perks);
-        d.push([g.gol, g.namaGol, t]);
-        tAk += t;
-      });
-    d.push(["", "TOTAL AKTIVA", tAk], [], ["PASIVA"], ["Gol", "Nama", "Saldo"]);
-    var tP = 0;
-    gols
-      .filter(function (g) {
-        return g.gol.startsWith("2") || g.gol.startsWith("3");
-      })
-      .forEach(function (g) {
-        var t = gPerks(g.gol, perks);
-        d.push([g.gol, g.namaGol, t]);
-        tP += t;
-      });
-    d.push(["", "TOTAL PASIVA", tP]);
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "Neraca");
-  } else if (type === "detilNeraca") {
-    var d = [
-      ["DETIL NERACA"],
-      [],
-      ["Gol", "No Perk", "Desc", "Awal", "DB", "CR", "Akhir"],
-    ].concat(
-      DBCache.perkiraan.map(function (p) {
-        return [
-          p.gol,
-          p.noPerk,
-          p.desc,
-          p.awal,
-          p.db,
-          p.cr,
-          num(p.awal) + num(p.db) - num(p.cr),
-        ];
-      }),
-    );
-    XLSX.utils.book_append_sheet(
-      wb,
-      XLSX.utils.aoa_to_sheet(d),
-      "Detil Neraca",
-    );
-  } else if (type === "rlRekap") {
-    var d = [
-      ["RL REKAP"],
-      [],
-      ["Gol", "Desc", "Akumulasi", "Bulan Ini"],
-    ].concat(
-      DBCache.golongan
-        .filter(function (g) {
-          return g.gol.startsWith("4") || g.gol.startsWith("5");
-        })
-        .map(function (g) {
-          return [g.gol, g.namaGol, gPerks(g.gol, DBCache.perkiraan), "-"];
-        }),
-    );
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "RL Rekap");
-  } else if (type === "rlDetil") {
-    var d = [
-      ["RL DETIL"],
-      [],
-      ["Gol", "No Perk", "Desc", "Akumulasi", "Bulan Ini"],
-    ].concat(
-      DBCache.perkiraan
-        .filter(function (p) {
-          return p.gol.startsWith("4") || p.gol.startsWith("5");
-        })
-        .map(function (p) {
-          return [
-            p.gol,
-            p.noPerk,
-            p.desc,
-            num(p.awal) + num(p.db) - num(p.cr),
-            "-",
-          ];
-        }),
-    );
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(d), "RL Detil");
-  }
-  XLSX.writeFile(
-    wb,
-    "laporan_" + type + "_" + new Date().toISOString().split("T")[0] + ".xlsx",
-  );
-  toast("Excel berhasil diunduh", "ok");
-}
 
 PANEL_MAP.rlLebar = renderRLLebar;
 
@@ -3649,6 +3405,10 @@ function renderRLLebar() {
     var sel = y == window._rlLebarFilterTahun ? "selected" : "";
     opsiTahunHtml += '<option value="' + y + '" ' + sel + ">" + y + "</option>";
   }
+
+  // ✅ 1. AMBIL LABEL GROUP AKTIF
+  var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+
   var htmlLaporan =
     '<div id="area_cetak_rllebar" style="background:#000; padding:1rem; border-radius:var(--r); border:1px solid #333; height:550px; max-height:550px; width:100%; overflow:hidden;">' +
     '<div style="text-align:center; color:#fff;">' +
@@ -3656,6 +3416,10 @@ function renderRLLebar() {
     window._rlLebarFilterTahun +
     "</h3>" +
     '<div class="no-print" style="background:#111; border:1px solid #333; padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:1rem; color:#fff;">' +
+    // ✅ 2. TAMPILKAN GROUP DI JUDUL FILTER
+    '<div style="font-size:.8rem; font-weight:bold; color:#4da3ff; margin-right:10px;">GROUP: ' +
+    activeGroupLabel +
+    "</div>" +
     '<label style="font-size:.75rem; color:#ccc;">Tahun:</label>' +
     '<select id="filter_rllebar_tahun" style="padding:4px 8px; border:1px solid #555; background:#000; color:#fff;">' +
     opsiTahunHtml +
@@ -3679,6 +3443,7 @@ function renderRLLebar() {
     "</div></div></div>";
   return htmlLaporan;
 }
+
 async function terapkanOpsiRLLebar() {
   var selectTahun = document.getElementById("filter_rllebar_tahun");
   var selectCabang = document.getElementById("filter_rllebar_cabang");
@@ -3701,6 +3466,9 @@ async function terapkanOpsiRLLebar() {
         ? resgolbackup
         : Object.values(resgolbackup)
       : [];
+
+    // ✅ 3. SIAPKAN FILTER GROUP UNTUK DATA 12 BULAN
+    var activeGroup = localStorage.getItem("group") || "TLGA";
 
     var namaBulan = [
       "JAN",
@@ -3730,7 +3498,16 @@ async function terapkanOpsiRLLebar() {
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
-        return cocokGol && masaData === kodeMasa && cabangData === valCabang;
+
+        // ✅ 4. LOGIKA FILTER GROUP
+        var cocokGroup = String(g.group || "").trim() === activeGroup;
+
+        return (
+          cocokGol &&
+          cocokGroup &&
+          masaData === kodeMasa &&
+          cabangData === valCabang
+        );
       });
 
       dataBulanIni.forEach((item) => {
@@ -3760,12 +3537,16 @@ async function terapkanOpsiRLLebar() {
 
     if (listGol.length === 0) {
       area.innerHTML =
-        '<div style="padding:3rem;text-align:center;color:#888;">Data kosong</div>';
+        '<div style="padding:3rem;text-align:center;color:#888;">Data kosong untuk Group: ' +
+        activeGroup +
+        "</div>";
       return;
     }
 
     var html =
-      '<div style="margin-bottom:.5rem;font-size:.78rem;color:#aaa;">3xx=Penjualan | 4xx=HPP | 5xx=By Adm | 6xx=Beban Lain | Tahun: ' +
+      '<div style="margin-bottom:.5rem;font-size:.78rem;color:#aaa;">3xx=Penjualan | 4xx=HPP | 5xx=By Adm | 6xx=Beban Lain | Group: <span style="color:#4da3ff;font-weight:bold">' +
+      activeGroup +
+      "</span> | Tahun: " +
       valTahun +
       "</div>";
     html +=
@@ -3799,7 +3580,6 @@ async function terapkanOpsiRLLebar() {
     var subTotalPerBulan = {};
     var akumulasiLabaRugiPerBulan = {};
 
-    // Inisialisasi awal
     for (var b = 1; b <= 12; b++) {
       var bsInit = ("0" + b).slice(-2);
       subTotalPerBulan[bsInit] = 0;
@@ -3848,14 +3628,10 @@ async function terapkanOpsiRLLebar() {
         'color:#fff;"></td></tr>';
     }
 
-    // FUNGSI BARU: Untuk menghitung YTD secara benar (bertahap)
     function prosesAkumulasiYTD(digitSekarang, subTotalBulan) {
       for (var b = 1; b <= 12; b++) {
         var bsLaba = ("0" + b).slice(-2);
         var nilaiBulanIni = subTotalBulan[bsLaba] || 0;
-
-        // Pendapatan (3xx) di database biasanya sudah Positif. Untuk Laba/Rugi jadikan Negatif.
-        // Beban (4,5,6xx) di database biasanya sudah Negatif. Biarkan apa adanya (Positifkan di sini).
         if (digitSekarang === "3") {
           akumulasiLabaRugiPerBulan[bsLaba] = nilaiBulanIni;
         } else {
@@ -3869,7 +3645,6 @@ async function terapkanOpsiRLLebar() {
       var kodeGol = parseInt(item.gol, 10);
       var digit = String(kodeGol).charAt(0);
 
-      // Jika ganti golongan baru (misal dari 3xx ke 4xx)
       if (currentDigit !== null && digit !== currentDigit) {
         var arrSub = {};
         var totalSub = 0;
@@ -3886,11 +3661,8 @@ async function terapkanOpsiRLLebar() {
         if (currentDigit === "6") ket = "TOTAL BEBAN LAINNYA";
 
         buatBarisSubtotal(ket, arrSub, totalSub, "#1b5e20", false);
-
-        // 🔥 PANGGIL FUNGSI YTD YANG SUDAH DIPERBAIKI
         prosesAkumulasiYTD(currentDigit, subTotalPerBulan);
 
-        // Reset subTotal untuk digit selanjutnya
         for (var b = 1; b <= 12; b++) subTotalPerBulan[("0" + b).slice(-2)] = 0;
       }
 
@@ -3922,7 +3694,6 @@ async function terapkanOpsiRLLebar() {
       <td style="padding:6px;border:1px solid #444;color:#fff;">${item.cabang}</td></tr>`;
     }
 
-    // Subtotal untuk digit TERAKHIR (di luar loop)
     if (currentDigit !== null) {
       var arrSubAkhir = {};
       var totalSubAkhir = 0;
@@ -3939,12 +3710,9 @@ async function terapkanOpsiRLLebar() {
       if (currentDigit === "6") ketAkhir = "TOTAL BEBAN LAINNYA";
 
       buatBarisSubtotal(ketAkhir, arrSubAkhir, totalSubAkhir, "#1b5e20", false);
-
-      // 🔥 PANGGIL FUNGSI YTD UNTUK DIGIT TERAKHIR
       prosesAkumulasiYTD(currentDigit, subTotalPerBulan);
     }
 
-    // LABA RUGI BERSIH YTD
     html +=
       '<tr><td colspan="16" style="border:1px solid #444;padding:4px;background-color:#ffc107;"></td></tr>';
     var arrTotalBulan = {};
@@ -3962,7 +3730,6 @@ async function terapkanOpsiRLLebar() {
       "#1b5e20",
       true,
     );
-
     html += "</tbody></table></div>";
     area.innerHTML = html;
   } catch (e) {
@@ -3975,9 +3742,11 @@ async function terapkanOpsiRLLebar() {
 }
 
 function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
-  // 1. Parse tahun dari format "YTD2024"
-  var tahunFull = masa.replace("YTD", ""); // Hasil: "2024"
+  var tahunFull = masa.replace("YTD", "");
   var namaStore = "transaksi" + tahunFull;
+
+  // ✅ 5. AMBIL GROUP UNTUK FILTER DETIL TRANSAKSI
+  var activeGroup = localStorage.getItem("group") || "TLGA";
 
   var popupId = "popup_transaksi_" + Date.now();
 
@@ -3995,6 +3764,8 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
     '<div style="padding:12px; background:#1a1a1a; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; border-radius:8px 8px 0 0;">' +
     '<strong style="font-size:0.9rem; color:#4da3ff;">Detil Transaksi YTD: ' +
     noPerkiraan +
+    " | Group: " +
+    activeGroup +
     " | Cabang: " +
     cabFilter +
     "</strong>" +
@@ -4015,20 +3786,17 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
     .then(function (rawData) {
       var listTrans = Array.isArray(rawData) ? rawData : [];
 
-      // 2. Siapkan array 12 bulan untuk mencocokkan (0101 s/d 1224 jika tahun 2024)
       var duaDigitTahun = tahunFull.substring(2, 4);
       var setMasaValid = new Set();
       for (var b = 1; b <= 12; b++) {
         var blnStr = ("0" + b).slice(-2);
-        setMasaValid.add(blnStr + duaDigitTahun); // Contoh: "0124", "0224", dst...
+        setMasaValid.add(blnStr + duaDigitTahun);
       }
 
-      // 3. Ambil 3 digit depan no perkiraan
       var prefixNoPerkiraan = String(noPerkiraan || "")
         .trim()
         .substring(0, 3);
 
-      // 4. Filter Data
       var detilTrans = listTrans.filter(function (t) {
         var tNo = String(t.noperkiraan || "").trim();
         var tCab = String(t.cabang || "")
@@ -4038,8 +3806,6 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
 
         var tNoPrefix = tNo.substring(0, 3);
         var cocokPerkiraan = tNoPrefix === prefixNoPerkiraan;
-
-        // Cek apakah masanya ada di dalam 12 bulan tahun tersebut
         var cocokMasa = setMasaValid.has(tMasa);
 
         var cocokCabang = true;
@@ -4047,60 +3813,36 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
           cocokCabang = tCab === cabFilter;
         }
 
-        return cocokPerkiraan && cocokMasa && cocokCabang;
+        // ✅ 6. SISIPKAN FILTER GROUP DI DETIL TRANSAKSI
+        var cocokGroup = String(t.group || "").trim() === activeGroup;
+
+        return cocokPerkiraan && cocokMasa && cocokCabang && cocokGroup;
       });
 
       if (detilTrans.length === 0) {
         container.innerHTML =
           '<div style="text-align:center; padding:20px; color:#ffc107;">' +
           "Data tidak ditemukan.<br><br>" +
-          "<small>Dicari No Perkiraan (3 digit depan): " +
+          "<small>Dicari No Perkiraan: " +
           prefixNoPerkiraan +
           " | Tahun: " +
           tahunFull +
-          " | Cabang Kode: " +
+          " | Group: " +
+          activeGroup +
+          " | Cabang: " +
           cabFilter +
           "</small>" +
           "</div>";
         return;
       }
 
-      // Urutkan berdasarkan masa dan tanggal agar kronologis
       detilTrans.sort(function (a, b) {
         var masaA = String(a.masa || "");
         var masaB = String(b.masa || "");
         if (masaA !== masaB) return masaA.localeCompare(masaB);
         return String(a.tanggal || "").localeCompare(String(b.tanggal || ""));
       });
-      // ✅ FUNGSI BARU: Parser untuk mengambil HANYA ANGKA TANGGAL
-      // ✅ FUNGSI BARU: Parser untuk mengambil HANYA ANGKA TANGGAL
-      function ambilTanggalSaja(rawTgl) {
-        if (!rawTgl) return "-";
-        var strTgl = String(rawTgl).trim();
 
-        // ✅ 1. Jika format "Mon Feb 23 2026 00:00:00 GMT+0" (Format Date JS)
-        // Split pakai spasi, tanggalnya ada di urutan ke-3 (index 2)
-        var parts = strTgl.split(" ");
-        if (parts.length >= 3 && !isNaN(parts[2])) {
-          return parts[2]; // Akan mengembalikan "23"
-        }
-
-        // 2. Jika format "Senin, 15/01/2024 10:30:00" atau "15/01/2024 10:30:00"
-        if (strTgl.indexOf("/") > -1) {
-          var partsSlash = strTgl.split(" ")[0];
-          var tglParts = partsSlash.split("/");
-          return tglParts[0] || "-";
-        }
-
-        // 3. Jika format ISO "2024-01-15T10:30:00.000Z"
-        if (strTgl.indexOf("-") > -1 && strTgl.indexOf("T") > -1) {
-          var dateObj = new Date(strTgl);
-          return dateObj.getDate() || "-";
-        }
-
-        return "-";
-      }
-      // 5. Render Tabel
       var tableHtml =
         '<div style="overflow-x:auto; background-color:#000000; color:#ffffff;">' +
         '<table style="width:100%; border-collapse:collapse; font-size:0.75rem; min-width:500px; background-color:#000000; color:#ffffff;">' +
