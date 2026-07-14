@@ -1429,7 +1429,7 @@ function renderMutasiKasir() {
     '<div style="display:flex; gap:.4rem;">' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportKasirDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     // ✅ DIPERBAIKI: executeHapus... DIUBAH JADI promptHapus...
-    '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="promptHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data</button>' +
+    '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="executeHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data</button>' +
     "</div>" +
     "</div>" +
     // TABEL INPUT EXCEL
@@ -2320,38 +2320,7 @@ async function executeHapusSeReffKasir() {
 }
 
 // ✅ FUNGSI POPUP HAPUS DATA MUTASI KASIR PER CABANG
-function promptHapusMutasiPerCabang() {
-  var cabOpts = getCabangOpts($("mk_cab") ? $("mk_cab").value : "");
 
-  var html = `
-    <div style="padding:1rem; font-size:.85rem;">
-      <div style="margin-bottom:1rem; color:var(--danger); font-weight:700;">
-        <i class="fa-solid fa-triangle-exclamation"></i> Peringatan: Hapus Seluruh Data Kasir
-      </div>
-      <p style="margin-bottom:1rem; font-size:.8rem; color:var(--muted);">Tindakan ini akan menghapus <b>SELURUH</b> riwayat transaksi kasir pada cabang yang dipilih secara permanen dari database.</p>
-      
-      <div class="fg" style="margin-bottom:1.2rem;">
-        <label>Pilih Cabang yang akan dikosongkan:</label>
-        <select id="opt_hapus_cab" class="in">${cabOpts}</select>
-      </div>
-
-      <div style="display:flex; gap:.5rem; justify-content:flex-end;">
-        <button class="btn btn-sm" onclick="closeModal()">Batal</button>
-        <button class="btn btn-sm" style="background:var(--danger); color:#fff; border-color:var(--danger);" onclick="executeHapusMutasiPerCabang()">
-          <i class="fa-solid fa-trash-can"></i> Ya, Hapus Sekarang
-        </button>
-      </div>
-    </div>
-  `;
-
-  if (typeof showModal === "function")
-    showModal("Hapus Data Mutasi Kasir", html);
-  else if (typeof openModal === "function")
-    openModal("Hapus Data Mutasi Kasir", html);
-  else alert("Fungsi Modal tidak ditemukan.");
-}
-// ✅ FUNGSI HAPUS MUTASI KASIR (MENYELARASKAN DENGAN POLA clearAllDataMutasi)
-// ✅ FUNGSI HAPUS MENGGUNAKAN API clear-all-data YANG SUDAH DIPERBAIKI
 async function executeHapusMutasiPerCabang() {
   var label = "Mutasi Kasir";
 
@@ -2363,24 +2332,14 @@ async function executeHapusMutasiPerCabang() {
   }
 
   var daftarBulan = [
-    { v: "01", n: "Januari" },
-    { v: "02", n: "Februari" },
-    { v: "03", n: "Maret" },
-    { v: "04", n: "April" },
-    { v: "05", n: "Mei" },
-    { v: "06", n: "Juni" },
-    { v: "07", n: "Juli" },
-    { v: "08", n: "Agustus" },
-    { v: "09", n: "September" },
-    { v: "10", n: "Oktober" },
-    { v: "11", n: "November" },
-    { v: "12", n: "Desember" },
+    { v: "01", n: "Januari" }, { v: "02", n: "Februari" }, { v: "03", n: "Maret" },
+    { v: "04", n: "April" }, { v: "05", n: "Mei" }, { v: "06", n: "Juni" },
+    { v: "07", n: "Juli" }, { v: "08", n: "Agustus" }, { v: "09", n: "September" },
+    { v: "10", n: "Oktober" }, { v: "11", n: "November" }, { v: "12", n: "Desember" },
   ];
-  var opsiBulanHtml = daftarBulan
-    .map(function (b) {
-      return `<option value="${b.v}">${b.n}</option>`;
-    })
-    .join("");
+  var opsiBulanHtml = daftarBulan.map(function (b) {
+    return `<option value="${b.v}">${b.n}</option>`;
+  }).join("");
 
   var cabFilterOpts = '<option value="">-- Semua Cabang --</option>';
   if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
@@ -2388,13 +2347,19 @@ async function executeHapusMutasiPerCabang() {
     sortedList.sort(function (a, b) {
       return String(a.kode || "").localeCompare(String(b.kode || ""));
     });
-    cabFilterOpts += sortedList
-      .map(function (c) {
-        var displayNama = c.nama ? ` (${c.nama})` : "";
-        return `<option value="${c.kode}">${c.kode}${displayNama}</option>`;
-      })
-      .join("");
+    cabFilterOpts += sortedList.map(function (c) {
+      var displayNama = c.nama ? ` (${c.nama})` : "";
+      return `<option value="${c.kode}">${c.kode}${displayNama}</option>`;
+    }).join("");
   }
+
+  // ✅ OPSI GROUP: Siapkan dropdown Group
+  var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+  var daftarGroup = ["TLGA", "TLTA", "KBJ", "SBI"]; // Sesuaikan dengan daftar group Anda
+  var opsiGroupHtml = daftarGroup.map(function (g) {
+    var sel = g === activeGroupLabel ? "selected" : "";
+    return `<option value="${g}" ${sel}>${g}</option>`;
+  }).join("");
 
   openModal(
     "Filter Hapus Data " + label,
@@ -2404,6 +2369,14 @@ async function executeHapusMutasiPerCabang() {
       </div>
       
       <div style="display: flex; flex-direction: column; gap: .8rem; margin-bottom: 1.5rem">
+        <!-- ✅ OPSI GROUP: Tambahkan Dropdown Group -->
+        <div>
+          <label style="display:block; font-size:.8rem; margin-bottom:.3rem; font-weight:bold">Group</label>
+          <select id="del_group" style="width:100%; padding:.5rem; border-radius:6px; border:1px solid var(--brd); background:var(--bg2); color:inherit">
+            ${opsiGroupHtml}
+          </select>
+        </div>
+
         <div>
           <label style="display:block; font-size:.8rem; margin-bottom:.3rem; font-weight:bold">Bulan</label>
           <select id="del_bulan" style="width:100%; padding:.5rem; border-radius:6px; border:1px solid var(--brd); background:var(--bg2); color:inherit">
@@ -2435,103 +2408,89 @@ async function executeHapusMutasiPerCabang() {
     </div>`,
   );
 
-  document.getElementById("btnKonfirmasiHapusMutasi").onclick =
-    async function () {
-      var bln = document.getElementById("del_bulan").value;
-      var thn = document.getElementById("del_tahun").value;
-      var cbg = document.getElementById("del_cabang").value;
+  document.getElementById("btnKonfirmasiHapusMutasi").onclick = async function () {
+    var grp = document.getElementById("del_group").value; // ✅ OPSI GROUP: Ambil nilai
+    var bln = document.getElementById("del_bulan").value;
+    var thn = document.getElementById("del_tahun").value;
+    var cbg = document.getElementById("del_cabang").value;
 
-      if (!cbg) {
-        return toast("Kode Cabang wajib dipilih!", "err");
+    if (!cbg) {
+      return toast("Kode Cabang wajib dipilih!", "err");
+    }
+
+    var infoFilter = `\nGroup: ${grp}\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg}`;
+
+    if (!confirm("PERINGATAN!\n\nData " + label + " dengan kriteria berikut akan dihapus permanen dari Server:" + infoFilter + "\n\nLanjutkan?")) {
+      return;
+    }
+
+    closeModal();
+    toast("Menghubungi server untuk menghapus data...", "inf");
+
+    try {
+      // 1. PANGGIL API clear-all-data
+      var response = await fetch("/api/clear-all-data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeName: "mutasikasir",
+          cabang: cbg,
+          tahun: thn,
+          bulan: bln,
+          group: grp, // ✅ OPSI GROUP: Kirim parameter group ke server
+        }),
+      });
+
+      var result = await response.json();
+      if (!response.ok || !result.success) {
+        throw new Error(result.message || "Gagal menghubungi server");
       }
 
-      var infoFilter = `\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg}`;
+      // 2. HAPUS DI CACHE MEMORY (LOCAL BROWSER)
+      var dataDipertahankan = [];
+      var allData = DBCache.mutasikasir || [];
 
-      if (
-        !confirm(
-          "PERINGATAN!\n\nData " +
-            label +
-            " dengan kriteria berikut akan dihapus permanen dari Server:" +
-            infoFilter +
-            "\n\nLanjutkan?",
-        )
-      ) {
-        return;
+      for (var i = 0; i < allData.length; i++) {
+        var item = allData[i];
+        var cocokCabang = item.cabang === cbg;
+        
+        // ✅ OPSI GROUP: Tambahkan filter group di cache lokal
+        var cocokGroup = String(item.group || "").trim() === grp;
+
+        var cocokTahun = true;
+        if (thn) cocokTahun = item.tanggal && item.tanggal.startsWith(thn);
+
+        var cocokBulan = true;
+        if (thn && bln) {
+          cocokBulan = item.tanggal && item.tanggal.startsWith(thn + "-" + bln);
+        }
+
+        // ✅ OPSI GROUP: Tambahkan cocokGroup di kondisi pengecekan
+        if (cocokCabang && cocokGroup && cocokTahun && cocokBulan) {
+          // Dihapus (tidak masuk array)
+        } else {
+          dataDipertahankan.push(item); // Dipertahankan
+        }
       }
 
-      closeModal();
-      toast("Menghubungi server untuk menghapus data...", "inf");
+      DBCache.mutasikasir = dataDipertahankan;
 
-      try {
-        // ====================================================================
-        // 1. PANGGIL API clear-all-data YANG SUDAH DIFIX DI SERVER
-        // ====================================================================
-        var response = await fetch("/api/clear-all-data", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            storeName: "mutasikasir",
-            cabang: cbg,
-            // ✅ GANTI NAMA PARAMETER MENJADI 'tahun' DAN 'bulan' (SESUAI SERVER)
-            tahun: thn,
-            bulan: bln,
-          }),
-        });
+      // 3. REFRESH UI TAMPILAN
+      renderKasirDetilTable();
+      updateKasirHeaderNominal();
+      await hitungSaldoOtomatis();
 
-        var result = await response.json();
-        if (!response.ok || !result.success) {
-          throw new Error(result.message || "Gagal menghubungi server");
-        }
-
-        // ====================================================================
-        // 2. HAPUS DI CACHE MEMORY (LOCAL BROWSER) SUPAYA TAMPILAN LANGSUNG HILANG
-        // ====================================================================
-        var dataDipertahankan = [];
-        var allData = DBCache.mutasikasir || [];
-
-        for (var i = 0; i < allData.length; i++) {
-          var item = allData[i];
-          var cocokCabang = item.cabang === cbg;
-
-          var cocokTahun = true;
-          if (thn) cocokTahun = item.tanggal && item.tanggal.startsWith(thn);
-
-          var cocokBulan = true;
-          if (thn && bln) {
-            cocokBulan =
-              item.tanggal && item.tanggal.startsWith(thn + "-" + bln);
-          }
-
-          if (cocokCabang && cocokTahun && cocokBulan) {
-            // Data ini cocok dengan kriteria hapus, JANGAN masukkan ke array (berarti dihapus)
-          } else {
-            dataDipertahankan.push(item); // Data ini aman, masukkan ke array baru
-          }
-        }
-
-        DBCache.mutasikasir = dataDipertahankan;
-
-        // ====================================================================
-        // 3. REFRESH UI TAMPILAN
-        // ====================================================================
-        renderKasirDetilTable();
-        updateKasirHeaderNominal();
-        await hitungSaldoOtomatis();
-
-        if (typeof buildGroupedNoreff === "function") {
-          buildGroupedNoreff();
-        }
-        renderKasirNoreffList();
-
-        toast(
-          `✅ Berhasil menghapus ${result.changes} data ${label} dari Server`,
-          "ok",
-        );
-      } catch (err) {
-        console.error(err);
-        toast("Gagal memproses penghapusan: " + err.message, "err");
+      if (typeof buildGroupedNoreff === "function") {
+        buildGroupedNoreff();
       }
-    };
+      renderKasirNoreffList();
+
+      toast(`✅ Berhasil menghapus ${result.changes} data ${label} dari Server`, "ok");
+    } catch (err) {
+      console.error(err);
+      toast("Gagal memproses penghapusan: " + err.message, "err");
+    }
+  };
 }
 // ✅ OBJEK LOGIKA IMPORT DBF KASIR (SERVER-SIDE)
 const AppImporKasirDBF = {
