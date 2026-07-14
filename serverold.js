@@ -866,6 +866,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     cr: getNum(row.CR),
                     akhir: getNum(row.AKHIR),
                     cabang: getStr(row.REST) || kode_cabang,
+                    group: group || "TLGA", // ✅ 3. TAMBAHKAN INI
                   };
                   customId = `CDG_${mappedData.cabang}_${masa}_${mappedData.gol || "X"}_${i + index}`;
                 } else if (typePrefix === "CDD") {
@@ -880,6 +881,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     cr: getNum(row.CR),
                     akhir: getNum(row.AKHIR),
                     cabang: getStr(row.REST) || kode_cabang,
+                    group: group || "TLGA", // ✅ 3. TAMBAHKAN INI
                   };
                   const cleanNoPerk =
                     mappedData.noPerk.replace(/\./g, "_") || "X";
@@ -903,6 +905,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     cr: crVal,
                     kodeTrans: "",
                     masa: masa,
+                    group: group || "TLGA", // ✅ 3. TAMBAHKAN INI
                   };
                 }
 
