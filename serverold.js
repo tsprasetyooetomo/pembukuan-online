@@ -771,6 +771,9 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     bb.on("finish", async () => {
       try {
         const { kode_cabang, tahun, bulan, masa } = fields;
+
+        const group = fields.group || "TLGA"; // ✅ TAMBAHKAN BARIS INI
+
         const fileCdg = files["file_cdg"];
         const fileCdd = files["file_cdd"];
         const fileDet = files["file_det"];
