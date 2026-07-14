@@ -1095,6 +1095,7 @@ async function refreshSaldoKasir() {
   var saldoAwalMaster = await getSaldoAwalKasir(cab, tglAwal);
 
   // Cek apakah ketemu di tabel "saldokasir"
+
   // Cek apakah ketemu di tabel "saldokasir"
   if (
     saldoAwalMaster === null ||
@@ -1172,7 +1173,6 @@ async function refreshSaldoKasir() {
       }
     }
   }
-
   // 2. AMBIL DATA MUTASI DARI TABEL mutasikasir
   var filteredData = (DBCache.mutasikasir || []).filter(function (t) {
     var isDateOk = true;
