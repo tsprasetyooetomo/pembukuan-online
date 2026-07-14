@@ -457,6 +457,11 @@ class PembukuanDB {
 
   // ✅ KODE BARU (Bisa menerima 1 atau 2 parameter)
   _getAllBrowser(s, cabangParam) {
+    // ✅ TAMBAHKAN 3 BARIS INI UNTUK MENGHENTIKAN ERROR 400
+    if (s === "saldokasirawal") {
+      return Promise.resolve([]);
+    }
+
     // 1. Tentukan filter cabang
     let cabang = "";
     if (
