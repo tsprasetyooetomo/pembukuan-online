@@ -1222,6 +1222,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 noreff: noreff,
                 tanggal: tanggalFix,
                 cabang: cabDBF,
+                group: group || "TLGA", // <-- TAMBAHKAN INI UNTUK MEMASUKKAN GROUP KE DATABASE
                 kodeTrans: kodeTrans,
                 noperkiraan: "",
                 desc: desc,
