@@ -1047,7 +1047,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
     bb.on("finish", async () => {
       try {
-        const { cabang, hapus_tahun, hapus_bulan } = fields;
+        const { cabang, hapus_tahun, hapus_bulan, group } = fields;
         const fileDbf = files["file_dbf"];
 
         if (!fileDbf) {
