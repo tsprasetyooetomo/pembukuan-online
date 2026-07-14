@@ -285,11 +285,13 @@ app.post("/api/reset-posting", async (req, res) => {
 app.post("/api/clear-all-data", async (req, res) => {
   if (!db) return res.status(500).json({ success: false, message: "DB Error" });
   try {
-    const { storeName, masa, cabang, tahun, bulan } = req.body; // ✅ Tambahkan tahun & bulan
+    const { storeName, masa, cabang, tahun, bulan } = req.body;
+
     if (!storeName || !isValidTable(storeName))
       return res
         .status(403)
         .json({ success: false, message: "Tabel tidak valid" });
+
     const lowerStoreName = storeName.toLowerCase();
     let sql = `DELETE FROM ${lowerStoreName}`;
     let params = [];
@@ -309,6 +311,12 @@ app.post("/api/clear-all-data", async (req, res) => {
       if (cabang) {
         conditions.push(`CAST(data AS jsonb)->>'cabang' = $${paramIndex++}`);
         params.push(cabang);
+      }
+
+      // ✅ TAMBAHKAN FILTER GROUP (LETAKKAN DI SINI)
+      if (req.body.group) {
+        conditions.push(`CAST(data AS jsonb)->>'group' = $${paramIndex++}`);
+        params.push(req.body.group);
       }
 
       // 3. Filter Tahun & Bulan
@@ -347,7 +355,6 @@ app.post("/api/clear-all-data", async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
-
 // 3. GET ALL DATA
 app.get("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
