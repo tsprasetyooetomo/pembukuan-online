@@ -995,6 +995,7 @@ function exportInputHarian() {
   if (typeof toast === "function")
     toast("Laporan input harian berhasil diunduh.");
 }
+
 PANEL_MAP.saldoKasir = renderLaporanSaldoKasir;
 
 // Wadah global untuk menyimpan data kasir yang sedang aktif di layar
@@ -1110,44 +1111,42 @@ async function refreshSaldoKasir() {
   });
 
   // 3. GROUPING DATA BERDASARKAN NOREFF
+
   var groupedMap = {};
   filteredData.forEach(function (t) {
     var keyRef = t.noreff || t.id || "-";
-    var typeIndicator = keyRef.substring(0, 2).toUpperCase(); // Ambil 2 huruf depan (PJ, TK, KK, dll)
+    var typeIndicator = keyRef.substring(0, 2).toUpperCase();
 
     if (!groupedMap[keyRef]) {
       groupedMap[keyRef] = {
         tanggal: t.tanggal || "-",
-        keterangan: t.keterangan || t.desc || t.dariKePada || "-",
         noreff: keyRef,
         db: 0,
         cr: 0,
       };
     }
 
-    // LOGIKA PENJUMLAHAN DEBIT & KREDIT
-    var amount = num(t.db || 0) || num(t.cr || 0) || num(t.nominal || 0) || 0;
+    // ✅ PERBAIKAN LOGIKA: Langsung baca nilai asli db dan cr dari database
+    var valDb = num(t.db || 0);
+    var valCr = num(t.cr || 0);
+    var valNominal = num(t.nominal || 0);
 
-    if (
-      typeIndicator === "PJ" ||
-      typeIndicator === "TK" ||
-      typeIndicator === "KT"
-    ) {
-      // Masuk ke kolom Debit
-      groupedMap[keyRef].db += amount;
-    } else if (
-      typeIndicator === "BE" ||
-      typeIndicator === "CS" ||
-      typeIndicator === "KK" ||
-      typeIndicator === "SK"
-    ) {
-      // Masuk ke kolom Kredit
-      groupedMap[keyRef].cr += amount;
-    } else {
-      // Fallback jika kode tidak dikenali (ambil dari value db/cr asli)
-      groupedMap[keyRef].db += num(t.db || 0);
-      groupedMap[keyRef].cr += num(t.cr || 0);
+    // Jika kolom db/cr kosong, coba ambil dari kolom nominal
+    if (valDb === 0 && valCr === 0 && valNominal > 0) {
+      if (
+        typeIndicator === "PJ" ||
+        typeIndicator === "TK" ||
+        typeIndicator === "KT"
+      ) {
+        valDb = valNominal; // Masuk ke Debit
+      } else {
+        valCr = valNominal; // Masuk ke Kredit
+      }
     }
+
+    // Akumulasi ke masing-masing kolom
+    groupedMap[keyRef].db += valDb;
+    groupedMap[keyRef].cr += valCr;
   });
 
   // Ubah object hasil grouping menjadi array dan urutkan
@@ -1166,18 +1165,18 @@ async function refreshSaldoKasir() {
   var lastDate = null;
 
   groupedData.forEach(function (t) {
-    // Tambahkan baris kosong sebagai pemisah jika tanggal berganti
+    // Tambahkan baris kosong sebagai pemisah jika tanggal berganti (Disesuaikan menjadi 6 kolom)
     if (lastDate !== null && lastDate !== t.tanggal) {
-      rows.push(["", "", "", "", "", "", ""]);
+      rows.push(["", "", "", "", "", ""]);
     }
     lastDate = t.tanggal;
 
     var saldoAwalRow = runBal;
     runBal += t.db - t.cr;
 
+    // ✅ PERUBAHAN ARRAY: "Keterangan" dihapus, indexnya menjadi [Tanggal, NoRef, SaldoAwal, Db, Cr, SaldoAkhir]
     rows.push([
       t.tanggal,
-      esc(t.keterangan).substring(0, 30),
       esc(t.noreff),
       fmtN(saldoAwalRow),
       fmtN(t.db),
@@ -1191,10 +1190,10 @@ async function refreshSaldoKasir() {
 
   // Simpan ke wadah global untuk keperluan export
   DATA_KASIR_AKTIF.saldoAwalMaster = saldoAwalMaster;
-  DATA_KASIR_AKTIF.groupedData = groupedData; // Disimpan yg sudah dikelompokkan
+  DATA_KASIR_AKTIF.groupedData = groupedData;
 
+  // ✅ PERUBAHAN FOOTER: Disesuaikan menjadi 6 kolom
   var foot = [
-    "",
     "",
     groupedData.length + " No Ref",
     "",
@@ -1203,9 +1202,9 @@ async function refreshSaldoKasir() {
     fmtN(totalDb - totalCr),
   ];
 
+  // ✅ PERUBAHAN HEADERS: "Keterangan" dihapus
   var headers = [
     "Tanggal",
-    "Keterangan",
     "No Ref",
     "Saldo Awal",
     "Debit (PJ/TK/KT)",
@@ -1217,7 +1216,7 @@ async function refreshSaldoKasir() {
   if (areaTbl) {
     areaTbl.innerHTML = wrapTable(
       buildTable(headers, rows, {
-        numCols: [3, 4, 5, 6], // Kolom yang pakai format angka
+        numCols: [2, 3, 4, 5], // ✅ PERUBAHAN INDEX: Index kolom angka bergeser (NoRef, SaldoAwal, Db, Cr, SaldoAkhir)
         foot: foot,
         emptyMsg: "Tidak ada data mutasi kasir untuk periode ini",
       }),
