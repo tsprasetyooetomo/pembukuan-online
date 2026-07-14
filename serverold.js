@@ -1186,17 +1186,41 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
               // Buat ID unik tetap berbeda untuk setiap baris
               const id = crypto.randomUUID();
 
+              // ✅ LOGIKA PEMISAHAN DB & CR BERDASARKAN KODE TRANSASKI
+              let nilaiDb = 0;
+              let nilaiCr = 0;
+
+              if (
+                kodeTrans.startsWith("PJ") ||
+                kodeTrans.startsWith("TK") ||
+                kodeTrans.startsWith("KT")
+              ) {
+                // Masuk ke Debit
+                nilaiDb = total;
+              } else if (
+                kodeTrans.startsWith("BE") ||
+                kodeTrans.startsWith("CS") ||
+                kodeTrans.startsWith("KK") ||
+                kodeTrans.startsWith("SK")
+              ) {
+                // Masuk ke Kredit
+                nilaiCr = total;
+              } else {
+                // Fallback: Jika kode tidak dikenali, masukkan ke Debit
+                nilaiDb = total;
+              }
+
               const jsonData = JSON.stringify({
                 id,
-                noreff: noreff, // <-- Ini yang jadi sama jika tanggalnya sama
+                noreff: noreff,
                 tanggal: tanggalFix,
                 cabang: cabDBF,
-                kodeTrans: kodeTrans, // <-- Diembalikan lagi ke aslinya dari DBF
+                kodeTrans: kodeTrans,
                 noperkiraan: "",
                 desc: desc,
                 total: total,
-                db: total,
-                cr: 0,
+                db: nilaiDb, // ✅ SEKARANG DINAMIS
+                cr: nilaiCr, // ✅ SEKARANG DINAMIS
               });
 
               const base = values.length;
