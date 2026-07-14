@@ -2569,7 +2569,6 @@ async function injectGroupMassalKeTahunan() {
   toast("Proses inject dimulai, lihat Console (F12) untuk progress.", "wrn");
 
   var baseUrl = window.location.origin + "/api/data/";
-  //var tahunList = ["2022", "2023", "2024", "2025", "2026"];
   var tahunList = ["2022"];
   var tabelList = ["golongan", "perkiraan", "transaksi"];
 
@@ -2589,13 +2588,47 @@ async function injectGroupMassalKeTahunan() {
         var data = await response.json();
         var needUpdate = [];
 
-        data.forEach(function (row) {
+        data.forEach(function (row, index) {
           if (
             typeof row.group === "undefined" ||
             row.group === null ||
             row.group === ""
           ) {
             row.group = "TLGA";
+
+            // ✅ REKONSTRUKSI ID KARENA ID TIDAK ADA DI DALAM JSON
+            if (!row.id) {
+              if (namaTabel.startsWith("golongan")) {
+                row.id =
+                  "CDG_" +
+                  (row.cabang || "") +
+                  "_" +
+                  (row.masa || "") +
+                  "_" +
+                  (row.gol || "X") +
+                  "_" +
+                  index;
+              } else if (namaTabel.startsWith("perkiraan")) {
+                var cleanNoPerk = (row.noPerk || "X").replace(/\./g, "_");
+                row.id =
+                  "CDD_" +
+                  (row.cabang || "") +
+                  "_" +
+                  (row.masa || "") +
+                  "_" +
+                  cleanNoPerk +
+                  "_" +
+                  index;
+              } else if (namaTabel.startsWith("transaksi")) {
+                if (!row.id)
+                  row.id =
+                    "DET_" +
+                    index +
+                    "_" +
+                    Math.random().toString(36).substr(2, 5);
+              }
+            }
+
             needUpdate.push(row);
           }
         });
@@ -2605,29 +2638,29 @@ async function injectGroupMassalKeTahunan() {
             `📦 ${namaTabel}: Ditemukan ${needUpdate.length} data. Mulai mengirim...`,
           );
 
-          // PROSES BERKAH DENGAN LOG PROGRESS
           for (var b = 0; b < needUpdate.length; b += batchSize) {
             var batch = needUpdate.slice(b, b + batchSize);
 
             await Promise.all(
               batch.map(function (item) {
+                // PASTIKAN ID TIDAK UNDEFINED SEBELUM DIKIRIM
+                if (!item.id) return Promise.resolve();
+
                 return fetch(baseUrl + namaTabel + "/" + item.id, {
                   method: "PUT",
                   headers: { "Content-Type": "application/json" },
                   body: JSON.stringify(item),
                 }).catch(function (e) {
-                  console.error("Gagal ID: " + item.id);
+                  console.error("Gagal ID:", item.id);
                 });
               }),
             );
 
-            // ✅ TAMPILKAN PROGRESS DI CONSOLE
             var prosesSekarang = Math.min(b + batchSize, needUpdate.length);
             console.log(
               `   ⏳ ${namaTabel} Progress: ${prosesSekarang} / ${needUpdate.length}`,
             );
 
-            // Jeda 100ms biar server tidak kewalahan
             if (b + batchSize < needUpdate.length) {
               await new Promise(function (resolve) {
                 setTimeout(resolve, 100);
