@@ -894,36 +894,83 @@ async function downloadRLLebarExcel(namaCabang, tahun, group) {
 
   var tabelElement = area.querySelector("table");
   if (!tabelElement) {
-    if (typeof toast === "function")
+    if (typeof toast === "function") {
       toast("Tidak ada data tabel untuk didownload", "err");
+    } else {
+      alert("Tidak ada data tabel untuk didownload");
+    }
     return;
   }
 
-  // Ambil HTML dari tabel yang ada di layar
-  var htmlContent = tabelElement.outerHTML;
+  // 1. Bersihkan nama cabang dari URL encoding dan karakter khusus HTML
+  var namaCabangBersih = namaCabang;
+  try {
+    namaCabangBersih = decodeURIComponent(namaCabang);
+  } catch (e) {
+    console.error("Gagal decode nama cabang:", e);
+  }
 
-  // Bungkus HTML dengan metadata Excel MS Office agar gridline dan encoding UTF-8 terbaca dengan benar
+  // Hapus tag HTML jika ada (misal hasil dari fungsi esc)
+  namaCabangBersih = namaCabangBersih.replace(/<\/?[^>]+(>|$)/g, "");
+  // Ganti spasi, tanda kutip, koma, atau karakter non-alphanumeric lainnya menjadi underscore "_"
+  var safeNamaCabang = namaCabangBersih
+    .replace(/[^a-zA-Z0-9]/g, "_")
+    .replace(/_+/g, "_");
+
+  // Clone tabel asli agar manipulasi cetak tidak merusak tampilan layar
+  var cloneTabel = tabelElement.cloneNode(true);
+
+  // Ganti warna teks link detail agar hitam/gelap di Excel supaya mudah dibaca
+  var linkCells = cloneTabel.querySelectorAll("td[onclick]");
+  linkCells.forEach(function (td) {
+    td.style.color = "#0000FF";
+    td.style.textDecoration = "underline";
+    td.removeAttribute("onclick");
+  });
+
+  var htmlContent = cloneTabel.outerHTML;
+
+  // Susun struktur dokumen HTML Spreadsheet XML
   var fullHtml =
     `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">` +
-    `<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>` +
+    `<head>` +
+    `<meta charset="UTF-8">` +
+    `<!--[if gte mso 9]>` +
+    `<xml>` +
+    `<x:ExcelWorkbook>` +
+    `<x:ExcelWorksheets>` +
+    `<x:ExcelWorksheet>` +
     `<x:Name>RL Lebar 12 Bln</x:Name>` +
-    `<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>` +
+    `<x:WorksheetOptions>` +
+    `<x:DisplayGridlines/>` +
+    `</x:WorksheetOptions>` +
+    `</x:ExcelWorksheet>` +
+    `</x:ExcelWorksheets>` +
+    `</x:ExcelWorkbook>` +
+    `</xml>` +
+    `<![endif]-->` +
+    `<style>` +
+    `  table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11px; }` +
+    `  th { background-color: #1a1a1a !important; color: #ffffff !important; border: 1px solid #444444; text-align: center; font-weight: bold; padding: 6px; }` +
+    `  td { border: 1px solid #444444; padding: 5px; }` +
+    `  .subtotal { background-color: #1b5e20 !important; color: #ffffff !important; font-weight: bold; }` +
+    `</style>` +
+    `</head>` +
     `<body>` +
-    `<h2 style="text-align:center;">LAPORAN LABA RUGI LEBAR 12 BULAN</h2>` +
-    `<h3 style="text-align:center;">Cabang: ${namaCabang} | Group: ${group} | Tahun: ${tahun}</h3>` +
-    htmlContent +
-    `</body></html>`;
+    `  <h2 style="text-align:center; font-family: Arial, sans-serif; margin-bottom: 2px;">LAPORAN LABA RUGI LEBAR 12 BULAN</h2>` +
+    `  <h3 style="text-align:center; font-family: Arial, sans-serif; margin-top: 0; margin-bottom: 20px;">Cabang: ${namaCabangBersih} | Group: ${group} | Tahun: ${tahun}</h3>` +
+    `  ${htmlContent}` +
+    `</body>` +
+    `</html>`;
 
-  // Buat blob Excel menggunakan tipe vnd.ms-excel (.xls)
   var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
   a.href = url;
 
-  // Format nama file: RL_Lebar_[Cabang]_[Group]_[Tahun].xls
-  var cleanCab = namaCabang.replace(/[^a-zA-Z0-9]/g, "_");
+  // Nama file dijamin bersih tanpa ada karakter % atau spasi ganda
   a.download =
-    "RL_Lebar_" + cleanCab + "_Group_" + group + "_" + tahun + ".xls";
+    "RL_Lebar_" + safeNamaCabang + "_Group_" + group + "_" + tahun + ".xls";
 
   document.body.appendChild(a);
   a.click();
