@@ -59,9 +59,10 @@ function renderNeraca() {
   var daftarCabangObj = [];
 
   rawCabang.forEach(function (c) {
-    var id = (c.cabang || c.kode || "").trim();
-    var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
-    var groupCabang = (c.group || c.kode_group || "").trim().toUpperCase();
+    // DISESUAIKAN: menggunakan c.kode dan c.group sesuai data asli Anda
+    var id = (c.kode || "").trim();
+    var nama = (c.nama || id || "Tanpa Nama").trim();
+    var groupCabang = (c.group || "").trim().toUpperCase();
 
     // HANYA MASUKKAN JIKA: Id valid, dan Group cabang sama dengan Group yang aktif
     if (id && groupCabang === groupAktif) {
@@ -75,7 +76,6 @@ function renderNeraca() {
   });
 
   // Pastikan opsi PUSAT selalu ada di paling atas
-  // (Jika di data belum ada PUSAT, kita tambahkan manual sebagai default "Semua Cabang di Group ini")
   var adaPusat = daftarCabangObj.some(function (item) {
     return item.id.toUpperCase() === "PUSAT" || item.id === "00";
   });
@@ -98,6 +98,8 @@ function renderNeraca() {
         '" ' +
         sel +
         ">" +
+        item.id +
+        " - " +
         item.nama.toUpperCase() +
         "</option>"
       );
