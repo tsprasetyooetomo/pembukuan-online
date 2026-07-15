@@ -352,19 +352,30 @@ function openModal(title, bodyHTML, footHTML) {
 }
 
 function closeModal() {
-  $("modalOv").classList.remove("show");
-  console.log("Navigate ke 4: " + currentPanel);
+  // Gunakan document.getElementById asli jika mau akses classList
+  var modalOv = document.getElementById("modalOv");
+  if (modalOv) modalOv.classList.remove("show");
 }
 
-$("modalClose").onclick = closeModal;
-$("modalOv").addEventListener("click", function (e) {
-  if (e.target === $("modalOv")) closeModal();
-});
-$("mobToggle").onclick = function () {
-  //$("sidebar").classList.toggle("active");
-  $("sidebar").classList.toggle("open");
-};
+// ✅ AMAN: Gunakan document.getElementById asli, bungkus dengan IF agar tidak crash
+// jika elemen tidak ada di halaman tertentu (misal: laporan.html)
+document.addEventListener("DOMContentLoaded", function () {
+  var mc = document.getElementById("modalClose");
+  if (mc) mc.onclick = closeModal;
 
+  var mo = document.getElementById("modalOv");
+  if (mo)
+    mo.addEventListener("click", function (e) {
+      if (e.target === mo) closeModal();
+    });
+
+  var mt = document.getElementById("mobToggle");
+  if (mt)
+    mt.onclick = function () {
+      var sb = document.getElementById("sidebar");
+      if (sb) sb.classList.toggle("open");
+    };
+});
 /* ================================================================
    DATABASE CACHE
    ================================================================ */
