@@ -36,6 +36,7 @@ const ALLOWED_TABLES = [
   "saldoKasir",
   "mutasikasir",
   "saldokasirawal",
+  "saldo_harian",
 ];
 
 function isValidTable(name) {
