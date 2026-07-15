@@ -701,27 +701,44 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
         "</div>";
       return;
     }
-
     let html =
-      '<div style="margin-bottom: 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;"><h4 style="margin:0; color:#fff; font-size:1.1rem;">RL Lebar: ' +
+      '<div style="margin-bottom: 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
+      '<h4 style="margin:0; color:#fff; font-size:1.1rem;">RL Lebar: ' +
       namaCab +
       " | Group: " +
-      activeGroup + // ✅ TAMBAHAN OPSI GROUP: TAMPILKAN GROUP
+      activeGroup +
       " - Tahun " +
       filterTahunFull +
-      '</h4><button class="btn btn-b" style="background:#333; color:#fff; border:1px solid #555; font-size:.8rem; padding:5px 15px;" onclick="kembaliKeRLGabungan()"><i class="fa-solid fa-arrow-left"></i> Kembali ke RL Gabungan</button></div>';
+      "</h4>" +
+      '<div style="display:flex; gap:8px;">' +
+      // ✅ TOMBOL DOWNLOAD EXCEL BARU (Aman dari eror karakter khusus/tanda kutip)
+      '<button class="btn btn-g" style="background:#1b5e20; color:#fff; border:1px solid #2e7d32; font-size:.8rem; padding:5px 15px; cursor:pointer;" onclick="downloadRLLebarExcel(\'' +
+      encodeURIComponent(namaCab) +
+      "', '" +
+      encodeURIComponent(filterTahunFull) +
+      "', '" +
+      encodeURIComponent(activeGroup) +
+      "', true)\">" +
+      '<i class="fa-solid fa-file-excel"></i> Download Excel' +
+      "</button>" +
+      '<button class="btn btn-b" style="background:#333; color:#fff; border:1px solid #555; font-size:.8rem; padding:5px 15px; cursor:pointer;" onclick="kembaliKeRLGabungan()">' +
+      '<i class="fa-solid fa-arrow-left"></i> Kembali ke RL Gabungan' +
+      "</button>" +
+      "</div>" +
+      "</div>";
 
     html +=
       '<div style="overflow-x:auto; border:1px solid #444; border-radius:8px;"><table border="1" style="width:100%;border-collapse:collapse;color:#fff;border:1px solid #444;background:#000; min-width:1200px;">';
     html +=
       '<thead><tr style="background:#1a1a1a;font-weight:bold;color:#fff;"><th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">GOL</th><th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;">NAMA GOLONGAN</th><th colspan="12" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:center;">BULAN</th><th rowspan="2" style="padding:8px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:right;">TOTAL YTD</th></tr><tr style="background:#1a1a1a;font-weight:bold;color:#fff;text-align:center">';
-    namaBulan.forEach(
-      (nb) =>
-        (html +=
-          '<th style="padding:6px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:center">' +
-          nb +
-          "</th>"),
-    );
+
+    namaBulan.forEach(function (nb) {
+      html +=
+        '<th style="padding:6px;border:1px solid #444;background:#1a1a1a;color:#fff;text-align:center">' +
+        nb +
+        "</th>";
+    });
+
     html += "</tr></thead><tbody>";
 
     let currentDigit = null;
@@ -871,49 +888,51 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
         "</div>";
   }
 }
-async function downloadRLPerCabangSDExcel() {
-  if (
-    !window._rlGabunganData ||
-    window._rlGabunganData.arrKodeGol.length === 0
-  ) {
+async function downloadRLLebarExcel(namaCabang, tahun, group) {
+  var area = document.getElementById("tempat_tabel_rlgab");
+  if (!area) return;
+
+  var tabelElement = area.querySelector("table");
+  if (!tabelElement) {
     if (typeof toast === "function")
-      toast("Tidak ada data RL Gabungan untuk didownload", "err");
+      toast("Tidak ada data tabel untuk didownload", "err");
     return;
   }
-  var d = window._rlGabunganData;
-  var activeGroupLabel = d.activeGroup || "TLGA"; // ✅ TAMBAHAN OPSI GROUP
 
-  var htmlContent = generateHTMLRLCabangSD(
-    d.daftarCabang,
-    d.arrKodeGol,
-    d.dataByCabang,
-    d.mapMasterGol,
-    d.mapMasterCab,
-    true,
-  );
+  // Ambil HTML dari tabel yang ada di layar
+  var htmlContent = tabelElement.outerHTML;
+
+  // Bungkus HTML dengan metadata Excel MS Office agar gridline dan encoding UTF-8 terbaca dengan benar
   var fullHtml =
-    `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>RL Gabungan</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body>` +
-    `<h2 style="text-align:center;">LAPORAN RL REKAP GABUNGAN</h2><h3 style="text-align:center;">Group: ${activeGroupLabel} | Masa: ${window._rlGabFilterMasa}</h3>` +
+    `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">` +
+    `<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>` +
+    `<x:Name>RL Lebar 12 Bln</x:Name>` +
+    `<x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>` +
+    `<body>` +
+    `<h2 style="text-align:center;">LAPORAN LABA RUGI LEBAR 12 BULAN</h2>` +
+    `<h3 style="text-align:center;">Cabang: ${namaCabang} | Group: ${group} | Tahun: ${tahun}</h3>` +
     htmlContent +
     `</body></html>`;
 
+  // Buat blob Excel menggunakan tipe vnd.ms-excel (.xls)
   var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
   a.href = url;
-  // ✅ TAMBAHAN OPSI GROUP: MASUKKAN GROUP KE FILENAME EXCEL
+
+  // Format nama file: RL_Lebar_[Cabang]_[Group]_[Tahun].xls
+  var cleanCab = namaCabang.replace(/[^a-zA-Z0-9]/g, "_");
   a.download =
-    "Laporan_RL_Gabungan_Group_" +
-    activeGroupLabel +
-    "_" +
-    (window._rlGabFilterMasa || "Export") +
-    ".xls";
+    "RL_Lebar_" + cleanCab + "_Group_" + group + "_" + tahun + ".xls";
+
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
-  if (typeof toast === "function")
-    toast("File Excel RL Gabungan sedang didownload...", "ok");
+
+  if (typeof toast === "function") {
+    toast("File Excel RL Lebar sedang didownload...", "ok");
+  }
 }
 function generateHTMLRLPercabangSD(
   daftarCabang,
