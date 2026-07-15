@@ -418,6 +418,12 @@ async function refreshCache() {
     }
     // 🚀 KELOMPOK 2: Data Operasional/Transaksi (DIFILTER SESUAI CABANG USER)
     // Golongan, Perkiraan, dll tetap memakai db.getAll karena kodenya sudah benar
+    // 🚀 KELOMPOK 2: Data Operasional (DIFILTER CABANG + GROUP SECARA OPTIMAL DI SERVER)
+    // Ambil group aktif dari localStorage (default: "TLGA" jika belum ada)
+    const activeGroup = localStorage.getItem("activeGroup") || "TLGA";
+
+    // Gunakan fetch murni agar kita bisa menyisipkan parameter &group=...
+    // dan memanfaatkan kecepatan filter yang sudah dibuat di serverold.js
     const [
       golongan,
       perkiraan,
@@ -426,12 +432,24 @@ async function refreshCache() {
       saldokasirawal,
       mutasikasir,
     ] = await Promise.all([
-      db.getAll("golongan", cabangSaya),
-      db.getAll("perkiraan", cabangSaya),
-      db.getAll("kodeBank", cabangSaya),
-      db.getAll("saldoKasir", cabangSaya),
-      db.getAll("saldokasirawal", cabangSaya),
-      db.getAll("mutasikasir", cabangSaya),
+      fetch(
+        `${baseUrl}golongan?cabang=${cabangSaya}&group=${activeGroup}`,
+      ).then((r) => r.json()),
+      fetch(
+        `${baseUrl}perkiraan?cabang=${cabangSaya}&group=${activeGroup}`,
+      ).then((r) => r.json()),
+      fetch(
+        `${baseUrl}kodeBank?cabang=${cabangSaya}&group=${activeGroup}`,
+      ).then((r) => r.json()),
+      fetch(
+        `${baseUrl}saldoKasir?cabang=${cabangSaya}&group=${activeGroup}`,
+      ).then((r) => r.json()),
+      fetch(
+        `${baseUrl}saldokasirawal?cabang=${cabangSaya}&group=${activeGroup}`,
+      ).then((r) => r.json()),
+      fetch(
+        `${baseUrl}mutasikasir?cabang=${cabangSaya}&group=${activeGroup}`,
+      ).then((r) => r.json()),
     ]);
 
     // Simpan Data Operasional
