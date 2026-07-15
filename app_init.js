@@ -243,6 +243,7 @@ function buildSidebar() {
           label: "RL Rekap Bulanan",
           icon: "fa-arrow-trend-down",
         },
+        { id: "neraca", label: "Neraca", icon: "fa-scale-balanced" },
         {
           id: "arusKas",
           label: "Arus Kas Gabungan",
