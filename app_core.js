@@ -846,6 +846,13 @@ var MENUS = [
         label: "RL Rekap Bulanan",
         icon: "fa-arrow-trend-down",
       },
+
+      {
+        id: "neraca",
+        label: "Laporan Neraca",
+        icon: "fa-scale-balanced",
+      },
+
       { id: "arusKas", label: "Arus Kas Gabungan", icon: "fa-money-bill-wave" },
       { id: "Omset", label: "Detil Omset Per Menu", icon: "fa-bars-staggered" },
     ],
