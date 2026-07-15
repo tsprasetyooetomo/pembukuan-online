@@ -442,6 +442,7 @@ async function refreshCache() {
       saldoKasir,
       saldokasirawal,
       mutasikasir,
+      saldo_harian,
     ] = await Promise.all([
       fetch(
         `${baseUrl}golongan?cabang=${cabangSaya}&group=${activeGroup}`,
@@ -461,6 +462,9 @@ async function refreshCache() {
       fetch(
         `${baseUrl}mutasikasir?cabang=${cabangSaya}&group=${activeGroup}`,
       ).then((r) => r.json()),
+      fetch(
+        `${baseUrl}saldo_harian?cabang=${cabangSaya}&group=${activeGroup}`,
+      ).then((r) => r.json()),
     ]);
 
     // Simpan Data Operasional
@@ -471,7 +475,7 @@ async function refreshCache() {
     DBCache.saldokasirawal = saldokasirawal;
 
     DBCache.mutasikasir = mutasikasir;
-
+    DBCache.saldo_harian = saldo_harian;
     // ========================================================
     // 🚀 1. AUTO-INJECTOR KE MEMORY (Agar tampilan langsung TLGA)
     // ========================================================
@@ -483,6 +487,7 @@ async function refreshCache() {
       "saldokasir",
       "saldokasirawal",
       "mutasikasir",
+      "saldo_harian",
     ];
 
     var needDbUpdate = []; // Array untuk menampung data yang perlu diupdate ke server
