@@ -29,7 +29,7 @@ if (typeof gPerks === "undefined") {
 }
 
 function renderNeraca() {
-  // A. SIAPKAN NILAI DEFAULT SAAT PERTAMA KALI DIBUKA
+  // A. SIAPKAN NILAI DEFAULT
   if (typeof window._neracaFilterCabang === "undefined") {
     window._neracaFilterCabang =
       typeof currentCabang !== "undefined" &&
@@ -38,77 +38,25 @@ function renderNeraca() {
         ? currentCabang
         : "Pusat";
   }
-
   if (typeof window._neracaFilterMasa === "undefined") {
     var d = new Date();
     var bln = ("0" + (d.getMonth() + 1)).slice(-2);
     window._neracaFilterMasa = bln + "-" + d.getFullYear();
   }
 
-  if (typeof window._neracaModeBackup === "undefined") {
-    window._neracaModeBackup = false;
-  }
-
   var partMasa = window._neracaFilterMasa.split("-");
-  var filterBulan = partMasa[0];
-  var filterTahunFull = partMasa[1];
-  var inputMonthValue = filterTahunFull + "-" + filterBulan;
+  var inputMonthValue = partMasa[1] + "-" + partMasa[0];
 
-  var rawCabang = DBCache.cabang || [];
-  var daftarCabangObj = [];
-
-  rawCabang.forEach(function (c) {
-    var id = (c.cabang || c.kode || "").trim();
-    var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
-    if (id) {
-      daftarCabangObj.push({ id: id, nama: nama });
-    }
-  });
-
-  daftarCabangObj.sort(function (a, b) {
-    return a.id.localeCompare(b.id, undefined, { numeric: true });
-  });
-
-  if (daftarCabangObj.length === 0) {
-    daftarCabangObj.push({ id: "PUSAT", nama: "PUSAT" });
-  }
-
-  var kodeDefault = window._neracaFilterCabang;
-  if (!kodeDefault) kodeDefault = daftarCabangObj[0].id;
-
-  var opsiCabangHtml = daftarCabangObj
-    .map(function (item) {
-      var sel =
-        item.id.toLowerCase() === kodeDefault.toLowerCase() ? "selected" : "";
-      return (
-        '<option value="' +
-        item.id +
-        '" ' +
-        sel +
-        ">" +
-        item.nama.toUpperCase() +
-        "</option>"
-      );
-    })
-    .join("");
-
-  // ==========================================
-  // PENGAMAN GROUP DARI LOCALSTORAGE
-  // ==========================================
-  var localGroup = localStorage.getItem("group");
-  if (!localGroup || localGroup === "undefined" || localGroup === "null") {
-    localGroup = "TLGA";
-  }
-  // ==========================================
+  // Ambil group aktif untuk ditampilkan di label
+  var groupAktif = localStorage.getItem("group") || "TLGA";
 
   var htmlLaporan =
     '<div id="area_cetak_neraca" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
     '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan Neraca</h3>' +
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
-    // Menggunakan variabel localGroup yang sudah divalidasi aman di atas:
-    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span style="color:var(--accent);">' +
-    localGroup +
+    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span id="label_neraca_group" style="color:var(--accent);">' +
+    groupAktif +
     "</span> | PILIHAN TAMPILAN:</div>" +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
@@ -118,8 +66,8 @@ function renderNeraca() {
     "</div>" +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Cabang:</label>' +
-    '<select id="filter_neraca_cabang" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;">' +
-    opsiCabangHtml +
+    // Tambahkan onchange di sini untuk mendeteksi pilihan "PUSAT"
+    '<select id="filter_neraca_cabang" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;" onchange="handleCabangChange(this.value)">' +
     "</select>" +
     "</div>" +
     '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiNeraca()">' +
@@ -141,9 +89,86 @@ function renderNeraca() {
     "</div>" +
     "</div>";
 
+  // Trigger pengisian opsi cabang pertama kali secara asinkron setelah HTML dimuat ke DOM
+  setTimeout(function () {
+    initOpsiCabangNeraca();
+  }, 50);
+
   return htmlLaporan;
 }
+// Fungsi awal untuk memuat isi cabang default dari cache
+function initOpsiCabangNeraca() {
+  var selectCabang = document.getElementById("filter_neraca_cabang");
+  if (!selectCabang) return;
 
+  var rawCabang = DBCache.cabang || [];
+  var kodeDefault = (window._neracaFilterCabang || "PUSAT").toUpperCase();
+
+  var html = "";
+  rawCabang.forEach(function (c) {
+    var id = (c.cabang || c.kode || "").trim();
+    var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
+    if (id) {
+      var sel = id.toUpperCase() === kodeDefault ? "selected" : "";
+      html +=
+        '<option value="' +
+        id +
+        '" ' +
+        sel +
+        ">" +
+        nama.toUpperCase() +
+        "</option>";
+    }
+  });
+
+  if (!html) {
+    html = '<option value="PUSAT">PUSAT</option>';
+  }
+  selectCabang.innerHTML = html;
+
+  // Jalankan pengecekan jika nilai bawaannya/default-nya adalah PUSAT
+  handleCabangChange(selectCabang.value);
+}
+
+// Fungsi inti: jika memilih PUSAT, filter opsi dropdown hanya untuk cabang dengan Group yang sama
+function handleCabangChange(valCabang) {
+  if (valCabang.toUpperCase() === "PUSAT" || valCabang === "00") {
+    var selectCabang = document.getElementById("filter_neraca_cabang");
+    var rawCabang = DBCache.cabang || [];
+    var groupAktif = (localStorage.getItem("group") || "TLGA")
+      .trim()
+      .toUpperCase();
+
+    // Saring cabang yang memiliki kesamaan group
+    var cabangSatuGroup = rawCabang.filter(function (c) {
+      var groupCabang = (c.group || c.kode_group || "").trim().toUpperCase();
+      return groupCabang === groupAktif;
+    });
+
+    if (cabangSatuGroup.length > 0) {
+      var html = "";
+      // Tetap masukkan pilihan PUSAT di baris paling atas sebagai penanda aktif
+      html +=
+        '<option value="' +
+        valCabang +
+        '" selected>PUSAT (SEMUA GROUP ' +
+        groupAktif +
+        ")</option>";
+
+      cabangSatuGroup.forEach(function (c) {
+        var id = (c.cabang || c.kode || "").trim();
+        var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
+        // Hindari duplikasi baris pusat
+        if (id && id.toUpperCase() !== "PUSAT" && id !== "00") {
+          html +=
+            '<option value="' + id + '">' + nama.toUpperCase() + "</option>";
+        }
+      });
+
+      selectCabang.innerHTML = html;
+    }
+  }
+}
 // =========================================================================
 // FUNGSI UTAMA: TAMPILKAN NERACA
 // =========================================================================
