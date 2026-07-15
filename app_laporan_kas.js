@@ -49,6 +49,7 @@ async function tutupBukuHarian() {
   var selectedChar = $("fk_kodebank").value;
   var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ Tambahkan filter group agar data konsisten
 
+  console.log(activeGroup);
   if (!selectedChar) {
     if (typeof toast === "function") toast("Pilih Kode Bank/Kas dulu!", "wrn");
     else alert("Pilih Kode Bank/Kas dulu!");
