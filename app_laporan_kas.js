@@ -50,6 +50,7 @@ async function tutupBukuHarian() {
   var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ Tambahkan filter group agar data konsisten
 
   console.log(activeGroup);
+
   if (!selectedChar) {
     if (typeof toast === "function") toast("Pilih Kode Bank/Kas dulu!", "wrn");
     else alert("Pilih Kode Bank/Kas dulu!");
@@ -672,6 +673,10 @@ function showDetailReff(noReff, rowCabang) {
     modalFrame.style.maxWidth = "1000px";
   }
 }
+
+
+
+
 /* ---------- Input Harian Layout Panel ---------- */
 PANEL_MAP.inputHarian = renderInputHarian;
 AFTER_RENDER.inputHarian = refreshInputHarian;
