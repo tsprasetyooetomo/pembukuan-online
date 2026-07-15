@@ -118,7 +118,73 @@ async function tutupBukuHarian() {
     alert("Gagal memperbarui saldo. Periksa log konsol server.");
   }
 }
+async function simpanSnapshotSaldo(
+  cabang,
+  char4,
+  tanggalAwal,
+  tanggalAkhir,
+  daftarSaldo,
+) {
+  try {
+    const kodeCabang = cabang || "Pusat";
+    const kodeChar = char4 || " ";
 
+    // ==========================================
+    // RADAR DETEKSI: ISI DATA DI CONSOLE BROWSER
+    // ==========================================
+    console.log("=== MEMULAI ANALISIS PROSES SIMPAN ===");
+    console.log("Tipe data daftarSaldo:", typeof daftarSaldo);
+    console.log(
+      "Apakah daftarSaldo berbentuk Array?",
+      Array.isArray(daftarSaldo),
+    );
+    console.log(
+      "Jumlah baris data terdeteksi:",
+      daftarSaldo ? daftarSaldo.length : 0,
+    );
+    console.log(
+      "Isi data mentah pertama:",
+      daftarSaldo ? daftarSaldo[0] : "KOSONG",
+    );
+    // ==========================================
+
+    await fetch(API_BASE_URL + "/api/saldo-harian/clear-range", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cabang: kodeCabang,
+        char4: kodeChar,
+        tanggalAwal: tanggalAwal,
+        tanggalAkhir: tanggalAkhir,
+      }),
+    });
+
+    const dataSiapSimpan = daftarSaldo.map((item) => {
+      return {
+        id: `${kodeCabang}_${kodeChar}_${item.tanggal}`,
+        cabang: kodeCabang,
+        char4: kodeChar,
+        tanggal: item.tanggal,
+        saldo_akhir: item.saldoAkhir,
+      };
+    });
+
+    console.log(
+      "Jumlah data setelah diformat siap kirim:",
+      dataSiapSimpan.length,
+    );
+
+    var response = await fetch(API_BASE_URL + `/api/batch/saldo_harian`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(dataSiapSimpan),
+    });
+
+    return await response.json();
+  } catch (error) {
+    console.error("Gagal total:", error);
+  }
+}
 /* ---------- FUNGSI EXPORT KAS HARIAN ---------- */
 function exportKasHarian() {
   // 1. Ambil data langsung dari wadah global hasil render layar
@@ -483,73 +549,7 @@ async function getSaldoAwalClient(cabang, tglAwal) {
   // Jika dari kedua tabel tidak ada, kembalikan 0
   return 0;
 }
-async function simpanSnapshotSaldo(
-  cabang,
-  char4,
-  tanggalAwal,
-  tanggalAkhir,
-  daftarSaldo,
-) {
-  try {
-    const kodeCabang = cabang || "Pusat";
-    const kodeChar = char4 || " ";
 
-    // ==========================================
-    // RADAR DETEKSI: ISI DATA DI CONSOLE BROWSER
-    // ==========================================
-    console.log("=== MEMULAI ANALISIS PROSES SIMPAN ===");
-    console.log("Tipe data daftarSaldo:", typeof daftarSaldo);
-    console.log(
-      "Apakah daftarSaldo berbentuk Array?",
-      Array.isArray(daftarSaldo),
-    );
-    console.log(
-      "Jumlah baris data terdeteksi:",
-      daftarSaldo ? daftarSaldo.length : 0,
-    );
-    console.log(
-      "Isi data mentah pertama:",
-      daftarSaldo ? daftarSaldo[0] : "KOSONG",
-    );
-    // ==========================================
-
-    await fetch(API_BASE_URL + "/api/saldo-harian/clear-range", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        cabang: kodeCabang,
-        char4: kodeChar,
-        tanggalAwal: tanggalAwal,
-        tanggalAkhir: tanggalAkhir,
-      }),
-    });
-
-    const dataSiapSimpan = daftarSaldo.map((item) => {
-      return {
-        id: `${kodeCabang}_${kodeChar}_${item.tanggal}`,
-        cabang: kodeCabang,
-        char4: kodeChar,
-        tanggal: item.tanggal,
-        saldo_akhir: item.saldoAkhir,
-      };
-    });
-
-    console.log(
-      "Jumlah data setelah diformat siap kirim:",
-      dataSiapSimpan.length,
-    );
-
-    var response = await fetch(API_BASE_URL + `/api/batch/saldo_harian`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dataSiapSimpan),
-    });
-
-    return await response.json();
-  } catch (error) {
-    console.error("Gagal total:", error);
-  }
-}
 
 // --- FUNGSI MODAL RINCIAN (UPDATE: TAMBAH KOLOM CABANG & SUPPORT SEMUA CABANG) ---
 // --- FUNGSI MODAL RINCIAN (VERSI SPESIFIK: MENGUNCI SESUAI BARIS YANG DIKLIK) ---
