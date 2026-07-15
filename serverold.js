@@ -701,19 +701,18 @@ app.post("/api/save-batch", async (req, res) => {
 });
 
 // 14. SALDO HARIAN CLEAR RANGE
+// PAKAI KODE INI:
 app.post("/api/saldo-harian/clear-range", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
-    const { cabang, char4, tanggalAwal, tanggalAkhir } = req.body;
+    const { tanggalAwal, tanggalAkhir } = req.body; // ✅ Tidak pakai cabang & char4 lagi
     if (!tanggalAwal || !tanggalAkhir)
       return res.status(400).json({ error: "Date Required" });
-    const sql = `DELETE FROM saldo_harian WHERE data->>'cabang' = $1 AND data->>'char4' = $2 AND data->>'tanggal' BETWEEN $3 AND $4`;
-    await db.query(sql, [
-      cabang || "Pusat",
-      char4 || " ",
-      tanggalAwal,
-      tanggalAkhir,
-    ]);
+
+    // ✅ LOGIKA BARU: Hapus berdasarkan rentang tanggal di dalam format JSON
+    const sql = `DELETE FROM saldo_harian WHERE CAST(data AS jsonb)->>'tanggal' >= $1 AND CAST(data AS jsonb)->>'tanggal' <= $2`;
+    await db.query(sql, [tanggalAwal, tanggalAkhir]);
+
     res.json({ message: "Cleared" });
   } catch (e) {
     res.status(500).json({ error: e.message });
