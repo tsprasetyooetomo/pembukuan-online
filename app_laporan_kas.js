@@ -497,14 +497,21 @@ async function refreshKasHarian() {
 async function getSaldoAwalClient(cabang, tglAwal) {
   var cab = cabang || "Pusat";
 
-  // 1. Pastikan data saldokasir sudah ada di memori (DBCache)
-  if (!DBCache.saldokasir) {
-    console.log("Fetching saldokasir...");
-    DBCache.saldokasir = await db.getAll("saldokasir");
+  // 1. Pastikan data saldo_harian sudah ada di memori (DBCache)
+  if (!DBCache.saldo_harian) {
+    console.log("Fetching saldo_harian...");
+    DBCache.saldo_harian = await db.getAll("saldo_harian");
   }
 
-  // 2. CARI SALDO TERAKHIR DI TABEL saldokasir SEBELUM tglAwal
-  var listSaldo = (DBCache.saldokasir || []).filter(function (s) {
+  // ✅ KEAMAN: Pastikan selalu berupa Array
+  var rawSaldoHarian = Array.isArray(DBCache.saldo_harian)
+    ? DBCache.saldo_harian
+    : typeof DBCache.saldo_harian === "object"
+      ? Object.values(DBCache.saldo_harian || {})
+      : [];
+
+  // 2. CARI SALDO TERAKHIR DI TABEL saldo_harian SEBELUM tglAwal
+  var listSaldo = rawSaldoHarian.filter(function (s) {
     // Flexibilitas nama kolom cabang (kode_cabang atau cabang)
     var sCab = s.kode_cabang || s.cabang || "Pusat";
     if (sCab !== cab) return false;
@@ -534,7 +541,7 @@ async function getSaldoAwalClient(cabang, tglAwal) {
     );
   }
 
-  // 3. FALLBACK: Jika tidak ada riwayat di saldokasir, ambil dari saldokasirawal
+  // 3. FALLBACK: Jika tidak ada riwayat di saldo_harian, ambil dari saldokasirawal
   if (!DBCache.saldokasirawal) {
     console.log("Fetching saldokasirawal...");
     DBCache.saldokasirawal = await db.getAll("saldokasirawal");
@@ -567,7 +574,6 @@ async function getSaldoAwalClient(cabang, tglAwal) {
   // Jika dari kedua tabel tidak ada, kembalikan 0
   return 0;
 }
-
 // --- FUNGSI MODAL RINCIAN (UPDATE: TAMBAH KOLOM CABANG & SUPPORT SEMUA CABANG) ---
 // --- FUNGSI MODAL RINCIAN (VERSI SPESIFIK: MENGUNCI SESUAI BARIS YANG DIKLIK) ---
 function showDetailReff(noReff, rowCabang) {
