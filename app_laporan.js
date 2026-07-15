@@ -581,8 +581,47 @@ function downloadNeracaExcel() {
   try {
     var tableClone = table.cloneNode(true);
 
+    // Ambil parameter data untuk judul laporan
+    var masa = window._neracaFilterMasa || "Semua";
+    // Cari elemen nama cabang dari filter UI, sesuaikan ID elemen jika berbeda (misal: "fk_cabang" atau "filter_cabang")
+    var namaCabang = document.getElementById("fk_cabang")
+      ? document.getElementById("fk_cabang").value
+      : window._neracaFilterCabang || "Pusat";
+    var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+
+    // ✅ TINGKATKAN EXCEL: Sisipkan Judul Laporan di baris paling atas tabel kloning
+    var tbody = tableClone.querySelector("tbody") || tableClone;
+    var firstRow = tableClone.rows[0];
+
+    // Hitung total kolom tabel asli untuk menggabungkan kolom judul (colspan)
+    var totalKolom = firstRow ? firstRow.cells.length : 5;
+
+    // Buat element penampung baris judul baru
+    var headerContainer = document.createElement("tr");
+    headerContainer.innerHTML = `
+      <td colspan="${totalKolom}" style="font-weight:bold; font-size:16px; text-align:left; border:none; padding:5px 0;">
+        LAPORAN NERACA ${namaCabang.toUpperCase()}
+      </td>
+    `;
+
+    var periodContainer = document.createElement("tr");
+    periodContainer.innerHTML = `
+      <td colspan="${totalKolom}" style="font-weight:bold; font-size:12px; text-align:left; border:none; padding:3px 0 15px 0;">
+        PERIODE: ${masa.toUpperCase()} | GROUP: ${activeGroupLabel.toUpperCase()}
+      </td>
+    `;
+
+    // Sisipkan judul di baris paling depan (sebelum content header tabel utama)
+    tableClone.insertBefore(periodContainer, tableClone.firstChild);
+    tableClone.insertBefore(headerContainer, tableClone.firstChild);
+
+    // Looping baris tabel asli (indeks otomatis bergeser karena ada baris judul baru di atas)
     for (var i = 0; i < tableClone.rows.length; i++) {
       var row = tableClone.rows[i];
+
+      // Lewati pembersihan format untuk 2 baris judul yang baru saja kita tambahkan
+      if (i < 2) continue;
+
       for (var j = 0; j < row.cells.length; j++) {
         row.cells[j].removeAttribute("onclick");
       }
@@ -614,7 +653,7 @@ function downloadNeracaExcel() {
           cellSaldo.setAttribute("x:num", numVal);
           cellSaldo.setAttribute(
             "style",
-            "mso-number-format:#\.##0; text-align:right; " +
+            "mso-number-format:#\\.##0; text-align:right; " +
               (cellSaldo.getAttribute("style") || ""),
           );
         }
@@ -630,15 +669,9 @@ function downloadNeracaExcel() {
     var a = document.createElement("a");
     a.href = url;
 
-    var masa = (window._neracaFilterMasa || "Semua").replace(
-      /[^a-zA-Z0-9\-]/g,
-      "_",
-    );
-
-    // ✅ TAMBAHAN GROUP: MASUKKAN NAMA GROUP KE FILENAME EXCEL
-    var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+    var fileMasa = masa.replace(/[^a-zA-Z0-9\-]/g, "_");
     a.download =
-      "Laporan_Neraca_" + masa + "_Group_" + activeGroupLabel + ".xls";
+      "Laporan_Neraca_" + fileMasa + "_Group_" + activeGroupLabel + ".xls";
 
     document.body.appendChild(a);
     a.click();
