@@ -118,10 +118,6 @@ function generateTahunOpts(selectedTahun) {
   return opts;
 }
 
-/* ================================================================
-   POPULATE KE DOM
-   ================================================================ */
-
 function populateKodeBankOpts(cabangKode) {
   var el = $("m_kb");
   if (!el) return;
@@ -134,9 +130,6 @@ function populatePerkiraanOpts(cabangKode) {
   el.innerHTML = generatePerkOpts(cabangKode, el.value);
 }
 
-/* ================================================================
-   GENERATE NO REF
-   ================================================================ */
 function generateNoreff(kodeBank, tanggal, cabangKode) {
   if (!kodeBank || !tanggal) return "";
 
@@ -199,9 +192,6 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
   return currentPrefix + String(nextUrut).padStart(4, "0");
 }
 
-/* ================================================================
-   RENDER MUTASI
-   ================================================================ */
 function renderMutasi() {
   var today = new Date().toISOString().split("T")[0];
 
@@ -328,10 +318,6 @@ function renderMutasi() {
   );
 }
 
-/* ================================================================
-   INIT STATE
-   ================================================================ */
-
 function initMutasiState() {
   _mutSession = { noreff: "", isLocked: false };
 
@@ -396,10 +382,6 @@ function initMutasiState() {
   }, 100);
 }
 
-/* ================================================================
-   EVENT HANDLERS
-   ================================================================ */
-
 function onCabangChange() {
   var cab = $("m_cab").value;
   populateKodeBankOpts(cab);
@@ -443,9 +425,6 @@ function onFilterChange() {
   renderNoreffList();
 }
 
-/* ================================================================
-   TAMBAH DETIL
-   ================================================================ */
 function _mutUnlockHeader() {
   _mutSession.isLocked = false;
   try {
@@ -458,70 +437,6 @@ function _mutUnlockHeader() {
     if ($("m_tgl")) $("m_tgl").disabled = false;
   } catch (e) {}
 }
-
-async function SafeaddDetil() {
-  var noreff = _mutSession.noreff || $("m_noref").value;
-  if (!noreff)
-    return toast("Isi Kode Bank & Tanggal di header terlebih dahulu", "err");
-
-  var noper = $("d_perk").value;
-  var penjelasan = $("d_penjelasan").value.trim();
-  var rp = num($("d_rp").value);
-
-  if (!noper || !penjelasan || rp <= 0)
-    return toast("No Perkiraan, Penjelasan, dan Rp wajib diisi!", "err");
-
-  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
-  var activeGroup = localStorage.getItem("group") || "";
-
-  _mutSession.isLocked = true;
-  $("m_cab").disabled = true;
-  $("m_kb").disabled = true;
-  $("m_tgl").disabled = true;
-
-  try {
-    await db.add("transaksi", {
-      id: uid(),
-      noreff: noreff,
-      tanggal: $("m_tgl").value,
-      kodeBank: $("m_kb").value,
-      cabang: $("m_cab").value,
-      dariKePada: $("m_dkp").value.trim(),
-      noperkiraan: noper,
-      desc: penjelasan,
-      total: rp,
-      db: rp,
-      cr: 0,
-      kodeTrans: "",
-      group: activeGroup, // ✅ GROUP DIMASUKKAN KE DATABASE
-    });
-
-    await refreshCache("transaksi");
-
-    $("d_perk").value = "";
-    $("d_penjelasan").value = "";
-    $("d_rp").value = "";
-    $("d_penjelasan").focus();
-
-    renderDetilTable();
-    updateHeaderNominal();
-    renderNoreffList();
-    updateMutasiSummary();
-    toast("Detil ditambahkan", "ok");
-  } catch (error) {
-    console.error("Gagal menyimpan detil:", error);
-    toast("Gagal simpan: " + (error.message || "Kesalahan database"), "err");
-
-    _mutSession.isLocked = false;
-    $("m_cab").disabled = false;
-    $("m_kb").disabled = false;
-    $("m_tgl").disabled = false;
-  }
-}
-
-/* ================================================================
-   EDIT / HAPUS DETIL
-   ================================================================ */
 
 function editDetil(id) {
   var d = DBCache.transaksi.find(function (t) {
@@ -550,299 +465,6 @@ function editDetil(id) {
   );
 }
 
-async function saveEditDetil(id) {
-  var r = await db.get("transaksi", id);
-  if (!r) return;
-
-  var noper = $("ed_perk").value;
-  var penjelasan = $("ed_penjelasan").value.trim();
-  var rp = num($("ed_rp").value);
-
-  if (!noper || !penjelasan || rp <= 0)
-    return toast("Field wajib tidak boleh kosong!", "err");
-
-  await db.put(
-    "transaksi",
-    Object.assign({}, r, {
-      noperkiraan: noper,
-      desc: penjelasan,
-      total: rp,
-      db: rp,
-    }),
-  );
-
-  closeModal();
-  await refreshCache("transaksi");
-  renderDetilTable();
-  updateHeaderNominal();
-  renderNoreffList();
-  updateMutasiSummary();
-  toast("Detil diperbarui", "ok");
-}
-
-async function hapusDetil(id) {
-  var isYes = confirm("Yakin hapus detil ini?");
-  if (!isYes) return;
-
-  try {
-    await db.del("transaksi", id);
-
-    if (Array.isArray(DBCache.transaksi)) {
-      DBCache.transaksi = DBCache.transaksi.filter(function (t) {
-        return t.id !== id;
-      });
-    }
-
-    var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
-    var sisaDetil = transaksi.filter(function (t) {
-      return t.noreff === _mutSession.noreff;
-    }).length;
-
-    if (sisaDetil === 0) {
-      _mutSession.isLocked = false;
-      if ($("m_cab")) $("m_cab").disabled = false;
-      if ($("m_kb")) $("m_kb").disabled = false;
-      if ($("m_tgl")) $("m_tgl").disabled = false;
-      if ($("m_nominal")) $("m_nominal").value = "0";
-    }
-
-    if (typeof renderDetilTable === "function") renderDetilTable();
-    if (typeof refreshKasHarian === "function") refreshKasHarian();
-
-    toast("Detil transaksi berhasil dihapus.");
-
-    // ✅ DARI FILE BARU: PAKSA BROWSER BERHENTI MELAKUKAN RELOAD SENSITIF
-    window.stop();
-    return false;
-  } catch (error) {
-    console.error("Gagal saat mencoba menghapus detil:", error);
-    alert("Terjadi kesalahan sistem saat menghapus data.");
-  }
-}
-
-/* ================================================================
-   UPDATE NOMINAL HEADER
-   ================================================================ */
-
-function updateHeaderNominal() {
-  var noreff = _mutSession.noreff;
-  if (!noreff) return;
-
-  var totalRp = 0;
-  var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
-  transaksi.forEach(function (t) {
-    if (t.noreff === noreff) totalRp += num(t.total);
-  });
-  $("m_nominal").value = fmtN(totalRp);
-}
-
-/* ================================================================
-   RENDER TABEL DETIL
-   ================================================================ */
-
-function renderDetilTable() {
-  var noreff = _mutSession.noreff;
-  var activeCab = $("m_cab") ? $("m_cab").value : "";
-  var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
-
-  // ✅ DARI FILE BARU: FILTER KETAT: Harus Sama Noreff DAN Sama Cabang
-  var detilData = [];
-  if (noreff && activeCab) {
-    detilData = transaksi.filter(function (t) {
-      return (
-        t.noreff === noreff && String(t.cabang || "") === String(activeCab)
-      );
-    });
-  }
-
-  detilData.sort(function (a, b) {
-    return b.id.localeCompare(a.id);
-  });
-
-  var tblEl = $("mutDetilTbl");
-  if (!tblEl) return;
-
-  if (!detilData.length) {
-    tblEl.innerHTML =
-      '<div class="empty-msg"><i class="fa-solid fa-inbox"></i> Belum ada detil untuk No Ref: ' +
-      esc(noreff || "...") +
-      " (Cabang: " +
-      esc(activeCab) +
-      ")" +
-      "</div>";
-    return;
-  }
-
-  var rows = detilData.map(function (r) {
-    return [
-      r.tanggal || "-",
-      esc(r.noperkiraan || "-"),
-      esc(r.desc || "-"),
-      '<span style="font-weight:600">' + fmtN(r.total) + "</span>",
-      '<span style="font-size:.75rem;color:var(--muted)">' +
-        esc(r.noreff) +
-        "</span>",
-      // ✅ DARI FILE BARU: DATA KOLOM CABANG
-      '<span style="font-weight:600; color:var(--accent)">' +
-        esc(r.cabang || "-") +
-        "</span>",
-      '<button class="btn btn-g btn-sm" onclick="editDetil(\'' +
-        r.id +
-        '\')"><i class="fa-solid fa-pen"></i></button> ' +
-        '<button type="button" class="btn btn-r btn-sm" onclick="event.preventDefault(); event.stopPropagation(); hapusDetil(\'' +
-        r.id +
-        "'); return false;\">" +
-        '<i class="fa-solid fa-trash"></i>' +
-        "</button>",
-    ];
-  });
-
-  // ✅ DARI FILE BARU: HEADER TABEL "Cabang" ditambahkan di urutan ke-6
-  var headers = [
-    "Tanggal",
-    "No Acct",
-    "Penjelasan",
-    "Rp",
-    "No Referensi",
-    "Cabang",
-    "Aksi",
-  ];
-
-  tblEl.innerHTML =
-    '<div class="ts"><table>' +
-    buildTable(headers, rows, {
-      numCols: [3],
-    }) +
-    "</table></div>";
-}
-
-/* ================================================================
-   RENDER RIWAYAT NO REF
-   ================================================================ */
-
-function renderNoreffList() {
-  var box = $("mutNoreffList");
-  var countBox = $("mutNoreffCount");
-  if (!box) return;
-
-  var data = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
-
-  // ✅ DARI FILE BARU: BACA NILAI FILTER DARI DROPDOWN
-  var filterCabang = $("filter_cabang_list")
-    ? $("filter_cabang_list").value
-    : "";
-  var filterBulan = $("filter_bulan") ? $("filter_bulan").value : "";
-  var filterTahun = $("filter_tahun") ? $("filter_tahun").value : "";
-
-  var filtered = data.filter(function (t) {
-    if (!t.noreff || !t.tanggal) return false;
-
-    if (filterCabang && String(t.cabang || "") !== String(filterCabang))
-      return false;
-
-    if (filterBulan) {
-      var dataBulan = t.tanggal.substring(5, 7);
-      var userBulan = filterBulan.padStart(2, "0");
-      if (dataBulan !== userBulan) return false;
-    }
-
-    if (filterTahun && t.tanggal.substring(0, 4) !== filterTahun) return false;
-
-    return true;
-  });
-
-  if (filtered.length === 0) {
-    box.innerHTML =
-      '<div style="padding:.8rem;color:var(--muted);text-align:center;font-size:.75rem">' +
-      '<i class="fa-solid fa-filter-circle-xmark"></i> Tidak ada data' +
-      "<br><small>Cabang: " +
-      esc(filterCabang || "Semua") +
-      " | Bulan: " +
-      esc(filterBulan || "Semua") +
-      " | Tahun: " +
-      esc(filterTahun || "Semua") +
-      "</small></div>";
-    if (countBox) countBox.textContent = "";
-    return;
-  }
-
-  var uniqueNoreff = {};
-  filtered.forEach(function (t) {
-    if (t.noreff && !uniqueNoreff[t.noreff]) {
-      uniqueNoreff[t.noreff] = {
-        tanggal: t.tanggal || "-",
-        jumlahDetil: 0,
-        totalRp: 0,
-        cabang: t.cabang || "-",
-      };
-    }
-    if (uniqueNoreff[t.noreff]) {
-      uniqueNoreff[t.noreff].jumlahDetil++;
-      uniqueNoreff[t.noreff].totalRp += num(t.total);
-    }
-  });
-
-  var arrNoreff = Object.keys(uniqueNoreff).map(function (noreff) {
-    return Object.assign({ noreff: noreff }, uniqueNoreff[noreff]);
-  });
-
-  // ✅ DARI FILE BARU: URUTAN DIGIT BELAKANG MENGGUNAKAN localeCompare numeric
-  arrNoreff.sort(function (a, b) {
-    var suffixA = String(a.noreff || "").slice(-8);
-    var suffixB = String(b.noreff || "").slice(-8);
-    return suffixA.localeCompare(suffixB, undefined, { numeric: true });
-  });
-
-  var html = '<table style="width:100%;border-collapse:collapse">';
-  html +=
-    '<thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1">';
-  html +=
-    '<th style="padding:4px;text-align:left;font-size:.65rem">No Ref</th>';
-  html +=
-    '<th style="padding:4px;text-align:center;font-size:.65rem;width:30px">D</th>';
-  html +=
-    '<th style="padding:4px;text-align:right;font-size:.65rem;width:65px">Total</th>';
-  html += "</tr></thead><tbody>";
-
-  arrNoreff.forEach(function (item) {
-    var isActive = item.noreff === _mutSession.noreff;
-    var rowStyle =
-      "cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s;";
-    if (isActive)
-      rowStyle += "background:var(--accent);color:#fff;font-weight:600;";
-
-    html +=
-      '<tr style="' +
-      rowStyle +
-      '" onclick="onNoreffClicked(\'' +
-      esc(item.noreff) +
-      "')\" " +
-      (isActive ? ' data-active="1"' : "") +
-      ">";
-    html +=
-      '<td style="padding:4px;font-size:.7rem;font-family:monospace">' +
-      esc(item.noreff) +
-      (item.cabang
-        ? ' <small style="opacity:0.7">(' + esc(item.cabang) + ")</small>"
-        : "") +
-      "</td>";
-    html +=
-      '<td style="padding:4px;font-size:.65rem;text-align:center">' +
-      item.jumlahDetil +
-      "</td>";
-    html +=
-      '<td style="padding:4px;font-size:.7rem;text-align:right;font-weight:600">' +
-      fmtN(item.totalRp) +
-      "</td>";
-    html += "</tr>";
-  });
-
-  html += "</tbody></table>";
-  box.innerHTML = html;
-
-  if (countBox) countBox.textContent = arrNoreff.length + " transaksi";
-}
-
 function updateMutasiSummary() {
   var noreff = _mutSession.noreff;
   if (!noreff) return;
@@ -858,44 +480,6 @@ function updateMutasiSummary() {
     }
   });
 }
-
-/* ================================================================
-   EVENT: NO REF DIKLIK
-   ================================================================ */
-
-function onNoreffClicked(noreffTarget) {
-  if (noreffTarget === _mutSession.noreff) return;
-
-  var headerData = DBCache.transaksi.find(function (t) {
-    return t.noreff === noreffTarget;
-  });
-  if (!headerData) return;
-
-  _mutSession.noreff = noreffTarget;
-  _mutSession.isLocked = true;
-
-  $("m_noref").value = noreffTarget;
-  $("m_tgl").value = headerData.tanggal || "";
-  $("m_cab").value = headerData.cabang || "";
-  $("m_kb").value = headerData.kodeBank || "";
-  $("m_dkp").value = headerData.dariKePada || "";
-
-  $("m_cab").disabled = true;
-  $("m_kb").disabled = true;
-  $("m_tgl").disabled = true;
-
-  populateKodeBankOpts(headerData.cabang);
-  populatePerkiraanOpts(headerData.cabang);
-
-  updateHeaderNominal();
-  renderDetilTable();
-  renderNoreffList();
-  updateMutasiSummary();
-}
-
-/* ================================================================
-   RESET
-   ================================================================ */
 
 function resetToNewTransaction() {
   _mutSession = { noreff: "", isLocked: false };
@@ -913,174 +497,6 @@ function resetToNewTransaction() {
   renderNoreffList();
   updateMutasiSummary();
 }
-
-/* ================================================================
-   PRINT MUTASI
-   ================================================================ */
-
-function printMutasi() {
-  var noreff = _mutSession.noreff || $("m_noref").value;
-
-  if (!noreff) {
-    return toast(
-      "Pilih transaksi terlebih dahulu (klik No Ref di riwayat)",
-      "wrn",
-    );
-  }
-
-  var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
-  var detilData = transaksi.filter(function (t) {
-    return t.noreff === noreff;
-  });
-
-  if (detilData.length === 0) {
-    return toast("Tidak ada detil untuk No Ref ini", "wrn");
-  }
-
-  var header = detilData[0];
-  var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
-  var tanggal = header.tanggal || "-";
-  var kodeBank = header.kodeBank || "-";
-  var dariKePada = header.dariKePada || "-";
-
-  var totalRp = 0;
-  detilData.forEach(function (t) {
-    totalRp += num(t.total);
-  });
-
-  var kbList = Array.isArray(DBCache.kodeBank) ? DBCache.kodeBank : [];
-  var kbData = kbList.find(function (k) {
-    return k.kodebank === kodeBank;
-  });
-  var kbPenjelasan = kbData ? kbData.penjelasan : "";
-
-  var printHtml =
-    "<!DOCTYPE html>" +
-    "<html><head>" +
-    '<meta charset="UTF-8">' +
-    "<title>Print Mutasi - " +
-    esc(noreff) +
-    "</title>" +
-    "<style>" +
-    "* { margin: 0; padding: 0; box-sizing: border-box; }" +
-    'body { font-family: "Courier New", Courier, monospace; font-size: 12px; padding: 15px; color: #000; }' +
-    ".header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 10px; }" +
-    ".header h2 { font-size: 16px; margin-bottom: 4px; }" +
-    ".header p { font-size: 12px; color: #000; font-weight: bold; }" +
-    ".info-grid { display: grid; grid-template-columns: 130px 1fr; gap: 3px 10px; margin-bottom: 15px; font-size: 12px; }" +
-    ".info-grid .label { font-weight: bold; }" +
-    "table { width: 100%; border-collapse: collapse; margin-bottom: 15px; }" +
-    "th, td { border: 1px solid #000; padding: 5px 8px; text-align: left; font-size: 11px; }" +
-    "th { background: #eee; font-weight: bold; text-align: center; }" +
-    'td.rp { text-align: right; font-family: "Courier New", monospace; }' +
-    "td.center { text-align: center; }" +
-    ".total-row { font-weight: bold; background: #f5f5f5; }" +
-    ".footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #000; font-size: 10px; color: #555; display: flex; justify-content: space-between; }" +
-    ".footer .sign { text-align: center; width: 150px; }" +
-    ".footer .sign .line { margin-top: 50px; border-bottom: 1px solid #000; }" +
-    "@media print { body { padding: 0; } }" +
-    "</style>" +
-    "</head><body>" +
-    // ✅ DARI FILE BARU: KOP SURAT CABANG DI ATAS
-    '<div class="header">' +
-    "<h2>MUTASI TRANSAKSI</h2>" +
-    "<p>Cabang: " +
-    esc(cabangLabel) +
-    "</p>" +
-    "</div>" +
-    // ✅ DARI FILE BARU: NO REF DI BARIS PERTAMA
-    '<div class="info-grid">' +
-    '<div class="label">No Referensi</div><div>: ' +
-    esc(noreff) +
-    "</div>" +
-    '<div class="label">Kode Bank</div><div>: ' +
-    esc(kodeBank) +
-    (kbPenjelasan ? " (" + esc(kbPenjelasan) + ")" : "") +
-    "</div>" +
-    '<div class="label">Tanggal</div><div>: ' +
-    esc(tanggal) +
-    "</div>" +
-    '<div class="label">Dari / Kepada</div><div>: ' +
-    esc(dariKePada) +
-    "</div>" +
-    "</div>" +
-    "<table>" +
-    "<thead>" +
-    "<tr>" +
-    '<th style="width:40px">No</th>' +
-    '<th style="width:100px">No Perkiraan</th>' +
-    "<th>Penjelasan</th>" +
-    '<th style="width:140px">Rp</th>' +
-    "</tr>" +
-    "</thead>" +
-    "<tbody>";
-
-  detilData.forEach(function (d, idx) {
-    printHtml +=
-      "<tr>" +
-      '<td class="center">' +
-      (idx + 1) +
-      "</td>" +
-      "<td>" +
-      esc(d.noperkiraan || "-") +
-      "</td>" +
-      "<td>" +
-      esc(d.desc || "-") +
-      "</td>" +
-      '<td class="rp">' +
-      fmtN(d.total) +
-      "</td>" +
-      "</tr>";
-  });
-
-  printHtml +=
-    '<tr class="total-row">' +
-    '<td colspan="3" style="text-align:right">TOTAL</td>' +
-    '<td class="rp">' +
-    fmtN(totalRp) +
-    "</td>" +
-    "</tr>" +
-    "</tbody>" +
-    "</table>" +
-    '<div style="margin-bottom:15px;font-size:11px">' +
-    "<strong>Terbilang:</strong> " +
-    terbilang(totalRp) +
-    " Rupiah" +
-    "</div>" +
-    '<div class="footer">' +
-    '<div class="sign">' +
-    "Dibuat oleh,<br><br><br>" +
-    '<div class="line"></div>' +
-    "</div>" +
-    '<div class="sign">' +
-    "Diperiksa oleh,<br><br><br>" +
-    '<div class="line"></div>' +
-    "</div>" +
-    '<div class="sign">' +
-    "Disetujui oleh,<br><br><br>" +
-    '<div class="line"></div>' +
-    "</div>" +
-    "</div>" +
-    "</body></html>";
-
-  var printWindow = window.open("", "_blank", "width=800,height=600");
-  if (!printWindow) {
-    return toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
-  }
-
-  printWindow.document.write(printHtml);
-  printWindow.document.close();
-
-  printWindow.onload = function () {
-    setTimeout(function () {
-      printWindow.print();
-    }, 300);
-  };
-}
-
-/* ================================================================
-   FUNGSI TERBILANG
-   ================================================================ */
 
 function terbilang(n) {
   if (!n || n === 0) return "Nol";
@@ -1319,43 +735,484 @@ async function clearAllDataMutasi(storeName) {
   };
 }
 
-async function clearAllDataMutasi2(storeName) {
-  var labelMap = {
-    golongan: "Golongan",
-    perkiraan: "No Perkiraan",
-    kodeBank: "Kode Bank",
-    transaksi: "Transaksi",
-  };
-  var label = labelMap[storeName] || storeName;
-  if (
-    !confirm(
-      "PERINGATAN!\n\nSemua data " +
-        label +
-        " akan dihapus secara permanen.\n\nLanjutkan?",
-    )
-  )
-    return;
+async function SafeaddDetil() {
+  var noreff = _mutSession.noreff || $("m_noref").value;
+  if (!noreff)
+    return toast("Isi Kode Bank & Tanggal di header terlebih dahulu", "err");
+
+  var noper = $("d_perk").value;
+  var penjelasan = $("d_penjelasan").value.trim();
+  var rp = num($("d_rp").value);
+
+  if (!noper || !penjelasan || rp <= 0)
+    return toast("No Perkiraan, Penjelasan, dan Rp wajib diisi!", "err");
+
+  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
+  _mutSession.isLocked = true;
+  $("m_cab").disabled = true;
+  $("m_kb").disabled = true;
+  $("m_tgl").disabled = true;
+
   try {
-    await db.clear(storeName);
-    if (DBCache[storeName]) {
-      DBCache[storeName] = [];
-    }
-    toast("Semua data " + label + " berhasil dikosongkan", "ok");
-    safeRenderCurrentPanel();
-  } catch (err) {
-    toast("Gagal mengosongkan data: " + err.message, "err");
+    var newDetil = {
+      id: uid(),
+      noreff: noreff,
+      tanggal: $("m_tgl").value,
+      kodeBank: $("m_kb").value,
+      cabang: $("m_cab").value,
+      dariKePada: $("m_dkp").value.trim(),
+      noperkiraan: noper,
+      desc: penjelasan,
+      total: rp,
+      db: rp,
+      cr: 0,
+      kodeTrans: "",
+      group: activeGroup, // ✅ GROUP DIMASUKKAN
+    };
+
+    // ✅ GANTI db.add DENGAN fetch KE SUPABASE
+    await fetch(window.location.origin + "/api/data/transaksi", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newDetil),
+    });
+
+    if (!DBCache.transaksi) DBCache.transaksi = [];
+    DBCache.transaksi.push(newDetil);
+
+    $("d_perk").value = "";
+    $("d_penjelasan").value = "";
+    $("d_rp").value = "";
+    $("d_penjelasan").focus();
+    renderDetilTable();
+    updateHeaderNominal();
+    renderNoreffList();
+    updateMutasiSummary();
+    toast("Detil ditambahkan ke Server", "ok");
+  } catch (error) {
+    console.error("Gagal menyimpan detil:", error);
+    toast("Gagal simpan: " + (error.message || "Kesalahan database"), "err");
+    _mutSession.isLocked = false;
+    $("m_cab").disabled = false;
+    $("m_kb").disabled = false;
+    $("m_tgl").disabled = false;
   }
 }
+
+async function saveEditDetil(id) {
+  var dataLama = DBCache.transaksi
+    ? DBCache.transaksi.find(function (t) {
+        return t.id === id;
+      })
+    : null;
+  if (!dataLama) return toast("Data tidak ditemukan di cache!", "err");
+
+  var noper = $("ed_perk").value;
+  var penjelasan = $("ed_penjelasan").value.trim();
+  var rp = num($("ed_rp").value);
+
+  if (!noper || !penjelasan || rp <= 0)
+    return toast("Field wajib tidak boleh kosong!", "err");
+
+  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
+  try {
+    var objUpdate = Object.assign({}, dataLama, {
+      noperkiraan: noper,
+      desc: penjelasan,
+      total: rp,
+      db: rp,
+      group: activeGroup, // ✅ PASTIKAN GROUP SELALU TERUPDATE
+    });
+
+    // ✅ GANTI db.get/db.put DENGAN fetch KE SUPABASE
+    await fetch(window.location.origin + "/api/data/transaksi/" + id, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(objUpdate),
+    });
+
+    // Update cache lokal
+    var idx = DBCache.transaksi.findIndex((t) => t.id === id);
+    if (idx !== -1) DBCache.transaksi[idx] = objUpdate;
+
+    closeModal();
+    renderDetilTable();
+    updateHeaderNominal();
+    renderNoreffList();
+    updateMutasiSummary();
+    toast("Detil diperbarui di Server", "ok");
+  } catch (error) {
+    toast("Gagal update: " + error.message, "err");
+  }
+}
+
+async function hapusDetil(id) {
+  if (!confirm("Yakin hapus detil ini?")) return;
+
+  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
+  try {
+    // ✅ GANTI db.del DENGAN fetch KE SUPABASE
+    await fetch(window.location.origin + "/api/data/transaksi/" + id, {
+      method: "DELETE",
+    });
+
+    if (Array.isArray(DBCache.transaksi)) {
+      DBCache.transaksi = DBCache.transaksi.filter(function (t) {
+        return t.id !== id;
+      });
+    }
+
+    var sisaDetil = (DBCache.transaksi || []).filter(function (t) {
+      return (
+        t.noreff === _mutSession.noreff && (t.group || "TLGA") === activeGroup
+      ); // ✅ CEK GROUP SAAT HITUNG SISA
+    }).length;
+
+    if (sisaDetil === 0) {
+      _mutSession.isLocked = false;
+      if ($("m_cab")) $("m_cab").disabled = false;
+      if ($("m_kb")) $("m_kb").disabled = false;
+      if ($("m_tgl")) $("m_tgl").disabled = false;
+      if ($("m_nominal")) $("m_nominal").value = "0";
+    }
+
+    renderDetilTable();
+    updateMutasiSummary();
+    toast("Detil transaksi berhasil dihapus.", "ok");
+  } catch (error) {
+    console.error("Gagal saat mencoba menghapus detil:", error);
+    toast("Gagal menghapus: " + error.message, "err");
+  }
+}
+
+function updateHeaderNominal() {
+  var noreff = _mutSession.noreff;
+  if (!noreff) return;
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+  var totalRp = 0;
+  var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
+  transaksi.forEach(function (t) {
+    if (t.noreff === noreff && (t.group || "TLGA") === activeGroup)
+      totalRp += num(t.total); // ✅ FILTER GROUP
+  });
+  $("m_nominal").value = fmtN(totalRp);
+}
+
+function renderDetilTable() {
+  var noreff = _mutSession.noreff;
+  var activeCab = $("m_cab") ? $("m_cab").value : "";
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+  var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
+
+  var detilData = [];
+  if (noreff && activeCab) {
+    detilData = transaksi.filter(function (t) {
+      return (
+        t.noreff === noreff &&
+        String(t.cabang || "") === String(activeCab) &&
+        (t.group || "TLGA") === activeGroup
+      ); // ✅ FILTER GROUP
+    });
+  }
+
+  detilData.sort(function (a, b) {
+    return b.id.localeCompare(a.id);
+  });
+  var tblEl = $("mutDetilTbl");
+  if (!tblEl) return;
+
+  if (!detilData.length) {
+    tblEl.innerHTML =
+      '<div class="empty-msg"><i class="fa-solid fa-inbox"></i> Belum ada detil untuk No Ref: ' +
+      esc(noreff || "...") +
+      " (Cabang: " +
+      esc(activeCab) +
+      ")" +
+      "</div>";
+    return;
+  }
+
+  var rows = detilData.map(function (r) {
+    return [
+      r.tanggal || "-",
+      esc(r.noperkiraan || "-"),
+      esc(r.desc || "-"),
+      '<span style="font-weight:600">' + fmtN(r.total) + "</span>",
+      '<span style="font-size:.75rem;color:var(--muted)">' +
+        esc(r.noreff) +
+        "</span>",
+      '<span style="font-weight:600; color:var(--accent)">' +
+        esc(r.cabang || "-") +
+        "</span>",
+      '<button class="btn btn-g btn-sm" onclick="editDetil(\'' +
+        r.id +
+        '\')"><i class="fa-solid fa-pen"></i></button> ' +
+        '<button type="button" class="btn btn-r btn-sm" onclick="event.preventDefault(); event.stopPropagation(); hapusDetil(\'' +
+        r.id +
+        "'); return false;\"><i class='fa-solid fa-trash'></i></button>",
+    ];
+  });
+
+  var headers = [
+    "Tanggal",
+    "No Acct",
+    "Penjelasan",
+    "Rp",
+    "No Referensi",
+    "Cabang",
+    "Aksi",
+  ];
+  tblEl.innerHTML =
+    '<div class="ts"><table>' +
+    buildTable(headers, rows, { numCols: [3] }) +
+    "</table></div>";
+}
+
+function renderNoreffList() {
+  var box = $("mutNoreffList");
+  var countBox = $("mutNoreffCount");
+  if (!box) return;
+  var filterCabang = $("filter_cabang_list")
+    ? $("filter_cabang_list").value
+    : "";
+  var filterBulan = $("filter_bulan") ? $("filter_bulan").value : "";
+  var filterTahun = $("filter_tahun") ? $("filter_tahun").value : "";
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+
+  var data = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
+  var filtered = data.filter(function (t) {
+    if (!t.noreff || !t.tanggal) return false;
+    if ((t.group || "TLGA") !== activeGroup) return false; // ✅ FILTER GROUP
+    if (filterCabang && String(t.cabang || "") !== String(filterCabang))
+      return false;
+    if (filterBulan) {
+      var dataBulan = t.tanggal.substring(5, 7);
+      var userBulan = filterBulan.padStart(2, "0");
+      if (dataBulan !== userBulan) return false;
+    }
+    if (filterTahun && t.tanggal.substring(0, 4) !== filterTahun) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    box.innerHTML =
+      '<div style="padding:.8rem;color:var(--muted);text-align:center;font-size:.75rem"><i class="fa-solid fa-filter-circle-xmark"></i> Tidak ada data<br><small>Group: ' +
+      esc(activeGroup) +
+      " | Cabang: " +
+      esc(filterCabang || "Semua") +
+      " | Bulan: " +
+      esc(filterBulan || "Semua") +
+      " | Tahun: " +
+      esc(filterTahun || "Semua") +
+      "</small></div>";
+    if (countBox) countBox.textContent = "";
+    return;
+  }
+
+  var uniqueNoreff = {};
+  filtered.forEach(function (t) {
+    if (t.noreff && !uniqueNoreff[t.noreff]) {
+      uniqueNoreff[t.noreff] = {
+        tanggal: t.tanggal || "-",
+        jumlahDetil: 0,
+        totalRp: 0,
+        cabang: t.cabang || "-",
+      };
+    }
+    if (uniqueNoreff[t.noreff]) {
+      uniqueNoreff[t.noreff].jumlahDetil++;
+      uniqueNoreff[t.noreff].totalRp += num(t.total);
+    }
+  });
+
+  var arrNoreff = Object.keys(uniqueNoreff).map(function (noreff) {
+    return Object.assign({ noreff: noreff }, uniqueNoreff[noreff]);
+  });
+  arrNoreff.sort(function (a, b) {
+    var suffixA = String(a.noreff || "").slice(-8);
+    var suffixB = String(b.noreff || "").slice(-8);
+    return suffixA.localeCompare(suffixB, undefined, { numeric: true });
+  });
+
+  var html =
+    '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1"><th style="padding:4px;text-align:left;font-size:.65rem">No Ref</th><th style="padding:4px;text-align:center;font-size:.65rem;width:30px">D</th><th style="padding:4px;text-align:right;font-size:.65rem;width:65px">Total</th></tr></thead><tbody>';
+  arrNoreff.forEach(function (item) {
+    var isActive = item.noreff === _mutSession.noreff;
+    var rowStyle =
+      "cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s;";
+    if (isActive)
+      rowStyle += "background:var(--accent);color:#fff;font-weight:600;";
+    html +=
+      '<tr style="' +
+      rowStyle +
+      '" onclick="onNoreffClicked(\'' +
+      esc(item.noreff) +
+      "')\" " +
+      (isActive ? 'data-active="1"' : "") +
+      ">";
+
+    html +=
+      '<td style="padding:4px;font-size:.7rem;font-family:monospace">' +
+      esc(item.noreff) +
+      (item.cabang
+        ? ' <small style="opacity:0.7">(' + esc(item.cabang) + ")</small>"
+        : "") +
+      "</td>";
+    html +=
+      '<td style="padding:4px;font-size:.65rem;text-align:center">' +
+      item.jumlahDetil +
+      "</td>";
+    html +=
+      '<td style="padding:4px;font-size:.7rem;text-align:right;font-weight:600">' +
+      fmtN(item.totalRp) +
+      "</td></tr>";
+  });
+  html += "</tbody></table>";
+  box.innerHTML = html;
+  if (countBox) countBox.textContent = arrNoreff.length + " transaksi";
+}
+
+function onNoreffClicked(noreffTarget) {
+  if (noreffTarget === _mutSession.noreff) return;
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+
+  var headerData = DBCache.transaksi.find(function (t) {
+    return t.noreff === noreffTarget && (t.group || "TLGA") === activeGroup; // ✅ FILTER GROUP
+  });
+  if (!headerData) return;
+
+  _mutSession.noreff = noreffTarget;
+  _mutSession.isLocked = true;
+  $("m_noref").value = noreffTarget;
+  $("m_tgl").value = headerData.tanggal || "";
+  $("m_cab").value = headerData.cabang || "";
+  $("m_kb").value = headerData.kodeBank || "";
+  $("m_dkp").value = headerData.dariKePada || "";
+  $("m_cab").disabled = true;
+  $("m_kb").disabled = true;
+  $("m_tgl").disabled = true;
+  populateKodeBankOpts(headerData.cabang);
+  populatePerkiraanOpts(headerData.cabang);
+  updateHeaderNominal();
+  renderDetilTable();
+  renderNoreffList();
+  updateMutasiSummary();
+}
+
+function printMutasi() {
+  var noreff = _mutSession.noreff || $("m_noref").value;
+  if (!noreff)
+    return toast(
+      "Pilih transaksi terlebih dahulu (klik No Ref di riwayat)",
+      "wrn",
+    );
+
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+  var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
+
+  var detilData = transaksi.filter(function (t) {
+    return t.noreff === noreff && (t.group || "TLGA") === activeGroup;
+  });
+
+  if (detilData.length === 0)
+    return toast("Tidak ada detil untuk No Ref & Group ini", "wrn");
+
+  var header = detilData[0];
+  var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
+  var tanggal = header.tanggal || "-";
+  var kodeBank = header.kodeBank || "-";
+  var dariKePada = header.dariKePada || "-";
+
+  var totalRp = 0;
+  detilData.forEach(function (t) {
+    totalRp += num(t.total);
+  });
+
+  var kbList = Array.isArray(DBCache.kodeBank) ? DBCache.kodeBank : [];
+  var kbData = kbList.find(function (k) {
+    return k.kodebank === kodeBank;
+  });
+  var kbPenjelasan = kbData ? kbData.penjelasan : "";
+
+  var printHtml =
+    "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Print Mutasi - " +
+    esc(noreff) +
+    "</title>" +
+    "<style>* { margin: 0; padding: 0; box-sizing: border-box; } body { font-family: 'Courier New', Courier, monospace; font-size: 12px; padding: 15px; color: #000; } .header { text-align: center; margin-bottom: 15px; border-bottom: 2px solid #000; padding-bottom: 10px; } .header h2 { font-size: 16px; margin-bottom: 4px; } .header p { font-size: 12px; color: #000; font-weight: bold; } .info-grid { display: grid; grid-template-columns: 130px 1fr; gap: 3px 10px; margin-bottom: 15px; font-size: 12px; } .info-grid .label { font-weight: bold; } table { width: 100%; border-collapse: collapse; margin-bottom: 15px; } th, td { border: 1px solid #000; padding: 5px 8px; text-align: left; font-size: 11px; } th { background: #eee; font-weight: bold; text-align: center; } td.rp { text-align: right; font-family: 'Courier New', monospace; } td.center { text-align: center; } .total-row { font-weight: bold; background: #f5f5f5; } .footer { margin-top: 20px; padding-top: 10px; border-top: 1px solid #000; font-size: 10px; color: #555; display: flex; justify-content: space-between; } .footer .sign { text-align: center; width: 150px; } .footer .sign .line { margin-top: 50px; border-bottom: 1px solid #000; } @media print { body { padding: 0; } }</style></head><body>" +
+    '<div class="header"><h2>MUTASI TRANSAKSI</h2><p>Cabang: ' +
+    esc(cabangLabel) +
+    "</p></div>" +
+    '<div class="info-grid">' +
+    '<div class="label">No Referensi</div><div>: ' +
+    esc(noreff) +
+    "</div>" +
+    '<div class="label">Kode Bank</div><div>: ' +
+    esc(kodeBank) +
+    (kbPenjelasan ? " (" + esc(kbPenjelasan) + ")" : "") +
+    "</div>" +
+    '<div class="label">Tanggal</div><div>: ' +
+    esc(tanggal) +
+    "</div>" +
+    '<div class="label">Dari / Kepada</div><div>: ' +
+    esc(dariKePada) +
+    "</div>" +
+    '<div class="label">Group</div><div>: ' +
+    esc(activeGroup) +
+    "</div>" +
+    "</div>" +
+    "<table><thead><tr><th style='width:40px'>No</th><th style='width:100px'>No Perkiraan</th><th>Penjelasan</th><th style='width:140px'>Rp</th></tr></thead><tbody>";
+
+  detilData.forEach(function (d, idx) {
+    printHtml +=
+      "<tr><td class='center'>" +
+      (idx + 1) +
+      "</td><td>" +
+      esc(d.noperkiraan || "-") +
+      "</td><td>" +
+      esc(d.desc || "-") +
+      "</td><td class='rp'>" +
+      fmtN(d.total) +
+      "</td></tr>";
+  });
+
+  printHtml +=
+    "<tr class='total-row'><td colspan='3' style='text-align:right'>TOTAL</td><td class='rp'>" +
+    fmtN(totalRp) +
+    "</td></tr></tbody></table>";
+  printHtml +=
+    "<div style='margin-bottom:15px;font-size:11px'><strong>Terbilang:</strong> " +
+    terbilang(totalRp) +
+    " Rupiah</div>";
+  printHtml +=
+    "<div class='footer'><div class='sign'>Dibuat oleh,<br><br><br><div class='line'></div></div><div class='sign'>Diperiksa oleh,<br><br><br><div class='line'></div></div><div class='sign'>Disetujui oleh,<br><br><br><div class='line'></div></div></div></body></html>";
+
+  var printWindow = window.open("", "_blank", "width=800,height=600");
+  if (!printWindow)
+    return toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
+
+  printWindow.document.write(printHtml);
+  printWindow.document.close();
+
+  // ✅ PERBAIKAN: Jalankan print langsung dengan jeda timeout tanpa mengandalkan window.onload
+  setTimeout(function () {
+    printWindow.print();
+  }, 500);
+}
+
 /* ================================================================
    MUTASI KASIR (CUSTOM RENDER, FORM, SAVE, PRINT)
    =/* ================================================================
    MUTASI KASIR (INPUT EXCEL DI ATAS, DATA DI BAWAH, RIWAYAT KANAN)
    ================================================================ */
-
 PANEL_MAP.mutasikasir = renderMutasiKasir;
 AFTER_RENDER.mutasikasir = initMutasiKasirState;
 
-//var _kasirSession = { noreff: "", isLocked: false };
 function generateKasirKodeOpts(selectedKode) {
   var kodeList = ["PJ", "BE", "CS", "KK", "KL", "TK", "SK", "KT"];
   var opts = '<option value="">-- Pilih --</option>';
@@ -1380,7 +1237,6 @@ function renderMutasiKasir() {
       ? DBCache.cabang[0].kode || "Pusat"
       : "Pusat";
 
-  // ✅ SIMPAN HTML KE VARIABLE DULU (AGAR EVENT LISTENER BISA DIJALANKAN)
   var html =
     "<style>" +
     ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
@@ -1397,18 +1253,14 @@ function renderMutasiKasir() {
     "#mutKasirNoreffList { max-height: 450px !important; overflow-y: auto !important; }" +
     "</style>" +
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
-    // BARIS HEADER ATAS
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--accent)"><i class="fa-solid fa-file-circle-plus"></i> Transaksi Kasir</div>' +
     '<div style="display:flex; gap:.4rem; align-items:center;">' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px" onclick="resetKasirNewTransaction()"><i class="fa-solid fa-plus"></i> Tambah Header Baru</button>' +
     '<button type="button" class="btn btn-sm btn-inf" style="font-size:.65rem;padding:2px 6px" onclick="printMutasiKasir()"><i class="fa-solid fa-print"></i> Print & Simpan</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#f59e0b; border-color:#f59e0b; color:#fff;" onclick="promptHapusSeReffKasir()"><i class="fa-solid fa-layer-group"></i> Hapus Se-Reff</button>' +
-    "</div>" +
-    "</div>" +
-    // BARIS INPUT DETAIL DAN TABEL
-    '<div style="display:flex;gap:1rem">' +
-    '<div style="flex:3">' +
+    "</div></div>" +
+    '<div style="display:flex;gap:1rem"><div style="flex:3">' +
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
     '<div class="fg" style="flex:1"><label>Cabang</label><select id="mk_cab" class="in">' +
     getCabangOpts(firstCab) +
@@ -1417,62 +1269,35 @@ function renderMutasiKasir() {
     esc(today) +
     '"></div>' +
     '<div class="fg" style="flex:1"><label>No Ref</label><input id="mk_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
-    '<div class="fg" style="flex:1"><label>Total Rp</label><input id="mk_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
-    "</div>" +
+    '<div class="fg" style="flex:1"><label>Total Rp</label><input id="mk_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div></div>' +
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
     '<div class="fg" style="flex:1"><label>Saldo Awal (Otomatis)</label><input id="mk_saldo_awal" class="in" readonly style="background:var(--bg);color:var(--accent);font-weight:700;" value="Mencari..."></div>' +
-    '<div class="fg" style="flex:1"><label>Saldo Akhir (Auto-Hitung)</label><input id="mk_saldo_akhir" class="in" readonly style="background:var(--bg);color:var(--danger);font-weight:700;" value="0"></div>' +
-    "</div>" +
-    // JUDUL TABEL + TOMBOL AKSI
+    '<div class="fg" style="flex:1"><label>Saldo Akhir (Auto-Hitung)</label><input id="mk_saldo_akhir" class="in" readonly style="background:var(--bg);color:var(--danger);font-weight:700;" value="0"></div></div>' +
     '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.3rem;">' +
     '<div style="font-size:.85rem;font-weight:700">Riwayat Detil Transaksi Kasir</div>' +
     '<div style="display:flex; gap:.4rem;">' +
     '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportKasirDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
-    // ✅ DIPERBAIKI: executeHapus... DIUBAH JADI promptHapus...
     '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="executeHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data</button>' +
-    "</div>" +
-    "</div>" +
-    // TABEL INPUT EXCEL
-    '<div style="margin-top:.8rem;">' +
-    '<table class="tbl-excel">' +
-    "<thead>" +
-    '<tr><th class="col-kode">Kode</th><th>Penjelasan</th><th class="col-rp">Rp</th><th class="col-aksi">Aksi</th></tr>' +
-    "</thead>" +
-    "<tbody>" +
-    '<tr class="row-input">' +
-    '<td><select id="mk_kode">' +
+    "</div></div>" +
+    '<div style="margin-top:.8rem;"><table class="tbl-excel"><thead><tr><th class="col-kode">Kode</th><th>Penjelasan</th><th class="col-rp">Rp</th><th class="col-aksi">Aksi</th></tr></thead><tbody>' +
+    '<tr class="row-input"><td><select id="mk_kode">' +
     generateKasirKodeOpts("") +
-    "</select></td>" +
-    '<td><input type="text" id="mk_penjelasan" placeholder="Ketik penjelasan lalu tekan Enter..."></td>' +
-    '<td><input type="number" id="mk_rp" placeholder="0"></td>' +
-    '<td style="text-align:center;"><button class="btn btn-a btn-sm" onclick="addKasirDetil()" style="width:100%;"><i class="fa-solid fa-plus"></i> Tambah</button></td>' +
-    "</tr>" +
-    "</tbody>" +
-    "</table>" +
-    "</div>" +
-    // ✅ YANG DUPLIKAT DIHAPUS (Tidak ada tulisan "Riwayat Detil" kedua kalinya di sini)
-    '<div id="mutKasirDetilTbl" class="tw"></div>' +
-    "</div>" +
-    // KOLOM KANAN (NOREFF LIST)
+    '</select></td><td><input type="text" id="mk_penjelasan" placeholder="Ketik penjelasan lalu tekan Enter..."></td><td><input type="number" id="mk_rp" placeholder="0"></td>' +
+    '<td style="text-align:center;"><button class="btn btn-a btn-sm" onclick="addKasirDetil()" style="width:100%;"><i class="fa-solid fa-plus"></i> Tambah</button></td></tr>' +
+    "</tbody></table></div>" +
+    '<div id="mutKasirDetilTbl" class="tw"></div></div>' +
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
     '<div class="fg" style="margin-bottom:.4rem"><label style="font-size:.65rem">Cabang</label><select id="mk_filter_cab" class="in" style="font-size:.75rem;padding:3px 5px">' +
     getCabangOpts(firstCab) +
     "</select></div>" +
-    '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
-    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="mk_filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    '<div style="display:flex;gap:.4rem;margin-bottom:.4rem"><div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="mk_filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
     generateBulanOpts("") +
     "</select></div>" +
     '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Tahun</label><select id="mk_filter_tahun" class="in" style="font-size:.75rem;padding:3px 5px">' +
     generateTahunOpts("") +
-    "</select></div>" +
-    "</div>" +
-    '<div id="mutKasirNoreffList" style="height:180px;overflow-y:auto;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px"><div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div></div>' +
-    "</div>" +
-    "</div>" +
-    "</div>";
+    "</select></div></div>" +
+    '<div id="mutKasirNoreffList" style="height:180px;overflow-y:auto;font-size:.8rem;background:var(--bg);border:1px solid var(--brd);border-radius:6px"><div style="padding:1rem;color:var(--muted);text-align:center">Memuat data...</div></div></div></div></div>';
 
-  // ✅ PERBAIKAN: RETURN HTML DULU, BARU JALANKAN EVENT LISTENER
-  // Dengan cara ini, kode setTimeout pasti akan dijalankan!
   setTimeout(function () {
     if ($("mk_filter_cab"))
       $("mk_filter_cab").onchange = function () {
@@ -1490,18 +1315,16 @@ function renderMutasiKasir() {
 
   return html;
 }
+
 function initMutasiKasirState() {
   _kasirSession = { noreff: "", isLocked: false };
-
   var cabEl = $("mk_cab");
   var tglEl = $("mk_tgl");
   if (!cabEl) return;
-
   cabEl.addEventListener("change", onKasirCabangChange);
-  tglEl.addEventListener("change", onKasirHeaderChange); // ✅ Saat tanggal ganti, cari saldo awal
+  tglEl.addEventListener("change", onKasirHeaderChange);
   $("mk_filter_bulan").addEventListener("change", renderKasirNoreffList);
   $("mk_filter_tahun").addEventListener("change", renderKasirNoreffList);
-
   ["mk_penjelasan", "mk_rp"].forEach(function (id) {
     var el = $(id);
     if (el)
@@ -1512,8 +1335,7 @@ function initMutasiKasirState() {
         }
       });
   });
-
-  onKasirHeaderChange(); // ✅ Panggil saat pertama kali buka menu
+  onKasirHeaderChange();
   renderKasirDetilTable();
   renderKasirNoreffList();
 }
@@ -1529,7 +1351,6 @@ async function onKasirHeaderChange() {
   if (_kasirSession.isLocked) return;
   var cab = $("mk_cab").value;
   var tgl = $("mk_tgl").value;
-
   var newNoref =
     "KASIR-" +
     (cab || "PUSAT").substring(0, 3).toUpperCase() +
@@ -1539,90 +1360,91 @@ async function onKasirHeaderChange() {
     Math.random().toString(36).substr(2, 4).toUpperCase();
   $("mk_noref").value = newNoref;
   _kasirSession.noreff = newNoref;
-
-  // ✅ LOGIKA BARU: Cari saldo awal secara otomatis saat tanggal dipilih
   await hitungSaldoOtomatis();
 }
 
-// ✅ FUNGSI PENCARIAN SALDO AWAL KE MUNDUR KHUSUS KASIR
+// ✅ FUNGSI PENCARIAN SALDO AWAL KE MUNDUR KHUSUS KASIR (DITAMBAH FILTER GROUP)
 async function cariSaldoAwalKasir(cabang, tanggalPilih) {
   if (!cabang || !tanggalPilih) return 0;
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
 
   var dataSk = (DBCache.saldoKasir || []).filter(function (item) {
-    return (item.cabang || "") === cabang;
+    return (
+      (item.cabang || "") === cabang && (item.group || "TLGA") === activeGroup
+    ); // ✅ FILTER GROUP
   });
 
   var tglTarget = new Date(tanggalPilih);
-  tglTarget.setDate(tglTarget.getDate() - 1); // Mulai cari dari hari sebelumnya
-
+  tglTarget.setDate(tglTarget.getDate() - 1);
   var maxIterasi = 365;
   for (var i = 0; i < maxIterasi; i++) {
     var tglStr = tglTarget.toISOString().split("T")[0];
-
     var cocok = dataSk.find(function (sk) {
       return (sk.tgl_awal || "") === tglStr;
     });
-
     if (cocok) {
-      console.log("✅ Saldo kasir awal ditemukan di tanggal " + tglStr);
+      console.log(
+        "✅ Saldo kasir awal ditemukan di tanggal " + tglStr,
+        "| Group:",
+        activeGroup,
+      );
       return num(cocok.akhir) || 0;
     }
     tglTarget.setDate(tglTarget.getDate() - 1);
   }
-  console.log("⚠️ Tidak ditemukan saldo kasir. Menggunakan 0.");
   return 0;
 }
 
-// ✅ FUNGSI HITUNG DB/CR & UPDATE TAMPILAN
+// ✅ FUNGSI HITUNG DB/CR & UPDATE TAMPILAN (DITAMBAH FILTER GROUP)
 async function hitungSaldoOtomatis() {
   var cab = $("mk_cab").value;
   var tgl = $("mk_tgl").value;
   var noreff = _kasirSession.noreff;
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
 
-  // 1. Cari Saldo Awal
   $("mk_saldo_awal").value = "Mencari...";
   var saldoAwal = await cariSaldoAwalKasir(cab, tgl);
   $("mk_saldo_awal").value = fmtN(saldoAwal);
 
-  // 2. Hitung DB & CR berdasarkan Kode Transaksi di noreff ini
   var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
   var detilNoreff = data.filter(function (t) {
-    return t.noreff === noreff && (t.tanggal || "") === tgl;
+    // ✅ FILTER GROUP SUPAYA DB/CR HANYA MENGHITUNG MILIK GROUP INI
+    return (
+      t.noreff === noreff &&
+      (t.tanggal || "") === tgl &&
+      (t.group || "TLGA") === activeGroup
+    );
   });
 
   var totalDB = 0;
   var totalCR = 0;
-
   detilNoreff.forEach(function (trx) {
     var kode = (trx.kodeTrans || "").toUpperCase();
     var nominal = num(trx.total || 0);
-
-    // PJ, TK, KT masuk DB
     if (kode === "PJ" || kode === "TK" || kode === "KT") {
       totalDB += nominal;
     } else {
-      // BE, CS, KK, dll masuk CR
       totalCR += nominal;
     }
   });
 
-  // 3. Hitung Saldo Akhir = Saldo Awal + DB - CR
   var saldoAkhir = saldoAwal + totalDB - totalCR;
   $("mk_saldo_akhir").value = fmtN(saldoAkhir);
 }
 
+// ✅ FUNGSI TAMBAH DETIL (MENGGUNAKAN FETCH KE API & MENAMBAHKAN GROUP)
 async function addKasirDetil() {
   var noreff = _kasirSession.noreff;
   var kode = $("mk_kode").value.toUpperCase();
   var penjelasan = $("mk_penjelasan").value.trim().toUpperCase();
   var rp = num($("mk_rp").value);
-
   if (!kode || !penjelasan || rp <= 0)
     return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
 
   _kasirSession.isLocked = true;
   $("mk_cab").disabled = true;
   $("mk_tgl").disabled = true;
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
 
   try {
     var newDetil = {
@@ -1636,9 +1458,15 @@ async function addKasirDetil() {
       total: rp,
       db: rp,
       cr: 0,
+      group: activeGroup, // ✅ MASUKKAN GROUP KE DATA BARU
     };
 
-    await db.add("mutasikasir", newDetil);
+    // ✅ GANTI db.add DENGAN fetch KE SUPABASE
+    await fetch(window.location.origin + "/api/data/mutasikasir", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newDetil),
+    });
 
     if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
     DBCache.mutasikasir.push(newDetil);
@@ -1647,10 +1475,9 @@ async function addKasirDetil() {
     $("mk_penjelasan").value = "";
     $("mk_rp").value = "";
     $("mk_kode").focus();
-
     renderKasirDetilTable();
     updateKasirHeaderNominal();
-    await hitungSaldoOtomatis(); // ✅ Update hitungan saldo setelah tambah detil
+    await hitungSaldoOtomatis();
     renderKasirNoreffList();
     toast("Detil kasir ditambahkan", "ok");
   } catch (error) {
@@ -1661,71 +1488,67 @@ async function addKasirDetil() {
   }
 }
 
+// ✅ FUNGSI UPDATE NOMINAL HEADER (DITAMBAH FILTER GROUP)
 function updateKasirHeaderNominal() {
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
   var totalRp = 0;
   var data = DBCache.mutasikasir || [];
   data.forEach(function (t) {
-    if (t.noreff === _kasirSession.noreff) totalRp += num(t.total);
+    // ✅ HANYA HITUNG YANG GROUP NYA COCOK
+    if (
+      t.noreff === _kasirSession.noreff &&
+      (t.group || "TLGA") === activeGroup
+    )
+      totalRp += num(t.total);
   });
   $("mk_nominal").value = fmtN(totalRp);
 }
 
+// ✅ FUNGSI RENDER TABEL DETIL (DITAMBAH FILTER GROUP)
 function renderKasirDetilTable() {
   var noreff = _kasirSession.noreff;
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
   var tblEl = $("mutKasirDetilTbl");
   if (!tblEl) return;
   var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
 
   var detilData = data.filter(function (t) {
-    return t.noreff === noreff;
+    return t.noreff === noreff && (t.group || "TLGA") === activeGroup; // ✅ FILTER GROUP
   });
 
-  var html = '<table class="tbl-excel">';
-  html += "<thead><tr>";
-  html += '<th class="col-kode">Kode</th>';
-  html += "<th>Penjelasan</th>";
-  html += '<th class="col-rp">Rp</th>';
-  html += '<th class="col-aksi">Aksi</th>';
-  html += "</tr></thead><tbody>";
-
+  var html =
+    '<table class="tbl-excel"><thead><tr><th class="col-kode">Kode</th><th>Penjelasan</th><th class="col-rp">Rp</th><th class="col-aksi">Aksi</th></tr></thead><tbody>';
   if (!detilData.length) {
     html +=
-      '<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:1rem;"><i class="fa-solid fa-inbox"></i> Belum ada detil untuk No Ref: ' +
-      esc(noreff || "...") +
-      "</td></tr>";
+      '<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:1rem;"><i class="fa-solid fa-inbox"></i> Belum ada detil</td></tr>';
   } else {
     detilData.forEach(function (r) {
       html +=
-        "<tr>" +
-        '<td style="text-align:center; font-weight:600; color:var(--accent);">' +
+        "<tr><td style='text-align:center; font-weight:600; color:var(--accent);'>" +
         esc(r.kodeTrans || "-") +
-        "</td>" +
-        "<td>" +
+        "</td><td>" +
         esc(r.desc || "-") +
-        "</td>" +
-        '<td style="text-align:right; font-weight:600;">' +
+        "</td><td style='text-align:right; font-weight:600;'>" +
         fmtN(r.total) +
-        "</td>" +
-        '<td style="text-align:center; white-space:nowrap;">' +
-        '<button class="btn btn-g btn-sm" onclick="editKasirDetil(\'' +
+        "</td><td style='text-align:center; white-space:nowrap;'><button class='btn btn-g btn-sm' onclick=\"editKasirDetil('" +
         r.id +
-        '\')"><i class="fa-solid fa-pen"></i></button> ' +
-        '<button type="button" class="btn btn-r btn-sm" onclick="hapusKasirDetil(\'' +
+        "')\"><i class='fa-solid fa-pen'></i></button> <button type='button' class='btn btn-r btn-sm' onclick=\"hapusKasirDetil('" +
         r.id +
-        '\')"><i class="fa-solid fa-trash"></i></button>' +
-        "</td>" +
-        "</tr>";
+        "')\"><i class='fa-solid fa-trash'></i></button></td></tr>";
     });
   }
-
   html += "</tbody></table>";
   tblEl.innerHTML = html;
 }
 
+// ✅ FUNGSI HAPUS DETIL (MENGGUNAKAN FETCH KE API)
 async function hapusKasirDetil(id) {
   if (!confirm("Yakin hapus detil ini?")) return;
 
-  await db.del("mutasikasir", id);
+  // ✅ GANTI db.del DENGAN fetch KE SUPABASE
+  await fetch(window.location.origin + "/api/data/mutasikasir/" + id, {
+    method: "DELETE",
+  });
 
   if (DBCache.mutasikasir) {
     DBCache.mutasikasir = DBCache.mutasikasir.filter(function (t) {
@@ -1733,9 +1556,13 @@ async function hapusKasirDetil(id) {
     });
   }
 
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
   var sisa = (DBCache.mutasikasir || []).filter(function (t) {
-    return t.noreff === _kasirSession.noreff;
+    return (
+      t.noreff === _kasirSession.noreff && (t.group || "TLGA") === activeGroup
+    ); // ✅ CEK GROUP SAAT HITUNG SISA
   }).length;
+
   if (sisa === 0) {
     _kasirSession.isLocked = false;
     $("mk_cab").disabled = false;
@@ -1744,49 +1571,45 @@ async function hapusKasirDetil(id) {
   }
   renderKasirDetilTable();
   updateKasirHeaderNominal();
-  await hitungSaldoOtomatis(); // ✅ Update hitungan saldo setelah hapus detil
+  await hitungSaldoOtomatis();
   renderKasirNoreffList();
 }
+
+// ✅ FUNGSI RENDER NOREFF LIST (DITAMBAH FILTER GROUP)
 function renderKasirNoreffList() {
   var box = $("mutKasirNoreffList");
-  var countBox = $("mutKasirNoreffCount"); // Sesuaikan ID ini jika berbeda
+  var countBox = $("mutKasirNoreffCount");
   if (!box) return;
-
-  // ✅ 1. AMBIL NILAI DARI KETIGA COMBOBOX
   var filterCabang = $("mk_filter_cab") ? $("mk_filter_cab").value : "";
   var filterBulan = $("mk_filter_bulan") ? $("mk_filter_bulan").value : "";
   var filterTahun = $("mk_filter_tahun") ? $("mk_filter_tahun").value : "";
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
 
   var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
   var safeBulan = filterBulan ? filterBulan.padStart(2, "0") : "";
 
   var filtered = data.filter(function (t) {
-    // ✅ 2. PENGAMAN STRUKTUR DATA (Mengantisipasi data flat atau data JSONB)
     var d = t.data || t;
-
     if (!d.noreff || !d.tanggal) return false;
     if (typeof d.tanggal !== "string" || d.tanggal.length < 7) return false;
 
-    var ym = d.tanggal.substring(0, 7);
+    // ✅ FILTER GROUP
+    if ((d.group || "TLGA") !== activeGroup) return false;
 
-    // ✅ 3. FILTER CABANG YANG FLEKSIBEL
+    var ym = d.tanggal.substring(0, 7);
     if (filterCabang !== "" && String(d.cabang || "") !== String(filterCabang))
       return false;
-
-    // Filter Bulan & Tahun
     if (safeBulan && filterTahun) return ym === filterTahun + "-" + safeBulan;
     if (safeBulan) return ym.substring(5, 7) === safeBulan;
     if (filterTahun) return ym.substring(0, 4) === filterTahun;
-
     return true;
   });
 
-  // ✅ 4. TAMPILAN JIKA FILTER TIDAK MENEMUKAN DATA
   if (filtered.length === 0) {
     box.innerHTML =
-      '<div style="padding:.8rem;color:var(--muted);text-align:center;font-size:.75rem">' +
-      '<i class="fa-solid fa-filter-circle-xmark"></i> Tidak ada data' +
-      "<br><small>Cabang: " +
+      '<div style="padding:.8rem;color:var(--muted);text-align:center;font-size:.75rem"><i class="fa-solid fa-filter-circle-xmark"></i> Tidak ada data<br><small>Group: ' +
+      esc(activeGroup) +
+      " | Cabang: " +
       esc(filterCabang || "Semua") +
       " | Bulan: " +
       esc(filterBulan || "Semua") +
@@ -1797,15 +1620,13 @@ function renderKasirNoreffList() {
     return;
   }
 
-  // ✅ 5. GROUPING DATA PER NOREFF (SAMA PERSIS DENGAN KODE TRANSASKI)
   var uniqueNoreff = {};
   filtered.forEach(function (t) {
     var d = t.data || t;
-
     if (d.noreff && !uniqueNoreff[d.noreff]) {
       uniqueNoreff[d.noreff] = {
         tanggal: d.tanggal || "-",
-        jumlahDetil: 0, // Menyimpan berapa baris DBF di tanggal ini
+        jumlahDetil: 0,
         totalRp: 0,
         cabang: d.cabang || "-",
       };
@@ -1816,40 +1637,23 @@ function renderKasirNoreffList() {
     }
   });
 
-  // ✅ 6. URUTKAN BERDASARKAN TANGGAL/NOREFF (Menggunakan localeCompare numeric)
   var arrNoreff = Object.keys(uniqueNoreff).map(function (noreff) {
     return Object.assign({ noreff: noreff }, uniqueNoreff[noreff]);
   });
-
   arrNoreff.sort(function (a, b) {
-    // Karena format noreff KASIR-04-2026-01-06-XXXX, ambil 8 karakter terakhir (tgl+random)
     var suffixA = String(a.noreff || "").slice(-8);
     var suffixB = String(b.noreff || "").slice(-8);
     return suffixA.localeCompare(suffixB, undefined, { numeric: true });
   });
 
-  // ✅ 7. RENDER TABEL HTML YANG RAPI (ADA THEAD & STICKY)
-  var html = '<table style="width:100%;border-collapse:collapse">';
-  html +=
-    '<thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1">';
-  html +=
-    '<th style="padding:4px;text-align:left;font-size:.65rem">No Ref</th>';
-  html +=
-    '<th style="padding:4px;text-align:center;font-size:.65rem;width:30px">D</th>';
-  html +=
-    '<th style="padding:4px;text-align:right;font-size:.65rem;width:65px">Total</th>';
-  html += "</tr></thead><tbody>";
-
+  var html =
+    '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1"><th style="padding:4px;text-align:left;font-size:.65rem">No Ref</th><th style="padding:4px;text-align:center;font-size:.65rem;width:30px">D</th><th style="padding:4px;text-align:right;font-size:.65rem;width:65px">Total</th></tr></thead><tbody>';
   arrNoreff.forEach(function (item) {
-    // Gunakan _kasirSession (sesuaikan jika variabel session kasir Anda beda nama)
     var isActive = item.noreff === _kasirSession.noreff;
     var rowStyle =
       "cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s;";
-
-    if (isActive) {
+    if (isActive)
       rowStyle += "background:var(--accent);color:#fff;font-weight:600;";
-    }
-
     html +=
       '<tr style="' +
       rowStyle +
@@ -1858,7 +1662,6 @@ function renderKasirNoreffList() {
       "')\" " +
       (isActive ? 'data-active="1"' : "") +
       ">";
-
     html +=
       '<td style="padding:4px;font-size:.7rem;font-family:monospace">' +
       esc(item.noreff) +
@@ -1866,46 +1669,38 @@ function renderKasirNoreffList() {
         ? ' <small style="opacity:0.7">(' + esc(item.cabang) + ")</small>"
         : "") +
       "</td>";
-
     html +=
       '<td style="padding:4px;font-size:.65rem;text-align:center">' +
       item.jumlahDetil +
       "</td>";
-
     html +=
       '<td style="padding:4px;font-size:.7rem;text-align:right;font-weight:600">' +
       fmtN(item.totalRp) +
-      "</td>";
-
-    html += "</tr>";
+      "</td></tr>";
   });
-
   html += "</tbody></table>";
   box.innerHTML = html;
-
-  // ✅ 8. UPDATE COUNT BOX
   if (countBox) countBox.textContent = arrNoreff.length + " kasir";
 }
 
+// ✅ FUNGSI KLIK NOREFF (DITAMBAH FILTER GROUP)
 function onKasirNoreffClicked(noreffTarget) {
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
   var data = DBCache.mutasikasir || [];
   var headerData = data.find(function (t) {
-    return t.noreff === noreffTarget;
+    return t.noreff === noreffTarget && (t.group || "TLGA") === activeGroup; // ✅ PASTIKAN YANG DIKLIK SESUAI GROUP
   });
   if (!headerData) return;
 
   _kasirSession.noreff = noreffTarget;
   _kasirSession.isLocked = true;
-
   $("mk_noref").value = noreffTarget;
   $("mk_tgl").value = headerData.tanggal || "";
   $("mk_cab").value = headerData.cabang || "";
-
   $("mk_cab").disabled = true;
   $("mk_tgl").disabled = true;
-
   updateKasirHeaderNominal();
-  hitungSaldoOtomatis(); // ✅ Hitung ulang saat klik riwayat noreff
+  hitungSaldoOtomatis();
   renderKasirDetilTable();
   renderKasirNoreffList();
 }
@@ -1927,12 +1722,19 @@ async function printMutasiKasir() {
   var noreff = _kasirSession.noreff;
   if (!noreff) return toast("Pilih transaksi terlebih dahulu", "wrn");
 
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ Ambil group aktif
+
   var data = Array.isArray(DBCache.mutasikasir) ? DBCache.mutasikasir : [];
+
+  // ✅ TAMBAHAN FILTER GROUP: Hanya ambil data noreff yang sesuai groupnya
   var detilData = data.filter(function (t) {
-    return t.noreff === noreff;
+    var noreffCocok = t.noreff === noreff;
+    var groupCocok = (t.group || "TLGA") === activeGroup;
+    return noreffCocok && groupCocok;
   });
+
   if (detilData.length === 0)
-    return toast("Tidak ada detil untuk No Ref ini", "wrn");
+    return toast("Tidak ada detil untuk No Ref & Group ini", "wrn");
 
   var header = detilData[0];
   var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
@@ -1974,25 +1776,40 @@ async function printMutasiKasir() {
     }
   });
 
-  // 2. Cari Saldo Awal (Mengurangi 1 hari)
-  var saldoAwalKasir = await cariSaldoAwalKasir(cabang, tanggal);
+  // ====================================================================
+  // ✅ PERUBAHAN: AMBIL SALDO AWAL LANGSUNG DARI LAYAR (BUKAN LOOP MUNDUR)
+  // ====================================================================
+  var saldoAwalKasir = 0;
+  var saldoAkhirKasir = 0;
+
+  var saldoAwalEl = $("mk_saldo_awal");
+  var saldoAkhirEl = $("mk_saldo_akhir");
+
+  // Ambil nilai dari input readonly di layar, hilangkan titik pemisah ribuan
+  if (saldoAwalEl && saldoAwalEl.value && saldoAwalEl.value !== "Mencari...") {
+    saldoAwalKasir = num(String(saldoAwalEl.value).replace(/\./g, ""));
+  }
+  if (saldoAkhirEl && saldoAkhirEl.value) {
+    saldoAkhirKasir = num(String(saldoAkhirEl.value).replace(/\./g, ""));
+  }
 
   // 3. Hitung DB & CR
-  // RULE: PJ, TK, KT masuk DB. Selebihnya masuk CR.
   var totalDB = totalPJ + totalTK + totalKT;
-  var totalCR = totalBE + totalCS + totalKK; // Jika ada kode LAIN selain ketiga itu, masukkan ke CR juga
+  var totalCR = totalBE + totalCS + totalKK;
   dataKode.LAIN.forEach(function (l) {
     totalCR += num(l.total);
   });
 
-  var saldoAkhirKasir = saldoAwalKasir + totalDB - totalCR;
-
   // ====================================================================
-  // 4. SIMPAN HASIL PERHITUNGAN KE TABEL saldoKasir
+  // 4. SIMPAN HASIL PERHITUNGAN KE SERVER SUPABASE
   // ====================================================================
   try {
     var existingSaldo = (DBCache.saldoKasir || []).find(function (s) {
-      return (s.cabang || "") === cabang && (s.tgl_awal || "") === tanggal;
+      return (
+        (s.cabang || "") === cabang &&
+        (s.tgl_awal || "") === tanggal &&
+        (s.group || "TLGA") === activeGroup
+      );
     });
 
     var objSaldo = {
@@ -2002,25 +1819,35 @@ async function printMutasiKasir() {
       db: totalDB,
       cr: totalCR,
       akhir: saldoAkhirKasir,
+      group: activeGroup,
     };
 
     if (existingSaldo) {
-      // Jika sudah ada, UPDATE
       objSaldo.id = existingSaldo.id;
-      await db.put("saldoKasir", objSaldo);
+      await fetch(
+        window.location.origin + "/api/data/saldoKasir/" + existingSaldo.id,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(objSaldo),
+        },
+      );
       var idx = DBCache.saldoKasir.findIndex((s) => s.id === existingSaldo.id);
       if (idx !== -1) DBCache.saldoKasir[idx] = objSaldo;
     } else {
-      // Jika belum ada, TAMBAH BARU
       objSaldo.id = uid();
-      await db.add("saldoKasir", objSaldo);
+      await fetch(window.location.origin + "/api/data/saldoKasir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(objSaldo),
+      });
       if (!DBCache.saldoKasir) DBCache.saldoKasir = [];
       DBCache.saldoKasir.push(objSaldo);
     }
-    console.log("✅ Saldo kasir berhasil disimpan ke database:", objSaldo);
+    console.log("✅ Saldo kasir berhasil disimpan ke Supabase:", objSaldo);
   } catch (errSaldo) {
     console.error("Gagal simpan saldo kasir:", errSaldo);
-    toast("Peringatan: Gagal simpan saldo ke database", "wrn");
+    toast("Peringatan: Gagal simpan saldo ke database server", "wrn");
   }
 
   // 5. Lanjut Format Rupiah & HTML Print
@@ -2059,6 +1886,8 @@ async function printMutasiKasir() {
     esc(tanggal) +
     "<br>No Ref : " +
     esc(noreff) +
+    "<br>Group : " +
+    esc(activeGroup) +
     "</p><hr>" +
     "<table>" +
     "<tr class='bold'><td>BELANJA</td><td style='text-align:right'>Rp</td></tr>" +
@@ -2079,10 +1908,10 @@ async function printMutasiKasir() {
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
     rowHtml(dataKode.TK) +
-    "<tr class='bold' style='border-top: 1px solid #000;'><td>SALDO KAS TERSEDIA</td><td style='text-align:right;'>" +
+    "<tr class='bold' style='border-top: 1px solid #000;'><td>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
     fmtRp(saldoTersedia) +
     "</td></tr>" +
-    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right;'>" +
+    "<tr class='total'><td>SALDO KAS</td><td style='text-align:right'>" +
     fmtRp(saldoKas) +
     "</td></tr>" +
     "<tr class='bold'><td>KOREKSI(+)</td><td style='text-align:right'>Rp</td></tr>" +
@@ -2134,8 +1963,13 @@ function editKasirDetil(idYangDiedit) {
 }
 
 async function simpanPerubahanKasirDetil(idYangDiedit) {
-  var r = await db.get("mutasikasir", idYangDiedit);
-  if (!r) return toast("Data tidak ditemukan di database!", "err");
+  if (!DBCache.mutasikasir) return toast("Cache mutasi kosong!", "err");
+
+  // Cari di cache dulu
+  var dataLama = DBCache.mutasikasir.find(function (item) {
+    return item.id === idYangDiedit;
+  });
+  if (!dataLama) return toast("Data tidak ditemukan di cache!", "err");
 
   var kode = $("ed_mk_kode").value.toUpperCase();
   var penjelasan = $("ed_mk_penjelasan").value.trim().toUpperCase();
@@ -2145,26 +1979,37 @@ async function simpanPerubahanKasirDetil(idYangDiedit) {
     return toast("Kode, Penjelasan, dan Rp wajib diisi!", "err");
 
   // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
-  var activeGroup = localStorage.getItem("group") || "";
+  var activeGroup = localStorage.getItem("group") || "TLGA";
 
   try {
-    await db.put(
-      "mutasikasir",
-      Object.assign({}, r, {
-        kodeTrans: kode,
-        desc: penjelasan,
-        total: rp,
-        db: rp,
-        group: activeGroup, // ✅ GROUP DIMASUKKAN KE UPDATE
-      }),
+    // ✅ GANTI db.put DENGAN fetch KE API SUPABASE
+    var objUpdate = Object.assign({}, dataLama, {
+      kodeTrans: kode,
+      desc: penjelasan,
+      total: rp,
+      db: rp, // Sesuaikan dengan logika DB/CR kamu, jika ini mengubah CR bisa sesuaikan
+      group: activeGroup, // ✅ PASTIKAN GROUP SELALU TERUPDATE
+    });
+
+    await fetch(
+      window.location.origin + "/api/data/mutasikasir/" + idYangDiedit,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(objUpdate),
+      },
     );
+
+    // Update Cache Lokal
+    var idx = DBCache.mutasikasir.findIndex((item) => item.id === idYangDiedit);
+    if (idx !== -1) DBCache.mutasikasir[idx] = objUpdate;
+
     closeModal();
-    await refreshCache("mutasikasir");
     renderKasirDetilTable();
     updateKasirHeaderNominal();
     await hitungSaldoOtomatis();
     renderKasirNoreffList();
-    toast("Detil kasir berhasil diperbarui", "ok");
+    toast("Detil kasir berhasil diperbarui di Server", "ok");
   } catch (error) {
     toast("Gagal edit: " + error.message, "err");
   }
@@ -2267,14 +2112,24 @@ async function executeHapusSeReffKasir() {
 
   try {
     // ====================================================================
-    // 1. HAPUS DI SUPABASE DULU LEWAT API
+    // 1. HAPUS DI SUPABASE DULU LEWAT API (DITAMBAH FILTER GROUP)
     // ====================================================================
+    var activeGroup = localStorage.getItem("group") || "TLGA"; // Ambil group aktif
+
+    console.log(
+      "🗑️ [Hapus Reff] Mencoba menghapus Noreff:",
+      val,
+      "| Group:",
+      activeGroup,
+    );
+
     var response = await fetch("/api/clear-all-data", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         storeName: "mutasikasir",
-        noreff: val, // Kirim parameter noreff ke server
+        noreff: val,
+        group: activeGroup, // ✅ TAMBAHKAN INI: Kirim group agar hapusnya super spesifik
       }),
     });
 
@@ -2284,19 +2139,25 @@ async function executeHapusSeReffKasir() {
     }
 
     // ====================================================================
-    // 2. HAPUS DARI CACHE LOKAL (BIAR TAMPILAN LANGSUNG HILANG)
+    // 2. HAPUS DARI CACHE LOKAL (DITAMBAH PENGECEKAN GROUP AGAR LEBIH KONSISTEN)
     // ====================================================================
     var dataStore = Array.isArray(DBCache.mutasikasir)
       ? DBCache.mutasikasir
       : [];
 
     DBCache.mutasikasir = dataStore.filter(function (item) {
-      return (item.noreff || "").toLowerCase() !== val.toLowerCase();
+      // Hapus jika noreff cocok DAN groupnya cocok
+      var noreffCocok = (item.noreff || "").toLowerCase() === val.toLowerCase();
+      var groupCocok =
+        (item.group || "TLGA").toLowerCase() === activeGroup.toLowerCase();
+
+      // Kembalikan false (artinya hapus) HANYA jika keduanya cocok
+      return !(noreffCocok && groupCocok);
     });
 
     closeModal();
     toast(
-      `✅ Berhasil menghapus ${result.changes} data se-Reff ${val} dari Server!`,
+      `✅ Berhasil menghapus ${result.changes || 0} data se-Reff ${val} (Group: ${activeGroup}) dari Server!`,
       "ok",
     );
 
@@ -2318,7 +2179,6 @@ async function executeHapusSeReffKasir() {
     toast("Gagal menghapus: " + err.message, "err");
   }
 }
-
 // ✅ FUNGSI POPUP HAPUS DATA MUTASI KASIR PER CABANG
 
 async function executeHapusMutasiPerCabang() {
