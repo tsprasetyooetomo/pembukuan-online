@@ -43,13 +43,15 @@ function renderKasHarian() {
 
 async function tutupBukuHarian() {
   // 1. Ambil parameter dari filter UI
-  var tglAwal = $("fk_tgl_awal").value; // Ambil tanggal awal dari filter
+  var tglAwal = $("fk_tgl_awal").value;
   var tglAkhir = $("fk_tgl_akhir").value;
-  var cab = $("fk_cabang").value;
+  var cab = $("fk_cabang").value || "Pusat";
   var selectedChar = $("fk_kodebank").value;
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ Tambahkan filter group agar data konsisten
 
   if (!selectedChar) {
-    alert("Pilih Kode Bank/Kas dulu!");
+    if (typeof toast === "function") toast("Pilih Kode Bank/Kas dulu!", "wrn");
+    else alert("Pilih Kode Bank/Kas dulu!");
     return;
   }
 
@@ -67,15 +69,25 @@ async function tutupBukuHarian() {
   // Ambil saldo awal mutlak untuk tanggal awal proses
   var runningSaldo = await getSaldoAwalClient(cab, selectedChar, tglAwal);
 
-  // Lakukan looping per hari dari tanggal awal sampai tanggal akhir
+  // ✅ PERBAIKAN BUG LOOP TANGGAL: Gunakan variabel penanda baru agar tidak merusak objek dateStart asli
   for (var d = new Date(dateStart); d <= dateEnd; d.setDate(d.getDate() + 1)) {
-    var tglLoop = d.toISOString().slice(0, 10);
+    // ✅ PERBAIKAN TANGGAL ACUAN: Gunakan d.getFullYear() dsb. agar terhindar dari bug timezone minus 1 hari akibat toISOString()
+    var yyyy = d.getFullYear();
+    var mm = String(d.getMonth() + 1).padStart(2, "0");
+    var dd = String(d.getDate()).padStart(2, "0");
+    var tglLoop = yyyy + "-" + mm + "-" + dd;
 
     // Ambil transaksi khusus untuk tanggal hari berjalan ini
-    var transaksiHariIni = DBCache.transaksi.filter(function (t) {
-      if (t.tanggal !== tglLoop) return false; // Harus pas hari ini
+    var transaksiHariIni = (
+      Array.isArray(DBCache.transaksi) ? DBCache.transaksi : []
+    ).filter(function (t) {
+      if (t.tanggal !== tglLoop) return false;
       var tCab = t.cabang || "Pusat";
       if (cab && tCab !== cab) return false;
+
+      // ✅ Tambahkan validasi kecocokan group data
+      if ((t.group || "TLGA") !== activeGroup) return false;
+
       var tReff = t.noreff || "";
       var tChar = tReff.length >= 4 ? tReff.charAt(3) : " ";
       return tChar === selectedChar;
@@ -94,7 +106,6 @@ async function tutupBukuHarian() {
     // Akumulasikan saldo akhir untuk hari berjalan ini
     runningSaldo = runningSaldo + mutasiHariIni;
 
-    // Masukkan ke dalam array daftar saldo harian dengan properti yang pas
     daftarSaldoHarian.push({
       tanggal: tglLoop,
       saldoAkhir: runningSaldo,
@@ -102,7 +113,6 @@ async function tutupBukuHarian() {
   }
 
   // 4. KIRIM DATA KE FUNGSI DATABASE UTAMA
-  // Kirim 5 parameter: cabang, char4, tanggalAwal, tanggalAkhir, array_data
   var hasil = await simpanSnapshotSaldo(
     cab,
     selectedChar,
@@ -112,12 +122,21 @@ async function tutupBukuHarian() {
   );
 
   if (hasil) {
-    alert("Seluruh data saldo harian periode tersebut berhasil diperbarui!");
-    refreshKasHarian(); // Refresh tampilan tabel kas
+    if (typeof toast === "function")
+      toast(
+        "Seluruh data saldo harian periode tersebut berhasil diperbarui!",
+        "ok",
+      );
+    else
+      alert("Seluruh data saldo harian periode tersebut berhasil diperbarui!");
+    if (typeof refreshKasHarian === "function") refreshKasHarian();
   } else {
-    alert("Gagal memperbarui saldo. Periksa log konsol server.");
+    if (typeof toast === "function")
+      toast("Gagal memperbarui saldo. Periksa log konsol.", "err");
+    else alert("Gagal memperbarui saldo. Periksa log konsol.");
   }
 }
+
 async function simpanSnapshotSaldo(
   cabang,
   char4,
@@ -128,26 +147,15 @@ async function simpanSnapshotSaldo(
   try {
     const kodeCabang = cabang || "Pusat";
     const kodeChar = char4 || " ";
+    const activeGroup = localStorage.getItem("group") || "TLGA";
 
-    // ==========================================
-    // RADAR DETEKSI: ISI DATA DI CONSOLE BROWSER
-    // ==========================================
     console.log("=== MEMULAI ANALISIS PROSES SIMPAN ===");
-    console.log("Tipe data daftarSaldo:", typeof daftarSaldo);
-    console.log(
-      "Apakah daftarSaldo berbentuk Array?",
-      Array.isArray(daftarSaldo),
-    );
     console.log(
       "Jumlah baris data terdeteksi:",
       daftarSaldo ? daftarSaldo.length : 0,
     );
-    console.log(
-      "Isi data mentah pertama:",
-      daftarSaldo ? daftarSaldo[0] : "KOSONG",
-    );
-    // ==========================================
 
+    // Endpoint Clear Range
     await fetch(API_BASE_URL + "/api/saldo-harian/clear-range", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -156,17 +164,24 @@ async function simpanSnapshotSaldo(
         char4: kodeChar,
         tanggalAwal: tanggalAwal,
         tanggalAkhir: tanggalAkhir,
+        group: activeGroup, // ✅ Sertakan parameter group saat clear data lama
       }),
     });
 
+    // ✅ PERBAIKAN PAYLOAD: Sesuaikan mapping ID agar unik per group dan gunakan schema document store yang sama dengan POST sebelumnya jika disimpan dalam satu kolom data
     const dataSiapSimpan = daftarSaldo.map((item) => {
-      return {
-        id: `${kodeCabang}_${kodeChar}_${item.tanggal}`,
+      const payloadRaw = {
+        id: `${kodeCabang}_${kodeChar}_${activeGroup}_${item.tanggal}`, // ✅ Tambah unsur group di primary key
         cabang: kodeCabang,
         char4: kodeChar,
         tanggal: item.tanggal,
         saldo_akhir: item.saldoAkhir,
+        group: activeGroup,
       };
+
+      // Catatan: Jika backend /api/batch/saldo_harian mengharapkan format {id, data: JSON}, gunakan penyesuaian di bawah ini.
+      // Namun jika tabel Anda kolomnya bertipe reguler/flat (bukan JSONB), struktur payloadRaw langsung di bawah ini sudah benar:
+      return payloadRaw;
     });
 
     console.log(
@@ -180,11 +195,14 @@ async function simpanSnapshotSaldo(
       body: JSON.stringify(dataSiapSimpan),
     });
 
+    if (!response.ok) return false;
     return await response.json();
   } catch (error) {
-    console.error("Gagal total:", error);
+    console.error("Gagal total pada simpanSnapshotSaldo:", error);
+    return false;
   }
 }
+
 /* ---------- FUNGSI EXPORT KAS HARIAN ---------- */
 function exportKasHarian() {
   // 1. Ambil data langsung dari wadah global hasil render layar
@@ -549,7 +567,6 @@ async function getSaldoAwalClient(cabang, tglAwal) {
   // Jika dari kedua tabel tidak ada, kembalikan 0
   return 0;
 }
-
 
 // --- FUNGSI MODAL RINCIAN (UPDATE: TAMBAH KOLOM CABANG & SUPPORT SEMUA CABANG) ---
 // --- FUNGSI MODAL RINCIAN (VERSI SPESIFIK: MENGUNCI SESUAI BARIS YANG DIKLIK) ---
