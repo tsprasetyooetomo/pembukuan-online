@@ -945,7 +945,7 @@ async function renderDetilNeraca() {
       currentCabang !== "SEMUA" &&
       currentCabang !== ""
         ? currentCabang
-        : "Pusat";
+        : "PUSAT";
   }
 
   if (typeof window._neracaFilterMasa === "undefined") {
@@ -960,45 +960,48 @@ async function renderDetilNeraca() {
   var filterTahunFull = partMasa[1];
   var inputMonthValue = filterTahunFull + "-" + filterBulan;
 
-  // 2. SIAPKAN OPSI DROPDOWN CABANG
-  var rawCabang = DBCache.cabang || [];
-  var daftarCabangObj = [];
+  // AMBIL GROUP AKTIF DARI LOCALSTORAGE
+  var groupAktif = (localStorage.getItem("group") || "TLGA")
+    .trim()
+    .toUpperCase();
 
+  // 2. SIAPKAN OPSI DROPDOWN CABANG BERDASARKAN GROUP (PERBAIKAN DI SINI)
+  var rawCabang = DBCache.cabang || [];
+
+  // Siapkan baris PUSAT default di paling atas
+  var opsiCabangHtml =
+    '<option value="PUSAT">PUSAT (ALL GROUP ' + groupAktif + ")</option>";
+
+  // Saring cabang langsung menggunakan data asli (c.kode, c.nama, c.group)
   rawCabang.forEach(function (c) {
-    var id = (c.cabang || c.kode || "").trim();
-    var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
-    if (id) {
-      daftarCabangObj.push({ id: id, nama: nama });
+    var id = String(c.kode || "").trim();
+    var nama = String(c.nama || id || "Tanpa Nama").trim();
+    var groupCabang = String(c.group || "")
+      .trim()
+      .toUpperCase();
+
+    // Validasi kode cabang dan kecocokan group aktif
+    if (id && groupCabang === groupAktif) {
+      // Lewati teks PUSAT atau kode 00 bawaan agar tidak duplikat dengan baris atas
+      if (id.toUpperCase() !== "PUSAT" && id !== "00") {
+        var sel =
+          id.toUpperCase() === window._neracaFilterCabang.toUpperCase()
+            ? "selected"
+            : "";
+        // Format dropdown: KODE - NAMA CABANG
+        opsiCabangHtml +=
+          '<option value="' +
+          esc(id) +
+          '" ' +
+          sel +
+          ">" +
+          esc(id) +
+          " - " +
+          esc(nama.toUpperCase()) +
+          "</option>";
+      }
     }
   });
-
-  // Sort Cabang
-  daftarCabangObj.sort(function (a, b) {
-    return a.id.localeCompare(b.id, undefined, { numeric: true });
-  });
-
-  if (daftarCabangObj.length === 0) {
-    daftarCabangObj.push({ id: "PUSAT", nama: "PUSAT" });
-  }
-
-  var kodeDefault = window._neracaFilterCabang;
-  if (!kodeDefault) kodeDefault = daftarCabangObj[0].id;
-
-  var opsiCabangHtml = daftarCabangObj
-    .map(function (item) {
-      var sel =
-        item.id.toLowerCase() === kodeDefault.toLowerCase() ? "selected" : "";
-      return (
-        '<option value="' +
-        item.id +
-        '" ' +
-        sel +
-        ">" +
-        item.nama.toUpperCase() +
-        "</option>"
-      );
-    })
-    .join("");
 
   // 3. RENDER HTML ANTARMUKA (FILTER & WADAH TABEL)
   var htmlLaporan =
@@ -1008,7 +1011,7 @@ async function renderDetilNeraca() {
     // --- FILTER PANEL ---
     '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">' +
     '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span style="color:var(--accent);">' +
-    (localStorage.getItem("group") || "TLGA") +
+    groupAktif +
     "</span> | PILIHAN TAMPILAN:</div>" +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
@@ -1019,13 +1022,13 @@ async function renderDetilNeraca() {
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Cabang:</label>' +
     '<select id="filter_neraca_cabang" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;">' +
-    opsiCabangHtml +
+    opsiCabangHtml + // Memakai variabel HTML yang sudah bersih dan tersaring di atas
     "</select>" +
     "</div>" +
     '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiDetilNeraca()">' +
     "Tampilkan Data" +
     "</button>" +
-    // ✅ TAMBAHKAN TOMBOL DOWNLOAD INI
+    // TOMBOL DOWNLOAD EXCEL
     '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadNeracaDetilExcel()">' +
     '<i class="fa-solid fa-file-excel"></i> Download Excel' +
     "</button>" +
