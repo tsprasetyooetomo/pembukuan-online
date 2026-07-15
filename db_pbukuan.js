@@ -33,6 +33,7 @@ class PembukuanDB {
       { name: "saldoKasir" },
       { name: "mutasikasir" },
       { name: "saldokasirawal" },
+      { name: "saldo_harian" },
     ];
   }
 
