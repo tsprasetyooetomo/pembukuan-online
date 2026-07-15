@@ -371,6 +371,14 @@ app.get("/api/data/:storeName", async (req, res) => {
     const lowerStoreName = storeName.toLowerCase();
 
     // Tabel yang wajib difilter (TAMBAHKAN GROUP KE DALAM LOGIKA)
+    // ==========================================
+    // LOGIKA FILTER BARU (CABANG & GROUP BERDIRI SENDIRI)
+    // ==========================================
+    let whereClause = "";
+    let params = [];
+    let paramIndex = 1;
+
+    // 1. Filter Cabang (Jika bukan PUSAT)
     if (
       filterCabang &&
       filterCabang.trim() !== "" &&
@@ -379,40 +387,42 @@ app.get("/api/data/:storeName", async (req, res) => {
       if (!/^[a-zA-Z0-9\-_ ]+$/.test(filterCabang)) {
         return res.status(400).json({ error: "Kode cabang tidak valid" });
       }
-
-      // ✅ 2. LOGIKA FILTER GABUNGAN (CABANG + GROUP)
-      let whereClause = `data LIKE $1 OR data LIKE $2 OR data LIKE $3 OR data LIKE $4`;
-      let params = [
+      whereClause = `(data LIKE $${paramIndex++} OR data LIKE $${paramIndex++} OR data LIKE $${paramIndex++} OR data LIKE $${paramIndex++})`;
+      params.push(
         `%"cabang":"${filterCabang}"%`,
         `%"cabang": "${filterCabang}"%`,
         `%"kode_cabang":"${filterCabang}"%`,
-        `%"kode_cabang": "${filterCabang}"%`,
-      ];
-
-      // Jika parameter group juga dikirim dari frontend, tambahkan ke filter SQL
-      if (filterGroup && filterGroup.trim() !== "") {
-        if (!/^[a-zA-Z0-9\-_ ]+$/.test(filterGroup)) {
-          return res.status(400).json({ error: "Kode group tidak valid" });
-        }
-        // Tambahkan syarat AND (Harus cocok cabangnya DAN groupnya)
-        whereClause += ` AND (data LIKE $5 OR data LIKE $6)`;
-        params.push(`%"group":"${filterGroup}"%`);
-        params.push(`%"group": "${filterGroup}"%`);
-      }
-
-      const queryStr = `SELECT data FROM ${lowerStoreName} WHERE ${whereClause}`;
-      var result = await db.query(queryStr, params);
-
-      console.log(
-        `System: SQL Fetch TERFILTER cabang ${filterCabang} & group ${filterGroup} | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
-      );
-    } else {
-      // Jika PUSAT atau tanpa filter cabang
-      var result = await db.query(`SELECT data FROM ${lowerStoreName}`);
-      console.log(
-        `System: SQL Fetch SEMUA DATA | Tabel ${lowerStoreName} | Ditemukan: ${result.rows.length} baris`,
+        `%"kode_cabang": "${filterCabang}%`,
       );
     }
+
+    // 2. Filter Group (Berlaku untuk SEMUA, termasuk PUSAT)
+    if (filterGroup && filterGroup.trim() !== "") {
+      if (!/^[a-zA-Z0-9\-_ ]+$/.test(filterGroup)) {
+        return res.status(400).json({ error: "Kode group tidak valid" });
+      }
+
+      const groupCondition = `(data LIKE $${paramIndex++} OR data LIKE $${paramIndex++})`;
+      params.push(`%"group":"${filterGroup}"%`, `%"group": "${filterGroup}%`);
+
+      // Gabungkan dengan WHERE sebelumnya menggunakan AND
+      if (whereClause === "") {
+        whereClause = groupCondition;
+      } else {
+        whereClause += " AND " + groupCondition;
+      }
+    }
+
+    // 3. Eksekusi Query SQL
+    let sql = `SELECT data FROM ${lowerStoreName}`;
+    if (whereClause !== "") {
+      sql += ` WHERE ${whereClause}`;
+    }
+
+    var result = await db.query(sql, params);
+    console.log(
+      `System: SQL Fetch | Tabel ${lowerStoreName} | Cabang: ${filterCabang || "ALL"} | Group: ${filterGroup || "ALL"} | Ditemukan: ${result.rows.length} baris`,
+    );
 
     // Parsing semua baris
     const allData = result.rows.map((r) =>
