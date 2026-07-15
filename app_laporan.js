@@ -27,7 +27,7 @@ if (typeof gPerks === "undefined") {
     }, 0);
   };
 }
-function renderNeraca() {
+async function renderNeraca() {
   // 1. SIAPKAN NILAI DEFAULT SAAT PERTAMA KALI DIBUKA
   if (typeof window._neracaFilterCabang === "undefined") {
     window._neracaFilterCabang =
@@ -41,9 +41,10 @@ function renderNeraca() {
   if (typeof window._neracaFilterMasa === "undefined") {
     var d = new Date();
     var bln = ("0" + (d.getMonth() + 1)).slice(-2);
-    window._neracaFilterMasa = bln + "-" + d.getFullYear();
+    window._neracaFilterMasa = bln + "-" + d.getFullYear(); // "MM-YYYY"
   }
 
+  // Pecah Masa untuk kebutuhan format Input HTML (YYYY-MM)
   var partMasa = window._neracaFilterMasa.split("-");
   var filterBulan = partMasa[0];
   var filterTahunFull = partMasa[1];
@@ -59,7 +60,6 @@ function renderNeraca() {
   var daftarCabangObj = [];
 
   rawCabang.forEach(function (c) {
-    // DISESUAIKAN: menggunakan c.kode dan c.group sesuai data asli Anda
     var id = (c.kode || "").trim();
     var nama = (c.nama || id || "Tanpa Nama").trim();
     var groupCabang = (c.group || "").trim().toUpperCase();
@@ -87,7 +87,6 @@ function renderNeraca() {
     });
   }
 
-  // 4. GENERATE HTML OPSI DROPDOWN
   var kodeDefault = (window._neracaFilterCabang || "PUSAT").toUpperCase();
   var opsiCabangHtml = daftarCabangObj
     .map(function (item) {
@@ -106,12 +105,13 @@ function renderNeraca() {
     })
     .join("");
 
-  // 5. RENDER HTML INTERFACE
+  // 4. RENDER HTML ANTARMUKA (DISINKRONKAN DENGAN RENDERDETILNERACA)
   var htmlLaporan =
     '<div id="area_cetak_neraca" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
-    '<div style="text-align:center; width:100%; max-width:100%; box-sizing:border-box;">' +
+    '<div style="text-align:center; width:100%; box-sizing:border-box;">' +
     '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan Neraca</h3>' +
-    '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; box-shadow: 0 4px 6px rgba(0,0,0,0.1); margin-bottom:1rem; margin-left:auto; margin-right:auto;">' +
+    // --- FILTER PANEL ---
+    '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">' +
     '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span style="color:var(--accent);">' +
     groupAktif +
     "</span> | PILIHAN TAMPILAN:</div>" +
@@ -128,21 +128,22 @@ function renderNeraca() {
     "</select>" +
     "</div>" +
     '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiNeraca()">' +
-    "Terapkan" +
+    "Tampilkan Data" +
     "</button>" +
     '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadNeracaExcel()">' +
     '<i class="fa-solid fa-file-excel"></i> Download Excel' +
     "</button>" +
     "</div>" +
-    '<div class="table-responsive-container" style="width:100%; max-width:100%; height:380px; max-height:380px; overflow:auto; display:block; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box; margin:0 auto; clear:both;">' +
+    // --- WADAH SCROLL TABEL ---
+    '<div class="table-responsive-container" style="width:100%; height:380px; max-height:380px; overflow:auto; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box;">' +
     "<style>" +
-    "#tempat_tabel_preview table { width: 100% !important; min-width: 900px !important; border-collapse: collapse !important; table-layout: auto !important; margin:0 !important; }" +
-    "#tempat_tabel_preview th { padding: 8px 12px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; }" +
-    "#tempat_tabel_preview td { padding: 8px 12px !important; white-space: nowrap !important; border: 1px solid var(--brd); }" +
+    "#tempat_tabel_preview table { width: 100% !important; min-width: 1000px !important; border-collapse: collapse !important; table-layout: auto !important; }" +
+    "#tempat_tabel_preview th { padding: 8px 10px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; text-align:left; }" +
+    "#tempat_tabel_preview td { padding: 6px 10px !important; border: 1px solid var(--brd); font-size:0.85rem; }" +
     "</style>" +
-    '<div id="tempat_tabel_preview" style="width:100%; display:block; text-align:left; box-sizing:border-box;"></div>' +
+    '<div id="tempat_tabel_preview" style="width:100%; display:block; text-align:left;"></div>' +
     "</div>" +
-    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem; margin-bottom:0;">Silakan klik tombol <b>Terapkan</b> untuk memuat data.</p>' +
+    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem;">Klik tombol Tampilkan Data untuk memuat detail perkiraan.</p>' +
     "</div>" +
     "</div>";
 
