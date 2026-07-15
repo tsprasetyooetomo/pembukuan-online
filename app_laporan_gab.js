@@ -2198,10 +2198,6 @@ function downloadExcelArusKasPerCabang() {
 }
 
 // ==========================================
-// FUNGSI UTAMA (UPDATE - SIMPAN DATA GLOBAL)
-// ==========================================
-
-// ==========================================
 // FUNGSI GENERATE HTML
 // ==========================================
 function generateHTMLArusKasGabungan(
