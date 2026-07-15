@@ -1030,61 +1030,35 @@ function renderLaporanSaldoKasir() {
 
 /* ---------- FUNGSI AMBIL SALDO AWAL DARI TABEL saldokasir ---------- */
 async function getSaldoAwalKasir(cabang, tglAwal) {
-  var cab = cabang || "Pusat";
-  var rawData = DBCache.saldokasir || [];
+  // Langsung ambil dari memory (DBCache), karena data SUDAH difilter cabang & group oleh serverold.js
+  var dataSaldo = DBCache.saldoKasir || [];
+  var dataSaldoAwal = DBCache.saldokasirawal || [];
 
-  // 1. CARI DI TABLE saldoKasir (UTAMA)
-  var filteredSaldo = rawData.filter(function (s) {
-    var sCab = s.cabang || "Pusat";
-    return sCab === cab && s.tgl_awal <= tglAwal;
+  // 1. Cari di saldoKasir (Urutkan ASC dulu, lalu ambil yang paling mendekati tglAwal)
+  dataSaldo.sort(function (a, b) {
+    return (a.tgl_awal || "").localeCompare(b.tgl_awal || "");
+  });
+  var found = dataSaldo.filter(function (s) {
+    return s.tgl_awal <= tglAwal;
   });
 
-  // Urutkan dari tanggal terbesar ke terkecil (DESC)
-  filteredSaldo.sort(function (a, b) {
-    return b.tgl_awal.localeCompare(a.tgl_awal);
+  if (found.length > 0) {
+    return num(found[found.length - 1].akhir || 0); // Ambil index terakhir (yang tanggalnya paling besar tapi masih <= tglAwal)
+  }
+
+  // 2. Fallback Cari di saldoKasirawal
+  dataSaldoAwal.sort(function (a, b) {
+    return (a.tgl_awal || "").localeCompare(b.tgl_awal || "");
+  });
+  var foundAwal = dataSaldoAwal.filter(function (s) {
+    return s.tgl_awal <= tglAwal;
   });
 
-  // Jika ketemu di saldoKasir, langsung kembalikan nilainya
-  if (filteredSaldo.length > 0) {
-    return num(filteredSaldo[0].akhir || 0);
+  if (foundAwal.length > 0) {
+    return num(foundAwal[foundAwal.length - 1].akhir || 0);
   }
 
-  // ==========================================
-  // 2. FALLBACK: JIKA TIDAK KETEMU, CARI DI saldoKasirawal
-  // ==========================================
-  try {
-    // Cek apakah sudah ada di cache, jika belum ambil dari IndexedDB
-    if (!DBCache.saldoKasirawal) {
-      DBCache.saldoKasirawal = await db.getAll("saldoKasirawal");
-    }
-
-    // KODE BARU YANG DIPERBAIKI:
-    var resAwal = await db.getAll("saldokasirawal");
-    var rawDataAwal = resAwal
-      ? Array.isArray(resAwal)
-        ? resAwal
-        : Object.values(resAwal)
-      : [];
-    // Filter cabang dan tanggal yang <= tglAwal
-    var filteredSaldoAwal = rawDataAwal.filter(function (s) {
-      var sCab = s.cabang || "Pusat";
-      return sCab === cab && s.tgl_awal <= tglAwal;
-    });
-
-    // Urutkan DESC
-    filteredSaldoAwal.sort(function (a, b) {
-      return b.tgl_awal.localeCompare(a.tgl_awal);
-    });
-
-    // Jika ketemu di saldoKasirawal, kembalikan nilainya
-    if (filteredSaldoAwal.length > 0) {
-      return num(filteredSaldoAwal[0].akhir || 0);
-    }
-  } catch (err) {
-    console.warn("Gagal mengambil data fallback dari saldoKasirawal:", err);
-  }
-
-  // 3. Jika dari kedua tabel tetap tidak ada, kembalikan 0
+  // 3. Jika tidak ada sama sekali
   return 0;
 }
 
