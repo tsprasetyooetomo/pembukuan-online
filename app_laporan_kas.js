@@ -1305,66 +1305,102 @@ async function postingSaldoKasir() {
   }
 
   // 2. Konfirmasi ke user
-  var confirmMsg = `POSTING SALDO KASIR\n\nCabang: ${cab}\nPeriode: ${tglAwal} s/d ${tglAkhir}\n\nSaldo akan disimpan sebagai Saldo Awal untuk tanggal setelah ${tglAkhir}.\nLanjutkan?`;
+  var confirmMsg =
+    "POSTING SALDO KASIR HARIAN\n\nCabang: " +
+    cab +
+    "\nPeriode: " +
+    tglAwal +
+    " s/d " +
+    tglAkhir +
+    "\n\nData harian yang tampil di layar akan disimpan ke Database Saldo Kasir.\nLanjutkan?";
   var ok = confirm(confirmMsg);
   if (!ok) return;
 
   try {
-    // 3. Hitung Saldo Akhir dari data yang sedang aktif di layar
-    // Kita hitung ulang dari seluruh groupedData untuk memastikan akurasi
-    var saldoAwal = DATA_KASIR_AKTIF.saldoAwalMaster;
-    var saldoAkhirPosting = saldoAwal;
+    // 3. Siapkan variabel untuk menampung data yang akan dikirim
+    var arrDataUntukDisimpan = [];
+    var baseUrl = window.location.origin + "/api/data/saldokasir"; // Target API saldokasir
 
+    // 4. LOOPING DATA YANG TAMPIL DI LAYAR (HARIAN)
     DATA_KASIR_AKTIF.groupedData.forEach(function (t) {
-      saldoAkhirPosting += (t.db || 0) - (t.cr || 0);
+      // Pastikan datanya memiliki tanggal
+      var tglTransaksi = t.tanggal || t.tgl;
+      if (!tglTransaksi) return;
+
+      // Bersihkan format tanggal jika perlu (ambil format YYYY-MM-DD saja)
+      if (tglTransaksi.indexOf(" ") > -1)
+        tglTransaksi = tglTransaksi.split(" ")[0];
+
+      // Susun objek data harian baru
+      var objHarian = {
+        id: "POST_KASIR_" + cab + "_" + tglTransaksi + "_" + uid(), // ID Unik
+        cabang: cab,
+        tanggal: tglTransaksi, // Tanggal harian
+        tgl_awal: tglTransaksi, // Di map ke tgl_awal supaya kompatibel dengan fungsi getSaldoAwalKasir nanti
+        db: t.db || 0,
+        cr: t.cr || 0,
+        akhir: (t.db || 0) - (t.cr || 0), // Saldo per harian
+        awal: 0,
+        group: localStorage.getItem("group") || "TLGA", // Catatan tambahan: sertakan group
+      };
+
+      arrDataUntukDisimpan.push(objHarian);
     });
 
-    // 4. Susun data yang akan dikirim/disimpan
-    // Tanggal posting kita set 1 hari setelah tanggal akhir filter
-    var dateEnd = new Date(tglAkhir);
-    dateEnd.setDate(dateEnd.getDate() + 1);
-    var tglSaldoBaru = dateEnd.toISOString().slice(0, 10);
-
-    var objSaldoBaru = {
-      id: uid(), // Generate ID baru
-      cabang: cab,
-      tgl_awal: tglSaldoBaru,
-      db: 0,
-      cr: 0,
-      akhir: saldoAkhirPosting,
-      awal: 0,
-    };
-
-    // 5. KIRIM KE SERVER / DATABASE
-    var response = await fetch(API_BASE_URL + "/api/data/saldokasirawal", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(objSaldoBaru),
-    });
-
-    if (!response.ok) {
-      var errJson = await response.json();
-      throw new Error(errJson.error || "Gagal menyimpan ke server backend");
+    if (arrDataUntukDisimpan.length === 0) {
+      if (typeof toast === "function")
+        toast("Tidak ada data valid yang bisa diproses.", "wrn");
+      return;
     }
 
-    // 6. SIMPAN KE INDEXEDDB LOKAL
-    await db.add("saldokasir", objSaldoBaru);
+    // Tampilkan pesan proses
+    if (typeof toast === "function")
+      toast(
+        "Menyimpan " + arrDataUntukDisimpan.length + " data harian...",
+        "inf",
+      );
 
-    // 7. UPDATE CACHE DBCache (Agar langsung berefleksi tanpa reload)
+    // 5. KIRIM KE SERVER SUPABASE SECARA PARALEL MENGGUNAKAN BATCH ATAU LOOP FETCH
+    // Kita kirim satu per satu dengan Promise.all agar cepat
+    var berhasilDisimpan = 0;
+    var gagalDisimpan = 0;
+
+    await Promise.all(
+      arrDataUntukDisimpan.map(function (item) {
+        return fetch(baseUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(item),
+        })
+          .then(function (res) {
+            if (!res.ok) throw new Error("Server error");
+            berhasilDisimpan++;
+          })
+          .catch(function (e) {
+            gagalDisimpan++;
+            console.error("Gagal simpan data tgl:", item.tanggal, e);
+          });
+      }),
+    );
+
+    // 6. UPDATE CACHE DBCache LOKAL (Agar UI langsung berubah tanpa reload halaman)
     if (!DBCache.saldokasir) DBCache.saldokasir = [];
-    DBCache.saldokasir.push(objSaldoBaru);
+    arrDataUntukDisimpan.forEach(function (item) {
+      DBCache.saldokasir.push(item);
+    });
 
-    // 8. SUKSES
-    var pesanSukses = `Posting Berhasil!\nSaldo Akhir sebesar ${formatUang(saldoAkhirPosting)} telah disimpan sebagai Saldo Awal untuk tanggal ${tglSaldoBaru}.`;
+    // 7. SUKSES
+    var pesanSukses =
+      "Posting Berhasil!\n" +
+      berhasilDisimpan +
+      " data harian tersimpan di Saldo Kasir." +
+      (gagalDisimpan > 0 ? " (" + gagalDisimpan + " gagal)" : "");
 
     if (typeof toast === "function") {
       toast(pesanSukses, "ok");
     } else {
       alert(pesanSukses);
     }
-
-    // Opsional: Refresh tampilan jika ingin langsung melihat perubahan
-    // refreshSaldoKasir();
   } catch (err) {
     console.error("❌ Gagal Posting Saldo Kasir:", err);
     if (typeof toast === "function") {
