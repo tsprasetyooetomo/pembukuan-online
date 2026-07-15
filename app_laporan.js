@@ -937,113 +937,139 @@ PANEL_MAP.detilNeraca = renderDetilNeraca;
 // =========================================================================
 // FUNGSI RENDER DETIL NERACA (SUMBER DATA: PERKIRAAN BACKUP)
 // =========================================================================
-async function renderDetilNeraca() {
-  // 1. SIAPKAN NILAI DEFAULT SAAT PERTAMA KALI DIBUKA
-  if (typeof window._neracaFilterCabang === "undefined") {
-    window._neracaFilterCabang =
-      typeof currentCabang !== "undefined" &&
-      currentCabang !== "SEMUA" &&
-      currentCabang !== ""
-        ? currentCabang
-        : "Pusat";
-  }
+function downloadNeracaDetilExcel() {
+  // 1. Validasi keberadaan wadah tabel preview
+  var area = document.getElementById("tempat_tabel_neraca_detil");
+  var table = area ? area.querySelector("table") : null;
 
-  if (typeof window._neracaFilterMasa === "undefined") {
-    var d = new Date();
-    var bln = ("0" + (d.getMonth() + 1)).slice(-2);
-    window._neracaFilterMasa = bln + "-" + d.getFullYear(); // "MM-YYYY"
-  }
-
-  // Pecah Masa untuk kebutuhan format Input HTML (YYYY-MM)
-  var partMasa = window._neracaFilterMasa.split("-");
-  var filterBulan = partMasa[0];
-  var filterTahunFull = partMasa[1];
-  var inputMonthValue = filterTahunFull + "-" + filterBulan;
-
-  // 2. SIAPKAN OPSI DROPDOWN CABANG
-  var rawCabang = DBCache.cabang || [];
-  var daftarCabangObj = [];
-
-  rawCabang.forEach(function (c) {
-    var id = (c.cabang || c.kode || "").trim();
-    var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
-    if (id) {
-      daftarCabangObj.push({ id: id, nama: nama });
-    }
-  });
-
-  // Sort Cabang
-  daftarCabangObj.sort(function (a, b) {
-    return a.id.localeCompare(b.id, undefined, { numeric: true });
-  });
-
-  if (daftarCabangObj.length === 0) {
-    daftarCabangObj.push({ id: "PUSAT", nama: "PUSAT" });
-  }
-
-  var kodeDefault = window._neracaFilterCabang;
-  if (!kodeDefault) kodeDefault = daftarCabangObj[0].id;
-
-  var opsiCabangHtml = daftarCabangObj
-    .map(function (item) {
-      var sel =
-        item.id.toLowerCase() === kodeDefault.toLowerCase() ? "selected" : "";
-      return (
-        '<option value="' +
-        item.id +
-        '" ' +
-        sel +
-        ">" +
-        item.nama.toUpperCase() +
-        "</option>"
+  if (!table) {
+    if (typeof toast === "function")
+      toast(
+        "Belum ada data tabel yang ditampilkan. Klik Tampilkan Data terlebih dahulu.",
+        "wrn",
       );
-    })
-    .join("");
+    else
+      alert(
+        "Belum ada data tabel yang ditampilkan. Klik Tampilkan Data terlebih dahulu.",
+      );
+    return;
+  }
 
-  // 3. RENDER HTML ANTARMUKA (FILTER & WADAH TABEL)
-  var htmlLaporan =
-    '<div id="area_cetak_neraca" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
-    '<div style="text-align:center; width:100%; box-sizing:border-box;">' +
-    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan Neraca (Detil Perkiraan)</h3>' +
-    // --- FILTER PANEL ---
-    '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">' +
-    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span style="color:var(--accent);">' +
-    (localStorage.getItem("group") || "TLGA") +
-    "</span> | PILIHAN TAMPILAN:</div>" +
-    '<div style="display:flex; align-items:center; gap:5px;">' +
-    '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
-    '<input type="month" id="filter_neraca_masa" value="' +
-    inputMonthValue +
-    '" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem;">' +
-    "</div>" +
-    '<div style="display:flex; align-items:center; gap:5px;">' +
-    '<label style="font-size:.75rem; color:var(--muted);">Cabang:</label>' +
-    '<select id="filter_neraca_cabang" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;">' +
-    opsiCabangHtml +
-    "</select>" +
-    "</div>" +
-    '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiDetilNeraca()">' +
-    "Tampilkan Data" +
-    "</button>" +
-    // ✅ TAMBAHKAN TOMBOL DOWNLOAD INI
-    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadNeracaDetilExcel()">' +
-    '<i class="fa-solid fa-file-excel"></i> Download Excel' +
-    "</button>" +
-    "</div>" +
-    // --- WADAH SCROLL TABEL ---
-    '<div class="table-responsive-container" style="width:100%; height:380px; max-height:380px; overflow:auto; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box;">' +
-    "<style>" +
-    "#tempat_tabel_neraca_detil table { width: 100% !important; min-width: 1000px !important; border-collapse: collapse !important; table-layout: auto !important; }" +
-    "#tempat_tabel_neraca_detil th { padding: 8px 10px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; text-align:left; }" +
-    "#tempat_tabel_neraca_detil td { padding: 6px 10px !important; border: 1px solid var(--brd); font-size:0.85rem; }" +
-    "</style>" +
-    '<div id="tempat_tabel_neraca_detil" style="width:100%; display:block; text-align:left;"></div>' +
-    "</div>" +
-    '<p class="no-print" style="font-size:.8rem; color:var(--muted); margin-top:.5rem;">Klik tombol Tampilkan Data untuk memuat detail perkiraan.</p>' +
-    "</div>" +
-    "</div>";
+  try {
+    // 2. Kloning tabel agar tidak merusak tampilan UI asli di layar
+    var tableClone = table.cloneNode(true);
 
-  return htmlLaporan;
+    // Ambil parameter filter untuk judul laporan
+    var masa = window._neracaFilterMasa || "Semua";
+
+    // Ambil nama teks cabang yang sedang terpilih dari dropdown filter
+    var selectCabang = document.getElementById("filter_neraca_cabang");
+    var namaCabang =
+      selectCabang && selectCabang.options[selectCabang.selectedIndex]
+        ? selectCabang.options[selectCabang.selectedIndex].text
+        : window._neracaFilterCabang || "Pusat";
+
+    var activeGroupLabel = localStorage.getItem("group") || "TLGA";
+
+    // 3. Hitung jumlah kolom tabel asli untuk kebutuhan colspan judul
+    var firstRow = tableClone.rows[0];
+    var totalKolom = firstRow ? firstRow.cells.length : 5;
+
+    // 4. Buat baris Judul Laporan & Periode Masa
+    var headerRow = document.createElement("tr");
+    headerRow.innerHTML =
+      '<td colspan="' +
+      totalKolom +
+      '" style="font-weight:bold; font-size:16px; text-align:left; border:none; padding:5px 0;">LAPORAN NERACA ' +
+      namaCabang.toUpperCase() +
+      "</td>";
+
+    var periodRow = document.createElement("tr");
+    periodRow.innerHTML =
+      '<td colspan="' +
+      totalKolom +
+      '" style="font-weight:bold; font-size:12px; text-align:left; border:none; padding:3px 0 15px 0;">PERIODE: ' +
+      masa.toUpperCase() +
+      " | GROUP: " +
+      activeGroupLabel.toUpperCase() +
+      "</td>";
+
+    // Sisipkan judul ke bagian paling atas tabel kloning
+    tableClone.insertBefore(periodRow, tableClone.firstChild);
+    tableClone.insertBefore(headerRow, tableClone.firstChild);
+
+    // 5. Bersihkan atribut interaktif dan rapikan format kolom data di Excel
+    for (var i = 0; i < tableClone.rows.length; i++) {
+      var row = tableClone.rows[i];
+
+      // Lewati format pembersihan untuk 2 baris judul teratas
+      if (i < 2) continue;
+
+      for (var j = 0; j < row.cells.length; j++) {
+        var cell = row.cells[j];
+        cell.removeAttribute("onclick"); // Hapus event click sisa DOM
+
+        // Cari tahu apakah cell ini berisi angka saldo berdasarkan kelas/posisi (biasanya text-align right atau angka bernilai)
+        var textAlign =
+          cell.style.textAlign || cell.getAttribute("align") || "";
+        var textValue = (cell.innerText || cell.textContent || "").trim();
+
+        // Deteksi format mata uang Indonesia (menggunakan titik ribuan)
+        if (
+          textAlign === "right" ||
+          /^-?\d+(\.\d{3})*(,\d+)?$/.test(textValue)
+        ) {
+          var nilaiAngka = textValue.replace(/\./g, "").replace(/,/g, ".");
+          var numVal = parseFloat(nilaiAngka);
+
+          if (!isNaN(numVal)) {
+            cell.setAttribute("x:num", numVal);
+            cell.setAttribute(
+              "style",
+              "mso-number-format:#\\.##0; text-align:right; color:#000;",
+            );
+          }
+        } else {
+          // Jadikan format teks biasa untuk No Perkiraan atau Kode agar nol di depan tidak hilang
+          cell.setAttribute(
+            "style",
+            "mso-number-format:\\@; text-align:left; color:#000;",
+          );
+        }
+      }
+    }
+
+    // 6. Proses pembuatan file Excel Blob (.xls)
+    var htmlContent = tableClone.outerHTML;
+    var blob = new Blob(["\ufeff", htmlContent], {
+      type: "application/vnd.ms-excel",
+    });
+    var url = URL.createObjectURL(blob);
+
+    // Buat link download otomatis
+    var a = document.createElement("a");
+    a.href = url;
+
+    var fileMasa = masa.replace(/[^a-zA-Z0-9\-]/g, "_");
+    a.download =
+      "Laporan_Neraca_Detil_" +
+      fileMasa +
+      "_Group_" +
+      activeGroupLabel +
+      ".xls";
+
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    if (typeof toast === "function")
+      toast("File Excel detail berhasil diunduh.", "success");
+  } catch (err) {
+    console.error("Gagal download excel detail:", err);
+    if (typeof toast === "function")
+      toast("Gagal memproses file Excel.", "err");
+  }
 }
 
 // =========================================================================
