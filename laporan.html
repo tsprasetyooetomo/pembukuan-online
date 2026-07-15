@@ -262,6 +262,16 @@
           <div class="card-title">Lap Keuangan</div>
           <span class="card-status status-online">RL Rekap Gabungan</span>
         </div>
+
+        <!-- ✅ KARTU MENU NERACA BARU -->
+        <div class="menu-card" onclick="handleMenuClick('neraca')">
+          <div class="card-icon">
+            <i class="fa-solid fa-scale-balanced" style="color: #a855f7"></i>
+          </div>
+          <div class="card-title">Laporan Neraca</div>
+          <span class="card-status status-online">Neraca Gabungan</span>
+        </div>
+
         <div class="menu-card" onclick="handleMenuClick('aruskas')">
           <div class="card-icon">
             <i
@@ -358,6 +368,10 @@
         if (menu === "lapkeuangan") {
           t.textContent = "Lap Keuangan — RL Rekap Gabungan";
           c.innerHTML = renderRLRekapGabungan();
+        } else if (menu === "neraca") {
+          // ✅ TANGANI RENDER UNTUK LAPORAN NERACA
+          t.textContent = "Laporan Neraca Gabungan";
+          c.innerHTML = renderNeraca();
         } else if (menu === "aruskas") {
           t.textContent = "Arus Kas Gabungan";
           c.innerHTML = renderArusKasGabungan();
