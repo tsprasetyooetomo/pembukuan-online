@@ -285,9 +285,13 @@ function buildSidebar() {
     if (userRole === "ADMIN") {
       itemsBolehTampil = grp.items;
     } else if (userRole === "MANAGER") {
-      itemsBolehTampil = grp.items.filter(
-        (item) => item.id !== "UserMgmt" && item.id !== "group",
-      );
+      // Jika nama kelompok/grupnya adalah "USER", maka sembunyikan semua itemnya (kosongkan)
+      if (grp.group === "USER") {
+        itemsBolehTampil = [];
+      } else {
+        // Jika bukan grup USER, tampilkan semua item di dalamnya (kecuali menu group jika masih mau dilarang)
+        itemsBolehTampil = grp.items.filter((item) => item.id !== "group");
+      }
     } else if (userRole === "AKUNTING") {
       if (
         ![
