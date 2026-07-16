@@ -3151,13 +3151,26 @@ PANEL_MAP.bukuBesar = renderBukuBesar;
 AFTER_RENDER.bukuBesar = refreshBukuBesar;
 
 function renderBukuBesar() {
+  // ✅ PERBAIKAN 1: PENGAMAN GROUP UNDEFINED
+  var rawGroup = localStorage.getItem("group");
+  var activeGroupLabel = "TLGA";
+  if (
+    rawGroup &&
+    rawGroup.trim() !== "" &&
+    rawGroup.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    activeGroupLabel = rawGroup.trim().toUpperCase();
+  }
+
+  // ✅ PERBAIKAN 2: FILTER DROPDOWN CABANG HANYA YANG SESUAI GROUP AKTIF
   var rawCabang = DBCache.cabang || [];
   var daftarCabangObj = [];
-
   rawCabang.forEach(function (c) {
-    var id = (c.cabang || c.kode || "").trim();
-    var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
-    if (id) {
+    var id = (c.kode || c.cabang || "").trim();
+    var nama = (c.nama || id || "Tanpa Nama").trim();
+    var groupCabang = (c.group || "").trim().toUpperCase();
+
+    if (id && groupCabang === activeGroupLabel) {
       daftarCabangObj.push({ id: id, nama: nama });
     }
   });
@@ -3166,19 +3179,29 @@ function renderBukuBesar() {
     return a.id.localeCompare(b.id, undefined, { numeric: true });
   });
 
-  var opsiCabangHtml = '<option value="ALL">SEMUA CABANG</option>';
+  var opsiCabangHtml =
+    '<option value="">-- Pilih Cabang --</option><option value="ALL">SEMUA CABANG</option>';
   daftarCabangObj.forEach(function (item) {
     opsiCabangHtml +=
       '<option value="' +
       item.id +
       '">' +
+      item.id +
+      " - " +
       item.nama.toUpperCase() +
       "</option>";
   });
 
-  var opts = DBCache.perkiraan
-    .map(function (p) {
-      return (
+  // ✅ PERBAIKAN 3: FILTER DROPDOWN PERKIRAAN HANYA YANG SESUAI GROUP AKTIF
+  var rawPerkiraan = DBCache.perkiraan || [];
+  var opts = '<option value="">-- Pilih --</option>';
+
+  rawPerkiraan.forEach(function (p) {
+    var groupPerk = String(p.group || "")
+      .trim()
+      .toUpperCase();
+    if (groupPerk === activeGroupLabel) {
+      opts +=
         '<option value="' +
         p.id +
         '" data-cabang="' +
@@ -3191,17 +3214,20 @@ function renderBukuBesar() {
         esc(p.noPerk) +
         " - " +
         esc(p.desc) +
-        "</option>"
-      );
-    })
-    .join("");
+        "</option>";
+    }
+  });
 
   return (
     '<div class="flt" style="align-items: flex-end;">' +
-    '<div class="fg"><label>Cabang</label><select id="bb_cabang" onchange="updatePerkiraanOptions()"><option value="">-- Pilih Cabang --</option>' +
+    // ✅ Tampilkan Group di UI
+    '<div style="width:100%; margin-bottom:5px; font-size:.8rem; color:var(--muted);">🔍 GROUP AKTIF: <span style="color:var(--accent); font-weight:bold;">' +
+    activeGroupLabel +
+    "</span></div>" +
+    '<div class="fg"><label>Cabang</label><select id="bb_cabang" onchange="updatePerkiraanOptions()">' +
     opsiCabangHtml +
     "</select></div>" +
-    '<div class="fg"><label>No Perkiraan <span class="req">*</span></label><select id="bb_perk"><option value="">-- Pilih --</option>' +
+    '<div class="fg"><label>No Perkiraan <span class="req">*</span></label><select id="bb_perk">' +
     opts +
     "</select></div>" +
     '<div class="fg"><label>Masa Dari (MMYY)</label><input type="text" id="bb_masa_dari" placeholder="0524" maxlength="4" style="text-transform:uppercase; width:100px;"></div>' +
@@ -3222,7 +3248,7 @@ window.updatePerkiraanOptions = function () {
   options.forEach(function (opt) {
     if (opt.value === "") return;
     var cabangPerk = opt.getAttribute("data-cabang") || "";
-    if (valcabang === "ALL" || cabangPerk === valcabang) {
+    if (valcabang === "ALL" || valcabang === "" || cabangPerk === valcabang) {
       filteredOptions.push(opt.cloneNode(true));
     }
   });
@@ -3255,19 +3281,26 @@ async function refreshBukuBesar() {
   var pk = await db.get("perkiraan", pid);
   if (!pk) return;
 
-  // ✅ 1. AMBIL GROUP AKTIF
-  var activeGroup = localStorage.getItem("group") || "TLGA";
+  // ✅ PERBAIKAN 4: PENGAMAN GROUP UNDEFINED
+  var rawGroup = localStorage.getItem("group");
+  var activeGroup = "TLGA";
+  if (
+    rawGroup &&
+    rawGroup.trim() !== "" &&
+    rawGroup.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    activeGroup = rawGroup.trim().toUpperCase();
+  }
 
   window._bbCurrentData = {
     cabang: cabang,
     masaDari: masaDari,
     masaSampai: masaSampai,
     perkiraan: pk,
-    group: activeGroup, // Simpan group untuk keperluan Excel
+    group: activeGroup,
   };
 
-  var allTransactions = [];
-
+  // ✅ PERBAIKAN 5: HAPUS VAR ALLTRANSACTIONS DI SINI (DIPINDAH KE BAWAH)
   function getTahunFromMasa(kode4digit) {
     if (!kode4digit || kode4digit.length < 4) return null;
     var yy = kode4digit.substring(2, 4);
@@ -3287,30 +3320,22 @@ async function refreshBukuBesar() {
     tahunMulai = tahunAkhir;
   }
 
-  // HAPUS KODE LOOP LAMA ANDA, GANTI DENGAN INI:
-
-  // ✅ 1. Tampilkan pesan awal (Hanya sekali, biarkan spinner berputar bebas)
   $("bukuBesarTbl").innerHTML =
     '<div class="empty-msg"><i class="fa-solid fa-spinner fa-spin" style="margin-right:8px;"></i> Mengambil data transaksi multi-tahun...</div>';
-
-  // Beri jeda 50ms biar UI sempat render spinner
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  // ✅ 2. Kumpulkan semua tahun ke dalam array Promise (Paralel Super Cepat)
   var tahunPromises = [];
   var th = tahunMulai;
   while (th <= tahunAkhir) {
     var namaStore = "transaksi" + th;
-    // Kita kumpulkan promise-nya, DILARANG langsung await di sini
     tahunPromises.push(db.getAll(namaStore));
     th++;
   }
 
-  // ✅ 3. Eksekusi semua pengambilan data secara BERSAMAAN (Bebas Freeze)
   try {
     var results = await Promise.all(tahunPromises);
 
-    // ✅ 4. Gabungkan hasilnya setelah semua selesai
+    // ✅ PERBAIKAN 6: DEKLARASIKAN allTransactions DI SINI (SATU SCOPE DENGAN PUSHNYA)
     var allTransactions = [];
     results.forEach(function (rawData) {
       var listTh = Array.isArray(rawData) ? rawData : Object.values(rawData);
@@ -3318,44 +3343,32 @@ async function refreshBukuBesar() {
     });
   } catch (err) {
     console.error("Gagal mengambil data salah satu tahun:", err);
+    return;
   }
 
-  // ✅ 5. Ubah UI menjadi "Menyusun data..." (Sekali lagi, setelah data lengkap)
   $("bukuBesarTbl").innerHTML =
     '<div class="empty-msg"><i class="fa-solid fa-calculator fa-spin" style="margin-right:8px;"></i> Menyusun ' +
     allTransactions.length +
     " data transaksi...</div>";
-
-  // Beri jeda 50ms lagi biar UI berubah sebelum masuk ke proses sorting/filter berat
   await new Promise((resolve) => setTimeout(resolve, 50));
 
-  // ============================================================
-  // KODE FILTER DATA DI BAWAH TETAP PERSIS (TIDAK PERLU DIUBAH)
-  // ============================================================
   var data = allTransactions.filter(function (t) {
-    // ... kode filter tetap sama di bawah sini ...
     var tNoPerk = String(t.noperkiraan || "").trim();
     var pNoPerk = String(pk.noPerk).trim();
-
     if (tNoPerk !== pNoPerk) return false;
 
     if (cabang && cabang !== "ALL" && t.cabang !== cabang) return false;
 
     var masaData = String(t.masa || "").trim();
     var validMasa = true;
-
-    if (masaDari) {
-      if (masaData < masaDari) validMasa = false;
-    }
-
-    if (masaSampai) {
-      if (masaData > masaSampai) validMasa = false;
-    }
-
+    if (masaDari && masaData < masaDari) validMasa = false;
+    if (masaSampai && masaData > masaSampai) validMasa = false;
     if (!validMasa) return false;
 
-    // ✅ 2. TAMBAHKAN FILTER GROUP
-    var cocokGroup = String(t.group || "").trim() === activeGroup;
+    var cocokGroup =
+      String(t.group || "")
+        .trim()
+        .toUpperCase() === activeGroup;
     if (!cocokGroup) return false;
 
     return true;
@@ -3382,15 +3395,12 @@ async function refreshBukuBesar() {
     var masaB = String(b.masa || "").trim();
     if (masaA < masaB) return -1;
     if (masaA > masaB) return 1;
-
     var dA = a.tanggal;
     var dB = b.tanggal;
     var timeA = dA instanceof Date ? dA.getTime() : new Date(dA).getTime();
     var timeB = dB instanceof Date ? dB.getTime() : new Date(dB).getTime();
-
     if (isNaN(timeA)) timeA = 0;
     if (isNaN(timeB)) timeB = 0;
-
     return timeA - timeB;
   });
 
@@ -3442,7 +3452,7 @@ async function refreshBukuBesar() {
     masaDari: masaDari,
     masaSampai: masaSampai,
     tahunMulai: tahunMulai,
-    group: activeGroup, // ✅ 3. KIRIM KE EXCEL
+    group: activeGroup,
   };
 
   var labelMasa = "";
@@ -3451,7 +3461,6 @@ async function refreshBukuBesar() {
   else if (masaSampai) labelMasa = "S/d " + masaSampai;
   else labelMasa = "Semua (" + tahunMulai + ")";
 
-  // ✅ 4. TAMPILKAN GROUP DI JUDUL TABEL
   $("bukuBesarTbl").innerHTML =
     '<div style="margin-bottom:.5rem; display:flex; justify-content:space-between; align-items:center; font-size:.82rem;font-weight:600">' +
     "<div>" +
@@ -3524,7 +3533,6 @@ async function downloadBukuBesarExcel() {
 
   var html =
     '<table border="1" style="border-collapse:collapse; font-family:Arial, sans-serif;">';
-
   html +=
     '<tr style="background:#f4f4f4; font-weight:bold; text-align:center;">';
   html += '<td style="padding:8px; border:1px solid #000;">TANGGAL</td>';
@@ -3539,7 +3547,6 @@ async function downloadBukuBesarExcel() {
   rows.forEach(function (row) {
     html += "<tr>";
     var isSaldoAwal = row[0] === "Saldo Awal";
-
     html +=
       "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\\@';" +
       (isSaldoAwal ? "font-style:italic;" : "text-align:center;") +
@@ -3566,12 +3573,10 @@ async function downloadBukuBesarExcel() {
       '<td style="padding:6px; border:1px solid #000; text-align:right;">' +
       (row[5] || "") +
       "</td>";
-
     var saldoText = row[6];
     if (typeof saldoText === "string") {
       saldoText = saldoText.replace(/<[^>]*>?/gm, "");
     }
-
     html +=
       '<td style="padding:6px; border:1px solid #000; text-align:right; font-weight:bold;">' +
       saldoText +
@@ -3592,14 +3597,12 @@ async function downloadBukuBesarExcel() {
     '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
     (foot[5] || "") +
     "</td>";
-
   var footSaldoText = String(foot[6] || "").replace(/<[^>]*>?/gm, "");
   html +=
     '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
     footSaldoText +
     "</td>";
-  html += "</tr>";
-  html += "</table>";
+  html += "</tr></table>";
 
   var labelMasaExl = "";
   if (r.masaDari && r.masaSampai)
@@ -3618,12 +3621,9 @@ async function downloadBukuBesarExcel() {
     activeGroup +
     "</b></p>";
 
-  // ✅ PERBAIKAN: Menghapus Backtick (``) dan menggantinya dengan tanda petik ('')
   var fullHtml =
     '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">' +
-    '<head><meta charset="UTF-8">' +
-    "<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Buku Besar</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->" +
-    "</head>" +
+    '<head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Buku Besar</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>' +
     "<body>" +
     infoAkun +
     html +
