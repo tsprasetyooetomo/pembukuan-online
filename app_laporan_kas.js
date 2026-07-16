@@ -674,9 +674,6 @@ function showDetailReff(noReff, rowCabang) {
   }
 }
 
-
-
-
 /* ---------- Input Harian Layout Panel ---------- */
 PANEL_MAP.inputHarian = renderInputHarian;
 AFTER_RENDER.inputHarian = refreshInputHarian;
@@ -1316,7 +1313,6 @@ async function postingSaldoKasir() {
     return;
   }
 
-  // Cek apakah ada data yang sedang ditampilkan di layar
   if (
     !DATA_KASIR_AKTIF.groupedData ||
     DATA_KASIR_AKTIF.groupedData.length === 0
@@ -1333,7 +1329,17 @@ async function postingSaldoKasir() {
     return;
   }
 
-  // 2. Konfirmasi ke user
+  // ✅ PERBAIKAN 1: PENGAMAN GROUP UNDEFINED
+  var rawGroup = localStorage.getItem("group");
+  var activeGroup = "TLGA";
+  if (
+    rawGroup &&
+    rawGroup.trim() !== "" &&
+    rawGroup.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    activeGroup = rawGroup.trim().toUpperCase();
+  }
+
   var confirmMsg =
     "POSTING SALDO KASIR HARIAN\n\nCabang: " +
     cab +
@@ -1341,36 +1347,74 @@ async function postingSaldoKasir() {
     tglAwal +
     " s/d " +
     tglAkhir +
+    "\nGroup: " +
+    activeGroup +
     "\n\nData harian yang tampil di layar akan disimpan ke Database Saldo Kasir.\nLanjutkan?";
   var ok = confirm(confirmMsg);
   if (!ok) return;
 
   try {
-    // 3. Siapkan variabel untuk menampung data yang akan dikirim
     var arrDataUntukDisimpan = [];
-    var baseUrl = window.location.origin + "/api/data/saldokasir"; // Target API saldokasir
+    var baseUrl = window.location.origin + "/api/data/saldokasir";
 
-    // 4. LOOPING DATA YANG TAMPIL DI LAYAR (HARIAN)
+    // ✅ PERBAIKAN 2: FUNGSI PINTAR UNTUK MENCARI NILAI DB & CR
+    function cariNilaiDbCr(obj) {
+      var dbVal = 0;
+      var crVal = 0;
+
+      // Coba berbagai kemungkinan nama properti yang sering dipakai saat grouping
+      if (
+        obj.db !== undefined ||
+        obj.debit !== undefined ||
+        obj.totalDb !== undefined ||
+        obj.total_db !== undefined ||
+        obj.masuk !== undefined
+      ) {
+        dbVal = num(
+          obj.db || obj.debit || obj.totalDb || obj.total_db || obj.masuk || 0,
+        );
+      }
+      if (
+        obj.cr !== undefined ||
+        obj.kredit !== undefined ||
+        obj.totalCr !== undefined ||
+        obj.total_cr !== undefined ||
+        obj.keluar !== undefined
+      ) {
+        crVal = num(
+          obj.cr ||
+            obj.kredit ||
+            obj.totalCr ||
+            obj.total_cr ||
+            obj.keluar ||
+            0,
+        );
+      }
+
+      return { db: dbVal, cr: crVal };
+    }
+
+    // 4. LOOPING DATA YANG TAMPIL DI LAYAR
     DATA_KASIR_AKTIF.groupedData.forEach(function (t) {
-      // Pastikan datanya memiliki tanggal
-      var tglTransaksi = t.tanggal || t.tgl;
+      var tglTransaksi = t.tanggal || t.tgl || t.tgl_awal;
       if (!tglTransaksi) return;
 
-      // Bersihkan format tanggal jika perlu (ambil format YYYY-MM-DD saja)
       if (tglTransaksi.indexOf(" ") > -1)
         tglTransaksi = tglTransaksi.split(" ")[0];
 
-      // Susun objek data harian baru
+      // Gunakan fungsi pencarian pintar
+      var nilaiDbCr = cariNilaiDbCr(t);
+
       var objHarian = {
-        id: "POST_KASIR_" + cab + "_" + tglTransaksi + "_" + uid(), // ID Unik
+        id: "POST_KASIR_" + cab + "_" + tglTransaksi + "_" + uid(),
         cabang: cab,
-        tanggal: tglTransaksi, // Tanggal harian
-        tgl_awal: tglTransaksi, // Di map ke tgl_awal supaya kompatibel dengan fungsi getSaldoAwalKasir nanti
-        db: t.db || 0,
-        cr: t.cr || 0,
-        akhir: (t.db || 0) - (t.cr || 0), // Saldo per harian
+        tanggal: tglTransaksi,
+        tgl_awal: tglTransaksi,
+        db: nilaiDbCr.db,
+        cr: nilaiDbCr.cr,
+        akhir: nilaiDbCr.db - nilaiDbCr.cr,
         awal: 0,
-        group: localStorage.getItem("group") || "TLGA", // Catatan tambahan: sertakan group
+        group: activeGroup, // ✅ Pakai variable yang sudah aman dari undefined
       };
 
       arrDataUntukDisimpan.push(objHarian);
@@ -1382,15 +1426,12 @@ async function postingSaldoKasir() {
       return;
     }
 
-    // Tampilkan pesan proses
     if (typeof toast === "function")
       toast(
         "Menyimpan " + arrDataUntukDisimpan.length + " data harian...",
         "inf",
       );
 
-    // 5. KIRIM KE SERVER SUPABASE SECARA PARALEL MENGGUNAKAN BATCH ATAU LOOP FETCH
-    // Kita kirim satu per satu dengan Promise.all agar cepat
     var berhasilDisimpan = 0;
     var gagalDisimpan = 0;
 
@@ -1412,7 +1453,7 @@ async function postingSaldoKasir() {
       }),
     );
 
-    // 6. UPDATE CACHE DBCache LOKAL (Agar UI langsung berubah tanpa reload halaman)
+    // 6. UPDATE CACHE DBCACHE LOKAL
     if (!DBCache.saldokasir) DBCache.saldokasir = [];
     arrDataUntukDisimpan.forEach(function (item) {
       DBCache.saldokasir.push(item);
@@ -1425,18 +1466,13 @@ async function postingSaldoKasir() {
       " data harian tersimpan di Saldo Kasir." +
       (gagalDisimpan > 0 ? " (" + gagalDisimpan + " gagal)" : "");
 
-    if (typeof toast === "function") {
-      toast(pesanSukses, "ok");
-    } else {
-      alert(pesanSukses);
-    }
+    if (typeof toast === "function") toast(pesanSukses, "ok");
+    else alert(pesanSukses);
   } catch (err) {
     console.error("❌ Gagal Posting Saldo Kasir:", err);
-    if (typeof toast === "function") {
+    if (typeof toast === "function")
       toast("Gagal posting: " + err.message, "err");
-    } else {
-      alert("Gagal posting: " + err.message);
-    }
+    else alert("Gagal posting: " + err.message);
   }
 }
 /* ---------- FUNGSI EXPORT KASIR ---------- */
