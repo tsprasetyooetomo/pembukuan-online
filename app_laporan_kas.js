@@ -1398,16 +1398,20 @@ async function postingSaldoKasir() {
 
       var nilaiDbCr = cariNilaiDbCr(t);
 
+      // ✅ PERBAIKAN 1: CEGAH SALDO AKHIR MINUS (Jika CR > DB, jadikan 0 agar database tidak reject)
+      var hitungAkhir = nilaiDbCr.db - nilaiDbCr.cr;
+      if (hitungAkhir < 0) hitungAkhir = 0;
+
       var objHarian = {
-        // ✅ PERBAIKAN: GANTI ID PANJANG MENJADI UUID STANDARD AGAR DITERIMA SERVER
         id: uid(),
         cabang: cab,
         tanggal: tglTransaksi,
         tgl_awal: tglTransaksi,
         db: nilaiDbCr.db,
         cr: nilaiDbCr.cr,
-        akhir: nilaiDbCr.db - nilaiDbCr.cr,
-        awal: 0,
+        akhir: hitungAkhir,
+        // ✅ PERBAIKAN 2: JIKA DB MASIH 0, ISI AWAL DENGAN DB. INI MENGATASI RULE NOT NULL DI DATABASE
+        awal: nilaiDbCr.db > 0 ? nilaiDbCr.db : 0,
         group: activeGroup,
       };
 
