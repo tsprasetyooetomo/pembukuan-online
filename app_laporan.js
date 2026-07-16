@@ -50,12 +50,19 @@ async function renderNeraca() {
   var filterTahunFull = partMasa[1];
   var inputMonthValue = filterTahunFull + "-" + filterBulan;
 
-  // 2. AMBIL GROUP AKTIF DARI LOCALSTORAGE
-  var groupAktif = (localStorage.getItem("group") || "TLGA")
-    .trim()
-    .toUpperCase();
+  // 2. AMBIL GROUP AKTIF DARI LOCALSTORAGE (DENGAN PENGAMAN "UNDEFINED")
+  var rawGroup = localStorage.getItem("group");
+  var groupAktif = "TLGA"; // Default cadangan
 
-  // 3. PROSES & SARING DAFTAR CABANG BERDASARKAN GROUP (LOGIKA INTI)
+  if (
+    rawGroup &&
+    rawGroup.trim() !== "" &&
+    rawGroup.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    groupAktif = rawGroup.trim().toUpperCase();
+  }
+
+  // 3. PROSES & SARING DAFTAR CABANG BERDASARKAN GROUP
   var rawCabang = DBCache.cabang || [];
   var daftarCabangObj = [];
 
@@ -87,10 +94,9 @@ async function renderNeraca() {
     });
   }
 
-  // --- LOGIKA BARU: MENENTUKAN APAKAH SELECT BOLEH DIEDIT ATAU TERKUNCI SESUAI GROUP ---
   var kodeDefault = (window._neracaFilterCabang || "PUSAT").toUpperCase();
-  var isPusat = kodeDefault === "PUSAT"; // Cek apakah sedang dalam mode PUSAT
 
+  // BUAT OPSI DROPDOWN (SELALU BISA DIKLIK / TERBUKA)
   var opsiCabangHtml = daftarCabangObj
     .map(function (item) {
       var sel = item.id.toUpperCase() === kodeDefault ? "selected" : "";
@@ -108,13 +114,7 @@ async function renderNeraca() {
     })
     .join("");
 
-  // Jika PUSAT, kunci select agar user tidak bisa pindah ke cabang lain sebelum klik tombol reset/keluar mode pusat
-  // Jika BUKAN PUSAT, buka select agar user bisa bebas ganti ke cabang lain dalam group yang sama
-  var atributSelect = isPusat
-    ? 'disabled style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--bg2); color:var(--muted); font-size:.8rem; min-width:120px; cursor:not-allowed;"'
-    : 'style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;"';
-
-  // 4. RENDER HTML ANTARMUKA (DISINKRONKAN DENGAN RENDERDETILNERACA)
+  // 4. RENDER HTML ANTARMUKA
   var htmlLaporan =
     '<div id="area_cetak_neraca" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
     '<div style="text-align:center; width:100%; box-sizing:border-box;">' +
@@ -132,9 +132,8 @@ async function renderNeraca() {
     "</div>" +
     '<div style="display:flex; align-items:center; gap:5px;">' +
     '<label style="font-size:.75rem; color:var(--muted);">Cabang:</label>' +
-    '<select id="filter_neraca_cabang" ' +
-    atributSelect +
-    ">" +
+    // TIDAK ADA ATRIBUT DISABLED DI SINI
+    '<select id="filter_neraca_cabang" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;">' +
     opsiCabangHtml +
     "</select>" +
     "</div>" +
