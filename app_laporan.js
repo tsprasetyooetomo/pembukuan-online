@@ -160,79 +160,6 @@ async function renderNeraca() {
   return htmlLaporan;
 }
 
-// Fungsi awal untuk memuat isi cabang default dari cache
-function initOpsiCabangNeraca() {
-  var selectCabang = document.getElementById("filter_neraca_cabang");
-  if (!selectCabang) return;
-
-  var rawCabang = DBCache.cabang || [];
-  var kodeDefault = (window._neracaFilterCabang || "PUSAT").toUpperCase();
-
-  var html = "";
-  rawCabang.forEach(function (c) {
-    var id = (c.cabang || c.kode || "").trim();
-    var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
-    if (id) {
-      var sel = id.toUpperCase() === kodeDefault ? "selected" : "";
-      html +=
-        '<option value="' +
-        id +
-        '" ' +
-        sel +
-        ">" +
-        nama.toUpperCase() +
-        "</option>";
-    }
-  });
-
-  if (!html) {
-    html = '<option value="PUSAT">PUSAT</option>';
-  }
-  selectCabang.innerHTML = html;
-
-  // Jalankan pengecekan jika nilai bawaannya/default-nya adalah PUSAT
-  handleCabangChange(selectCabang.value);
-}
-
-// Fungsi inti: jika memilih PUSAT, filter opsi dropdown hanya untuk cabang dengan Group yang sama
-function handleCabangChange(valCabang) {
-  if (valCabang.toUpperCase() === "PUSAT" || valCabang === "00") {
-    var selectCabang = document.getElementById("filter_neraca_cabang");
-    var rawCabang = DBCache.cabang || [];
-    var groupAktif = (localStorage.getItem("group") || "TLGA")
-      .trim()
-      .toUpperCase();
-
-    // Saring cabang yang memiliki kesamaan group
-    var cabangSatuGroup = rawCabang.filter(function (c) {
-      var groupCabang = (c.group || c.kode_group || "").trim().toUpperCase();
-      return groupCabang === groupAktif;
-    });
-
-    if (cabangSatuGroup.length > 0) {
-      var html = "";
-      // Tetap masukkan pilihan PUSAT di baris paling atas sebagai penanda aktif
-      html +=
-        '<option value="' +
-        valCabang +
-        '" selected>PUSAT (SEMUA GROUP ' +
-        groupAktif +
-        ")</option>";
-
-      cabangSatuGroup.forEach(function (c) {
-        var id = (c.cabang || c.kode || "").trim();
-        var nama = (c.nama || c.cabang || "Tanpa Nama").trim();
-        // Hindari duplikasi baris pusat
-        if (id && id.toUpperCase() !== "PUSAT" && id !== "00") {
-          html +=
-            '<option value="' + id + '">' + nama.toUpperCase() + "</option>";
-        }
-      });
-
-      selectCabang.innerHTML = html;
-    }
-  }
-}
 // =========================================================================
 // FUNGSI UTAMA: TAMPILKAN NERACA
 // =========================================================================
@@ -547,8 +474,17 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
   var tahun = "20" + duadigittahun;
   var namaStore = "transaksi" + tahun;
 
-  // ✅ TAMBAHAN GROUP: AMBIL GROUP AKTIF
-  var activeGroup = localStorage.getItem("group") || "TLGA";
+  // ✅ PERBAIKAN 1: PENGAMAN KATA "UNDEFINED"
+  var rawGroup = localStorage.getItem("group");
+  var activeGroup = "TLGA"; // Default cadangan
+
+  if (
+    rawGroup &&
+    rawGroup.trim() !== "" &&
+    rawGroup.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    activeGroup = rawGroup.trim().toUpperCase();
+  }
 
   var popupId = "popup_transaksi_" + Date.now();
 
@@ -557,11 +493,10 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
     popupId +
     '" style="position:fixed; top:20px; right:20px; width:45%; max-width:650px; max-height:90vh; background:white; border:1px solid #aaa; box-shadow:0 5px 15px rgba(0,0,0,0.5); z-index:10001; display:flex; flex-direction:column; border-radius:6px;">' +
     '<div style="padding:10px; background:#f0f0f0; border-bottom:1px solid #ccc; display:flex; justify-content:space-between; align-items:center; border-radius:6px 6px 0 0;">' +
-    // ✅ TAMBAHAN GROUP: TAMPILKAN DI JUDUL POPUP
     '<strong style="font-size:0.9rem; color:#333;">Detil Transaksi: ' +
     noPerkiraan +
     ' <small style="color:#888;">(Group: ' +
-    activeGroup +
+    activeGroup + // Sekarang akan menulis "TLGA" dengan benar
     ")</small>" +
     "</strong>" +
     "<button onclick=\"document.getElementById('" +
@@ -586,8 +521,6 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
       var cabInput = String(cabang || "")
         .trim()
         .toUpperCase();
-      var cabFilter = cabInput;
-      if (cabInput === "PUSAT") cabFilter = "00";
 
       var detilTrans = listTrans.filter(function (t) {
         var tNo = String(t.noperkiraan || "").trim();
@@ -596,13 +529,18 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
           .toUpperCase();
         var tMasa = String(t.masa || "").trim();
 
-        var cocokCabang = true;
-        if (cabFilter !== "ALL" && cabFilter !== "") {
-          cocokCabang = tCab === cabFilter;
-        }
+        // ✅ PERBAIKAN 2: LOGIKA PUSAT (SEMUA CABANG)
+        // Jika PUSAT atau ALL, maka tampilkan semua cabang. Jika bukan, samakan dengan data.
+        var cocokCabang =
+          cabInput === "PUSAT" ||
+          cabInput === "ALL" ||
+          cabInput === "" ||
+          tCab === cabInput;
 
-        // ✅ TAMBAHAN GROUP: FILTER GROUP DI DATABASE TRANSAKSI
-        var tGroup = String(t.group || "").trim();
+        // Filter Group di database transaksi
+        var tGroup = String(t.group || "")
+          .trim()
+          .toUpperCase();
         var cocokGroup = tGroup === activeGroup;
 
         return (
@@ -620,8 +558,8 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
           activeGroup +
           " | Masa: " +
           masaCari +
-          " | Cabang Kode: " +
-          cabFilter +
+          " | Cabang Terpilih: " +
+          cabInput +
           "</small>" +
           "</div>";
         return;
@@ -673,11 +611,11 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
 
       tableHtml +=
         '<tr style="background:#f4f4f4; font-weight:bold;">' +
-        '<td colspan="3" style="border:1px solid #ccc; padding:5px; text-align:right;">TOTAL</td>' +
-        '<td style="border:1px solid #ccc; padding:5px; text-align:right;">' +
+        '<td colspan="3" style="border:1px solid #ccc; padding:5px; text-align:right; color:#000;">TOTAL</td>' +
+        '<td style="border:1px solid #ccc; padding:5px; text-align:right; color:#000;">' +
         fmtN(totalDb) +
         "</td>" +
-        '<td style="border:1px solid #ccc; padding:5px; text-align:right;">' +
+        '<td style="border:1px solid #ccc; padding:5px; text-align:right; color:#000;">' +
         fmtN(totalCr) +
         "</td>" +
         "</tr>";
@@ -693,7 +631,6 @@ function lihatDetilTransaksi(noPerkiraan, masa, cabang) {
         "</div>";
     });
 }
-
 function downloadNeracaExcel() {
   if (!window.golterfilter || window.golterfilter.length === 0) {
     if (typeof toast === "function") toast("Tidak ada data tabel.", "err");
@@ -815,18 +752,23 @@ function downloadNeracaExcel() {
     if (typeof toast === "function") toast("Gagal download.", "err");
   }
 }
-
-// =========================================================================
-// FUNGSI LIHAT DETIL PERKIRAAN (DARI KLIK GOLONGAN)
-// =========================================================================
 async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
   var duadigittahun = masa.substring(2, 4);
   var tahunAktif = "20" + duadigittahun;
   var namaStoreBackup = "perkiraan" + tahunAktif;
   var kodeMasa = masa;
 
-  // ✅ TAMBAHAN GROUP: AMBIL GROUP AKTIF
-  var activeGroup = localStorage.getItem("group") || "TLGA";
+  // ✅ PERBAIKAN 1: PENGAMAN KATA "UNDEFINED"
+  var rawGroup = localStorage.getItem("group");
+  var activeGroup = "TLGA"; // Default cadangan
+
+  if (
+    rawGroup &&
+    rawGroup.trim() !== "" &&
+    rawGroup.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    activeGroup = rawGroup.trim().toUpperCase();
+  }
 
   openModal(
     "Detil Perkiraan: " + kodeGol,
@@ -848,17 +790,21 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
       var cocokGolMasa =
         prefixGol === String(kodeGol).trim() && masaData === masa;
 
-      var cocokCabang = true;
+      // ✅ PERBAIKAN 2: LOGIKA PUSAT (SEMUA CABANG)
       var cabangUpper = String(cabang).trim().toUpperCase();
-      if (cabangUpper !== "ALL" && cabangUpper !== "") {
-        cocokCabang = cabangData === String(cabang).trim();
-      }
+      var cocokCabang =
+        cabangUpper === "PUSAT" ||
+        cabangUpper === "ALL" ||
+        cabangUpper === "" ||
+        cabangData === String(cabang).trim();
 
-      // ✅ TAMBAHAN GROUP: FILTER GROUP DI DATABASE PERKIRAAN
-      var groupData = String(p.group || "").trim();
+      // Filter Group di database perkiraan
+      var groupData = String(p.group || "")
+        .trim()
+        .toUpperCase();
       var cocokGroup = groupData === activeGroup;
 
-      return cocokGolMasa && cocokCabang && cocokGroup; // Tambahkan cocokGroup di sini
+      return cocokGolMasa && cocokCabang && cocokGroup;
     });
 
     if (detilFilter.length === 0) {
@@ -868,7 +814,7 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
         " di tahun " +
         tahunAktif +
         " untuk Group: " +
-        activeGroup +
+        activeGroup + // Sekarang ini akan menulis "TLGA" bukan "undefined"
         ".</div>";
 
       setTimeout(function () {
@@ -975,7 +921,181 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
 
 /* ---------- Detil Neraca ---------- */
 PANEL_MAP.detilNeraca = renderDetilNeraca;
+// TAMBAHKAN PARAMETER "group" DI SINI
+async function renderDetilNeraca(kodeGol, kodemasa, kodeCabang, group) {
+  // 1. Ambil tahun dari kodemasa (format kodemasa = "MMYY", contoh "0924")
+  var tahun = "20" + kodemasa.substring(2, 4);
+  var namaStore = "perkiraan" + tahun; // Sesuaikan nama store indexDB Anda untuk perkiraan
 
+  // --- PENGAMAN GROUP UNDEFINED ---
+  var activeGroup = "TLGA";
+  if (
+    group &&
+    group.trim() !== "" &&
+    group.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    activeGroup = group.trim().toUpperCase();
+  }
+
+  // Tampilkan loading sementara
+  var htmlLoading =
+    '<div style="padding:2rem; text-align:center; color:var(--muted);"><span class="spinner"></span> Memuat detail perkiraan ' +
+    kodeGol +
+    "...</div>";
+
+  try {
+    // 2. Ambil data dari IndexedDB
+    var rawData = await db.getAll(namaStore);
+    var arrData = rawData
+      ? Array.isArray(rawData)
+        ? rawData
+        : Object.values(rawData)
+      : [];
+
+    // 3. Filter Data
+    var detailTerfilter = arrData.filter(function (d) {
+      var golData = String(d.gol || d.golongan || "").trim();
+      var masaData = String(d.masa || d.periode || "").trim();
+      var cabData = String(d.cabang || d.kode_cabang || "").trim();
+
+      // TAMBAHKAN PENGECEKAN GROUP
+      var groupData = String(d.group || "")
+        .trim()
+        .toUpperCase();
+      var cocokGroup = groupData === activeGroup;
+
+      // Sesuaikan dengan filter
+      var cocokGol = golData === String(kodeGol);
+      var cocokMasa = masaData === kodemasa;
+
+      // Jika PUSAT, tampilkan semua cabang
+      var cocokCabang =
+        kodeCabang === "PUSAT" ||
+        kodeCabang === "ALL" ||
+        cabData === kodeCabang;
+
+      // Kembalikan semua kondisi yang harus terpenuhi (termasuk cocokGroup)
+      return cocokGol && cocokMasa && cocokCabang && cocokGroup;
+    });
+
+    if (detailTerfilter.length === 0) {
+      return (
+        '<div style="padding:2rem; text-align:center; color:var(--muted);">Tidak ada detail transaksi untuk Golongan <b>' +
+        kodeGol +
+        "</b> pada masa ini.</div>" +
+        '<br><button class="btn btn-b" onclick="renderNeraca().then(h => { document.getElementById(\'contentarea\').innerHTML = h; })">← Kembali ke Neraca</button>'
+      );
+    }
+
+    // 4. Render Tabel Detail
+    var html = "";
+    html += '<div style="margin-bottom:1rem;">';
+    html +=
+      '<button class="btn btn-b" onclick="renderNeraca().then(h => { document.getElementById(\'contentarea\').innerHTML = h; })" style="font-size:.8rem; padding:4px 10px;">← Kembali ke Neraca</button>';
+    html +=
+      '<h4 style="margin:10px 0; color:var(--fg);">Detail Perkiraan Golongan: <span style="color:var(--accent);">' +
+      kodeGol +
+      '</span> | Group: <span style="color:var(--accent);">' +
+      activeGroup +
+      "</span></h4>";
+    html += "</div>";
+
+    html += '<div style="width:100%; overflow-x:auto;">';
+    html +=
+      '<table border="1" style="width:100%; min-width:500px; border-collapse:collapse; font-size:.85rem; color:#000;">';
+    html += '<thead style="background:#f4f4f4; font-weight:bold;"><tr>';
+    html += '<th style="padding:8px; border:1px solid #000;">NO PERKIRAAN</th>';
+    html +=
+      '<th style="padding:8px; border:1px solid #000;">NAMA PERKIRAAN</th>';
+    html +=
+      '<th style="padding:8px; border:1px solid #000; text-align:right;">AWAL</th>';
+    html +=
+      '<th style="padding:8px; border:1px solid #000; text-align:right;">DEBIT</th>';
+    html +=
+      '<th style="padding:8px; border:1px solid #000; text-align:right;">KREDIT</th>';
+    html +=
+      '<th style="padding:8px; border:1px solid #000; text-align:right;">AKHIR</th>';
+    html += "</tr></thead><tbody>";
+
+    var totalAwal = 0,
+      totalDb = 0,
+      totalCr = 0;
+
+    detailTerfilter.forEach(function (item) {
+      var awal = parseFloat(item.awal || 0);
+      var db = parseFloat(item.db || item.debit || 0);
+      var cr = parseFloat(item.cr || item.kredit || 0);
+      var akhir = awal + db - cr;
+
+      totalAwal += awal;
+      totalDb += db;
+      totalCr += cr;
+
+      var noPerk = item.no_perkiraan || item.kode || item.perkiraan || "-";
+      var namaPerk = item.nama_perkiraan || item.nama || item.keterangan || "-";
+
+      html += "<tr>";
+      html +=
+        '<td style="padding:6px 8px; border:1px solid #000;">' +
+        noPerk +
+        "</td>";
+      html +=
+        '<td style="padding:6px 8px; border:1px solid #000;">' +
+        namaPerk +
+        "</td>";
+      html +=
+        '<td style="padding:6px 8px; border:1px solid #000; text-align:right;">' +
+        formatUang(awal) +
+        "</td>";
+      html +=
+        '<td style="padding:6px 8px; border:1px solid #000; text-align:right;">' +
+        formatUang(db) +
+        "</td>";
+      html +=
+        '<td style="padding:6px 8px; border:1px solid #000; text-align:right;">' +
+        formatUang(cr) +
+        "</td>";
+      html +=
+        '<td style="padding:6px 8px; border:1px solid #000; text-align:right; font-weight:bold;">' +
+        formatUang(akhir) +
+        "</td>";
+      html += "</tr>";
+    });
+
+    // Total Baris
+    html += '<tr style="font-weight:bold; background:#eee;">';
+    html +=
+      '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:center;">TOTAL</td>';
+    html +=
+      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+      formatUang(totalAwal) +
+      "</td>";
+    html +=
+      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+      formatUang(totalDb) +
+      "</td>";
+    html +=
+      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+      formatUang(totalCr) +
+      "</td>";
+    html +=
+      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
+      formatUang(totalAwal + totalDb - totalCr) +
+      "</td>";
+    html += "</tr>";
+
+    html += "</tbody></table></div>";
+
+    return html;
+  } catch (error) {
+    console.error("Error renderDetilNeraca:", error);
+    return (
+      '<div style="padding:2rem; text-align:center; color:red;">Gagal memuat detail: ' +
+      error.message +
+      "</div>"
+    );
+  }
+}
 // =========================================================================
 // FUNGSI RENDER DETIL NERACA (SUMBER DATA: PERKIRAAN BACKUP)
 // =========================================================================
