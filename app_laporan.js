@@ -922,20 +922,27 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
 /* ---------- Detil Neraca ---------- */
 PANEL_MAP.detilNeraca = renderDetilNeraca;
 // TAMBAHKAN PARAMETER "group" DI SINI
-async function renderDetilNeraca(kodeGol, kodemasa, kodeCabang, group) {
-  // ✅ PENGAMAN JIKA PARAMETER TIDAK TERKIRIM (UNDEFINED)
-  if (!kodemasa || !kodeGol) {
-    return (
-      '<div style="padding:2rem; text-align:center; color:red;">Error: Parameter Masa atau Kode Golongan tidak valid (Undefined).</div>' +
-      '<br><button class="btn btn-b" onclick="history.back()">← Kembali</button>'
-    );
+async function renderDetilNeraca(kodemasa, kodeCabang, group) {
+  // 1. PENGAMAN JIKA PARAMETER TIDAK TERKIRIM
+  if (!kodemasa) kodemasa = window._neracaFilterMasa || "";
+  if (!kodeCabang) kodeCabang = window._neracaFilterCabang || "PUSAT";
+
+  // Konversi format masa (dari "MM-YYYY" jadi "MMYY") untuk pencarian DB
+  var partMasa = kodemasa.split("-");
+  if (partMasa.length === 2) {
+    var filterBulan = partMasa[0];
+    var filterTahunFull = partMasa[1];
+    var kodemasadicari = filterBulan + filterTahunFull.substring(2, 4);
+    var inputMonthValue = filterTahunFull + "-" + filterBulan;
+  } else {
+    var kodemasadicari = kodemasa;
+    var inputMonthValue = kodemasa;
   }
 
-  // 1. Ambil tahun dari kodemasa (format kodemasa = "MMYY", contoh "0924")
-  var tahun = "20" + kodemasa.substring(2, 4); // Baris 927 Anda yang tadi error ada di sini
-  var namaStore = "perkiraan" + tahun; // Sesuaikan nama store indexDB Anda untuk perkiraan
+  var tahunDb = "20" + kodemasadicari.substring(2, 4);
+  var namaStore = "perkiraan" + tahunDb;
 
-  // --- PENGAMAN GROUP UNDEFINED ---
+  // 2. PENGAMAN GROUP UNDEFINED
   var activeGroup = "TLGA";
   if (
     group &&
@@ -945,166 +952,87 @@ async function renderDetilNeraca(kodeGol, kodemasa, kodeCabang, group) {
     activeGroup = group.trim().toUpperCase();
   }
 
-  var htmlLoading =
-    '<div style="padding:2rem; text-align:center; color:var(--muted);"><span class="spinner"></span> Memuat detail perkiraan ' +
-    kodeGol +
-    "...</div>";
-
-  try {
-    // 2. Ambil data dari IndexedDB
-    var rawData = await db.getAll(namaStore);
-    var arrData = rawData
-      ? Array.isArray(rawData)
-        ? rawData
-        : Object.values(rawData)
-      : [];
-
-    // 3. Filter Data
-    var detailTerfilter = arrData.filter(function (d) {
-      var golData = String(d.gol || d.golongan || "").trim();
-      var masaData = String(d.masa || d.periode || "").trim();
-      var cabData = String(d.cabang || d.kode_cabang || "").trim();
-
-      // TAMBAHKAN PENGECEKAN GROUP
-      var groupData = String(d.group || "")
-        .trim()
-        .toUpperCase();
-      var cocokGroup = groupData === activeGroup;
-
-      // Sesuaikan dengan filter
-      var cocokGol = golData === String(kodeGol);
-      var cocokMasa = masaData === kodemasa;
-
-      // Jika PUSAT, tampilkan semua cabang
-      var cocokCabang =
-        kodeCabang === "PUSAT" ||
-        kodeCabang === "ALL" ||
-        kodeCabang === "" ||
-        cabData === kodeCabang;
-
-      // Kembalikan semua kondisi yang harus terpenuhi (termasuk cocokGroup)
-      return cocokGol && cocokMasa && cocokCabang && cocokGroup;
-    });
-
-    if (detailTerfilter.length === 0) {
-      return (
-        '<div style="padding:2rem; text-align:center; color:var(--muted);">Tidak ada detail transaksi untuk Golongan <b>' +
-        kodeGol +
-        "</b> pada masa " +
-        kodemasa +
-        ".</div>" +
-        '<br><button class="btn btn-b" onclick="history.back()">← Kembali</button>'
-      );
+  // 3. SIAPKAN OPSI CABANG (DIAMBIL DARI DBCache.cabang, LOGIKA SAMA PERSIS DENGAN RENDER NERACA)
+  var rawCabang = DBCache.cabang || [];
+  var daftarCabangObj = [];
+  rawCabang.forEach(function (c) {
+    var id = (c.kode || "").trim();
+    var nama = (c.nama || id || "Tanpa Nama").trim();
+    var groupCabang = (c.group || "").trim().toUpperCase();
+    if (id && groupCabang === activeGroup) {
+      daftarCabangObj.push({ id: id, nama: nama });
     }
+  });
+  daftarCabangObj.sort(function (a, b) {
+    return a.id.localeCompare(b.id, undefined, { numeric: true });
+  });
 
-    // 4. Render Tabel Detail
-    var html = "";
-    html += '<div style="margin-bottom:1rem;">';
-    html +=
-      '<button class="btn btn-b" onclick="history.back()" style="font-size:.8rem; padding:4px 10px;">← Kembali ke Neraca</button>';
-    html +=
-      '<h4 style="margin:10px 0; color:var(--fg);">Detail Perkiraan Golongan: <span style="color:var(--accent);">' +
-      kodeGol +
-      '</span> | Group: <span style="color:var(--accent);">' +
-      activeGroup +
-      "</span></h4>";
-    html += "</div>";
-
-    html += '<div style="width:100%; overflow-x:auto;">';
-    html +=
-      '<table border="1" style="width:100%; min-width:500px; border-collapse:collapse; font-size:.85rem; color:#000;">';
-    html += '<thead style="background:#f4f4f4; font-weight:bold;"><tr>';
-    html += '<th style="padding:8px; border:1px solid #000;">NO PERKIRAAN</th>';
-    html +=
-      '<th style="padding:8px; border:1px solid #000;">NAMA PERKIRAAN</th>';
-    html +=
-      '<th style="padding:8px; border:1px solid #000; text-align:right;">AWAL</th>';
-    html +=
-      '<th style="padding:8px; border:1px solid #000; text-align:right;">DEBIT</th>';
-    html +=
-      '<th style="padding:8px; border:1px solid #000; text-align:right;">KREDIT</th>';
-    html +=
-      '<th style="padding:8px; border:1px solid #000; text-align:right;">AKHIR</th>';
-    html += "</tr></thead><tbody>";
-
-    var totalAwal = 0,
-      totalDb = 0,
-      totalCr = 0;
-
-    detailTerfilter.forEach(function (item) {
-      var awal = parseFloat(item.awal || 0);
-      var db = parseFloat(item.db || item.debit || 0);
-      var cr = parseFloat(item.cr || item.kredit || 0);
-      var akhir = awal + db - cr;
-
-      totalAwal += awal;
-      totalDb += db;
-      totalCr += cr;
-
-      var noPerk = item.no_perkiraan || item.kode || item.perkiraan || "-";
-      var namaPerk = item.nama_perkiraan || item.nama || item.keterangan || "-";
-
-      html += "<tr>";
-      html +=
-        '<td style="padding:6px 8px; border:1px solid #000;">' +
-        noPerk +
-        "</td>";
-      html +=
-        '<td style="padding:6px 8px; border:1px solid #000;">' +
-        namaPerk +
-        "</td>";
-      html +=
-        '<td style="padding:6px 8px; border:1px solid #000; text-align:right;">' +
-        formatUang(awal) +
-        "</td>";
-      html +=
-        '<td style="padding:6px 8px; border:1px solid #000; text-align:right;">' +
-        formatUang(db) +
-        "</td>";
-      html +=
-        '<td style="padding:6px 8px; border:1px solid #000; text-align:right;">' +
-        formatUang(cr) +
-        "</td>";
-      html +=
-        '<td style="padding:6px 8px; border:1px solid #000; text-align:right; font-weight:bold;">' +
-        formatUang(akhir) +
-        "</td>";
-      html += "</tr>";
+  var adaPusat = daftarCabangObj.some(function (item) {
+    return item.id.toUpperCase() === "PUSAT" || item.id === "00";
+  });
+  if (!adaPusat) {
+    daftarCabangObj.unshift({
+      id: "PUSAT",
+      nama: "PUSAT (SEMUA GROUP " + activeGroup + ")",
     });
-
-    // Total Baris
-    html += '<tr style="font-weight:bold; background:#eee;">';
-    html +=
-      '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:center;">TOTAL</td>';
-    html +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
-      formatUang(totalAwal) +
-      "</td>";
-    html +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
-      formatUang(totalDb) +
-      "</td>";
-    html +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
-      formatUang(totalCr) +
-      "</td>";
-    html +=
-      '<td style="padding:8px; border:1px solid #000; text-align:right;">' +
-      formatUang(totalAwal + totalDb - totalCr) +
-      "</td>";
-    html += "</tr>";
-
-    html += "</tbody></table></div>";
-
-    return html;
-  } catch (error) {
-    console.error("Error renderDetilNeraca:", error);
-    return (
-      '<div style="padding:2rem; text-align:center; color:red;">Gagal memuat detail: ' +
-      error.message +
-      "</div>"
-    );
   }
+
+  var kodeDefault = (kodeCabang || "PUSAT").toUpperCase();
+  var opsiCabangHtml = daftarCabangObj
+    .map(function (item) {
+      var sel = item.id.toUpperCase() === kodeDefault ? "selected" : "";
+      return (
+        '<option value="' +
+        item.id +
+        '" ' +
+        sel +
+        ">" +
+        item.id +
+        " - " +
+        item.nama.toUpperCase() +
+        "</option>"
+      );
+    })
+    .join("");
+
+  // 4. RENDER HTML ANTARMUKA (SAMA PERSIS STRUKTURNYA DENGAN RENDERNERACA)
+  var htmlLaporan =
+    '<div id="area_cetak_neraca" style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); height:550px; max-height:550px; width:100%; max-width:100%; box-sizing:border-box; display:block; overflow:hidden;">' +
+    '<div style="text-align:center; width:100%; box-sizing:border-box;">' +
+    '<h3 style="margin:0 0 .8rem 0; color:var(--fg);">Laporan Detil Neraca (Perkiraan)</h3>' +
+    '<div class="no-print" style="background:var(--bg2); border:1px solid var(--brd); padding:12px; border-radius:6px; display:inline-flex; gap:12px; align-items:center; flex-wrap:wrap; margin-bottom:1rem;">' +
+    '<div style="font-size:.8rem; font-weight:bold; color:var(--fg);">🔍 GROUP: <span style="color:var(--accent);">' +
+    activeGroup +
+    "</span> | PILIHAN TAMPILAN:</div>" +
+    '<div style="display:flex; align-items:center; gap:5px;">' +
+    '<label style="font-size:.75rem; color:var(--muted);">Masa:</label>' +
+    '<input type="month" id="filter_neraca_masa" value="' +
+    inputMonthValue +
+    '" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem;">' +
+    "</div>" +
+    '<div style="display:flex; align-items:center; gap:5px;">' +
+    '<label style="font-size:.75rem; color:var(--muted);">Cabang:</label>' +
+    '<select id="filter_neraca_cabang" style="padding:4px 8px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:.8rem; min-width:120px;">' +
+    opsiCabangHtml +
+    "</select>" +
+    "</div>" +
+    '<button type="button" class="btn btn-g" style="font-size:.75rem; padding:4px 12px;" onclick="terapkanOpsiDetilNeraca()">Tampilkan Data</button>' +
+    '<button type="button" class="btn btn-b" style="font-size:.75rem; padding:4px 12px; background:#217346; border-color:#217346;" onclick="downloadDetilNeracaExcel()"><i class="fa-solid fa-file-excel"></i> Download Excel</button>' +
+    "</div>" +
+    '<div class="table-responsive-container" style="width:100%; height:380px; max-height:380px; overflow:auto; border-radius:4px; border:1px solid var(--brd); background:var(--card); box-sizing:border-box;">' +
+    "<style>" +
+    "#tempat_tabel_preview table { width: 100% !important; min-width: 1000px !important; border-collapse: collapse !important; table-layout: auto !important; }" +
+    "#tempat_tabel_preview th { padding: 8px 10px !important; background: var(--bg2); white-space: nowrap !important; border: 1px solid var(--brd); position: sticky !important; top: 0; z-index: 10; text-align:left; }" +
+    "#tempat_tabel_preview td { padding: 6px 10px !important; border: 1px solid var(--brd); font-size:0.85rem; }" +
+    "</style>" +
+    '<div id="tempat_tabel_preview" style="width:100%; display:block; text-align:left;">' +
+    '<p style="padding:2rem; text-align:center; color:var(--muted);">Klik tombol "Tampilkan Data" untuk memuat detail perkiraan.</p>' +
+    "</div>" +
+    "</div>" +
+    "</div>" +
+    "</div>";
+
+  return htmlLaporan;
 }
 // =========================================================================
 // FUNGSI RENDER DETIL NERACA (SUMBER DATA: PERKIRAAN BACKUP)
