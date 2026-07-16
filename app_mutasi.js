@@ -2363,9 +2363,18 @@ async function executeHapusMutasiPerCabang() {
       .join("");
   }
 
-  // ✅ OPSI GROUP: Siapkan dropdown Group
-  var activeGroupLabel = localStorage.getItem("group") || "TLGA";
-  var daftarGroup = ["TLGA", "TLTA", "KBJ", "SBI"]; // Sesuaikan dengan daftar group Anda
+  // ✅ PERBAIKAN: PENGAMAN GROUP UNDEFINED
+  var rawGroup = localStorage.getItem("group");
+  var activeGroupLabel = "TLGA";
+  if (
+    rawGroup &&
+    rawGroup.trim() !== "" &&
+    rawGroup.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    activeGroupLabel = rawGroup.trim().toUpperCase();
+  }
+
+  var daftarGroup = ["TLGA", "TLTA", "KBJ", "SBI"];
   var opsiGroupHtml = daftarGroup
     .map(function (g) {
       var sel = g === activeGroupLabel ? "selected" : "";
@@ -2381,7 +2390,6 @@ async function executeHapusMutasiPerCabang() {
       </div>
       
       <div style="display: flex; flex-direction: column; gap: .8rem; margin-bottom: 1.5rem">
-        <!-- ✅ OPSI GROUP: Tambahkan Dropdown Group -->
         <div>
           <label style="display:block; font-size:.8rem; margin-bottom:.3rem; font-weight:bold">Group</label>
           <select id="del_group" style="width:100%; padding:.5rem; border-radius:6px; border:1px solid var(--brd); background:var(--bg2); color:inherit">
@@ -2422,14 +2430,12 @@ async function executeHapusMutasiPerCabang() {
 
   document.getElementById("btnKonfirmasiHapusMutasi").onclick =
     async function () {
-      var grp = document.getElementById("del_group").value; // ✅ OPSI GROUP: Ambil nilai
+      var grp = document.getElementById("del_group").value;
       var bln = document.getElementById("del_bulan").value;
       var thn = document.getElementById("del_tahun").value;
       var cbg = document.getElementById("del_cabang").value;
 
-      if (!cbg) {
-        return toast("Kode Cabang wajib dipilih!", "err");
-      }
+      if (!cbg) return toast("Kode Cabang wajib dipilih!", "err");
 
       var infoFilter = `\nGroup: ${grp}\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg}`;
 
@@ -2441,15 +2447,13 @@ async function executeHapusMutasiPerCabang() {
             infoFilter +
             "\n\nLanjutkan?",
         )
-      ) {
+      )
         return;
-      }
 
       closeModal();
       toast("Menghubungi server untuk menghapus data...", "inf");
 
       try {
-        // 1. PANGGIL API clear-all-data
         var response = await fetch("/api/clear-all-data", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -2458,53 +2462,47 @@ async function executeHapusMutasiPerCabang() {
             cabang: cbg,
             tahun: thn,
             bulan: bln,
-            group: grp, // ✅ OPSI GROUP: Kirim parameter group ke server
+            group: grp,
           }),
         });
 
         var result = await response.json();
-        if (!response.ok || !result.success) {
+        if (!response.ok || !result.success)
           throw new Error(result.message || "Gagal menghubungi server");
-        }
 
-        // 2. HAPUS DI CACHE MEMORY (LOCAL BROWSER)
         var dataDipertahankan = [];
         var allData = DBCache.mutasikasir || [];
 
         for (var i = 0; i < allData.length; i++) {
           var item = allData[i];
           var cocokCabang = item.cabang === cbg;
-
-          // ✅ OPSI GROUP: Tambahkan filter group di cache lokal
-          var cocokGroup = String(item.group || "").trim() === grp;
+          var cocokGroup =
+            String(item.group || "")
+              .trim()
+              .toUpperCase() === grp.toUpperCase();
 
           var cocokTahun = true;
           if (thn) cocokTahun = item.tanggal && item.tanggal.startsWith(thn);
 
           var cocokBulan = true;
-          if (thn && bln) {
+          if (thn && bln)
             cocokBulan =
               item.tanggal && item.tanggal.startsWith(thn + "-" + bln);
-          }
 
-          // ✅ OPSI GROUP: Tambahkan cocokGroup di kondisi pengecekan
           if (cocokCabang && cocokGroup && cocokTahun && cocokBulan) {
             // Dihapus (tidak masuk array)
           } else {
-            dataDipertahankan.push(item); // Dipertahankan
+            dataDipertahankan.push(item);
           }
         }
 
         DBCache.mutasikasir = dataDipertahankan;
 
-        // 3. REFRESH UI TAMPILAN
         renderKasirDetilTable();
         updateKasirHeaderNominal();
         await hitungSaldoOtomatis();
 
-        if (typeof buildGroupedNoreff === "function") {
-          buildGroupedNoreff();
-        }
+        if (typeof buildGroupedNoreff === "function") buildGroupedNoreff();
         renderKasirNoreffList();
 
         toast(
@@ -2517,6 +2515,7 @@ async function executeHapusMutasiPerCabang() {
       }
     };
 }
+
 // ✅ OBJEK LOGIKA IMPORT DBF KASIR (SERVER-SIDE)
 const AppImporKasirDBF = {
   API_URL: window.location.origin + "/api/impor-mutasikasir-online",
@@ -2558,9 +2557,18 @@ const AppImporKasirDBF = {
       opsiBulan += `<option value="${val}">${b}</option>`;
     });
 
-    // ✅ TAMBAHKAN OPSI GROUP
-    let activeGroupLabel = localStorage.getItem("group") || "TLGA";
-    let daftarGroup = ["TLGA", "TLTA", "KBJ", "SBI"]; // Sesuaikan daftar group Anda
+    // ✅ PERBAIKAN: PENGAMAN GROUP UNDEFINED
+    let rawGroup = localStorage.getItem("group");
+    let activeGroupLabel = "TLGA";
+    if (
+      rawGroup &&
+      rawGroup.trim() !== "" &&
+      rawGroup.trim().toUpperCase() !== "UNDEFINED"
+    ) {
+      activeGroupLabel = rawGroup.trim().toUpperCase();
+    }
+
+    let daftarGroup = ["TLGA", "TLTA", "KBJ", "SBI"];
     let opsiGroupHtml = daftarGroup
       .map((g) => {
         let sel = g === activeGroupLabel ? "selected" : "";
@@ -2580,7 +2588,6 @@ const AppImporKasirDBF = {
             <select id="impKasirCab" required class="in">${opsiCabang}</select>
           </div>
 
-          <!-- ✅ TAMBAHKAN DROPDOWN GROUP DI FORM -->
           <div class="fg" style="margin-bottom: 1rem;">
             <label>Group Data</label>
             <select id="impKasirGroup" required class="in">${opsiGroupHtml}</select>
@@ -2608,7 +2615,6 @@ const AppImporKasirDBF = {
             </div>
           </div>
 
-          <!-- PROGRESS BAR -->
           <div id="kasirProgressBox" style="display:none; margin-bottom:1.5rem">
             <div style="background:var(--bg);border-radius:8px;height:24px;overflow:hidden;border:1px solid var(--brd);position:relative">
               <div id="kasirProgressBar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),#10b981);transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.75rem"></div>
@@ -2652,13 +2658,12 @@ const AppImporKasirDBF = {
     const progressText = document.getElementById("kasirProgressText");
 
     const cabang = document.getElementById("impKasirCab")?.value;
-    const groupVal = document.getElementById("impKasirGroup")?.value; // ✅ AMBIL NILAI GROUP
+    const groupVal = document.getElementById("impKasirGroup")?.value;
     const hapusThn = document.getElementById("impKasirThn")?.value || "";
     const hapusBln = document.getElementById("impKasirBln")?.value || "";
     const fileDbf = document.getElementById("fileDbfKasir")?.files[0];
 
     if (!cabang || !fileDbf || !groupVal)
-      // ✅ VALIDASI: Group wajib diisi
       return toast("Cabang, Group, dan File wajib diisi!", "err");
     if (hapusBln && !hapusThn)
       return toast("Jika pilih bulan, tahun wajib dipilih!", "err");
@@ -2674,7 +2679,7 @@ const AppImporKasirDBF = {
 
       const fd = new FormData();
       fd.append("cabang", cabang);
-      fd.append("group", groupVal); // ✅ KIRIM NILAI GROUP KE SERVER
+      fd.append("group", groupVal);
       if (hapusThn) fd.append("hapus_tahun", hapusThn);
       if (hapusBln) fd.append("hapus_bulan", hapusBln);
       fd.append("file_dbf", fileDbf);
@@ -2721,10 +2726,7 @@ const AppImporKasirDBF = {
       toast("✅ Import DBF Kasir berhasil di Server!", "ok");
       closeModal();
 
-      // Tarik ulang data dari server ke lokal & refresh tampilan
-      if (typeof fetchInitialData === "function") {
-        await fetchInitialData();
-      }
+      if (typeof fetchInitialData === "function") await fetchInitialData();
 
       renderKasirDetilTable();
       updateKasirHeaderNominal();
@@ -2742,11 +2744,10 @@ const AppImporKasirDBF = {
     }
   },
 };
-// ✅ FUNGSI UNTUK DIPANGGIL OLEH TOMBOL DI MUTASI KASIR
+
 function promptImportKasirDBF() {
   if (typeof openModal === "function") {
     openModal("Impor DBF Mutasi Kasir (Server)", AppImporKasirDBF.getHTML());
-    // Beri jeda 50ms agar DOM modal sempat terbentuk, lalu pasang event listenernya
     setTimeout(() => AppImporKasirDBF.initEvents(), 50);
   } else {
     toast("Fungsi Modal tidak ditemukan", "err");
