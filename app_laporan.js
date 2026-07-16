@@ -923,8 +923,16 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
 PANEL_MAP.detilNeraca = renderDetilNeraca;
 // TAMBAHKAN PARAMETER "group" DI SINI
 async function renderDetilNeraca(kodeGol, kodemasa, kodeCabang, group) {
+  // ✅ PENGAMAN JIKA PARAMETER TIDAK TERKIRIM (UNDEFINED)
+  if (!kodemasa || !kodeGol) {
+    return (
+      '<div style="padding:2rem; text-align:center; color:red;">Error: Parameter Masa atau Kode Golongan tidak valid (Undefined).</div>' +
+      '<br><button class="btn btn-b" onclick="history.back()">← Kembali</button>'
+    );
+  }
+
   // 1. Ambil tahun dari kodemasa (format kodemasa = "MMYY", contoh "0924")
-  var tahun = "20" + kodemasa.substring(2, 4);
+  var tahun = "20" + kodemasa.substring(2, 4); // Baris 927 Anda yang tadi error ada di sini
   var namaStore = "perkiraan" + tahun; // Sesuaikan nama store indexDB Anda untuk perkiraan
 
   // --- PENGAMAN GROUP UNDEFINED ---
@@ -937,7 +945,6 @@ async function renderDetilNeraca(kodeGol, kodemasa, kodeCabang, group) {
     activeGroup = group.trim().toUpperCase();
   }
 
-  // Tampilkan loading sementara
   var htmlLoading =
     '<div style="padding:2rem; text-align:center; color:var(--muted);"><span class="spinner"></span> Memuat detail perkiraan ' +
     kodeGol +
@@ -972,6 +979,7 @@ async function renderDetilNeraca(kodeGol, kodemasa, kodeCabang, group) {
       var cocokCabang =
         kodeCabang === "PUSAT" ||
         kodeCabang === "ALL" ||
+        kodeCabang === "" ||
         cabData === kodeCabang;
 
       // Kembalikan semua kondisi yang harus terpenuhi (termasuk cocokGroup)
@@ -982,8 +990,10 @@ async function renderDetilNeraca(kodeGol, kodemasa, kodeCabang, group) {
       return (
         '<div style="padding:2rem; text-align:center; color:var(--muted);">Tidak ada detail transaksi untuk Golongan <b>' +
         kodeGol +
-        "</b> pada masa ini.</div>" +
-        '<br><button class="btn btn-b" onclick="renderNeraca().then(h => { document.getElementById(\'contentarea\').innerHTML = h; })">← Kembali ke Neraca</button>'
+        "</b> pada masa " +
+        kodemasa +
+        ".</div>" +
+        '<br><button class="btn btn-b" onclick="history.back()">← Kembali</button>'
       );
     }
 
@@ -991,7 +1001,7 @@ async function renderDetilNeraca(kodeGol, kodemasa, kodeCabang, group) {
     var html = "";
     html += '<div style="margin-bottom:1rem;">';
     html +=
-      '<button class="btn btn-b" onclick="renderNeraca().then(h => { document.getElementById(\'contentarea\').innerHTML = h; })" style="font-size:.8rem; padding:4px 10px;">← Kembali ke Neraca</button>';
+      '<button class="btn btn-b" onclick="history.back()" style="font-size:.8rem; padding:4px 10px;">← Kembali ke Neraca</button>';
     html +=
       '<h4 style="margin:10px 0; color:var(--fg);">Detail Perkiraan Golongan: <span style="color:var(--accent);">' +
       kodeGol +
