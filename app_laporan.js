@@ -260,8 +260,8 @@ async function terapkanOpsiNeraca() {
   var filterbulan = part[1];
   var duadigittahunbelakang = filtertahunfull.substring(2, 4);
 
-  window._neracaFilterMasa = filterbulan + "-" + filtertahunfull; // Diperbaiki kapitalisasi variabel
-  window._neracaFilterCabang = valcabang; // Diperbaiki kapitalisasi variabel
+  window._neracaFilterMasa = filterbulan + "-" + filtertahunfull;
+  window._neracaFilterCabang = valcabang;
   window._neracaModeBackup = true;
 
   var kodemasadicari = filterbulan + duadigittahunbelakang;
@@ -284,6 +284,17 @@ async function terapkanOpsiNeraca() {
         : Object.values(resgolbackup)
       : [];
 
+    // --- PERBAIKAN 1: PENGAMAN GROUP UNDEFINED ---
+    var rawGroup = localStorage.getItem("group");
+    var activeGroup = "TLGA";
+    if (
+      rawGroup &&
+      rawGroup.trim() !== "" &&
+      rawGroup.trim().toUpperCase() !== "UNDEFINED"
+    ) {
+      activeGroup = rawGroup.trim().toUpperCase();
+    }
+
     // Filter Data
     window.golterfilter = rawdatagolongan
       .filter(function (g) {
@@ -292,20 +303,28 @@ async function terapkanOpsiNeraca() {
           10,
         );
         var cocokGolongan = kodeGolongan < 300;
-        var activeGroup = localStorage.getItem("group") || "TLGA";
-        var cocokGroup = String(g.group || "").trim() === activeGroup;
+
+        var cocokGroup =
+          String(g.group || "")
+            .trim()
+            .toUpperCase() === activeGroup;
 
         var cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
         var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
-        var cocokCabang =
-          valcabang === "ALL" || valcabang === "" || cabangData === valcabang;
 
+        // --- PERBAIKAN 2: MENANGKAPI PILIHAN "PUSAT" UNTUK MENAMPILKAN SEMUA CABANG ---
+        var cocokCabang =
+          valcabang === "PUSAT" ||
+          valcabang === "ALL" ||
+          valcabang === "" ||
+          cabangData === valcabang;
+
+        var nilaiAwal = parseFloat(g.awal || 0);
         var nilaiDb = parseFloat(g.db || g.debit || 0);
         var nilaiCr = parseFloat(g.cr || g.kredit || 0);
-        var nilaiAwal = parseFloat(g.awal || 0);
-        var adaNilai = nilaiAwal + nilaiDb + nilaiCr !== 0;
+        var adaNilai = nilaiAwal !== 0 || nilaiDb !== 0 || nilaiCr !== 0;
 
         return (
           cocokGolongan &&
@@ -324,7 +343,7 @@ async function terapkanOpsiNeraca() {
     if (golterfilter.length === 0) {
       if (area) {
         area.innerHTML =
-          '<div style="padding:3rem; text-align:center; color:var(--muted); font-size: 0.95rem;">🔍 Data benar-benar kosong di database.</div>';
+          '<div style="padding:3rem; text-align:center; color:var(--muted); font-size: 0.95rem;">🔍 Data benar-benar kosong atau tidak ditemukan untuk filter ini.</div>';
       }
       return;
     }
@@ -343,9 +362,9 @@ async function terapkanOpsiNeraca() {
       area.style.height = "auto";
     }
 
-    var subAwal = 0;
-    var subDb = 0;
-    var subCr = 0;
+    var subAwal = 0,
+      subDb = 0,
+      subCr = 0;
     var currentGolPrefix = "";
 
     html +=
@@ -364,44 +383,47 @@ async function terapkanOpsiNeraca() {
     html += "</tr></thead>";
     html += "<tbody>";
 
+    // --- PERBAIKAN 3: MEMPERBAIKI STRUKTUR HTML TABLE YANG RUSAK ---
     golterfilter.forEach(function (item) {
+      var kodeGol = parseInt(
+        item.gol || item.golongan || item.kode_golongan || 0,
+        10,
+      );
+      var itemPrefix = String(kodeGol).charAt(0);
+      var nilaiAwal = parseFloat(item.awal || 0);
+      var nilaiDb = parseFloat(item.db || item.debit || 0);
+      var nilaiCr = parseFloat(item.cr || item.kredit || 0);
+
+      // CEK SUBTOTAL DI LUAR LOOP KOLOM (BUKAN DI DALAM headers.forEach)
+      if (currentGolPrefix !== "" && itemPrefix !== currentGolPrefix) {
+        html +=
+          '<tr style="font-size:0.85rem; font-weight:bold; background:#ffffff; color:#000000;">';
+        html +=
+          '<td colspan="3" style="padding:10px; border:1px solid #000; color:#000000;">TOTAL AKTIVA ' +
+          currentGolPrefix +
+          "XX</td>";
+        html +=
+          '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap; color:#000000;">' +
+          formatUang(subAwal + subDb - subCr) +
+          "</td>";
+        html += '<td style="padding:2px; border:1px solid #000;"></td>';
+        html += "</tr>";
+        subAwal = 0;
+        subDb = 0;
+        subCr = 0;
+      }
+
+      currentGolPrefix = itemPrefix;
+      subAwal += nilaiAwal;
+      subDb += nilaiDb;
+      subCr += nilaiCr;
+
+      // MULAI BUAT BARIS (<tr>) UNTUK DATA ISI
       html += '<tr style="font-size: 0.85rem;">';
+
       headers.forEach(function (h) {
         var val = "";
         var styleTambahan = "";
-        var kodeGol = parseInt(
-          item.gol || item.golongan || item.kode_golongan || 0,
-          10,
-        );
-        var itemPrefix = String(kodeGol).charAt(0);
-
-        var nilaiAwal = parseFloat(item.awal || 0);
-        var nilaiDb = parseFloat(item.db || item.debit || 0);
-        var nilaiCr = parseFloat(item.cr || item.kredit || 0);
-
-        if (currentGolPrefix !== "" && itemPrefix !== currentGolPrefix) {
-          html +=
-            '<tr style="font-size:0.85rem; font-weight:bold; background:#ffffff; color:#000000;">';
-          html +=
-            '<td colspan="3" style="padding:10px; border:1px solid #000; color:#000000;">TOTAL AKTIVA' +
-            currentGolPrefix +
-            "</td>";
-          html +=
-            '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap; color:#000000;">' +
-            formatUang(subAwal + subDb - subCr) +
-            "</td>";
-          html += '<td style="padding:2px; border:1px solid #000;"></td>';
-          html += "</tr>";
-
-          subAwal = 0;
-          subDb = 0;
-          subCr = 0;
-        }
-
-        currentGolPrefix = itemPrefix;
-        subAwal += nilaiAwal;
-        subDb += nilaiDb;
-        subCr += nilaiCr;
 
         if (h === "gol") {
           val =
@@ -412,21 +434,27 @@ async function terapkanOpsiNeraca() {
                 : "";
           styleTambahan =
             "cursor: pointer; color: green; font-weight: bold; text-decoration: underline;";
-        } else if (h === "namaGol")
+        } else if (h === "namaGol") {
           val = item.namaGol !== undefined ? item.namaGol : "";
-        else if (h === "masa") val = item.masa !== undefined ? item.masa : "";
-        else if (h === "akhir") {
-          val = item.akhir !== undefined ? item.akhir : 0;
+        } else if (h === "masa") {
+          val = item.masa !== undefined ? item.masa : "";
+        } else if (h === "akhir") {
+          // Jika field akhir tidak ada di DB, hitung manual dari awal+db-cr
+          val =
+            item.akhir !== undefined
+              ? item.akhir
+              : nilaiAwal + nilaiDb - nilaiCr;
           val = formatUang(val);
           styleTambahan =
             "text-align: right; font-weight: bold; white-space: nowrap;";
-        } else if (h === "cabang")
+        } else if (h === "cabang") {
           val =
             item.cabang !== undefined
               ? item.cabang
               : item.kode_cabang !== undefined
                 ? item.kode_cabang
                 : "";
+        }
 
         if (h !== "akhir" && h !== "gol")
           styleTambahan = "white-space: nowrap;";
@@ -453,16 +481,18 @@ async function terapkanOpsiNeraca() {
             "</td>";
         }
       });
-      html += "</tr>";
+
+      html += "</tr>"; // TUTUP BARIS ISI
     });
 
+    // SUBTOTAL TERAKHIR
     if (currentGolPrefix !== "") {
       html +=
         '<tr style="font-size:0.85rem; font-weight:bold; background:#ffffff; color:#000000;">';
       html +=
-        '<td colspan="3" style="padding:10px; border:1px solid #000; color:#000000;">TOTAL AKTIVA' +
+        '<td colspan="3" style="padding:10px; border:1px solid #000; color:#000000;">TOTAL AKTIVA ' +
         currentGolPrefix +
-        "</td>";
+        "XX</td>";
       html +=
         '<td style="padding:10px; border:1px solid #000; text-align:right; white-space:nowrap; color:#000000;">' +
         formatUang(subAwal + subDb - subCr) +
@@ -471,6 +501,7 @@ async function terapkanOpsiNeraca() {
       html += "</tr>";
     }
 
+    // GRAND TOTAL
     var totalAwal = golterfilter.reduce(function (sum, item) {
       return sum + (parseFloat(item.awal || 0) || 0);
     }, 0);
