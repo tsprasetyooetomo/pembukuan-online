@@ -1210,8 +1210,8 @@ async function terapkanOpsiDetilNeraca() {
   window._neracaFilterMasa = filterbulan + "-" + filtertahunfull;
   window._neracaFilterCabang = valcabang;
 
-  // Cari Kontainer
-  var area = document.getElementById("tempat_tabel_neraca_detil");
+  // ✅ PERBAIKAN 1: GANTI ID KONTAINER MENJADI "tempat_tabel_preview" (SESUAI DENGAN RENDERNERACA)
+  var area = document.getElementById("tempat_tabel_preview");
 
   // Tampilkan Loading
   if (area) {
@@ -1228,32 +1228,49 @@ async function terapkanOpsiDetilNeraca() {
         : Object.values(resPerkiraan)
       : [];
 
+    // ✅ PERBAIKAN 2: PENGAMAN GROUP UNDEFINED
+    var rawGroup = localStorage.getItem("group");
+    var activeGroup = "TLGA";
+    if (
+      rawGroup &&
+      rawGroup.trim() !== "" &&
+      rawGroup.trim().toUpperCase() !== "UNDEFINED"
+    ) {
+      activeGroup = rawGroup.trim().toUpperCase();
+    }
+
     // 2. Filter Data Perkiraan
     let detilTerfilter = rawDataPerkiraan
       .filter(function (p) {
         var kodeGol = parseInt(p.gol || p.golongan || 0, 10);
         var cocokGolongan = kodeGol < 300;
-        var activeGroup = localStorage.getItem("group") || "TLGA";
-        var cocokGroup = String(p.group || "").trim() === activeGroup;
+
+        var cocokGroup =
+          String(p.group || "")
+            .trim()
+            .toUpperCase() === activeGroup;
 
         var cabangData = String(p.cabang || "").trim();
         var masaData = String(p.masa || "").trim();
 
+        // ✅ PERBAIKAN 3: TAMBAHKAN "PUSAT" AGAR BISA BACA SEMUA CABANG
         var cocokCabang =
-          valcabang === "ALL" || valcabang === "" || cabangData === valcabang;
+          valcabang === "PUSAT" ||
+          valcabang === "ALL" ||
+          valcabang === "" ||
+          cabangData === valcabang;
         var cocokMasa = masaData === kodemasadicari;
 
         var nilaiAwal = parseFloat(p.awal || 0);
         var nilaiDb = parseFloat(p.db || 0);
         var nilaiCr = parseFloat(p.cr || 0);
-        var adaNilai = nilaiAwal + nilaiDb + nilaiCr !== 0;
+        var adaNilai = nilaiAwal !== 0 || nilaiDb !== 0 || nilaiCr !== 0;
 
         return (
           cocokGolongan && cocokGroup && cocokMasa && cocokCabang && adaNilai
         );
       })
       .sort(function (a, b) {
-        // Urutkan berdasarkan No Perkiraan agar subtotal kelompok 3 digit berurutan rapi
         var perA = String(a.noPerk || "");
         var perB = String(b.noPerk || "");
         return perA.localeCompare(perB, undefined, { numeric: true });
@@ -1277,7 +1294,7 @@ async function terapkanOpsiDetilNeraca() {
     var totalAwal = 0,
       totalDb = 0,
       totalCr = 0;
-    var current3DigitPrefix = ""; // Mengganti nama variabel untuk melacak 3 digit kelompok
+    var current3DigitPrefix = "";
 
     html += '<div style="width: 100%; overflow-x: auto;">';
     html +=
@@ -1302,7 +1319,6 @@ async function terapkanOpsiDetilNeraca() {
 
     detilTerfilter.forEach(function (item) {
       var noPerk = item.noPerk || "";
-      // Mengambil 3 digit pertama dari No Perkiraan sebagai dasar kelompok subtotal
       var item3DigitPrefix = String(noPerk).substring(0, 3);
 
       var nilaiAwal = parseFloat(item.awal || 0);
@@ -1310,7 +1326,6 @@ async function terapkanOpsiDetilNeraca() {
       var nilaiCr = parseFloat(item.cr || 0);
       var nilaiAkhir = nilaiAwal + nilaiDb - nilaiCr;
 
-      // Cek perpindahan Kelompok 3 Digit untuk cetak Subtotal
       if (
         current3DigitPrefix !== "" &&
         item3DigitPrefix !== current3DigitPrefix
@@ -1337,24 +1352,19 @@ async function terapkanOpsiDetilNeraca() {
           formatUang(subAwal + subDb - subCr) +
           "</td>";
         html += '<td style="padding:2px; border:1px solid #000;"></td></tr>';
-
-        // Reset nilai akumulasi subtotal
         subAwal = 0;
         subDb = 0;
         subCr = 0;
       }
 
-      // Perbarui pelacak prefix dan tambahkan ke subtotal & total
       current3DigitPrefix = item3DigitPrefix;
       subAwal += nilaiAwal;
       subDb += nilaiDb;
       subCr += nilaiCr;
-
       totalAwal += nilaiAwal;
       totalDb += nilaiDb;
       totalCr += nilaiCr;
 
-      // Render Baris Data Akun
       html += "<tr>";
       html +=
         "<td onclick=\"lihatBukuBesar('" +
@@ -1363,13 +1373,12 @@ async function terapkanOpsiDetilNeraca() {
         kodemasadicari +
         "', '" +
         valcabang +
-        "')\" " +
-        'style="padding:6px; border:1px solid #000; cursor:pointer; color:green text-decoration:underline; font-weight:bold;">' +
+        '\')" style="padding:6px; border:1px solid #000; cursor:pointer; color:green; text-decoration:underline; font-weight:bold;">' +
         noPerk +
         "</td>";
       html +=
         '<td style="padding:6px; border:1px solid #000;">' +
-        item.desc +
+        (item.desc || item.nama || "-") +
         "</td>";
       html +=
         '<td style="padding:6px; border:1px solid #000; text-align:right;">' +
@@ -1400,7 +1409,6 @@ async function terapkanOpsiDetilNeraca() {
       html += "</td></tr>";
     });
 
-    // Cetak Subtotal Terakhir (Kelompok 3 digit paling ujung sebelum Grand Total)
     if (current3DigitPrefix !== "") {
       html += '<tr style="font-weight:bold; background:#f9f9f9;">';
       html +=
@@ -1426,7 +1434,6 @@ async function terapkanOpsiDetilNeraca() {
       html += '<td style="padding:2px; border:1px solid #000;"></td></tr>';
     }
 
-    // Cetak Grand Total (Opsional, agar laporan neraca lengkap)
     html += '<tr style="font-weight:bold; background:#e6f7ff;">';
     html +=
       '<td colspan="2" style="padding:8px; border:1px solid #000; text-align:right;color:red;">GRAND TOTAL AKTIVA</td>';
