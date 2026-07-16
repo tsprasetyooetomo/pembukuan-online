@@ -1352,17 +1352,13 @@ async function postingSaldoKasir() {
     "\n\nData harian yang tampil di layar akan disimpan ke Database Saldo Kasir.\nLanjutkan?";
   var ok = confirm(confirmMsg);
   if (!ok) return;
-
   try {
     var arrDataUntukDisimpan = [];
     var baseUrl = window.location.origin + "/api/data/saldokasir";
 
-    // ✅ PERBAIKAN 2: FUNGSI PINTAR UNTUK MENCARI NILAI DB & CR
     function cariNilaiDbCr(obj) {
       var dbVal = 0;
       var crVal = 0;
-
-      // Coba berbagai kemungkinan nama properti yang sering dipakai saat grouping
       if (
         obj.db !== undefined ||
         obj.debit !== undefined ||
@@ -1390,11 +1386,9 @@ async function postingSaldoKasir() {
             0,
         );
       }
-
       return { db: dbVal, cr: crVal };
     }
 
-    // 4. LOOPING DATA YANG TAMPIL DI LAYAR
     DATA_KASIR_AKTIF.groupedData.forEach(function (t) {
       var tglTransaksi = t.tanggal || t.tgl || t.tgl_awal;
       if (!tglTransaksi) return;
@@ -1402,11 +1396,11 @@ async function postingSaldoKasir() {
       if (tglTransaksi.indexOf(" ") > -1)
         tglTransaksi = tglTransaksi.split(" ")[0];
 
-      // Gunakan fungsi pencarian pintar
       var nilaiDbCr = cariNilaiDbCr(t);
 
       var objHarian = {
-        id: "POST_KASIR_" + cab + "_" + tglTransaksi + "_" + uid(),
+        // ✅ PERBAIKAN: GANTI ID PANJANG MENJADI UUID STANDARD AGAR DITERIMA SERVER
+        id: uid(),
         cabang: cab,
         tanggal: tglTransaksi,
         tgl_awal: tglTransaksi,
@@ -1414,7 +1408,7 @@ async function postingSaldoKasir() {
         cr: nilaiDbCr.cr,
         akhir: nilaiDbCr.db - nilaiDbCr.cr,
         awal: 0,
-        group: activeGroup, // ✅ Pakai variable yang sudah aman dari undefined
+        group: activeGroup,
       };
 
       arrDataUntukDisimpan.push(objHarian);
@@ -1442,16 +1436,34 @@ async function postingSaldoKasir() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(item),
         })
-          .then(function (res) {
-            if (!res.ok) throw new Error("Server error");
+          .then(async function (res) {
+            // ✅ PERBAIKAN: BACA PESANAN ERROR ASLI DARI SERVER AGAR KITA TAHU PENYEBABNYA
+            if (!res.ok) {
+              var errorData = null;
+              try {
+                errorData = await res.json(); // Coba baca pesan error dari Supabase
+              } catch (e) {}
+              throw new Error(
+                errorData?.message ||
+                  errorData?.msg ||
+                  "Server error " + res.status,
+              );
+            }
             berhasilDisimpan++;
           })
           .catch(function (e) {
             gagalDisimpan++;
-            console.error("Gagal simpan data tgl:", item.tanggal, e);
+            console.error(
+              "Gagal simpan data tgl:",
+              item.tanggal,
+              "| Pesan Server:",
+              e.message,
+            );
           });
       }),
     );
+
+    // ... (Kode dibawahnya biarkan tetap sama: update DBCache, tampilkan pesan sukses)
 
     // 6. UPDATE CACHE DBCACHE LOKAL
     if (!DBCache.saldokasir) DBCache.saldokasir = [];
