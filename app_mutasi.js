@@ -1633,102 +1633,6 @@ async function hapusKasirDetil(id) {
   renderKasirNoreffList();
 }
 // ✅ FUNGSI PENCARIAN SALDO AWAL KE MUNDUR KHUSUS KASIR (SUDAH DIFIX GROUP NYA)
-async function cariSaldoAwalKasir(cabang, tanggalPilih) {
-  if (!cabang || !tanggalPilih) return 0;
-
-  var rawGroup = localStorage.getItem("group");
-  var activeGroup = "TLGA";
-  if (
-    rawGroup &&
-    rawGroup.trim() !== "" &&
-    rawGroup.trim().toUpperCase() !== "UNDEFINED"
-  ) {
-    activeGroup = rawGroup.trim().toUpperCase();
-  }
-
-  // ✅ PELINDUNG: BONGKAR JSONB JIKA MASIH TERBUNGKUS
-  var cacheAsli = DBCache.saldoKasir || [];
-  if (
-    cacheAsli.length > 0 &&
-    cacheAsli[0].data &&
-    typeof cacheAsli[0].data === "object"
-  ) {
-    console.log("📦 Data cache masih terbungkus JSONB, membongkar...");
-    cacheAsli = cacheAsli.map(function (item) {
-      return item.data;
-    });
-    // Simpan yang sudah dibongkar agar tidak diproses lagi besok
-    DBCache.saldokasir = cacheAsli;
-  }
-
-  // LANGSUNG AMBIL DARI CACHE YANG SUDAH PASTI FLAT
-  var dataSk = cacheAsli.filter(function (item) {
-    var groupItem = String(item.group || "")
-      .trim()
-      .toUpperCase();
-    // Tambahkan .trim() di cabang kalau khawatir ada spasi
-    return (
-      (item.cabang || "").trim() === cabang.trim() && groupItem === activeGroup
-    );
-  });
-
-  // 🔍 DEBUG SUPER TAJAM
-  console.log("=== CEK SK ===");
-  console.log(
-    "Total Cache:",
-    cacheAsli.length,
-    "| Cabang Dicari:",
-    cabang,
-    "| Group:",
-    activeGroup,
-    "| Hasil Filter:",
-    dataSk.length,
-  );
-  if (cacheAsli.length > 0 && dataSk.length === 0) {
-    console.log(
-      "⚠️ KETEMU MASALAH: Cache ada isinya, tapi filter menolak semua. Contoh cabang di cache:",
-      cacheAsli[0].cabang,
-    );
-  }
-
-  // 2. Optimasi: Ubah array menjadi Map berdasarkan tanggal
-  var mapSaldo = {};
-  dataSk.forEach(function (sk) {
-    if (sk.tanggal) {
-      mapSaldo[sk.tanggal] = sk.saldo_akhir;
-    }
-  });
-
-  // 3. Set tanggal target ke H-1
-  var tglTarget = new Date(tanggalPilih);
-  tglTarget.setDate(tglTarget.getDate() - 1);
-  var maxIterasi = 365;
-
-  for (var i = 0; i < maxIterasi; i++) {
-    var yyyy = tglTarget.getFullYear();
-    var mm = String(tglTarget.getMonth() + 1).padStart(2, "0");
-    var dd = String(tglTarget.getDate()).padStart(2, "0");
-    var tglStr = yyyy + "-" + mm + "-" + dd;
-
-    var saldoAkhirCocok = mapSaldo[tglStr];
-
-    if (saldoAkhirCocok !== undefined) {
-      console.log(
-        "✅ Saldo kasir awal ditemukan di tanggal " + tglStr,
-        "| Nilai:",
-        saldoAkhirCocok,
-      );
-      return typeof num === "function"
-        ? num(saldoAkhirCocok) || 0
-        : Number(saldoAkhirCocok) || 0;
-    }
-
-    tglTarget.setDate(tglTarget.getDate() - 1);
-  }
-
-  console.log("❌ Saldo awal tidak ditemukan dalam 365 hari terakhir.");
-  return 0;
-}
 
 function renderKasirNoreffList() {
   var box = $("mutKasirNoreffList");
@@ -1882,6 +1786,102 @@ function onKasirNoreffClicked(noreffTarget) {
   hitungSaldoOtomatis();
   renderKasirDetilTable();
   renderKasirNoreffList();
+}
+async function cariSaldoAwalKasir(cabang, tanggalPilih) {
+  if (!cabang || !tanggalPilih) return 0;
+
+  var rawGroup = localStorage.getItem("group");
+  var activeGroup = "TLGA";
+  if (
+    rawGroup &&
+    rawGroup.trim() !== "" &&
+    rawGroup.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    activeGroup = rawGroup.trim().toUpperCase();
+  }
+
+  // ✅ PELINDUNG: BONGKAR JSONB JIKA MASIH TERBUNGKUS
+  var cacheAsli = DBCache.saldoKasir || [];
+  if (
+    cacheAsli.length > 0 &&
+    cacheAsli[0].data &&
+    typeof cacheAsli[0].data === "object"
+  ) {
+    console.log("📦 Data cache masih terbungkus JSONB, membongkar...");
+    cacheAsli = cacheAsli.map(function (item) {
+      return item.data;
+    });
+    // Simpan yang sudah dibongkar agar tidak diproses lagi besok
+    DBCache.saldokasir = cacheAsli;
+  }
+
+  // LANGSUNG AMBIL DARI CACHE YANG SUDAH PASTI FLAT
+  var dataSk = cacheAsli.filter(function (item) {
+    var groupItem = String(item.group || "")
+      .trim()
+      .toUpperCase();
+    // Tambahkan .trim() di cabang kalau khawatir ada spasi
+    return (
+      (item.cabang || "").trim() === cabang.trim() && groupItem === activeGroup
+    );
+  });
+
+  // 🔍 DEBUG SUPER TAJAM
+  console.log("=== CEK SK ===");
+  console.log(
+    "Total Cache:",
+    cacheAsli.length,
+    "| Cabang Dicari:",
+    cabang,
+    "| Group:",
+    activeGroup,
+    "| Hasil Filter:",
+    dataSk.length,
+  );
+  if (cacheAsli.length > 0 && dataSk.length === 0) {
+    console.log(
+      "⚠️ KETEMU MASALAH: Cache ada isinya, tapi filter menolak semua. Contoh cabang di cache:",
+      cacheAsli[0].cabang,
+    );
+  }
+  console.log(dataSk);
+  // 2. Optimasi: Ubah array menjadi Map berdasarkan tanggal
+  var mapSaldo = {};
+  dataSk.forEach(function (sk) {
+    if (sk.tanggal) {
+      mapSaldo[sk.tanggal] = sk.saldo_akhir;
+    }
+  });
+
+  // 3. Set tanggal target ke H-1
+  var tglTarget = new Date(tanggalPilih);
+  tglTarget.setDate(tglTarget.getDate() - 1);
+  var maxIterasi = 365;
+
+  for (var i = 0; i < maxIterasi; i++) {
+    var yyyy = tglTarget.getFullYear();
+    var mm = String(tglTarget.getMonth() + 1).padStart(2, "0");
+    var dd = String(tglTarget.getDate()).padStart(2, "0");
+    var tglStr = yyyy + "-" + mm + "-" + dd;
+
+    var saldoAkhirCocok = mapSaldo[tglStr];
+
+    if (saldoAkhirCocok !== undefined) {
+      console.log(
+        "✅ Saldo kasir awal ditemukan di tanggal " + tglStr,
+        "| Nilai:",
+        saldoAkhirCocok,
+      );
+      return typeof num === "function"
+        ? num(saldoAkhirCocok) || 0
+        : Number(saldoAkhirCocok) || 0;
+    }
+
+    tglTarget.setDate(tglTarget.getDate() - 1);
+  }
+
+  console.log("❌ Saldo awal tidak ditemukan dalam 365 hari terakhir.");
+  return 0;
 }
 
 function resetKasirNewTransaction() {
