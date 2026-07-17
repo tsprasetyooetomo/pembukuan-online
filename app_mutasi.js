@@ -1646,22 +1646,52 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
     activeGroup = rawGroup.trim().toUpperCase();
   }
 
-  // console.log("Isi rawGroup asli dari localStorage:", rawGroup);
-  // console.log("Active Group yang digunakan:", activeGroup);
+  // ✅ PELINDUNG: BONGKAR JSONB JIKA MASIH TERBUNGKUS
+  var cacheAsli = DBCache.saldokasir || [];
+  if (
+    cacheAsli.length > 0 &&
+    cacheAsli[0].data &&
+    typeof cacheAsli[0].data === "object"
+  ) {
+    console.log("📦 Data cache masih terbungkus JSONB, membongkar...");
+    cacheAsli = cacheAsli.map(function (item) {
+      return item.data;
+    });
+    // Simpan yang sudah dibongkar agar tidak diproses lagi besok
+    DBCache.saldokasir = cacheAsli;
+  }
 
-  // ✅ LANGSUNG AMBIL DARI CACHE. TANPA FETCH LAGI.
-  var dataSk = (DBCache.saldokasir || []).filter(function (item) {
+  // LANGSUNG AMBIL DARI CACHE YANG SUDAH PASTI FLAT
+  var dataSk = cacheAsli.filter(function (item) {
     var groupItem = String(item.group || "")
       .trim()
       .toUpperCase();
-    return (item.cabang || "") === cabang && groupItem === activeGroup;
+    // Tambahkan .trim() di cabang kalau khawatir ada spasi
+    return (
+      (item.cabang || "").trim() === cabang.trim() && groupItem === activeGroup
+    );
   });
 
-  // 👇 TAMBAHKAN 2 BARIS INI UNTUK INTIP ISI DATANYA
-  console.log("=== ISI DATA SK HASIL FILTER ===");
-  console.table(dataSk.slice(0, 5)); // Menampilkan 5 baris pertama dalam bentuk tabel rapi
+  // 🔍 DEBUG SUPER TAJAM
+  console.log("=== CEK SK ===");
+  console.log(
+    "Total Cache:",
+    cacheAsli.length,
+    "| Cabang Dicari:",
+    cabang,
+    "| Group:",
+    activeGroup,
+    "| Hasil Filter:",
+    dataSk.length,
+  );
+  if (cacheAsli.length > 0 && dataSk.length === 0) {
+    console.log(
+      "⚠️ KETEMU MASALAH: Cache ada isinya, tapi filter menolak semua. Contoh cabang di cache:",
+      cacheAsli[0].cabang,
+    );
+  }
 
-  // 2. Optimasi: Ubah array menjadi Map berdasarkan tanggal untuk pencarian instan O(1)
+  // 2. Optimasi: Ubah array menjadi Map berdasarkan tanggal
   var mapSaldo = {};
   dataSk.forEach(function (sk) {
     if (sk.tanggal) {
@@ -1669,19 +1699,17 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
     }
   });
 
-  // 3. Set tanggal target ke H-1 secara aman
+  // 3. Set tanggal target ke H-1
   var tglTarget = new Date(tanggalPilih);
   tglTarget.setDate(tglTarget.getDate() - 1);
   var maxIterasi = 365;
 
   for (var i = 0; i < maxIterasi; i++) {
-    // Ambil komponen tanggal lokal (Menghindari bug .toISOString())
     var yyyy = tglTarget.getFullYear();
     var mm = String(tglTarget.getMonth() + 1).padStart(2, "0");
     var dd = String(tglTarget.getDate()).padStart(2, "0");
     var tglStr = yyyy + "-" + mm + "-" + dd;
 
-    // Pencarian cepat menggunakan objek map
     var saldoAkhirCocok = mapSaldo[tglStr];
 
     if (saldoAkhirCocok !== undefined) {
@@ -1690,13 +1718,11 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
         "| Nilai:",
         saldoAkhirCocok,
       );
-      // Pastikan fungsi num() sudah terdefinisi di aplikasi Anda
       return typeof num === "function"
         ? num(saldoAkhirCocok) || 0
         : Number(saldoAkhirCocok) || 0;
     }
 
-    // Mundur 1 hari lagi jika belum ketemu
     tglTarget.setDate(tglTarget.getDate() - 1);
   }
 
