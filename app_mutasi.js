@@ -1645,8 +1645,11 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
   ) {
     activeGroup = rawGroup.trim().toUpperCase();
   }
-  console.log(rawGroup);
-  // ✅ LANGSUNG AMB;IL DARI CACHE. TANPA FETCH LAGI.
+
+  console.log("Isi rawGroup asli dari localStorage:", rawGroup);
+  console.log("Active Group yang digunakan:", activeGroup);
+
+  // 1. Filter data berdasarkan cabang dan group
   var dataSk = (DBCache.saldokasir || []).filter(function (item) {
     var groupItem = String(item.group || "")
       .trim()
@@ -1654,30 +1657,46 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
     return (item.cabang || "") === cabang && groupItem === activeGroup;
   });
 
+  // 2. Optimasi: Ubah array menjadi Map berdasarkan tanggal untuk pencarian instan O(1)
+  var mapSaldo = {};
+  dataSk.forEach(function (sk) {
+    if (sk.tanggal) {
+      mapSaldo[sk.tanggal] = sk.saldo_akhir;
+    }
+  });
+
+  // 3. Set tanggal target ke H-1 secara aman
   var tglTarget = new Date(tanggalPilih);
   tglTarget.setDate(tglTarget.getDate() - 1);
   var maxIterasi = 365;
 
   for (var i = 0; i < maxIterasi; i++) {
-    var tglStr = tglTarget.toISOString().split("T")[0];
-    var cocok = dataSk.find(function (sk) {
-      return (sk.tanggal || "") === tglStr;
-    });
+    // Ambil komponen tanggal lokal (Menghindari bug .toISOString())
+    var yyyy = tglTarget.getFullYear();
+    var mm = String(tglTarget.getMonth() + 1).padStart(2, "0");
+    var dd = String(tglTarget.getDate()).padStart(2, "0");
+    var tglStr = yyyy + "-" + mm + "-" + dd;
 
-    if (cocok) {
+    // Pencarian cepat menggunakan objek map
+    var saldoAkhirCocok = mapSaldo[tglStr];
+
+    if (saldoAkhirCocok !== undefined) {
       console.log(
         "✅ Saldo kasir awal ditemukan di tanggal " + tglStr,
         "| Nilai:",
-        cocok.saldo_akhir,
+        saldoAkhirCocok,
       );
-      return num(cocok.saldo_akhir) || 0;
+      // Pastikan fungsi num() sudah terdefinisi di aplikasi Anda
+      return typeof num === "function"
+        ? num(saldoAkhirCocok) || 0
+        : Number(saldoAkhirCocok) || 0;
     }
 
+    // Mundur 1 hari lagi jika belum ketemu
     tglTarget.setDate(tglTarget.getDate() - 1);
   }
 
-  // Jika sampai sini berarti memang tidak ada datanya di cache
-  // (Bisa jadi memang belum di-posting, atau cache awal memang tidak berisi data ini)
+  console.log("❌ Saldo awal tidak ditemukan dalam 365 hari terakhir.");
   return 0;
 }
 
