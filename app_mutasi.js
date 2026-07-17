@@ -1645,8 +1645,8 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
   ) {
     activeGroup = rawGroup.trim().toUpperCase();
   }
-
-  // ✅ LANGSUNG AMBIL DARI CACHE. TANPA FETCH LAGI.
+  console.log(rawGroup);
+  // ✅ LANGSUNG AMB;IL DARI CACHE. TANPA FETCH LAGI.
   var dataSk = (DBCache.saldokasir || []).filter(function (item) {
     var groupItem = String(item.group || "")
       .trim()
