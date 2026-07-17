@@ -737,7 +737,27 @@ app.post("/api/saldo-harian", async (req, res) => {
     res.status(500).json({ error: e.message }); // DIPERBAIKI: Kurung tutup yang benar
   }
 });
+// Tambahkan ini di file routing backend Anda (misalnya index.js atau app.js)
+app.post("/api/saldo-kasir/clear-range", async (req, res) => {
+  const { cabang, char4, tanggalAwal, tanggalAkhir, group } = req.body;
 
+  try {
+    // Ganti 'saldo_kasir' dengan nama tabel yang baru saja Anda buat
+    const { data, error } = await supabase
+      .from("saldo_kasir")
+      .delete()
+      .eq("cabang", cabang)
+      .eq("char4", char4)
+      .eq("group", group)
+      .gte("tanggal", tanggalAwal)
+      .lte("tanggal", tanggalAkhir);
+
+    if (error) throw error;
+    res.json({ message: "Berhasil dihapus", data });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
 // ============================================================================
 // 16. ENDPOINT IMPOR FOXPRO (.DBF) - TANPA MULTER (PURE EXPRESS)
 // ============================================================================
