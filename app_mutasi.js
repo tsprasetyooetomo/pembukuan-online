@@ -1404,51 +1404,6 @@ async function onKasirHeaderChange() {
   await hitungSaldoOtomatis();
 }
 
-// ✅ FUNGSI PENCARIAN SALDO AWAL KE MUNDUR KHUSUS KASIR (SUDAH DIFIX GROUP NYA)
-async function cariSaldoAwalKasir(cabang, tanggalPilih) {
-  if (!cabang || !tanggalPilih) return 0;
-
-  // ✅ PERBAIKAN 3: PENGAMAN GROUP UNDEFINED
-  var rawGroup = localStorage.getItem("group");
-  var activeGroup = "TLGA";
-  if (
-    rawGroup &&
-    rawGroup.trim() !== "" &&
-    rawGroup.trim().toUpperCase() !== "UNDEFINED"
-  ) {
-    activeGroup = rawGroup.trim().toUpperCase();
-  }
-
-  var dataSk = (DBCache.saldoKasir || []).filter(function (item) {
-    // Pastikan pengecekan group-nya konsisten
-    var groupItem = String(item.group || "")
-      .trim()
-      .toUpperCase();
-    return (item.cabang || "") === cabang && groupItem === activeGroup;
-  });
-
-  var tglTarget = new Date(tanggalPilih);
-  tglTarget.setDate(tglTarget.getDate() - 1);
-  var maxIterasi = 365;
-
-  for (var i = 0; i < maxIterasi; i++) {
-    var tglStr = tglTarget.toISOString().split("T")[0];
-    var cocok = dataSk.find(function (sk) {
-      return (sk.tgl_awal || "") === tglStr;
-    });
-    if (cocok) {
-      console.log(
-        "✅ Saldo kasir awal ditemukan di tanggal " + tglStr,
-        "| Group:",
-        activeGroup,
-      );
-      return num(cocok.akhir) || 0;
-    }
-    tglTarget.setDate(tglTarget.getDate() - 1);
-  }
-  return 0;
-}
-
 // ✅ FUNGSI HITUNG DB/CR & UPDATE TAMPILAN (DITAMBAH FILTER GROUP)
 async function hitungSaldoOtomatis() {
   var cab = $("mk_cab").value;
@@ -1676,6 +1631,63 @@ async function hapusKasirDetil(id) {
   updateKasirHeaderNominal();
   await hitungSaldoOtomatis();
   renderKasirNoreffList();
+}
+// ✅ FUNGSI PENCARIAN SALDO AWAL KE MUNDUR KHUSUS KASIR (SUDAH DIFIX GROUP NYA)
+async function cariSaldoAwalKasir(cabang, tanggalPilih) {
+  if (!cabang || !tanggalPilih) return 0;
+
+  // ✅ PERBAIKAN 3: PENGAMAN GROUP UNDEFINED
+  var rawGroup = localStorage.getItem("group");
+  var activeGroup = "TLGA";
+  if (
+    rawGroup &&
+    rawGroup.trim() !== "" &&
+    rawGroup.trim().toUpperCase() !== "UNDEFINED"
+  ) {
+    activeGroup = rawGroup.trim().toUpperCase();
+  }
+
+  // ✅ PERBAIKAN 1: GANTI NAMA CACHE JADI 'saldokasir' (huruf kecil semua, sesuai posting)
+  var dataSk = (DBCache.saldokasir || []).filter(function (item) {
+    // Pastikan pengecekan group-nya konsisten
+    var groupItem = String(item.group || "")
+      .trim()
+      .toUpperCase();
+    return (item.cabang || "") === cabang && groupItem === activeGroup;
+  });
+
+  var tglTarget = new Date(tanggalPilih);
+  tglTarget.setDate(tglTarget.getDate() - 1);
+  var maxIterasi = 365;
+
+  for (var i = 0; i < maxIterasi; i++) {
+    var tglStr = tglTarget.toISOString().split("T")[0];
+    var cocok = dataSk.find(function (sk) {
+      // ✅ PERBAIKAN 2: GANTI 'tgl_awal' MENJADI 'tanggal' (sesuai schema simpan)
+      return (sk.tanggal || "") === tglStr;
+    });
+
+    if (cocok) {
+      console.log(
+        "✅ Saldo kasir awal ditemukan di tanggal " + tglStr,
+        "| Group:",
+        activeGroup,
+      );
+      // ✅ PERBAIKAN 3: GANTI 'akhir' MENJADI 'saldo_akhir' (sesuai schema simpan)
+      return num(cocok.saldo_akhir) || 0;
+    }
+
+    tglTarget.setDate(tglTarget.getDate() - 1);
+  }
+
+  // Optional: Untuk debugging, hapus baris ini jika sudah berjalan
+  console.warn(
+    "⚠️ Saldo awal kasir tidak ditemukan di cache untuk cab:",
+    cabang,
+    "tgl:",
+    tanggalPilih,
+  );
+  return 0;
 }
 
 function renderKasirNoreffList() {
