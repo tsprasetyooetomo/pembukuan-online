@@ -1647,7 +1647,7 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
   }
 
   // ✅ PELINDUNG: BONGKAR JSONB JIKA MASIH TERBUNGKUS
-  var cacheAsli = DBCache.saldokasir || [];
+  var cacheAsli = DBCache.saldoKasir || [];
   if (
     cacheAsli.length > 0 &&
     cacheAsli[0].data &&
