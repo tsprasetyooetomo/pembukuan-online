@@ -751,7 +751,7 @@ app.post("/api/saldo-kasir/clear-range", async (req, res) => {
   try {
     // Bangun query dasar
     let query = supabase
-      .from("saldo_kasir")
+      .from("saldokasir")
       .delete()
       .eq("cabang", cabang)
       .gte("tanggal", tanggalAwal)
