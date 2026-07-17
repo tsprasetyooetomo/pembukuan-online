@@ -773,6 +773,13 @@ app.post("/api/saldo-kasir/clear-range", async (req, res) => {
 
     res.json({ message: "Range saldo kasir berhasil dihapus" });
   } catch (err) {
+    console.log("=== INPUT ERROR DETECTED ===");
+    console.log(`Cabang: ${cabang}`);
+    console.log(`Tanggal Awal: ${tanggalAwal}`);
+    console.log(`Tanggal Akhir: ${tanggalAkhir}`);
+    console.log(`Group: ${group}`);
+    console.log("============================");
+
     res
       .status(500)
       .json({ message: err.message || "Gagal hapus range saldo kasir" });
