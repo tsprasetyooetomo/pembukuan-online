@@ -1646,16 +1646,20 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
     activeGroup = rawGroup.trim().toUpperCase();
   }
 
-  console.log("Isi rawGroup asli dari localStorage:", rawGroup);
-  console.log("Active Group yang digunakan:", activeGroup);
+  // console.log("Isi rawGroup asli dari localStorage:", rawGroup);
+  // console.log("Active Group yang digunakan:", activeGroup);
 
-  // 1. Filter data berdasarkan cabang dan group
+  // ✅ LANGSUNG AMBIL DARI CACHE. TANPA FETCH LAGI.
   var dataSk = (DBCache.saldokasir || []).filter(function (item) {
     var groupItem = String(item.group || "")
       .trim()
       .toUpperCase();
     return (item.cabang || "") === cabang && groupItem === activeGroup;
   });
+
+  // 👇 TAMBAHKAN 2 BARIS INI UNTUK INTIP ISI DATANYA
+  console.log("=== ISI DATA SK HASIL FILTER ===");
+  console.table(dataSk.slice(0, 5)); // Menampilkan 5 baris pertama dalam bentuk tabel rapi
 
   // 2. Optimasi: Ubah array menjadi Map berdasarkan tanggal untuk pencarian instan O(1)
   var mapSaldo = {};
