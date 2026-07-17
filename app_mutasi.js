@@ -1646,51 +1646,7 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
     activeGroup = rawGroup.trim().toUpperCase();
   }
 
-  // ✅ 1. CEK CACHE DULU
-  // Pastikan pengecekan cache-nya pakai huruf kecil 'saldokasir' (sesuai posting)
-  if (!DBCache.saldokasir || DBCache.saldokasir.length === 0) {
-    console.log("📦 Cache saldo kasir kosong, mengambil data dari server...");
-    try {
-      // ✅ 2. PANGGIL ENDPOINT GENERIC ANDA (Nama tabel jadi saldo_kasir)
-      // Kita kirim cabang & group sebagai parameter query
-      var url =
-        API_BASE_URL +
-        "/api/data/saldo_kasir?cabang=" +
-        encodeURIComponent(cabang) +
-        "&group=" +
-        encodeURIComponent(activeGroup);
-
-      var res = await fetch(url);
-
-      if (res.ok) {
-        var json = await res.json();
-
-        // ✅ 3. BONGKAR FORMAT JSONB DARI BACKEND ANDA
-        // Karena backend SELECT data FROM..., hasilnya bisa jadi [{data: {...}}] atau langsung [{...}]
-        var parsedData = json.map(function (item) {
-          // Jika bungkusannya ada properti "data", maka ambil isinya
-          if (item && item.data && typeof item.data === "object") {
-            return item.data;
-          }
-          return item; // Jika sudah flat, langsung return
-        });
-
-        // Masukkan yang sudah dibongkar ke cache
-        DBCache.saldokasir = parsedData;
-        console.log(
-          "✅ Berhasil mengambil " +
-            parsedData.length +
-            " data saldo kasir ke cache",
-        );
-      } else {
-        console.error("Gagal load data dari server, status:", res.status);
-      }
-    } catch (e) {
-      console.error("Gagal mengambil data saldo kasir dari server:", e);
-    }
-  }
-
-  // ✅ 4. FILTER DARI CACHE YANG SUDAH DI-BONGKAR
+  // ✅ LANGSUNG AMBIL DARI CACHE. TANPA FETCH LAGI.
   var dataSk = (DBCache.saldokasir || []).filter(function (item) {
     var groupItem = String(item.group || "")
       .trim()
@@ -1720,12 +1676,8 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
     tglTarget.setDate(tglTarget.getDate() - 1);
   }
 
-  console.warn(
-    "⚠️ Saldo awal kasir tidak ditemukan untuk cab:",
-    cabang,
-    "tgl:",
-    tanggalPilih,
-  );
+  // Jika sampai sini berarti memang tidak ada datanya di cache
+  // (Bisa jadi memang belum di-posting, atau cache awal memang tidak berisi data ini)
   return 0;
 }
 
