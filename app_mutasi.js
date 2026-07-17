@@ -1877,6 +1877,7 @@ function onKasirNoreffClicked(noreffTarget) {
   $("mk_cab").value = headerData.cabang || "";
   $("mk_cab").disabled = true;
   $("mk_tgl").disabled = true;
+  cariSaldoAwalKasir();
   updateKasirHeaderNominal();
   hitungSaldoOtomatis();
   renderKasirDetilTable();
