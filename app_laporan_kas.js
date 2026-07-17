@@ -1423,7 +1423,7 @@ async function postingSaldoKasir() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         cabang: cab,
-        char4: cab,
+        //char4: cab,
         tanggalAwal: tglAwal,
         tanggalAkhir: tglAkhir,
         group: activeGroup,
