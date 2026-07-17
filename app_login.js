@@ -86,7 +86,9 @@ function doLogout() {
   localStorage.removeItem("nama");
   localStorage.removeItem("cabang");
   localStorage.removeItem("role");
+  localStorage.removeItem("group");
 
+  
   // 2. Tampilkan notifikasi toast (jika fungsi toast ada)
   if (typeof toast === "function") {
     toast("Berhasil logout, mengalihkan ke Dashboard...", "ok");
