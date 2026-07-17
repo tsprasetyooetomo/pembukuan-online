@@ -1844,7 +1844,7 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
       cacheAsli[0].cabang,
     );
   }
-  console.log(dataSk);
+  //console.log(dataSk);
   // 2. Optimasi: Ubah array menjadi Map berdasarkan tanggal
   var mapSaldo = {};
   dataSk.forEach(function (sk) {
