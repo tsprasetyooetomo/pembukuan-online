@@ -1814,7 +1814,7 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
     // Simpan yang sudah dibongkar agar tidak diproses lagi besok
     DBCache.saldokasir = cacheAsli;
   }
-  console.log(cacheAsli);
+  //console.log(cacheAsli);
   // LANGSUNG AMBIL DARI CACHE YANG SUDAH PASTI FLAT
   var dataSk = cacheAsli.filter(function (item) {
     var groupItem = String(item.group || "")
