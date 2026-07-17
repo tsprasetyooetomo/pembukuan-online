@@ -739,22 +739,32 @@ app.post("/api/saldo-harian", async (req, res) => {
 });
 // Tambahkan ini di file routing backend Anda (misalnya index.js atau app.js)
 app.post("/api/saldo-kasir/clear-range", async (req, res) => {
-  // Hanya ambil 4 parameter
   const { cabang, tanggalAwal, tanggalAkhir, group } = req.body;
 
-  if (!cabang || !tanggalAwal || !tanggalAkhir) {
-    return res.status(400).json({ message: "Parameter tidak lengkap" });
+  // Tambahkan group di validasi ini
+  if (!cabang || !tanggalAwal || !tanggalAkhir || !group) {
+    return res
+      .status(400)
+      .json({ message: "Parameter tidak lengkap (cabang, group, tanggal)" });
   }
 
   try {
-    const { data, error } = await supabase
+    // Bangun query dasar
+    let query = supabase
       .from("saldo_kasir")
       .delete()
       .eq("cabang", cabang)
-      // .eq("char4", ...) dihapus
-      .eq('"group"', group) // Pakai petik dua untuk kata "group"
       .gte("tanggal", tanggalAwal)
       .lte("tanggal", tanggalAkhir);
+
+    // TAMBAHKAN PENGAMAN INI:
+    // Hanya tambahkan filter group jika nilainya valid (bukan null/undefined/kosong)
+    if (group && group.trim() !== "" && group.toUpperCase() !== "UNDEFINED") {
+      query = query.eq('"group"', group.trim().toUpperCase());
+    }
+
+    // Eksekusi query
+    const { data, error } = await query;
 
     if (error) {
       console.error("Error Clear Saldo Kasir:", error);
