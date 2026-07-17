@@ -1646,7 +1646,28 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
   ) {
     activeGroup = rawGroup.trim().toUpperCase();
   }
-
+  // ✅ TAMBAHAN PENGAMAN: Jika cache kosong, paksa tarik data dari database dulu
+  if (!DBCache.saldokasir || DBCache.saldokasir.length === 0) {
+    console.log("📦 Cache saldo kasir kosong, mengambil data dari server...");
+    try {
+      var res = await fetch(
+        API_BASE_URL +
+          "/api/data/saldokasir?cabang=" +
+          cabang +
+          "&group=" +
+          activeGroup,
+      );
+      if (res.ok) {
+        var json = await res.json();
+        DBCache.saldokasir = json; // Masukkan ke cache
+        console.log(
+          "✅ Berhasil mengambil " + json.length + " data saldo kasir ke cache",
+        );
+      }
+    } catch (e) {
+      console.error("Gagal mengambil data saldo kasir dari server:", e);
+    }
+  }
   // ✅ PERBAIKAN 1: GANTI NAMA CACHE JADI 'saldokasir' (huruf kecil semua, sesuai posting)
   var dataSk = (DBCache.saldokasir || []).filter(function (item) {
     // Pastikan pengecekan group-nya konsisten
