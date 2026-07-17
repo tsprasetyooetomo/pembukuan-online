@@ -1349,73 +1349,59 @@ async function postingSaldoKasir() {
     tglAkhir +
     "\nGroup: " +
     activeGroup +
-    "\n\nData harian yang tampil di layar akan disimpan ke Database Saldo Kasir.\nLanjutkan?";
-  var ok = confirm(confirmMsg);
-  if (!ok) return;
+    "\n\nData harian akan disimpan ke Database Saldo Kasir.\nLanjutkan?";
+
+  if (!confirm(confirmMsg)) return;
 
   try {
-    var arrDataUntukDisimpan = [];
+    // ====================================================================
+    // 1. REKAP PER TANGGAL (Mengambil Running Balance Terakhir per Hari)
+    // ====================================================================
+    // Kita hitung ulang running balance di sini untuk memastikan akurasi,
+    // berdasarkan urutan yang sama persis dengan saat refresh.
+    var groupedData = DATA_KASIR_AKTIF.groupedData;
+    groupedData.sort(function (a, b) {
+      var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+      if (dateComp !== 0) return dateComp;
+      return (a.noreff || "").localeCompare(b.noreff || "");
+    });
 
-    function cariNilaiDbCr(obj) {
-      var dbVal = 0;
-      var crVal = 0;
-      if (
-        obj.db !== undefined ||
-        obj.debit !== undefined ||
-        obj.totalDb !== undefined ||
-        obj.total_db !== undefined ||
-        obj.masuk !== undefined
-      ) {
-        dbVal = num(
-          obj.db || obj.debit || obj.totalDb || obj.total_db || obj.masuk || 0,
-        );
-      }
-      if (
-        obj.cr !== undefined ||
-        obj.kredit !== undefined ||
-        obj.totalCr !== undefined ||
-        obj.total_cr !== undefined ||
-        obj.keluar !== undefined
-      ) {
-        crVal = num(
-          obj.cr ||
-            obj.kredit ||
-            obj.totalCr ||
-            obj.total_cr ||
-            obj.keluar ||
-            0,
-        );
-      }
-      return { db: dbVal, cr: crVal };
-    }
+    var mapRekapHarian = {};
+    var runBal = DATA_KASIR_AKTIF.saldoAwalMaster; // Mulai dari saldo awal master
 
-    // 1. FORMAT DATA
-    DATA_KASIR_AKTIF.groupedData.forEach(function (t) {
-      var tglTransaksi = t.tanggal || t.tgl || t.tgl_awal;
-      if (!tglTransaksi) return;
-
+    groupedData.forEach(function (t) {
+      var tglTransaksi = t.tanggal || "-";
       if (tglTransaksi.indexOf(" ") > -1)
         tglTransaksi = tglTransaksi.split(" ")[0];
 
-      var nilaiDbCr = cariNilaiDbCr(t);
-      var hitungAkhir = nilaiDbCr.db - nilaiDbCr.cr;
-      if (hitungAkhir < 0) hitungAkhir = 0;
+      // Hitung running balance
+      runBal += num(t.db) - num(t.cr);
 
-      var objHarian = {
-        // ✅ CHAR4 DIJADIKAN BAKU MENGGUNAKAN KODE CABANG
-        id: `${cab}_${cab}_${activeGroup}_${tglTransaksi}`,
-        cabang: cab,
-        char4: cab, // ✅ BAKU MENGGUNAKAN KODE CABANG
+      // Simpan data per tanggal (yang paling bawah/terakhir akan menimpa yang sebelumnya)
+      mapRekapHarian[tglTransaksi] = {
         tanggal: tglTransaksi,
-        db: nilaiDbCr.db,
-        cr: nilaiDbCr.cr,
-        saldo_akhir: hitungAkhir,
-        awal: nilaiDbCr.db > 0 ? nilaiDbCr.db : 0,
-        group: activeGroup,
+        totalDb: num(t.db),
+        totalCr: num(t.cr),
+        saldoAkhirHariIni: runBal, // <- INI YANG BENAR (Running Balance)
       };
-
-      arrDataUntukDisimpan.push(objHarian);
     });
+
+    // Konversi ke array untuk dikirim
+    var arrDataUntukDisimpan = [];
+    for (var tgl in mapRekapHarian) {
+      var r = mapRekapHarian[tgl];
+      arrDataUntukDisimpan.push({
+        id: `${cab}_${cab}_${activeGroup}_${r.tanggal}`,
+        cabang: cab,
+        char4: cab,
+        tanggal: r.tanggal,
+        db: r.totalDb,
+        cr: r.totalCr,
+        saldo_akhir: r.saldoAkhirHariIni, // Pakai saldo akhir yang sudah benar
+        awal: r.saldoAkhirHariIni - (r.totalDb - r.totalCr), // Hitung saldo awal hari itu secara terbalik
+        group: activeGroup,
+      });
+    }
 
     if (arrDataUntukDisimpan.length === 0) {
       if (typeof toast === "function")
@@ -1430,23 +1416,20 @@ async function postingSaldoKasir() {
       );
 
     // ====================================================================
-    // 2. PROSES SIMPAN (CLEAR RANGE -> BATCH POST)
+    // 2. PROSES SIMPAN KE SERVER (TIDAK DIUBAH)
     // ====================================================================
-
-    // LANGKAH PERTAMA: Clear Range
     await fetch(API_BASE_URL + "/api/saldo-kasir/clear-range", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         cabang: cab,
-        char4: cab, // ✅ BAKU MENGGUNAKAN KODE CABANG
+        char4: cab,
         tanggalAwal: tglAwal,
         tanggalAkhir: tglAkhir,
         group: activeGroup,
       }),
     });
 
-    // LANGKAH KEDUA: Kirim Batch
     var response = await fetch(API_BASE_URL + `/api/batch/saldokasir`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1467,6 +1450,18 @@ async function postingSaldoKasir() {
 
     // 3. UPDATE CACHE DBCACHE LOKAL
     if (!DBCache.saldokasir) DBCache.saldokasir = [];
+
+    // Hapus dulu data lama di cache supaya tidak duplicate saat di-refresh ulang
+    DBCache.saldokasir = DBCache.saldokasir.filter(function (item) {
+      return !(
+        item.cabang === cab &&
+        item.group === activeGroup &&
+        item.tanggal >= tglAwal &&
+        item.tanggal <= tglAkhir
+      );
+    });
+
+    // Masukkan data baru
     arrDataUntukDisimpan.forEach(function (item) {
       DBCache.saldokasir.push(item);
     });
