@@ -1655,6 +1655,7 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
       .toUpperCase();
     return (item.cabang || "") === cabang && groupItem === activeGroup;
   });
+  console.table(dataSk);
 
   var tglTarget = new Date(tanggalPilih);
   tglTarget.setDate(tglTarget.getDate() - 1);
