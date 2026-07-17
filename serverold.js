@@ -741,7 +741,6 @@ app.post("/api/saldo-harian", async (req, res) => {
 app.post("/api/saldo-kasir/clear-range", async (req, res) => {
   const { cabang, tanggalAwal, tanggalAkhir, group } = req.body;
 
-  // Tambahkan group di validasi ini
   if (!cabang || !tanggalAwal || !tanggalAkhir || !group) {
     return res
       .status(400)
@@ -749,7 +748,7 @@ app.post("/api/saldo-kasir/clear-range", async (req, res) => {
   }
 
   try {
-    // Bangun query dasar
+    // 1. PASTIKAN NAMA TABEL ADALAH saldokasir (TANPA GARIS BAWAH)
     let query = supabase
       .from("saldokasir")
       .delete()
@@ -757,34 +756,31 @@ app.post("/api/saldo-kasir/clear-range", async (req, res) => {
       .gte("tanggal", tanggalAwal)
       .lte("tanggal", tanggalAkhir);
 
-    // TAMBAHKAN PENGAMAN INI:
-    // Hanya tambahkan filter group jika nilainya valid (bukan null/undefined/kosong)
+    // 2. PERBAIKAN FILTER GROUP: Tulis 'group' biasa tanpa petik ganda ekstra
     if (group && group.trim() !== "" && group.toUpperCase() !== "UNDEFINED") {
-      query = query.eq('"group"', group.trim().toUpperCase());
+      query = query.eq("group", group.trim().toUpperCase());
     }
 
-    // Eksekusi query
+    // 3. Eksekusi ke Supabase
     const { data, error } = await query;
 
     if (error) {
-      console.error("Error Clear Saldo Kasir:", error);
+      console.error("Error Detail Supabase:", error);
       throw error;
     }
 
     res.json({ message: "Range saldo kasir berhasil dihapus" });
   } catch (err) {
-    console.log("=== INPUT ERROR DETECTED ===");
-    console.log(`Cabang: ${cabang}`);
-    console.log(`Tanggal Awal: ${tanggalAwal}`);
-    console.log(`Tanggal Akhir: ${tanggalAkhir}`);
-    console.log(`Group: ${group}`);
-    console.log("============================");
+    // Membantu Anda melihat pesan error asli dari database di log Railway
+    console.error("CRITICAL ERROR BACKEND:", err.message || err);
 
-    res
-      .status(500)
-      .json({ message: err.message || "Gagal hapus range saldo kasir" });
+    res.status(500).json({
+      message: err.message || "Gagal hapus range saldo kasir",
+      error_detail: err,
+    });
   }
 });
+
 // ============================================================================
 // 16. ENDPOINT IMPOR FOXPRO (.DBF) - TANPA MULTER (PURE EXPRESS)
 // ============================================================================
