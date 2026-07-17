@@ -739,48 +739,36 @@ app.post("/api/saldo-harian", async (req, res) => {
 });
 // Tambahkan ini di file routing backend Anda (misalnya index.js atau app.js)
 app.post("/api/saldo-kasir/clear-range", async (req, res) => {
-  const { cabang, tanggalAwal, tanggalAkhir, group } = req.body;
-
-  if (!cabang || !tanggalAwal || !tanggalAkhir || !group) {
-    return res
-      .status(400)
-      .json({ message: "Parameter tidak lengkap (cabang, group, tanggal)" });
-  }
-
-  // Tambahkan pengecekan koneksi db seperti di endpoint pertama
   if (!db) return res.status(500).json({ error: "DB Error" });
 
   try {
-    // 1. Bangun query dasar menggunakan database 'db' bawaan Anda
-    let sqlQuery = `
-      DELETE FROM saldokasir 
-      WHERE cabang = $1 
-        AND tanggal >= $2 
-        AND tanggal <= $3
-    `;
+    const { cabang, tanggalAwal, tanggalAkhir, group } = req.body;
 
-    let queryParams = [cabang, tanggalAwal, tanggalAkhir];
-
-    // 2. Tambahkan filter group jika valid
-    if (group && group.trim() !== "" && group.toUpperCase() !== "UNDEFINED") {
-      // Karena "group" adalah kata terlarang di PostgreSQL, wajib dibungkus petik ganda di SQL murni
-      sqlQuery += ` AND "group" = $4`;
-      queryParams.push(group.trim().toUpperCase());
+    if (!cabang || !tanggalAwal || !tanggalAkhir || !group) {
+      return res.status(400).json({ message: "Parameter tidak lengkap" });
     }
 
-    // 3. Eksekusi query ke database PostgreSQL
-    await db.query(sqlQuery, queryParams);
-
-    res.json({ message: "Range saldo kasir berhasil dihapus" });
-  } catch (err) {
-    console.error("CRITICAL ERROR BACKEND:", err.message || err);
-    res.status(500).json({
-      message: err.message || "Gagal hapus range saldo kasir",
-      error_detail: err,
+    const matchObj = JSON.stringify({
+      cabang: cabang,
+      group: group.trim().toUpperCase(),
     });
+
+    // Perhatikan ada CAST() di setiap pemanggilan "data"
+    const sql = `
+      DELETE FROM saldokasir 
+      WHERE CAST("data" AS jsonb) @> $1::jsonb 
+        AND CAST("data" AS jsonb)->>'tanggal' >= $2 
+        AND CAST("data" AS jsonb)->>'tanggal' <= $3
+    `;
+
+    await db.query(sql, [matchObj, tanggalAwal, tanggalAkhir]);
+
+    res.json({ message: "Range saldo kasir berhasil dihapus (TEXT to JSONB)" });
+  } catch (err) {
+    console.error("ERROR TEXT JSON:", err.message);
+    res.status(500).json({ error: err.message });
   }
 });
-
 // ============================================================================
 // 16. ENDPOINT IMPOR FOXPRO (.DBF) - TANPA MULTER (PURE EXPRESS)
 // ============================================================================
