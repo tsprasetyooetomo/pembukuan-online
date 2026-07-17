@@ -739,23 +739,33 @@ app.post("/api/saldo-harian", async (req, res) => {
 });
 // Tambahkan ini di file routing backend Anda (misalnya index.js atau app.js)
 app.post("/api/saldo-kasir/clear-range", async (req, res) => {
-  const { cabang, char4, tanggalAwal, tanggalAkhir, group } = req.body;
+  // Hanya ambil 4 parameter
+  const { cabang, tanggalAwal, tanggalAkhir, group } = req.body;
+
+  if (!cabang || !tanggalAwal || !tanggalAkhir) {
+    return res.status(400).json({ message: "Parameter tidak lengkap" });
+  }
 
   try {
-    // Ganti 'saldo_kasir' dengan nama tabel yang baru saja Anda buat
     const { data, error } = await supabase
       .from("saldo_kasir")
       .delete()
       .eq("cabang", cabang)
-      .eq("char4", char4)
-      .eq("group", group)
+      // .eq("char4", ...) dihapus
+      .eq('"group"', group) // Pakai petik dua untuk kata "group"
       .gte("tanggal", tanggalAwal)
       .lte("tanggal", tanggalAkhir);
 
-    if (error) throw error;
-    res.json({ message: "Berhasil dihapus", data });
+    if (error) {
+      console.error("Error Clear Saldo Kasir:", error);
+      throw error;
+    }
+
+    res.json({ message: "Range saldo kasir berhasil dihapus" });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res
+      .status(500)
+      .json({ message: err.message || "Gagal hapus range saldo kasir" });
   }
 });
 // ============================================================================
