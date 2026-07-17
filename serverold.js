@@ -747,33 +747,33 @@ app.post("/api/saldo-kasir/clear-range", async (req, res) => {
       .json({ message: "Parameter tidak lengkap (cabang, group, tanggal)" });
   }
 
+  // Tambahkan pengecekan koneksi db seperti di endpoint pertama
+  if (!db) return res.status(500).json({ error: "DB Error" });
+
   try {
-    // 1. PASTIKAN NAMA TABEL ADALAH saldokasir (TANPA GARIS BAWAH)
-    let query = supabase
-      .from("saldokasir")
-      .delete()
-      .eq("cabang", cabang)
-      .gte("tanggal", tanggalAwal)
-      .lte("tanggal", tanggalAkhir);
+    // 1. Bangun query dasar menggunakan database 'db' bawaan Anda
+    let sqlQuery = `
+      DELETE FROM saldokasir 
+      WHERE cabang = $1 
+        AND tanggal >= $2 
+        AND tanggal <= $3
+    `;
 
-    // 2. PERBAIKAN FILTER GROUP: Tulis 'group' biasa tanpa petik ganda ekstra
+    let queryParams = [cabang, tanggalAwal, tanggalAkhir];
+
+    // 2. Tambahkan filter group jika valid
     if (group && group.trim() !== "" && group.toUpperCase() !== "UNDEFINED") {
-      query = query.eq("group", group.trim().toUpperCase());
+      // Karena "group" adalah kata terlarang di PostgreSQL, wajib dibungkus petik ganda di SQL murni
+      sqlQuery += ` AND "group" = $4`;
+      queryParams.push(group.trim().toUpperCase());
     }
 
-    // 3. Eksekusi ke Supabase
-    const { data, error } = await query;
-
-    if (error) {
-      console.error("Error Detail Supabase:", error);
-      throw error;
-    }
+    // 3. Eksekusi query ke database PostgreSQL
+    await db.query(sqlQuery, queryParams);
 
     res.json({ message: "Range saldo kasir berhasil dihapus" });
   } catch (err) {
-    // Membantu Anda melihat pesan error asli dari database di log Railway
     console.error("CRITICAL ERROR BACKEND:", err.message || err);
-
     res.status(500).json({
       message: err.message || "Gagal hapus range saldo kasir",
       error_detail: err,
