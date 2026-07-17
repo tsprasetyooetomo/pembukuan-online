@@ -1447,7 +1447,7 @@ async function postingSaldoKasir() {
     });
 
     // LANGKAH KEDUA: Kirim Batch
-    var response = await fetch(API_BASE_URL + `/api/batch/saldo_kasir`, {
+    var response = await fetch(API_BASE_URL + `/api/batch/saldokasir`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(arrDataUntukDisimpan),
@@ -1561,7 +1561,7 @@ function exportSaldoKasir() {
   var link = document.createElement("a");
   var url = URL.createObjectURL(blob);
   var namaFile =
-    "Laporan_Saldo_Kasir_" +
+    "Laporan_SaldoKasir_" +
     (cab || "Semua") +
     "_" +
     tglAwal +
