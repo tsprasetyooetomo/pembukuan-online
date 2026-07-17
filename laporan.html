@@ -382,19 +382,6 @@
             '<div style="background:var(--card);padding:3rem;border-radius:var(--r);border:1px solid var(--brd);text-align:center;color:var(--muted)"><i class="fa-solid fa-chart-pie" style="font-size:3rem;color:var(--accent);display:block;margin-bottom:1rem"></i><h3 style="color:var(--fg);margin-bottom:.5rem">Modul Analisa</h3><p>Sedang dalam pengembangan.</p></div>';
         }
       }
-
-      function doLogout() {
-        localStorage.removeItem("token");
-        localStorage.removeItem("nama");
-        localStorage.removeItem("cabang");
-        localStorage.removeItem("role");
-        if (typeof toast === "function") {
-          toast("Berhasil logout, mengalihkan ke Dashboard...", "ok");
-        }
-        setTimeout(function () {
-          window.location.href = "index.html";
-        }, 800);
-      }
     </script>
   </body>
 </html>
