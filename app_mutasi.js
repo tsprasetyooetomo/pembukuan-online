@@ -1999,12 +1999,14 @@ async function printMutasiKasir() {
     });
 
     var objSaldo = {
+      id: `${cabang}_${cabang}_${activeGroup}_${tanggal}`, // ID dipisah karena kolom 'id' ada di luar JSON
       cabang: cabang,
-      tgl_awal: tanggal,
-      awal: saldoAwalKasir,
+      char4: cabang,
+      tanggal: tanggal,
       db: totalDB,
       cr: totalCR,
-      akhir: saldoAkhirKasir,
+      saldo_akhir: saldoAkhirKasir,
+      awal: saldoAwalKasir,
       group: activeGroup,
     };
 
@@ -2316,6 +2318,37 @@ async function executeHapusSeReffKasir() {
       activeGroup,
     );
 
+    // ====================================================================
+    // 1. CARI INFORMASI TANGGAL & CABANG DARI DATA YANG AKAN DIHAPUS
+    // ====================================================================
+    var dataStore = Array.isArray(DBCache.mutasikasir)
+      ? DBCache.mutasikasir
+      : [];
+    var dataYangDihapus = dataStore.filter(function (item) {
+      var noreffCocok = (item.noreff || "").toLowerCase() === val.toLowerCase();
+      var groupCocok =
+        String(item.group || "")
+          .trim()
+          .toUpperCase() === activeGroup;
+      return noreffCocok && groupCocok;
+    });
+
+    if (dataYangDihapus.length === 0) {
+      return toast("Data No Ref tidak ditemukan di cache lokal.", "wrn");
+    }
+
+    // Ambil tanggal dan cabang dari item pertama yang cocok
+    var tanggalDihapus = dataYangDihapus[0].tanggal;
+    var cabangDihapus = dataYangDihapus[0].cabang || "Pusat"; // Fallback pusat jika tidak ada
+
+    // Jika tanggalnya ada jamnya (misal: 2024-01-01 10:00:00), potong jamnya
+    if (tanggalDihapus && tanggalDihapus.indexOf(" ") > -1) {
+      tanggalDihapus = tanggalDihapus.split(" ")[0];
+    }
+
+    // ====================================================================
+    // 2. HAPUS DARI SERVER (MUTASIKASIR)
+    // ====================================================================
     var response = await fetch("/api/clear-all-data", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2331,28 +2364,68 @@ async function executeHapusSeReffKasir() {
       throw new Error(result.message || "Gagal menghubungi server");
     }
 
-    var dataStore = Array.isArray(DBCache.mutasikasir)
-      ? DBCache.mutasikasir
-      : [];
+    // ====================================================================
+    // 3. HAPUS DARI SERVER (SALDOKASIR) BERDASARKAN TANGGAL YANG DITEMUKAN
+    // ====================================================================
+    console.log(
+      "🔄 [Hapus Reff] Mereset saldokasir tanggal:",
+      tanggalDihapus,
+      "cabang:",
+      cabangDihapus,
+    );
 
+    try {
+      await fetch(API_BASE_URL + "/api/saldo-kasir/clear-range", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cabang: cabangDihapus,
+          tanggalAwal: tanggalDihapus,
+          tanggalAkhir: tanggalDihapus, // Hanya hapus saldo di tanggal tersebut
+          group: activeGroup,
+        }),
+      });
+    } catch (errSaldo) {
+      console.warn(
+        "Peringatan: Gagal mereset saldokasir, namun mutasi berhasil dihapus.",
+        errSaldo,
+      );
+      // Tidak di-throw agar proses utama (hapus mutasi) tetap dianggap berhasil
+    }
+
+    // ====================================================================
+    // 4. HAPUS DARI CACHE LOKAL (DBCache)
+    // ====================================================================
     DBCache.mutasikasir = dataStore.filter(function (item) {
       var noreffCocok = (item.noreff || "").toLowerCase() === val.toLowerCase();
-      // ✅ DITAMBAH .toUpperCase() AGAR KONSISTEN
       var groupCocok =
         String(item.group || "")
           .trim()
           .toUpperCase() === activeGroup;
-
-      // Kembalikan false (artinya hapus) HANYA jika keduanya cocok
       return !(noreffCocok && groupCocok);
     });
 
+    // Hapus juga cache saldokasir lokal yang terdampak (Opsional tapi direkomendasikan)
+    if (DBCache.saldokasir) {
+      DBCache.saldokasir = DBCache.saldokasir.filter(function (item) {
+        var data = typeof item.data === "string" ? JSON.parse(item.data) : item;
+        return !(
+          data.tanggal === tanggalDihapus &&
+          data.cabang === cabangDihapus &&
+          data.group === activeGroup
+        );
+      });
+    }
+
     closeModal();
     toast(
-      `✅ Berhasil menghapus ${result.changes || 0} data se-Reff ${val} (Group: ${activeGroup}) dari Server!`,
+      `✅ Berhasil menghapus ${result.changes || 0} data se-Reff ${val} (Group: ${activeGroup}) dari Server! Saldo tanggal ${tanggalDihapus} di-reset.`,
       "ok",
     );
 
+    // ====================================================================
+    // 5. REFRESH LAYAR
+    // ====================================================================
     if (val.toLowerCase() === _kasirSession.noreff.toLowerCase()) {
       resetKasirNewTransaction();
     } else {
