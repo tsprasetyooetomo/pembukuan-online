@@ -1329,7 +1329,7 @@ async function postingSaldoKasir() {
     return;
   }
 
-  // ✅ PERBAIKAN 1: PENGAMAN GROUP UNDEFINED
+  // Pengaman Group Undefined
   var rawGroup = localStorage.getItem("group");
   var activeGroup = "TLGA";
   if (
@@ -1352,9 +1352,9 @@ async function postingSaldoKasir() {
     "\n\nData harian yang tampil di layar akan disimpan ke Database Saldo Kasir.\nLanjutkan?";
   var ok = confirm(confirmMsg);
   if (!ok) return;
+
   try {
     var arrDataUntukDisimpan = [];
-    var baseUrl = window.location.origin + "/api/data/saldokasir";
 
     function cariNilaiDbCr(obj) {
       var dbVal = 0;
@@ -1389,6 +1389,7 @@ async function postingSaldoKasir() {
       return { db: dbVal, cr: crVal };
     }
 
+    // 1. FORMAT DATA
     DATA_KASIR_AKTIF.groupedData.forEach(function (t) {
       var tglTransaksi = t.tanggal || t.tgl || t.tgl_awal;
       if (!tglTransaksi) return;
@@ -1397,20 +1398,18 @@ async function postingSaldoKasir() {
         tglTransaksi = tglTransaksi.split(" ")[0];
 
       var nilaiDbCr = cariNilaiDbCr(t);
-
-      // ✅ PERBAIKAN 1: CEGAH SALDO AKHIR MINUS (Jika CR > DB, jadikan 0 agar database tidak reject)
       var hitungAkhir = nilaiDbCr.db - nilaiDbCr.cr;
       if (hitungAkhir < 0) hitungAkhir = 0;
 
       var objHarian = {
-        id: uid(),
+        // ✅ CHAR4 DIJADIKAN BAKU MENGGUNAKAN KODE CABANG
+        id: `${cab}_${cab}_${activeGroup}_${tglTransaksi}`,
         cabang: cab,
+        char4: cab, // ✅ BAKU MENGGUNAKAN KODE CABANG
         tanggal: tglTransaksi,
-        tgl_awal: tglTransaksi,
         db: nilaiDbCr.db,
         cr: nilaiDbCr.cr,
-        akhir: hitungAkhir,
-        // ✅ PERBAIKAN 2: JIKA DB MASIH 0, ISI AWAL DENGAN DB. INI MENGATASI RULE NOT NULL DI DATABASE
+        saldo_akhir: hitungAkhir,
         awal: nilaiDbCr.db > 0 ? nilaiDbCr.db : 0,
         group: activeGroup,
       };
@@ -1430,58 +1429,53 @@ async function postingSaldoKasir() {
         "inf",
       );
 
-    var berhasilDisimpan = 0;
-    var gagalDisimpan = 0;
+    // ====================================================================
+    // 2. PROSES SIMPAN (CLEAR RANGE -> BATCH POST)
+    // ====================================================================
 
-    await Promise.all(
-      arrDataUntukDisimpan.map(function (item) {
-        return fetch(baseUrl, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(item),
-        })
-          .then(async function (res) {
-            // ✅ PERBAIKAN: BACA PESANAN ERROR ASLI DARI SERVER AGAR KITA TAHU PENYEBABNYA
-            if (!res.ok) {
-              var errorData = null;
-              try {
-                errorData = await res.json(); // Coba baca pesan error dari Supabase
-              } catch (e) {}
-              throw new Error(
-                errorData?.message ||
-                  errorData?.msg ||
-                  "Server error " + res.status,
-              );
-            }
-            berhasilDisimpan++;
-          })
-          .catch(function (e) {
-            gagalDisimpan++;
-            console.error(
-              "Gagal simpan data tgl:",
-              item.tanggal,
-              "| Pesan Server:",
-              e.message,
-            );
-          });
+    // LANGKAH PERTAMA: Clear Range
+    await fetch(API_BASE_URL + "/api/saldo-kasir/clear-range", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        cabang: cab,
+        char4: cab, // ✅ BAKU MENGGUNAKAN KODE CABANG
+        tanggalAwal: tglAwal,
+        tanggalAkhir: tglAkhir,
+        group: activeGroup,
       }),
-    );
+    });
 
-    // ... (Kode dibawahnya biarkan tetap sama: update DBCache, tampilkan pesan sukses)
+    // LANGKAH KEDUA: Kirim Batch
+    var response = await fetch(API_BASE_URL + `/api/batch/saldo_kasir`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(arrDataUntukDisimpan),
+    });
 
-    // 6. UPDATE CACHE DBCACHE LOKAL
+    if (!response.ok) {
+      var errorData = null;
+      try {
+        errorData = await response.json();
+      } catch (e) {}
+      throw new Error(
+        errorData?.message ||
+          errorData?.msg ||
+          "Server error " + response.status,
+      );
+    }
+
+    // 3. UPDATE CACHE DBCACHE LOKAL
     if (!DBCache.saldokasir) DBCache.saldokasir = [];
     arrDataUntukDisimpan.forEach(function (item) {
       DBCache.saldokasir.push(item);
     });
 
-    // 7. SUKSES
+    // 4. SUKSES
     var pesanSukses =
       "Posting Berhasil!\n" +
-      berhasilDisimpan +
-      " data harian tersimpan di Saldo Kasir." +
-      (gagalDisimpan > 0 ? " (" + gagalDisimpan + " gagal)" : "");
-
+      arrDataUntukDisimpan.length +
+      " data harian tersimpan di Saldo Kasir.";
     if (typeof toast === "function") toast(pesanSukses, "ok");
     else alert(pesanSukses);
   } catch (err) {
