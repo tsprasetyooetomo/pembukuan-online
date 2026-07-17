@@ -1636,7 +1636,6 @@ async function hapusKasirDetil(id) {
 async function cariSaldoAwalKasir(cabang, tanggalPilih) {
   if (!cabang || !tanggalPilih) return 0;
 
-  // ✅ PERBAIKAN 3: PENGAMAN GROUP UNDEFINED
   var rawGroup = localStorage.getItem("group");
   var activeGroup = "TLGA";
   if (
@@ -1646,37 +1645,58 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
   ) {
     activeGroup = rawGroup.trim().toUpperCase();
   }
-  // ✅ TAMBAHAN PENGAMAN: Jika cache kosong, paksa tarik data dari database dulu
+
+  // ✅ 1. CEK CACHE DULU
+  // Pastikan pengecekan cache-nya pakai huruf kecil 'saldokasir' (sesuai posting)
   if (!DBCache.saldokasir || DBCache.saldokasir.length === 0) {
     console.log("📦 Cache saldo kasir kosong, mengambil data dari server...");
     try {
-      var res = await fetch(
+      // ✅ 2. PANGGIL ENDPOINT GENERIC ANDA (Nama tabel jadi saldo_kasir)
+      // Kita kirim cabang & group sebagai parameter query
+      var url =
         API_BASE_URL +
-          "/api/data/saldokasir?cabang=" +
-          cabang +
-          "&group=" +
-          activeGroup,
-      );
+        "/api/data/saldo_kasir?cabang=" +
+        encodeURIComponent(cabang) +
+        "&group=" +
+        encodeURIComponent(activeGroup);
+
+      var res = await fetch(url);
+
       if (res.ok) {
         var json = await res.json();
-        DBCache.saldokasir = json; // Masukkan ke cache
+
+        // ✅ 3. BONGKAR FORMAT JSONB DARI BACKEND ANDA
+        // Karena backend SELECT data FROM..., hasilnya bisa jadi [{data: {...}}] atau langsung [{...}]
+        var parsedData = json.map(function (item) {
+          // Jika bungkusannya ada properti "data", maka ambil isinya
+          if (item && item.data && typeof item.data === "object") {
+            return item.data;
+          }
+          return item; // Jika sudah flat, langsung return
+        });
+
+        // Masukkan yang sudah dibongkar ke cache
+        DBCache.saldokasir = parsedData;
         console.log(
-          "✅ Berhasil mengambil " + json.length + " data saldo kasir ke cache",
+          "✅ Berhasil mengambil " +
+            parsedData.length +
+            " data saldo kasir ke cache",
         );
+      } else {
+        console.error("Gagal load data dari server, status:", res.status);
       }
     } catch (e) {
       console.error("Gagal mengambil data saldo kasir dari server:", e);
     }
   }
-  // ✅ PERBAIKAN 1: GANTI NAMA CACHE JADI 'saldokasir' (huruf kecil semua, sesuai posting)
+
+  // ✅ 4. FILTER DARI CACHE YANG SUDAH DI-BONGKAR
   var dataSk = (DBCache.saldokasir || []).filter(function (item) {
-    // Pastikan pengecekan group-nya konsisten
     var groupItem = String(item.group || "")
       .trim()
       .toUpperCase();
     return (item.cabang || "") === cabang && groupItem === activeGroup;
   });
-  console.table(dataSk);
 
   var tglTarget = new Date(tanggalPilih);
   tglTarget.setDate(tglTarget.getDate() - 1);
@@ -1685,26 +1705,23 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
   for (var i = 0; i < maxIterasi; i++) {
     var tglStr = tglTarget.toISOString().split("T")[0];
     var cocok = dataSk.find(function (sk) {
-      // ✅ PERBAIKAN 2: GANTI 'tgl_awal' MENJADI 'tanggal' (sesuai schema simpan)
       return (sk.tanggal || "") === tglStr;
     });
 
     if (cocok) {
       console.log(
         "✅ Saldo kasir awal ditemukan di tanggal " + tglStr,
-        "| Group:",
-        activeGroup,
+        "| Nilai:",
+        cocok.saldo_akhir,
       );
-      // ✅ PERBAIKAN 3: GANTI 'akhir' MENJADI 'saldo_akhir' (sesuai schema simpan)
       return num(cocok.saldo_akhir) || 0;
     }
 
     tglTarget.setDate(tglTarget.getDate() - 1);
   }
 
-  // Optional: Untuk debugging, hapus baris ini jika sudah berjalan
   console.warn(
-    "⚠️ Saldo awal kasir tidak ditemukan di cache untuk cab:",
+    "⚠️ Saldo awal kasir tidak ditemukan untuk cab:",
     cabang,
     "tgl:",
     tanggalPilih,
