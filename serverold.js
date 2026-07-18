@@ -1156,27 +1156,141 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         try {
           await client.query("BEGIN");
 
-          // ==========================================
-          // TES SANGAT SEDERHANA: SIMPAN 1 DATA PALSU
-          // ==========================================
-          const idTes = crypto.randomUUID(); // <-- GANTI JADI: 'TES-001' (jika id Anda bertipe text)
-          const dataTes = JSON.stringify({
-            tanggal: "2024-01-01",
-            cabang: "04",
-            group: "TLGA",
-            total: 100000,
-          });
+          let savedCount = 0;
+          let errorCount = 0; // Menghitung baris yang error/diskip
+          const batchSize = 500;
+          const totalBatches = Math.ceil(validRecords.length / batchSize);
 
-          const sqlTes = `INSERT INTO mutasikasir (id, data) VALUES ($1, $2::jsonb) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+          for (let i = 0; i < validRecords.length; i += batchSize) {
+            const batch = validRecords.slice(i, i + batchSize);
 
-          await client.query(sqlTes, [idTes, dataTes]);
+            let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
+            let values = [];
+            let placeholders = [];
+
+            for (const row of batch) {
+              try {
+                // ==========================================
+                // MAPPING LANGSUNG FIELD DBF FOXPRO
+                // ==========================================
+                const getStr = (val) =>
+                  val !== undefined && val !== null ? String(val).trim() : "";
+                const getNum = (val) =>
+                  val !== undefined && val !== null ? Number(val) : 0;
+
+                // 1. Ambil langsung sesuai nama kolom DBF
+                const tglDbf = getStr(row.TANGGAL);
+                const descRaw = getStr(row.PENJELASAN);
+                const total = getNum(row.N_RUPIAH_);
+                const kodeTrans = getStr(row.N_KODE).toUpperCase();
+                const cabDBF = getStr(row.N_CABANG);
+
+                // ✅ PENGAMAN UTAMA: Skip baris jika TANGGAL, KODE, atau TOTAL tidak valid
+                if (!tglDbf || !kodeTrans || total <= 0) {
+                  continue; // Langsung lewati baris ini, lanjut ke baris berikutnya
+                }
+
+                // 2. Bersihkan Deskripsi (Ganti kutipan dua supaya JSON tidak rusak)
+                const desc = descRaw.toUpperCase().replace(/"/g, "'");
+
+                // 3. Parsing Tanggal (Format MM/DD/YYYY)
+                let tanggalFix = new Date().toISOString().split("T")[0]; // Fallback hari ini
+                let cleanTgl = tglDbf.replace(/[^0-9\/]/g, "").trim();
+
+                if (cleanTgl.includes("/")) {
+                  let parts = cleanTgl.split("/");
+                  if (parts.length === 3) {
+                    let mm = parts[0].padStart(2, "0");
+                    let dd = parts[1].padStart(2, "0");
+                    let yyyy = parts[2];
+                    if (yyyy.length === 2) yyyy = "20" + yyyy;
+                    tanggalFix = `${yyyy}-${mm}-${dd}`;
+                  }
+                }
+
+                // 4. Tetapkan Cabang (Jika di DBF kosong, pakai dari parameter Frontend)
+                const cabFinal = cabDBF || cabang;
+                const cabShort = (cabFinal || "PUSAT")
+                  .substring(0, 3)
+                  .toUpperCase();
+                const noreffKey = `${cabShort}_${tanggalFix}`;
+
+                if (!noreffMap[noreffKey]) {
+                  const randomStr = Math.random()
+                    .toString(36)
+                    .substr(2, 4)
+                    .toUpperCase();
+                  noreffMap[noreffKey] =
+                    `KASIR-${cabShort}-${tanggalFix}-${randomStr}`;
+                }
+
+                const noreff = noreffMap[noreffKey];
+                const id = crypto.randomUUID();
+
+                // 5. Logika DB & CR
+                let nilaiDb = 0;
+                let nilaiCr = 0;
+                if (["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k))) {
+                  nilaiDb = total;
+                } else {
+                  nilaiCr = total;
+                }
+
+                // 6. Susun JSON
+                const jsonData = {
+                  id: id,
+                  noreff: noreff,
+                  tanggal: tanggalFix,
+                  cabang: cabFinal,
+                  group: group || "TLGA",
+                  kodeTrans: kodeTrans,
+                  noperkiraan: "",
+                  desc: desc,
+                  total: total,
+                  db: nilaiDb,
+                  cr: nilaiCr,
+                };
+
+                const base = values.length;
+                placeholders.push(`($${base + 1}, $${base + 2}::jsonb)`);
+                values.push(id, JSON.stringify(jsonData));
+                // ==========================================
+                // AKHIR MAPPING
+                // ==========================================
+              } catch (errPerBaris) {
+                // ✅ JIKA 1 BARIS ERROR (Misal teks aneh), JANGAN GAGALKAN SEMUA, TAPI SKIP BARIS INI
+                errorCount++;
+                console.warn("Skip baris error:", errPerBaris.message);
+              }
+            }
+
+            // ✅ HANYA EKSEKUSI JIKA ADA DATA YANG VALID DI BATCH INI
+            if (placeholders.length > 0) {
+              queryText += placeholders.join(", ");
+              queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+              await client.query(queryText, values);
+            }
+
+            savedCount += placeholders.length; // Hitung yang SUKSES masuk array
+            const currentBatch = Math.floor(i / batchSize) + 1;
+            const pct = 40 + Math.round((currentBatch / totalBatches) * 60);
+
+            send(
+              pct,
+              `Menyimpan ke Supabase... (${savedCount}/${validRecords.length} data)`,
+            );
+          }
 
           await client.query("COMMIT");
-          send(100, `Tes berhasil! Data palsu tersimpan.`, { success: true });
+
+          // Tambahkan informasi jika ada data yang diskip
+          let msgSukses = `Sukses! ${savedCount} data kasir tersimpan.`;
+          if (errorCount > 0) {
+            msgSukses += ` (${errorCount} baris jelek dilewati)`;
+          }
+
+          send(100, msgSukses, { success: true });
           res.end();
-          // ==========================================
-          // AKHIR TES
-          // ==========================================
         } catch (txError) {
           await client.query("ROLLBACK");
 
