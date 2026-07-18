@@ -1142,7 +1142,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         const validRecords = records.filter((row) => {
           const getNum = (val) =>
             val !== undefined && val !== null ? Number(val) : 0;
-          return getNum(row.N_RUPIAH_) > 0;
+          return getNum(row.N_RUPIAH) > 0;
         });
 
         send(
