@@ -1172,20 +1172,40 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 // Bersihkan Deskripsi
                 const desc = descRaw.toUpperCase().replace(/"/g, "'");
 
-                // Parsing Tanggal (Format MM/DD/YYYY)
-                let tanggalFix = new Date().toISOString().split("T")[0];
+                // 1. Ambil teks tanggal asli dari DBF dan bersihkan dari karakter aneh
                 let cleanTgl = tglDbf.replace(/[^0-9\/]/g, "").trim();
+                let tanggalFix = ""; // Kosongkan dulu, jangan diisi tanggal hari ini agar ketahuan jika ada yang gagal
 
                 if (cleanTgl.includes("/")) {
                   let parts = cleanTgl.split("/");
+
+                  // Pastikan terpotong menjadi 3 bagian: Bulan, Hari, dan Tahun
                   if (parts.length === 3) {
-                    // ✅ FIX INDEXING ARRAY: Menentukan indeks array dengan benar
-                    let mm = parts[0].padStart(2, "0");
-                    let dd = parts[1].padStart(2, "0");
-                    let yyyy = parts[2];
+                    // ✅ PERBAIKAN UTAMA: Tambahkan indeks, [1], [2] pada variabel parts
+                    let mm = parts[0].padStart(2, "0"); // parts[0] adalah Bulan
+                    let dd = parts[1].padStart(2, "0"); // parts[1] adalah Hari
+                    let yyyy = parts[2]; // parts[2] adalah Tahun
+
+                    // Jika tahun di FoxPro hanya ditulis 2 angka (misal: "24"), ubah jadi "2024"
                     if (yyyy.length === 2) yyyy = "20" + yyyy;
+
+                    // Gabungkan menjadi format standar PostgreSQL (YYYY-MM-DD)
                     tanggalFix = `${yyyy}-${mm}-${dd}`;
                   }
+                }
+
+                // 2. PENGAMAN BARU: Jika gagal mengubah format tanggal, langsung skip baris ini
+                // Ini jauh lebih baik daripada memaksa pakai tanggal hari ini yang bikin data akuntansi berantakan
+                if (
+                  !tanggalFix ||
+                  tanggalFix.includes("undefined") ||
+                  tanggalFix.length !== 10
+                ) {
+                  errorCount++;
+                  console.warn(
+                    `Tanggal rusak pada baris ini (Nilai DBF: "${tglDbf}"), baris dilewati.`,
+                  );
+                  continue;
                 }
 
                 const cabFinal = cabDBF || cabang;
