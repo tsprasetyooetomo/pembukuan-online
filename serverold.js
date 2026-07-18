@@ -818,211 +818,164 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
 
     bb.on("finish", async () => {
       try {
-        const { kode_cabang, tahun, bulan, masa } = fields;
+        const { cabang, group } = fields; // ✅ Hapus_tahun & hapus_bulan dihilangkan
+        const fileDbf = files["file_dbf"];
 
-        const group = fields.group || "TLGA"; // ✅ TAMBAHKAN BARIS INI
-
-        const fileCdg = files["file_cdg"];
-        const fileCdd = files["file_cdd"];
-        const fileDet = files["file_det"];
-
-        if (!fileCdg || !fileCdd) {
-          send(100, "File CDG atau CDD tidak ditemukan", { success: false });
+        if (!fileDbf) {
+          send(100, "File DBF tidak ditemukan", { success: false });
           return res.end();
         }
 
-        send(5, `Mulai impor masa ${masa} cabang ${kode_cabang}`);
-
+        send(10, "Membaca file DBF di server...");
         const { Dbf } = require("dbf-reader");
+        const records = Dbf.read(fileDbf)?.rows || [];
+        send(25, `DBF terbaca: ${records.length} baris`);
 
-        send(10, "Baca file CDG...");
-        const dataCdg = Dbf.read(fileCdg)?.rows || [];
-        send(20, `CDG terbaca: ${dataCdg.length} record`);
-
-        send(25, "Baca file CDD...");
-        const dataCdd = Dbf.read(fileCdd)?.rows || [];
-        send(40, `CDD terbaca: ${dataCdd.length} record`);
-
-        let dataDet = [];
-        if (fileDet) {
-          send(45, "Baca file DET...");
-          dataDet = Dbf.read(fileDet)?.rows || [];
-          send(55, `DET terbaca: ${dataDet.length} record`);
+        if (records.length === 0) {
+          send(100, "File DBF kosong", { success: false });
+          return res.end();
         }
 
-        const tableGolongan = `golongan${tahun}`.toLowerCase();
-        const tablePerkiraan = `perkiraan${tahun}`.toLowerCase();
-        const tableTransaksi = `transaksi${tahun}`.toLowerCase();
+        if (!cabang) {
+          send(100, "Parameter cabang tidak ada", { success: false });
+          return res.end();
+        }
 
+        // 2. PERSIAPAN
+        send(35, "Memproses data...");
+        const crypto = require("crypto");
+        const noreffMap = {};
+        const recordsToProcess = records || [];
+
+        send(
+          50,
+          `${recordsToProcess.length} baris ditemukan, mulai menyimpan...`,
+        );
+
+        // 3. INSERT KE DATABASE
         const client = await db.connect();
         try {
           await client.query("BEGIN");
 
-          const ensureTableExists = async (tableName) => {
-            const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
-            const resCheck = await client.query(checkQuery, [tableName]);
-            if (!resCheck.rows[0].exists) {
-              send(58, `Buat tabel ${tableName}...`);
-              await client.query(
-                `CREATE TABLE ${tableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
-              );
-            }
-          };
+          let savedCount = 0;
+          const batchSize = 500;
+          const totalBatches = Math.ceil(recordsToProcess.length / batchSize);
 
-          await ensureTableExists(tableGolongan);
-          await ensureTableExists(tablePerkiraan);
-          await ensureTableExists(tableTransaksi);
+          for (let i = 0; i < recordsToProcess.length; i += batchSize) {
+            const batch = recordsToProcess.slice(i, i + batchSize);
+            let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
+            let values = [];
+            let placeholders = [];
 
-          // Batch insert + kirim progress tiap batch
-          const batchInsert = async (
-            tableName,
-            dataArray,
-            typePrefix,
-            startPct,
-            endPct,
-          ) => {
-            if (dataArray.length === 0) return 0;
-            const batchSize = 500;
-            let totalInserted = 0;
-            const totalBatch = Math.ceil(dataArray.length / batchSize);
+            batch.forEach((row, index) => {
+              const getStr = (val) =>
+                val !== undefined && val !== null ? String(val).trim() : "";
+              const getNum = (val) =>
+                val !== undefined && val !== null ? Number(val) : 0;
 
-            await client.query(
-              `DELETE FROM ${tableName} WHERE data LIKE $1 AND data LIKE $2`,
-              [`%"masa":"${masa}"%`, `%"cabang":"${kode_cabang}"%`],
-            );
-            send(startPct, `Hapus data lama ${typePrefix}...`);
+              const tglDbf = getStr(row.TANGGAL);
+              const descRaw = getStr(row.PENJELASAN);
+              const totalRaw = getNum(row.N_RUPIAH);
+              const total = Math.abs(totalRaw);
+              const kodeTrans = getStr(row.N_KODE).toUpperCase();
+              const cabDBF = getStr(row.N_CABANG);
 
-            for (let i = 0; i < dataArray.length; i += batchSize) {
-              const batch = dataArray.slice(i, i + batchSize);
-              let queryText = `INSERT INTO ${tableName} (id, data) VALUES `;
-              let values = [];
-              let placeholders = [];
+              // Skip jika tidak penting
+              if (!tglDbf || !kodeTrans || total === 0) return;
 
-              batch.forEach((row, index) => {
-                let mappedData = {};
-                let customId = "";
-                const getStr = (val) =>
-                  val !== undefined && val !== null ? String(val).trim() : "";
-                const getNum = (val) =>
-                  val !== undefined && val !== null ? Number(val) : 0;
+              const desc = descRaw.toUpperCase().replace(/"/g, "'");
 
-                if (typePrefix === "CDG") {
-                  mappedData = {
-                    gol: getStr(row.GOLACCT),
-                    namaGol: getStr(row.PJLSAN),
-                    tipe: "Golongan",
-                    masa: masa,
-                    awal: getNum(row.AWAL),
-                    db: getNum(row.DB),
-                    cr: getNum(row.CR),
-                    akhir: getNum(row.AKHIR),
-                    cabang: getStr(row.REST) || kode_cabang,
-                    group: group || "TLGA", // ✅ 3. TAMBAHKAN INI
-                  };
-                  customId = `CDG_${mappedData.cabang}_${masa}_${mappedData.gol || "X"}_${i + index}`;
-                } else if (typePrefix === "CDD") {
-                  mappedData = {
-                    gol: getStr(row.GOLACCT),
-                    noPerk: getStr(row.SUBACCT),
-                    desc: getStr(row.PJLSAN),
-                    tipe: "Perkiraan",
-                    masa: masa,
-                    awal: getNum(row.AWAL),
-                    db: getNum(row.DB),
-                    cr: getNum(row.CR),
-                    akhir: getNum(row.AKHIR),
-                    cabang: getStr(row.REST) || kode_cabang,
-                    group: group || "TLGA", // ✅ 3. TAMBAHKAN INI
-                  };
-                  const cleanNoPerk =
-                    mappedData.noPerk.replace(/\./g, "_") || "X";
-                  customId = `CDD_${mappedData.cabang}_${masa}_${cleanNoPerk}_${i + index}`;
-                } else if (typePrefix === "DET") {
-                  const dbVal = getNum(row.DB);
-                  const crVal = getNum(row.CR);
-                  const crypto = require("crypto");
-                  customId = `${crypto.randomUUID()}_${i + index}`;
-                  mappedData = {
-                    id: customId,
-                    noreff: getStr(row.REFF),
-                    tanggal: getStr(row.DATE),
-                    kodeBank: "",
-                    cabang: getStr(row.KODE) || kode_cabang,
-                    dariKePada: "BANK",
-                    noperkiraan: getStr(row.NOACCT),
-                    desc: getStr(row.DESC),
-                    total: dbVal + crVal,
-                    db: dbVal,
-                    cr: crVal,
-                    kodeTrans: "",
-                    masa: masa,
-                    group: group || "TLGA", // ✅ 3. TAMBAHKAN INI
-                  };
+              // Parsing Tanggal
+              let tanggalFix = new Date().toISOString().split("T")[0];
+              let cleanTgl = tglDbf.replace(/[^0-9\/]/g, "").trim();
+              if (cleanTgl.includes("/")) {
+                let parts = cleanTgl.split("/");
+                if (parts.length === 3) {
+                  let mm = parts[0].padStart(2, "0");
+                  let dd = parts[1].padStart(2, "0");
+                  let yyyy = parts[2];
+                  if (yyyy.length === 2) yyyy = "20" + yyyy;
+                  tanggalFix = `${yyyy}-${mm}-${dd}`;
                 }
+              }
 
-                const base = index * 2;
-                placeholders.push(`($${base + 1}, $${base + 2})`);
-                values.push(customId, JSON.stringify(mappedData));
-              });
+              const cabFinal = cabDBF || cabang;
+              const cabShort = (cabFinal || "PUSAT")
+                .substring(0, 3)
+                .toUpperCase();
+              const noreffKey = `${cabShort}_${tanggalFix}`;
 
+              if (!noreffMap[noreffKey]) {
+                const randomStr = Math.random()
+                  .toString(36)
+                  .substr(2, 4)
+                  .toUpperCase();
+                noreffMap[noreffKey] =
+                  `KASIR-${cabShort}-${tanggalFix}-${randomStr}`;
+              }
+
+              const noreff = noreffMap[noreffKey];
+              const id = crypto.randomUUID();
+
+              let nilaiDb = 0;
+              let nilaiCr = 0;
+              if (
+                ["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k)) ||
+                totalRaw > 0
+              ) {
+                nilaiDb = total;
+              } else {
+                nilaiCr = total;
+              }
+
+              const jsonData = {
+                id,
+                noreff,
+                tanggal: tanggalFix,
+                cabang: cabFinal,
+                group: group || "TLGA",
+                kodeTrans,
+                noperkiraan: "",
+                desc,
+                total,
+                db: nilaiDb,
+                cr: nilaiCr,
+              };
+
+              const base = index * 2;
+              placeholders.push(`($${base + 1}, $${base + 2})`);
+              values.push(id, JSON.stringify(jsonData));
+            });
+
+            if (placeholders.length > 0) {
               queryText += placeholders.join(", ");
               queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
               await client.query(queryText, values);
-              totalInserted += batch.length;
-
-              // Kirim progress tiap batch
-              const currentBatch = Math.floor(i / batchSize) + 1;
-              const pct =
-                startPct + ((endPct - startPct) * currentBatch) / totalBatch;
-              send(
-                Math.round(pct),
-                `Insert ${typePrefix}: ${totalInserted}/${dataArray.length}`,
-              );
             }
-            return totalInserted;
-          };
 
-          send(60, "Mulai insert database...");
-          const countCdg = await batchInsert(
-            tableGolongan,
-            dataCdg,
-            "CDG",
-            60,
-            75,
-          );
-          const countCdd = await batchInsert(
-            tablePerkiraan,
-            dataCdd,
-            "CDD",
-            75,
-            90,
-          );
-          const countDet = await batchInsert(
-            tableTransaksi,
-            dataDet,
-            "DET",
-            90,
-            98,
-          );
+            savedCount += placeholders.length;
+            const currentBatch = Math.floor(i / batchSize) + 1;
+            const pct = 50 + Math.round((currentBatch / totalBatches) * 50); // Progress dari 50% ke 100%
+
+            send(
+              pct,
+              `Menyimpan ke Supabase... (${savedCount} data berhasil masuk)`,
+            );
+          }
 
           await client.query("COMMIT");
-
           send(
             100,
-            `Sukses! Golongan:${countCdg} Perkiraan:${countCdd} Transaksi:${countDet}`,
-            {
-              success: true,
-              tables: {
-                golongan: tableGolongan,
-                perkiraan: tablePerkiraan,
-                transaksi: tableTransaksi,
-              },
-            },
+            `Sukses! ${savedCount} data kasir cabang ${cabang} tersimpan`,
+            { success: true },
           );
           res.end();
         } catch (txError) {
           await client.query("ROLLBACK");
-          send(100, "Gagal simpan DB: " + txError.message, { success: false });
+          let pesanError =
+            "Gagal simpan DB: " + (txError.detail || txError.message);
+          console.error("DETAIL ERROR DB:", txError);
+          send(100, pesanError, { success: false });
           res.end();
         } finally {
           client.release();
