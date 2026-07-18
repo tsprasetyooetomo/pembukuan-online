@@ -1090,7 +1090,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         send(30, "Memproses data...");
         const crypto = require("crypto");
         const noreffMap = {};
-
+        console.log(records);
         // Filter baris valid (total > 0)
         const validRecords = records.filter((row) => {
           const getNum = (val) =>
