@@ -1175,49 +1175,60 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
                 // 1. Ambil teks tanggal asli dari DBF dan bersihkan dari karakter aneh
                 let cleanTgl = tglDbf.replace(/[^0-9\/]/g, "").trim();
+                // 1. PARSING TANGGAL (SMART PARSER ANTI TERBALIK)
                 let tanggalFix = "";
+                let tglStr = "";
 
                 if (row.TANGGAL instanceof Date) {
-                  // ✅ KONDISI 1: Jika sudah berupa Date, langsung ambil format YYYY-MM-DD
-                  tanggalFix = row.TANGGAL.toISOString().split("T")[0];
+                  let mm = String(row.TANGGAL.getMonth() + 1).padStart(2, "0");
+                  let dd = String(row.TANGGAL.getDate()).padStart(2, "0");
+                  let yyyy = row.TANGGAL.getFullYear();
+                  tanggalFix = `${yyyy}-${mm}-${dd}`;
                 } else {
-                  // KONDISI 2: Jika berupa teks string
-                  let tglStr = getStr(row.TANGGAL);
+                  tglStr = String(row.TANGGAL || "").trim();
+                  let cleanTgl = tglStr.replace(/[^0-9\/]/g, "");
 
-                  if (tglStr.includes("/")) {
-                    // A. Jika format teksnya pakai garis miring (MM/DD/YYYY)
-                    let cleanTgl = tglStr.replace(/[^0-9\/]/g, "").trim();
+                  if (cleanTgl.includes("/")) {
                     let parts = cleanTgl.split("/");
                     if (parts.length === 3) {
-                      let mm = parts[0].padStart(2, "0");
-                      let dd = parts[1].padStart(2, "0");
-                      let yyyy = parts[2];
-                      if (yyyy.length === 2) yyyy = "20" + yyyy;
-                      tanggalFix = `${yyyy}-${mm}-${dd}`;
-                    }
-                  } else {
-                    // B. Jika format teksnya panjang/GMT ("Fri Feb 06 2026...")
-                    try {
-                      let parsedDate = new Date(tglStr);
-                      if (!isNaN(parsedDate.getTime())) {
-                        tanggalFix = parsedDate.toISOString().split("T")[0];
+                      let part1 = parts[0].padStart(2, "0");
+                      let part2 = parts[1].padStart(2, "0");
+                      let yyyy =
+                        parts[2].length === 2 ? "20" + parts[2] : parts[2];
+
+                      let mm = "",
+                        dd = "";
+
+                      // Jika angka pertama > 12, pasti itu TANGGAL (Format DD/MM)
+                      if (parseInt(part1) > 12) {
+                        dd = part1;
+                        mm = part2;
                       }
-                    } catch (e) {
-                      tanggalFix = ""; // Gagal total, biarkan kosong agar di-skip di bawah
+                      // Jika angka kedua > 12, pasti itu TANGGAL (Format MM/DD)
+                      else if (parseInt(part2) > 12) {
+                        mm = part1;
+                        dd = part2;
+                      }
+                      // JIKA KEDUANYA < 12 (Misal 01/08/2024), GUNAKAN POLA DARI BARIS SEBELUMNYA
+                      else {
+                        if (lastParsedFormat === "DMY") {
+                          dd = part1;
+                          mm = part2;
+                        } else {
+                          mm = part1;
+                          dd = part2; // Default tetap MM/DD
+                        }
+                      }
+
+                      // SIMPAN POLA SAAT INI UNTUK MENJADI ACUAN BARIS SELANJUTNYA
+                      lastParsedFormat = parseInt(part1) > 12 ? "DMY" : "MDY";
+
+                      tanggalFix = `${yyyy}-${mm}-${dd}`;
                     }
                   }
                 }
 
-                // ✅ SEKRING PENGAMAN AKHIR: Jangan pakai tanggal hari ini secara gaib.
-                // Lebih baik skip baris data tersebut daripada membuat laporan keuangan Anda berantakan.
-                if (!tanggalFix || tanggalFix.length !== 10) {
-                  errorCount++;
-                  console.warn(
-                    `Baris dilewati karena format tanggal rusak/tidak dikenali: "${row.TANGGAL}"`,
-                  );
-                  continue;
-                }
-
+                if (!tanggalFix) continue;
                 const cabFinal = cabDBF || cabang;
                 const cabShort = (cabFinal || "PUSAT")
                   .substring(0, 3)
@@ -1276,7 +1287,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 );
               }
             }
-            console.log(placeholders);
 
             // Eksekusi Batch
             // Eksekusi Batch
