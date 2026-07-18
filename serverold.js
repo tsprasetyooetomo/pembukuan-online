@@ -1248,47 +1248,61 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
             }
 
             // Eksekusi Batch
+            // Eksekusi Batch
             if (placeholders.length > 0) {
               queryText += placeholders.join(", ");
               queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
 
-              console.log("=== MENGIRIM QUERY KE SUPABASE ===");
-              await client.query(queryText, values);
+              // ✅ PENGAMAN: Tangkap error QUERY saja, lempar ke atas jika gagal
+              try {
+                await client.query(queryText, values);
+              } catch (errDb) {
+                throw new Error("Postgres Error: " + errDb.message);
+              }
             }
 
             savedCount += placeholders.length;
             const currentBatch = Math.floor(i / batchSize) + 1;
             const pct = 40 + Math.round((currentBatch / totalBatches) * 60);
 
-            // ✅ Teks Progres yang lebih informatif (menampilkan total data yang diproses: sukses + error)
-            send(
-              pct,
-              `Menyimpan ke Supabase... (${savedCount + errorCount}/${validRecords.length} data diproses)`,
-            );
+            // ✅ PENGAMAN: Cegah error jika koneksi SSE sudah terputus/tertutup browser
+            try {
+              send(
+                pct,
+                `Menyimpan ke Supabase... (${savedCount} data berhasil masuk)`,
+              );
+            } catch (errStream) {
+              // Abaikan error stream, yang penting database sudah dapat datanya
+              console.log("Stream terputus, tapi data tetap disimpan.");
+            }
           }
-          // ... (Kode bagian COMMIT dan ROLLBACK di bawahnya tetap sama)
 
           await client.query("COMMIT");
 
-          // Tambahkan informasi jika ada data yang diskip
-          let msgSukses = `Sukses! ${savedCount} data kasir tersimpan.`;
-          if (errorCount > 0) {
-            msgSukses += ` (${errorCount} baris jelek dilewati)`;
+          // ✅ PENGAMAN TERAKHIR SAAT KIRIM SUKSES
+          try {
+            send(
+              100,
+              `Sukses! ${savedCount} data kasir cabang ${cabang} tersimpan`,
+              { success: true },
+            );
+            res.end();
+          } catch (errEndStream) {
+            // Jika stream mati di detik terakhir, paksa tutup koneksi
+            res.end();
           }
-
-          send(100, msgSukses, { success: true });
-          res.end();
         } catch (txError) {
           await client.query("ROLLBACK");
-
-          // ✅ PERBAIKAN ERROR MESSAGE: Tampilkan detail error asli dari Postgres
-          let pesanError = "Gagal simpan DB";
-          if (txError.detail) pesanError += ": " + txError.detail;
-          if (txError.message) pesanError += " (" + txError.message + ")";
-
+          let pesanError =
+            "Gagal simpan DB: " + (txError.detail || txError.message);
           console.error("DETAIL ERROR DB:", txError);
-          send(100, pesanError, { success: false });
-          res.end();
+
+          try {
+            send(100, pesanError, { success: false });
+            res.end();
+          } catch (e) {
+            res.end();
+          }
         } finally {
           client.release();
         }
