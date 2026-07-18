@@ -1267,7 +1267,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 };
 
                 const base = values.length;
-                placeholders.push(`($${base + 1}, $${base + 2}::jsonb)`);
+                placeholders.push(`($${base + 1}, $${base + 2})`);
                 values.push(id, JSON.stringify(jsonData));
               } catch (errPerBaris) {
                 errorCount++;
