@@ -1263,7 +1263,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 console.warn("Skip baris error:", errPerBaris.message);
               }
             }
-
+            console.log(placeholders);
             // ✅ HANYA EKSEKUSI JIKA ADA DATA YANG VALID DI BATCH INI
             if (placeholders.length > 0) {
               queryText += placeholders.join(", ");
