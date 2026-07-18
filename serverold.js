@@ -1151,6 +1151,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         );
 
         // 3. INSERT KE DATABASE (HANYA KE KOLOM id DAN data)
+        // 3. INSERT KE DATABASE (FIX CASTING JSONB)
         const client = await db.connect();
         try {
           await client.query("BEGIN");
@@ -1162,7 +1163,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           for (let i = 0; i < validRecords.length; i += batchSize) {
             const batch = validRecords.slice(i, i + batchSize);
 
-            // Query FIX: Hanya menyebutkan kolom 'id' dan 'data'
             let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
             let values = [];
             let placeholders = [];
@@ -1178,9 +1178,9 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
               const total = getNum(row.N_RUPIAH_);
               const cabDBF = getStr(row.N_CABANG_) || cabang;
 
-              // --- 1. PARSING TANGGAL (AMAN MM/DD/YYYY) ---
+              // --- 1. PARSING TANGGAL ---
               let tglStr = getStr(row.TANGGAL);
-              let tanggalFix = new Date().toISOString().split("T")[0]; // Default hari ini jika kosong
+              let tanggalFix = new Date().toISOString().split("T")[0];
 
               if (tglStr) {
                 let cleanTgl = tglStr.replace(/[^0-9\/]/g, "").trim();
@@ -1214,11 +1214,9 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
               const noreff = noreffMap[noreffKey];
 
-              // ✅ PENTING: Pastikan ID ini sesuai tipe kolom 'id' di Supabase Anda
-              // Jika kolom 'id' di Supabase bertipe TEXT, pakai baris bawah ini:
-              // const id = `KSR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-
-              // Jika kolom 'id' di Supabase bertipe UUID (standar Supabase), pakai ini:
+              // ⚠️ CEK POINT PENTING: Sesuaikan ini dengan tipe kolom 'id' di Supabase Anda!
+              // Jika kolom 'id' bertipe uuid -> pakai crypto.randomUUID()
+              // Jika kolom 'id' bertipe text -> pakai: const id = 'id-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
               const id = crypto.randomUUID();
 
               // --- 2. PEMISAHAN DB & CR ---
@@ -1230,7 +1228,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 nilaiCr = total;
               }
 
-              // --- 3. BENTUK OBJEK JSON YANG AKAN MASUK KE KOLOM 'data' ---
+              // --- 3. BENTUK JSON ---
               const jsonData = {
                 id: id,
                 noreff: noreff,
@@ -1246,8 +1244,8 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
               };
 
               const base = values.length;
-              placeholders.push(`($${base + 1}, $${base + 2})`);
-              // Masukkan ID sebagai parameter 1, dan JSON Stringify sebagai parameter 2
+              // ✅ PERBAIKAN UTAMA: TAMBAHKAN ::jsonb DI AKHIR $2
+              placeholders.push(`($${base + 1}, $${base + 2}::jsonb)`);
               values.push(id, JSON.stringify(jsonData));
             }
 
@@ -1276,9 +1274,14 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           res.end();
         } catch (txError) {
           await client.query("ROLLBACK");
-          // KODE INI DIPERBAIKI: Agar error yang muncul di layar lebih detail
+
+          // ✅ PERBAIKAN ERROR MESSAGE: Tampilkan detail error asli dari Postgres
+          let pesanError = "Gagal simpan DB";
+          if (txError.detail) pesanError += ": " + txError.detail;
+          if (txError.message) pesanError += " (" + txError.message + ")";
+
           console.error("DETAIL ERROR DB:", txError);
-          send(100, "Gagal simpan DB: " + txError.message, { success: false });
+          send(100, pesanError, { success: false });
           res.end();
         } finally {
           client.release();
