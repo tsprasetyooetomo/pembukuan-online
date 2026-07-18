@@ -1174,36 +1174,45 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
                 // 1. Ambil teks tanggal asli dari DBF dan bersihkan dari karakter aneh
                 let cleanTgl = tglDbf.replace(/[^0-9\/]/g, "").trim();
-                let tanggalFix = ""; // Kosongkan dulu, jangan diisi tanggal hari ini agar ketahuan jika ada yang gagal
+                let tanggalFix = "";
 
-                if (cleanTgl.includes("/")) {
-                  let parts = cleanTgl.split("/");
+                if (row.TANGGAL instanceof Date) {
+                  // ✅ KONDISI 1: Jika sudah berupa Date, langsung ambil format YYYY-MM-DD
+                  tanggalFix = row.TANGGAL.toISOString().split("T")[0];
+                } else {
+                  // KONDISI 2: Jika berupa teks string
+                  let tglStr = getStr(row.TANGGAL);
 
-                  // Pastikan terpotong menjadi 3 bagian: Bulan, Hari, dan Tahun
-                  if (parts.length === 3) {
-                    // ✅ PERBAIKAN UTAMA: Tambahkan indeks, [1], [2] pada variabel parts
-                    let mm = parts[0].padStart(2, "0"); // parts[0] adalah Bulan
-                    let dd = parts[1].padStart(2, "0"); // parts[1] adalah Hari
-                    let yyyy = parts[2]; // parts[2] adalah Tahun
-
-                    // Jika tahun di FoxPro hanya ditulis 2 angka (misal: "24"), ubah jadi "2024"
-                    if (yyyy.length === 2) yyyy = "20" + yyyy;
-
-                    // Gabungkan menjadi format standar PostgreSQL (YYYY-MM-DD)
-                    tanggalFix = `${yyyy}-${mm}-${dd}`;
+                  if (tglStr.includes("/")) {
+                    // A. Jika format teksnya pakai garis miring (MM/DD/YYYY)
+                    let cleanTgl = tglStr.replace(/[^0-9\/]/g, "").trim();
+                    let parts = cleanTgl.split("/");
+                    if (parts.length === 3) {
+                      let mm = parts[0].padStart(2, "0");
+                      let dd = parts[1].padStart(2, "0");
+                      let yyyy = parts[2];
+                      if (yyyy.length === 2) yyyy = "20" + yyyy;
+                      tanggalFix = `${yyyy}-${mm}-${dd}`;
+                    }
+                  } else {
+                    // B. Jika format teksnya panjang/GMT ("Fri Feb 06 2026...")
+                    try {
+                      let parsedDate = new Date(tglStr);
+                      if (!isNaN(parsedDate.getTime())) {
+                        tanggalFix = parsedDate.toISOString().split("T")[0];
+                      }
+                    } catch (e) {
+                      tanggalFix = ""; // Gagal total, biarkan kosong agar di-skip di bawah
+                    }
                   }
                 }
 
-                // 2. PENGAMAN BARU: Jika gagal mengubah format tanggal, langsung skip baris ini
-                // Ini jauh lebih baik daripada memaksa pakai tanggal hari ini yang bikin data akuntansi berantakan
-                if (
-                  !tanggalFix ||
-                  tanggalFix.includes("undefined") ||
-                  tanggalFix.length !== 10
-                ) {
+                // ✅ SEKRING PENGAMAN AKHIR: Jangan pakai tanggal hari ini secara gaib.
+                // Lebih baik skip baris data tersebut daripada membuat laporan keuangan Anda berantakan.
+                if (!tanggalFix || tanggalFix.length !== 10) {
                   errorCount++;
                   console.warn(
-                    `Tanggal rusak pada baris ini (Nilai DBF: "${tglDbf}"), baris dilewati.`,
+                    `Baris dilewati karena format tanggal rusak/tidak dikenali: "${row.TANGGAL}"`,
                   );
                   continue;
                 }
