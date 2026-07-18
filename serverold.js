@@ -1268,6 +1268,16 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
             if (placeholders.length > 0) {
               queryText += placeholders.join(", ");
               queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+
+              // ✅ DEBUG MODE: Cetak SQL yang akan dikirim ke Terminal/Console Server
+              console.log("=== MENGIRIM QUERY KE SUPABASE ===");
+              console.log("SQL Text:", queryText);
+              console.log("Jumlah Parameter:", values.length);
+              // Hanya cetak parameter pertama dan kedua agar console tidak spam
+              if (values.length > 0) console.log("Contoh ID:", values[0]);
+              if (values.length > 1) console.log("Contoh DATA:", values[1]);
+              console.log("=================================");
+
               await client.query(queryText, values);
             }
 
