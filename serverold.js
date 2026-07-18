@@ -4,6 +4,7 @@
 const express = require("express");
 const path = require("path");
 const { Pool } = require("pg");
+const { json } = require("stream/consumers");
 
 // Inisialisasi Express
 const app = express();
@@ -1117,7 +1118,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           40,
           `${validRecords.length} data valid ditemukan, mulai menyimpan...`,
         );
-        console.log(validRecords);
+
         // 3. INSERT KE DATABASE (HANYA KE KOLOM id DAN data)
         // 3. INSERT KE DATABASE (FIX CASTING JSONB)
         const client = await db.connect();
@@ -1275,7 +1276,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 );
               }
             }
-
+            console.log(jsonData);
             // Eksekusi Batch
             // Eksekusi Batch
             if (placeholders.length > 0) {
