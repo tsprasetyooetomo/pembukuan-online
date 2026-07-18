@@ -1179,36 +1179,34 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
               // Format Tanggal
               // Format Tanggal (UNIVERSAL PARSER)
+              // Format Tanggal (FIX UNTUK FORMAT MM/DD/YYYY DARI DBF)
               let tglStr = getStr(row.TANGGAL);
-              let tanggalFix = new Date().toISOString().split("T")[0]; // Default hari ini
+              let tanggalFix = new Date().toISOString().split("T")[0]; // Default hari ini jika kosong
 
               if (tglStr) {
-                // 1. Coba bersihkan jika ada karakter aneh (seperti hasil convert Excel/DBF aneh)
-                let cleanTgl = tglStr.replace(/[^0-9\-\/]/g, "").trim();
+                // 1. Bersihkan dari karakter aneh (seperti spasi atau huruf di pinggir)
+                let cleanTgl = tglStr.replace(/[^0-9\/]/g, "").trim();
 
-                let parsedDate;
+                // 2. Pastikan ada garis miringnya
+                if (cleanTgl.includes("/")) {
+                  let parts = cleanTgl.split("/");
 
-                if (cleanTgl.length === 8 && !isNaN(cleanTgl)) {
-                  // Jika formatnya 20260106
-                  parsedDate = new Date(
-                    cleanTgl.substring(0, 4) +
-                      "-" +
-                      cleanTgl.substring(4, 6) +
-                      "-" +
-                      cleanTgl.substring(6, 8),
-                  );
-                } else if (cleanTgl.includes("-") || cleanTgl.includes("/")) {
-                  // Jika formatnya 2026-01-06 atau 2026/01/06
-                  parsedDate = new Date(cleanTgl.replace(/\//g, "-"));
-                } else {
-                  // Fallback: Biarkan JavaScript yang mengartikan string aslinya (menangani format Tue Jan 06...)
-                  parsedDate = new Date(tglStr);
-                }
+                  // Pastikan ada 3 bagian (Bulan, Tanggal, Tahun)
+                  if (parts.length === 3) {
+                    let mm = parts[0].padStart(2, "0"); // Ambil Bulan (08)
+                    let dd = parts[1].padStart(2, "0"); // Ambil Tanggal (2 -> dijadiin 02)
+                    let yyyy = parts[2]; // Ambil Tahun (2024)
 
-                // Validasi apakah hasil parse benar-benar tanggal yang valid
-                if (!isNaN(parsedDate.getTime())) {
-                  // Gunakan toISOString() untuk memastikan hasilnya PASTI "YYYY-MM-DD"
-                  tanggalFix = parsedDate.toISOString().split("T")[0];
+                    // Jika tahunnya cuma 2 digit (misal 24), tambahkan 20 di depannya
+                    if (yyyy.length === 2) yyyy = "20" + yyyy;
+
+                    // Susun ulang ke format YYYY-MM-DD yang wajib dipakai Postgres
+                    tanggalFix = `${yyyy}-${mm}-${dd}`;
+                    // Hasil dari 08/2/2024 akan EXACT menjadi "2024-08-02"
+                  }
+                } else if (cleanTgl.length === 8 && !isNaN(cleanTgl)) {
+                  // FALLBACK: Jika ternyata suatu saat formatnya angka polos 20240802
+                  tanggalFix = `${cleanTgl.substring(0, 4)}-${cleanTgl.substring(4, 6)}-${cleanTgl.substring(6, 8)}`;
                 }
               }
               const cabShort = (cabDBF || "PUSAT")
