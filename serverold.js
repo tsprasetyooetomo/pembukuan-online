@@ -1186,13 +1186,18 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
                 const tglDbf = getStr(row.TANGGAL);
                 const descRaw = getStr(row.PENJELASAN);
-                const total = getNum(row.N_RUPIAH);
+
+                // Gunakan Math.abs() jika nilai pengeluaran di DBF berupa minus (-)
+                // agar nilai nominalnya tetap menjadi positif saat disimpan ke JSON
+                const totalRaw = getNum(row.N_RUPIAH);
+                const total = Math.abs(totalRaw);
+
                 const kodeTrans = getStr(row.N_KODE).toUpperCase();
                 const cabDBF = getStr(row.N_CABANG);
 
-                // ✅ FIX BUGS: Jika di-skip, naikkan errorCount agar hitungan total akhir sinkron
-                if (!tglDbf || !kodeTrans || total <= 0) {
-                  errorCount++; // <--- Ditambahkan agar data skip terhitung sebagai data tidak valid
+                // ✅ PENGAMAN UTAMA FIXED: Hanya skip jika kolom kritikal benar-benar kosong atau nominalnya 0
+                if (!tglDbf || !kodeTrans || total === 0) {
+                  errorCount++;
                   continue;
                 }
 
@@ -1206,6 +1211,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 if (cleanTgl.includes("/")) {
                   let parts = cleanTgl.split("/");
                   if (parts.length === 3) {
+                    // ✅ FIX INDEXING ARRAY: Menentukan indeks array dengan benar
                     let mm = parts[0].padStart(2, "0");
                     let dd = parts[1].padStart(2, "0");
                     let yyyy = parts[2];
@@ -1232,9 +1238,15 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 const noreff = noreffMap[noreffKey];
                 const id = crypto.randomUUID();
 
+                // Logika DB & CR berdasarkan nilai asli (apakah minus atau kode PJ/TK/KT)
                 let nilaiDb = 0;
                 let nilaiCr = 0;
-                if (["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k))) {
+
+                // Jika kode berawalan PJ/TK/KT atau nilai aslinya positif, masuk Debit
+                if (
+                  ["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k)) ||
+                  totalRaw > 0
+                ) {
                   nilaiDb = total;
                 } else {
                   nilaiCr = total;
@@ -1259,7 +1271,11 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 values.push(id, JSON.stringify(jsonData));
               } catch (errPerBaris) {
                 errorCount++;
-                console.warn("Skip baris error:", errPerBaris.message);
+                // Ini akan menampilkan di log server bagian mana yang memicu error internal JavaScript
+                console.warn(
+                  "Gagal mapping baris karena: ",
+                  errPerBaris.message,
+                );
               }
             }
 
