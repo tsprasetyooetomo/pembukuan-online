@@ -873,31 +873,40 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
               const getNum = (val) =>
                 val !== undefined && val !== null ? Number(val) : 0;
 
-              const tglDbf = getStr(row.TANGGAL);
-              const descRaw = getStr(row.PENJELASAN);
-              const totalRaw = getNum(row.N_RUPIAH);
-              const total = Math.abs(totalRaw);
-              const kodeTrans = getStr(row.N_KODE).toUpperCase();
-              const cabDBF = getStr(row.N_CABANG);
-
-              // Skip jika tidak penting
-              if (!tglDbf || !kodeTrans || total === 0) return;
-
-              const desc = descRaw.toUpperCase().replace(/"/g, "'");
-
-              // Parsing Tanggal
-              let tanggalFix = new Date().toISOString().split("T")[0];
-              let cleanTgl = tglDbf.replace(/[^0-9\/]/g, "").trim();
-              if (cleanTgl.includes("/")) {
-                let parts = cleanTgl.split("/");
-                if (parts.length === 3) {
-                  let mm = parts[0].padStart(2, "0");
-                  let dd = parts[1].padStart(2, "0");
-                  let yyyy = parts[2];
-                  if (yyyy.length === 2) yyyy = "20" + yyyy;
-                  tanggalFix = `${yyyy}-${mm}-${dd}`;
+              // ✅ 1. PARSING TANGGAL (LANGSUNG DARI OBJEK DATE)
+              let tanggalFix = "";
+              if (row.TANGGAL instanceof Date) {
+                // Jika sudah berupa Date, langsung ambil format YYYY-MM-DD
+                tanggalFix = row.TANGGAL.toISOString().split("T")[0];
+              } else {
+                // Fallback jika ternyata ada yang berupa teks string
+                let tglStr = getStr(row.TANGGAL);
+                let cleanTgl = tglStr.replace(/[^0-9\/]/g, "").trim();
+                if (cleanTgl.includes("/")) {
+                  let parts = cleanTgl.split("/");
+                  if (parts.length === 3) {
+                    let mm = parts[0].padStart(2, "0");
+                    let dd = parts[1].padStart(2, "0");
+                    let yyyy = parts[2];
+                    if (yyyy.length === 2) yyyy = "20" + yyyy;
+                    tanggalFix = `${yyyy}-${mm}-${dd}`;
+                  }
+                } else {
+                  tanggalFix = new Date().toISOString().split("T")[0];
                 }
               }
+
+              // ✅ 2. GUNAKAN NAMA FIELD YANG BENAR (PAKAI UNDERSCORE _)
+              const descRaw = getStr(row.PENJELASAN);
+              const totalRaw = getNum(row.N_RUPIAH_);
+              const total = Math.abs(totalRaw);
+              const kodeTrans = getStr(row.N_KODE_).toUpperCase();
+              const cabDBF = getStr(row.N_CABANG_);
+
+              // Skip jika tidak penting
+              if (!tanggalFix || !kodeTrans || total === 0) return;
+
+              const desc = descRaw.toUpperCase().replace(/"/g, "'");
 
               const cabFinal = cabDBF || cabang;
               const cabShort = (cabFinal || "PUSAT")
@@ -946,7 +955,6 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
               placeholders.push(`($${base + 1}, $${base + 2})`);
               values.push(id, JSON.stringify(jsonData));
             });
-
             if (placeholders.length > 0) {
               queryText += placeholders.join(", ");
               queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
@@ -1053,6 +1061,13 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         const { Dbf } = require("dbf-reader");
         const records = Dbf.read(fileDbf)?.rows || [];
         send(15, `DBF terbaca: ${records.length} baris`);
+        // ✅ DEBUG: Kirim 1 baris pertama DBF ke layar Browser untuk dicek
+        if (records.length > 0) {
+          send(
+            32,
+            "DEBUG ISI DBF BARIS PERTAMA: " + JSON.stringify(records[0]),
+          );
+        }
 
         if (records.length === 0) {
           send(100, "File DBF kosong", { success: false });
@@ -1090,12 +1105,12 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         send(30, "Memproses data...");
         const crypto = require("crypto");
         const noreffMap = {};
-        console.log(records);
+
         // Filter baris valid (total > 0)
         const validRecords = records.filter((row) => {
           const getNum = (val) =>
             val !== undefined && val !== null ? Number(val) : 0;
-          return getNum(row.N_RUPIAH) > 0;
+          return getNum(row.N_RUPIAH_) > 0;
         });
 
         send(
@@ -1142,11 +1157,11 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
                 // Gunakan Math.abs() jika nilai pengeluaran di DBF berupa minus (-)
                 // agar nilai nominalnya tetap menjadi positif saat disimpan ke JSON
-                const totalRaw = getNum(row.N_RUPIAH);
+                const totalRaw = getNum(row.N_RUPIAH_);
                 const total = Math.abs(totalRaw);
 
-                const kodeTrans = getStr(row.N_KODE).toUpperCase();
-                const cabDBF = getStr(row.N_CABANG);
+                const kodeTrans = getStr(row.N_KODE_).toUpperCase();
+                const cabDBF = getStr(row.N_CABANG_);
 
                 // ✅ PENGAMAN UTAMA FIXED: Hanya skip jika kolom kritikal benar-benar kosong atau nominalnya 0
                 if (!tglDbf || !kodeTrans || total === 0) {
