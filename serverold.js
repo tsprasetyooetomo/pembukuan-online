@@ -1276,7 +1276,8 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 );
               }
             }
-            console.log(jsonData);
+            console.log(placeholders);
+
             // Eksekusi Batch
             // Eksekusi Batch
             if (placeholders.length > 0) {
