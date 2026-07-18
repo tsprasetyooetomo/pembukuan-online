@@ -1181,7 +1181,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 // 1. Ambil langsung sesuai nama kolom DBF
                 const tglDbf = getStr(row.TANGGAL);
                 const descRaw = getStr(row.PENJELASAN);
-                const total = getNum(row.N_RUPIAH_);
+                const total = getNum(row.N_RUPIAH);
                 const kodeTrans = getStr(row.N_KODE).toUpperCase();
                 const cabDBF = getStr(row.N_CABANG);
 
