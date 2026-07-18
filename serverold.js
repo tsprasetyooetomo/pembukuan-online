@@ -1133,13 +1133,12 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         }
 
         // 2. PROSES PARSE DATA (TANPA MENGURANGI JUMLAH BARIS)
+        // 2. PROSES PARSE DATA
         send(30, "Memproses data...");
         const crypto = require("crypto");
-
-        // ✅ DICT UNTUK MENYIMPAN NOREFF BERDASARKAN TANGGAL & CABANG
         const noreffMap = {};
 
-        // Filter baris valid (total > 0) agar tidak membuang resource
+        // Filter baris valid (total > 0)
         const validRecords = records.filter((row) => {
           const getNum = (val) =>
             val !== undefined && val !== null ? Number(val) : 0;
@@ -1151,7 +1150,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           `${validRecords.length} data valid ditemukan, mulai menyimpan...`,
         );
 
-        // 3. INSERT KE DATABASE
+        // 3. INSERT KE DATABASE (HANYA KE KOLOM id DAN data)
         const client = await db.connect();
         try {
           await client.query("BEGIN");
@@ -1162,11 +1161,13 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
           for (let i = 0; i < validRecords.length; i += batchSize) {
             const batch = validRecords.slice(i, i + batchSize);
+
+            // Query FIX: Hanya menyebutkan kolom 'id' dan 'data'
             let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
             let values = [];
             let placeholders = [];
 
-            batch.forEach((row) => {
+            for (const row of batch) {
               const getStr = (val) =>
                 val !== undefined && val !== null ? String(val).trim() : "";
               const getNum = (val) =>
@@ -1177,46 +1178,31 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
               const total = getNum(row.N_RUPIAH_);
               const cabDBF = getStr(row.N_CABANG_) || cabang;
 
-              // Format Tanggal
-              // Format Tanggal (UNIVERSAL PARSER)
-              // Format Tanggal (FIX UNTUK FORMAT MM/DD/YYYY DARI DBF)
+              // --- 1. PARSING TANGGAL (AMAN MM/DD/YYYY) ---
               let tglStr = getStr(row.TANGGAL);
               let tanggalFix = new Date().toISOString().split("T")[0]; // Default hari ini jika kosong
 
               if (tglStr) {
-                // 1. Bersihkan dari karakter aneh (seperti spasi atau huruf di pinggir)
                 let cleanTgl = tglStr.replace(/[^0-9\/]/g, "").trim();
-
-                // 2. Pastikan ada garis miringnya
                 if (cleanTgl.includes("/")) {
                   let parts = cleanTgl.split("/");
-
-                  // Pastikan ada 3 bagian (Bulan, Tanggal, Tahun)
                   if (parts.length === 3) {
-                    let mm = parts[0].padStart(2, "0"); // Ambil Bulan (08)
-                    let dd = parts[1].padStart(2, "0"); // Ambil Tanggal (2 -> dijadiin 02)
-                    let yyyy = parts[2]; // Ambil Tahun (2024)
-
-                    // Jika tahunnya cuma 2 digit (misal 24), tambahkan 20 di depannya
+                    let mm = parts[0].padStart(2, "0");
+                    let dd = parts[1].padStart(2, "0");
+                    let yyyy = parts[2];
                     if (yyyy.length === 2) yyyy = "20" + yyyy;
-
-                    // Susun ulang ke format YYYY-MM-DD yang wajib dipakai Postgres
                     tanggalFix = `${yyyy}-${mm}-${dd}`;
-                    // Hasil dari 08/2/2024 akan EXACT menjadi "2024-08-02"
                   }
                 } else if (cleanTgl.length === 8 && !isNaN(cleanTgl)) {
-                  // FALLBACK: Jika ternyata suatu saat formatnya angka polos 20240802
                   tanggalFix = `${cleanTgl.substring(0, 4)}-${cleanTgl.substring(4, 6)}-${cleanTgl.substring(6, 8)}`;
                 }
               }
+
               const cabShort = (cabDBF || "PUSAT")
                 .substring(0, 3)
                 .toUpperCase();
-
-              // ✅ LOGIKA NOREFF: Buat key unik dari Tanggal + Cabang
               const noreffKey = `${cabShort}_${tanggalFix}`;
 
-              // Jika noreff untuk tanggal & cabang ini BELUM pernah dibuat, buat baru
               if (!noreffMap[noreffKey]) {
                 const randomStr = Math.random()
                   .toString(36)
@@ -1226,54 +1212,44 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   `KASIR-${cabShort}-${tanggalFix}-${randomStr}`;
               }
 
-              // Ambil noreff yang sudah pernah dibuat (atau baru saja dibuat)
               const noreff = noreffMap[noreffKey];
 
-              // Buat ID unik tetap berbeda untuk setiap baris
+              // ✅ PENTING: Pastikan ID ini sesuai tipe kolom 'id' di Supabase Anda
+              // Jika kolom 'id' di Supabase bertipe TEXT, pakai baris bawah ini:
+              // const id = `KSR-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+              // Jika kolom 'id' di Supabase bertipe UUID (standar Supabase), pakai ini:
               const id = crypto.randomUUID();
 
-              // ✅ LOGIKA PEMISAHAN DB & CR BERDASARKAN KODE TRANSASKI
+              // --- 2. PEMISAHAN DB & CR ---
               let nilaiDb = 0;
               let nilaiCr = 0;
-
-              if (
-                kodeTrans.startsWith("PJ") ||
-                kodeTrans.startsWith("TK") ||
-                kodeTrans.startsWith("KT")
-              ) {
-                // Masuk ke Debit
+              if (["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k))) {
                 nilaiDb = total;
-              } else if (
-                kodeTrans.startsWith("BE") ||
-                kodeTrans.startsWith("CS") ||
-                kodeTrans.startsWith("KK") ||
-                kodeTrans.startsWith("SK")
-              ) {
-                // Masuk ke Kredit
-                nilaiCr = total;
               } else {
-                // Fallback: Jika kode tidak dikenali, masukkan ke Debit
-                nilaiDb = total;
+                nilaiCr = total;
               }
 
-              const jsonData = JSON.stringify({
-                id,
+              // --- 3. BENTUK OBJEK JSON YANG AKAN MASUK KE KOLOM 'data' ---
+              const jsonData = {
+                id: id,
                 noreff: noreff,
                 tanggal: tanggalFix,
                 cabang: cabDBF,
-                group: group || "TLGA", // <-- TAMBAHKAN INI UNTUK MEMASUKKAN GROUP KE DATABASE
+                group: group || "TLGA",
                 kodeTrans: kodeTrans,
                 noperkiraan: "",
                 desc: desc,
                 total: total,
-                db: nilaiDb, // ✅ SEKARANG DINAMIS
-                cr: nilaiCr, // ✅ SEKARANG DINAMIS
-              });
+                db: nilaiDb,
+                cr: nilaiCr,
+              };
 
               const base = values.length;
               placeholders.push(`($${base + 1}, $${base + 2})`);
-              values.push(id, jsonData);
-            });
+              // Masukkan ID sebagai parameter 1, dan JSON Stringify sebagai parameter 2
+              values.push(id, JSON.stringify(jsonData));
+            }
 
             if (placeholders.length > 0) {
               queryText += placeholders.join(", ");
@@ -1300,6 +1276,8 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           res.end();
         } catch (txError) {
           await client.query("ROLLBACK");
+          // KODE INI DIPERBAIKI: Agar error yang muncul di layar lebih detail
+          console.error("DETAIL ERROR DB:", txError);
           send(100, "Gagal simpan DB: " + txError.message, { success: false });
           res.end();
         } finally {
