@@ -1156,122 +1156,27 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         try {
           await client.query("BEGIN");
 
-          let savedCount = 0;
-          const batchSize = 500;
-          const totalBatches = Math.ceil(validRecords.length / batchSize);
+          // ==========================================
+          // TES SANGAT SEDERHANA: SIMPAN 1 DATA PALSU
+          // ==========================================
+          const idTes = crypto.randomUUID(); // <-- GANTI JADI: 'TES-001' (jika id Anda bertipe text)
+          const dataTes = JSON.stringify({
+            tanggal: "2024-01-01",
+            cabang: "04",
+            group: "TLGA",
+            total: 100000,
+          });
 
-          for (let i = 0; i < validRecords.length; i += batchSize) {
-            const batch = validRecords.slice(i, i + batchSize);
+          const sqlTes = `INSERT INTO mutasikasir (id, data) VALUES ($1, $2::jsonb) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
 
-            let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
-            let values = [];
-            let placeholders = [];
-
-            for (const row of batch) {
-              const getStr = (val) =>
-                val !== undefined && val !== null ? String(val).trim() : "";
-              const getNum = (val) =>
-                val !== undefined && val !== null ? Number(val) : 0;
-
-              const kodeTrans = getStr(row.N_KODE_).toUpperCase();
-              const desc = getStr(row.PENJELASAN).toUpperCase();
-              const total = getNum(row.N_RUPIAH_);
-              const cabDBF = getStr(row.N_CABANG_) || cabang;
-
-              // --- 1. PARSING TANGGAL ---
-              let tglStr = getStr(row.TANGGAL);
-              let tanggalFix = new Date().toISOString().split("T")[0];
-
-              if (tglStr) {
-                let cleanTgl = tglStr.replace(/[^0-9\/]/g, "").trim();
-                if (cleanTgl.includes("/")) {
-                  let parts = cleanTgl.split("/");
-                  if (parts.length === 3) {
-                    let mm = parts[0].padStart(2, "0");
-                    let dd = parts[1].padStart(2, "0");
-                    let yyyy = parts[2];
-                    if (yyyy.length === 2) yyyy = "20" + yyyy;
-                    tanggalFix = `${yyyy}-${mm}-${dd}`;
-                  }
-                } else if (cleanTgl.length === 8 && !isNaN(cleanTgl)) {
-                  tanggalFix = `${cleanTgl.substring(0, 4)}-${cleanTgl.substring(4, 6)}-${cleanTgl.substring(6, 8)}`;
-                }
-              }
-
-              const cabShort = (cabDBF || "PUSAT")
-                .substring(0, 3)
-                .toUpperCase();
-              const noreffKey = `${cabShort}_${tanggalFix}`;
-
-              if (!noreffMap[noreffKey]) {
-                const randomStr = Math.random()
-                  .toString(36)
-                  .substr(2, 4)
-                  .toUpperCase();
-                noreffMap[noreffKey] =
-                  `KASIR-${cabShort}-${tanggalFix}-${randomStr}`;
-              }
-
-              const noreff = noreffMap[noreffKey];
-
-              // ⚠️ CEK POINT PENTING: Sesuaikan ini dengan tipe kolom 'id' di Supabase Anda!
-              // Jika kolom 'id' bertipe uuid -> pakai crypto.randomUUID()
-              // Jika kolom 'id' bertipe text -> pakai: const id = 'id-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-              const id = crypto.randomUUID();
-
-              // --- 2. PEMISAHAN DB & CR ---
-              let nilaiDb = 0;
-              let nilaiCr = 0;
-              if (["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k))) {
-                nilaiDb = total;
-              } else {
-                nilaiCr = total;
-              }
-
-              // --- 3. BENTUK JSON ---
-              const jsonData = {
-                id: id,
-                noreff: noreff,
-                tanggal: tanggalFix,
-                cabang: cabDBF,
-                group: group || "TLGA",
-                kodeTrans: kodeTrans,
-                noperkiraan: "",
-                desc: desc,
-                total: total,
-                db: nilaiDb,
-                cr: nilaiCr,
-              };
-
-              const base = values.length;
-              // ✅ PERBAIKAN UTAMA: TAMBAHKAN ::jsonb DI AKHIR $2
-              placeholders.push(`($${base + 1}, $${base + 2}::jsonb)`);
-              values.push(id, JSON.stringify(jsonData));
-            }
-
-            if (placeholders.length > 0) {
-              queryText += placeholders.join(", ");
-              queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
-              await client.query(queryText, values);
-            }
-
-            savedCount += batch.length;
-            const currentBatch = Math.floor(i / batchSize) + 1;
-            const pct = 40 + Math.round((currentBatch / totalBatches) * 60);
-
-            send(
-              pct,
-              `Menyimpan ke Supabase... (${savedCount}/${validRecords.length} data)`,
-            );
-          }
+          await client.query(sqlTes, [idTes, dataTes]);
 
           await client.query("COMMIT");
-          send(
-            100,
-            `Sukses! ${savedCount} data kasir cabang ${cabang} tersimpan`,
-            { success: true },
-          );
+          send(100, `Tes berhasil! Data palsu tersimpan.`, { success: true });
           res.end();
+          // ==========================================
+          // AKHIR TES
+          // ==========================================
         } catch (txError) {
           await client.query("ROLLBACK");
 
