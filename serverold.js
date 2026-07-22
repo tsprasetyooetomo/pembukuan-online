@@ -1068,7 +1068,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no"); // Matiin buffer Railway/Nginx
+  res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
   const send = (percent, msg, extra = {}) => {
@@ -1105,29 +1105,27 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           return res.end();
         }
 
+        if (!cabang) {
+          send(100, "Parameter cabang tidak ada", { success: false });
+          return res.end();
+        }
+
         send(5, "Membaca file DBF di server...");
         const { Dbf } = require("dbf-reader");
         const records = Dbf.read(fileDbf)?.rows || [];
         send(15, `DBF terbaca: ${records.length} baris`);
-        // ✅ DEBUG: Kirim 1 baris pertama DBF ke layar Browser untuk dicek
-        if (records.length > 0) {
-          send(
-            32,
-            "DEBUG ISI DBF BARIS PERTAMA: " + JSON.stringify(records[0]),
-          );
-        }
 
         if (records.length === 0) {
           send(100, "File DBF kosong", { success: false });
           return res.end();
         }
 
-        if (!cabang) {
-          send(100, "Parameter cabang tidak ada", { success: false });
-          return res.end();
-        }
+        const crypto = require("crypto");
+        const client = await db.connect();
 
+        // ==========================================
         // 1. HAPUS DATA LAMA JIKA DIPILIH
+        // ==========================================
         if (hapus_tahun || hapus_bulan) {
           send(20, "Menghapus data lama di database...");
           const cabShort = (cabang || "PUSAT").substring(0, 3).toUpperCase();
@@ -1139,26 +1137,26 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
             norefPrefix += `${hapus_tahun}`;
           }
 
-          let sql = `DELETE FROM mutasikasir WHERE CAST(data AS jsonb)->>'noreff' LIKE $1`;
+          // Karena tipe data TEXT, gunakan LIKE
+          let sql = `DELETE FROM mutasikasir WHERE data LIKE $1`;
           let params = [`${norefPrefix}%`];
-
-          await db.query(sql, params);
+          await client.query(sql, params);
           send(25, "Data lama berhasil dihapus");
         } else {
           send(25, "Mode tambah data (tidak menghapus yang lama)");
         }
 
-        // 2. PROSES PARSE DATA (TANPA MENGURANGI JUMLAH BARIS)
+        // ==========================================
         // 2. PROSES PARSE DATA
+        // ==========================================
         send(30, "Memproses data...");
-        const crypto = require("crypto");
         const noreffMap = {};
+        let lastParsedFormat = "MDY"; // ✅ DARI FOXPRO: Smart parser tanggal
 
-        // Filter baris valid (total > 0)
         const validRecords = records.filter((row) => {
           const getNum = (val) =>
             val !== undefined && val !== null ? Number(val) : 0;
-          return getNum(row.N_RUPIAH_) > 0;
+          return getNum(row.RUPIAH) > 0; // Sesuaikan nama kolom DBF jika berbeda
         });
 
         send(
@@ -1166,21 +1164,19 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           `${validRecords.length} data valid ditemukan, mulai menyimpan...`,
         );
 
-        // 3. INSERT KE DATABASE (HANYA KE KOLOM id DAN data)
-        // 3. INSERT KE DATABASE (FIX CASTING JSONB)
-        const client = await db.connect();
+        // ==========================================
+        // 3. INSERT KE DATABASE (POLA FOXPRO: BATCH 500)
+        // ==========================================
         try {
           await client.query("BEGIN");
 
           let savedCount = 0;
-          let errorCount = 0; // Menghitung baris yang error/diskip
-          // ... (Kode bagian atas tetap sama)
-          const batchSize = 500;
+          let errorCount = 0;
+          const batchSize = 500; // ✅ DARI FOXPRO: Batching 500 baris
           const totalBatches = Math.ceil(validRecords.length / batchSize);
 
           for (let i = 0; i < validRecords.length; i += batchSize) {
             const batch = validRecords.slice(i, i + batchSize);
-
             let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
             let values = [];
             let placeholders = [];
@@ -1192,9 +1188,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   continue;
                 }
 
-                // ==========================================
-                // MAPPING LANGSUNG FIELD DBF FOXPRO
-                // ==========================================
                 const getStr = (val) =>
                   val !== undefined && val !== null ? String(val).trim() : "";
                 const getNum = (val) =>
@@ -1202,37 +1195,27 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
                 const tglDbf = getStr(row.TANGGAL);
                 const descRaw = getStr(row.PENJELASAN);
-
-                // Gunakan Math.abs() jika nilai pengeluaran di DBF berupa minus (-)
-                // agar nilai nominalnya tetap menjadi positif saat disimpan ke JSON
                 const totalRaw = getNum(row.RUPIAH);
                 const total = Math.abs(totalRaw);
-
                 const kodeTrans = getStr(row.KODE).toUpperCase();
                 const cabDBF = cabang;
 
-                // ✅ PENGAMAN UTAMA FIXED: Hanya skip jika kolom kritikal benar-benar kosong atau nominalnya 0
                 if (!tglDbf || !kodeTrans || total === 0) {
                   errorCount++;
                   continue;
                 }
 
-                // Bersihkan Deskripsi
                 const desc = descRaw.toUpperCase().replace(/"/g, "'");
 
-                // 1. Ambil teks tanggal asli dari DBF dan bersihkan dari karakter aneh
-                let cleanTgl = tglDbf.replace(/[^0-9\/]/g, "").trim();
-                // 1. PARSING TANGGAL (SMART PARSER ANTI TERBALIK)
+                // ✅ DARI FOXPRO: Smart Parser Tanggal Anti Terbalik
                 let tanggalFix = "";
-                let tglStr = "";
-
                 if (row.TANGGAL instanceof Date) {
                   let mm = String(row.TANGGAL.getMonth() + 1).padStart(2, "0");
                   let dd = String(row.TANGGAL.getDate()).padStart(2, "0");
                   let yyyy = row.TANGGAL.getFullYear();
                   tanggalFix = `${yyyy}-${mm}-${dd}`;
                 } else {
-                  tglStr = String(row.TANGGAL || "").trim();
+                  let tglStr = String(row.TANGGAL || "").trim();
                   let cleanTgl = tglStr.replace(/[^0-9\/]/g, "");
 
                   if (cleanTgl.includes("/")) {
@@ -1242,40 +1225,35 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                       let part2 = parts[1].padStart(2, "0");
                       let yyyy =
                         parts[2].length === 2 ? "20" + parts[2] : parts[2];
-
                       let mm = "",
                         dd = "";
 
-                      // Jika angka pertama > 12, pasti itu TANGGAL (Format DD/MM)
                       if (parseInt(part1) > 12) {
                         dd = part1;
                         mm = part2;
-                      }
-                      // Jika angka kedua > 12, pasti itu TANGGAL (Format MM/DD)
-                      else if (parseInt(part2) > 12) {
+                      } else if (parseInt(part2) > 12) {
                         mm = part1;
                         dd = part2;
-                      }
-                      // JIKA KEDUANYA < 12 (Misal 01/08/2024), GUNAKAN POLA DARI BARIS SEBELUMNYA
-                      else {
+                      } else {
                         if (lastParsedFormat === "DMY") {
                           dd = part1;
                           mm = part2;
                         } else {
                           mm = part1;
-                          dd = part2; // Default tetap MM/DD
+                          dd = part2;
                         }
                       }
-
-                      // SIMPAN POLA SAAT INI UNTUK MENJADI ACUAN BARIS SELANJUTNYA
                       lastParsedFormat = parseInt(part1) > 12 ? "DMY" : "MDY";
-
                       tanggalFix = `${yyyy}-${mm}-${dd}`;
                     }
                   }
                 }
 
-                if (!tanggalFix) continue;
+                if (!tanggalFix) {
+                  errorCount++;
+                  continue;
+                }
+
                 const cabFinal = cabDBF || cabang;
                 const cabShort = (cabFinal || "PUSAT")
                   .substring(0, 3)
@@ -1294,11 +1272,8 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 const noreff = noreffMap[noreffKey];
                 const id = crypto.randomUUID();
 
-                // Logika DB & CR berdasarkan nilai asli (apakah minus atau kode PJ/TK/KT)
                 let nilaiDb = 0;
                 let nilaiCr = 0;
-
-                // Jika kode berawalan PJ/TK/KT atau nilai aslinya positif, masuk Debit
                 if (
                   ["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k)) ||
                   totalRaw > 0
@@ -1322,12 +1297,12 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   cr: nilaiCr,
                 };
 
+                // ✅ DARI FOXPRO: Penggunaan base index yang rapi
                 const base = values.length;
                 placeholders.push(`($${base + 1}, $${base + 2})`);
                 values.push(id, JSON.stringify(jsonData));
               } catch (errPerBaris) {
                 errorCount++;
-                // Ini akan menampilkan di log server bagian mana yang memicu error internal JavaScript
                 console.warn(
                   "Gagal mapping baris karena: ",
                   errPerBaris.message,
@@ -1335,13 +1310,11 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
               }
             }
 
-            // Eksekusi Batch
-            // Eksekusi Batch
+            // ✅ DARI FOXPRO: Eksekusi aman per batch
             if (placeholders.length > 0) {
-              queryText += placeholders.join(", ");
-              queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
-
-              // ✅ PENGAMAN: Tangkap error QUERY saja, lempar ke atas jika gagal
+              queryText +=
+                placeholders.join(", ") +
+                ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
               try {
                 await client.query(queryText, values);
               } catch (errDb) {
@@ -1353,21 +1326,19 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
             const currentBatch = Math.floor(i / batchSize) + 1;
             const pct = 40 + Math.round((currentBatch / totalBatches) * 60);
 
-            // ✅ PENGAMAN: Cegah error jika koneksi SSE sudah terputus/tertutup browser
+            // ✅ DARI FOXPRO: Pengaman stream agar server tidak crash kalau browser ditutup
             try {
               send(
                 pct,
-                `Menyimpan ke Supabase... (${savedCount} data berhasil masuk)`,
+                `Menyimpan ke database... (${savedCount} data berhasil masuk)`,
               );
             } catch (errStream) {
-              // Abaikan error stream, yang penting database sudah dapat datanya
               console.log("Stream terputus, tapi data tetap disimpan.");
             }
           }
 
           await client.query("COMMIT");
 
-          // ✅ PENGAMAN TERAKHIR SAAT KIRIM SUKSES
           try {
             send(
               100,
@@ -1376,7 +1347,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
             );
             res.end();
           } catch (errEndStream) {
-            // Jika stream mati di detik terakhir, paksa tutup koneksi
             res.end();
           }
         } catch (txError) {
@@ -1384,7 +1354,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           let pesanError =
             "Gagal simpan DB: " + (txError.detail || txError.message);
           console.error("DETAIL ERROR DB:", txError);
-
           try {
             send(100, pesanError, { success: false });
             res.end();
