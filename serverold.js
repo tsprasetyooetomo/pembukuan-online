@@ -868,8 +868,8 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                 v.push(
                   id,
                   JSON.stringify({
-                    gol: String(r.GOL || r.gol || "").trim(),
-                    namaGol: String(r.NAMAGOL || r.namaGol || "").trim(),
+                    gol: String(r.GOLACCT || r.gol || "").trim(),
+                    namaGol: String(r.PJLSAN || r.namaGol || "").trim(),
                     tipe: String(r.TIPE || r.tipe || "Golongan").trim(),
                     masa: masa, // Pakai masa dari frontend
                     awal: Number(r.AWAL || r.awal || 0),
@@ -910,9 +910,9 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                 v.push(
                   id,
                   JSON.stringify({
-                    gol: String(r.GOL || r.gol || "").trim(),
-                    noPerk: String(r.NOPERK || r.noPerk || "").trim(),
-                    desc: String(r.DESC || r.desc || "").trim(),
+                    gol: String(r.GOLACCT || r.gol || "").trim(),
+                    noPerk: String(r.SUBACCT || r.noPerk || "").trim(),
+                    desc: String(r.PJLSAN || r.desc || "").trim(),
                     tipe: String(r.TIPE || r.tipe || "Perkiraan").trim(),
                     masa: masa, // Pakai masa dari frontend
                     awal: Number(r.AWAL || r.awal || 0),
@@ -954,22 +954,25 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                   id,
                   JSON.stringify({
                     id: id + "_" + String(r.NO || r.no || i).trim(), // Sesuai format Anda yang ada underscore
-                    noreff: String(r.NOREFF || r.noreff || "").trim(),
-                    tanggal: fixDate(r.TANGGAL || r.tanggal),
-                    kodeBank: String(r.KODEBANK || r.kodeBank || "").trim(),
-                    cabang: String(r.CABANG || r.cabang || cabang).trim(),
+                    noreff: String(r.REFF || r.noreff || "").trim(),
+                    tanggal: fixDate(r.DATE || r.tanggal),
+                    kodeBank: String(r.REFF || r.noreff || "")
+                      .trim()
+                      .substring(3, 4),
+
                     dariKePada: String(
                       r.DARIKEPADA || r.dariKePada || "",
                     ).trim(),
-                    noperkiraan: String(
-                      r.NOPERKIRAAN || r.noperkiraan || "",
-                    ).trim(),
+                    noperkiraan: String(r.NOACCT || r.noperkiraan || "").trim(),
                     desc: String(r.DESC || r.desc || "").trim(),
-                    total: Number(r.TOTAL || r.total || 0),
+                    total:
+                      Number(r.DB || r.db || 0) + Number(r.CR || r.cr || 0),
                     db: Number(r.DB || r.db || 0),
                     cr: Number(r.CR || r.cr || 0),
+
                     kodeTrans: String(r.KODETRANS || r.kodeTrans || "").trim(),
                     masa: masa, // Pakai masa dari frontend
+                    cabang: String(r.KODE || r.cabang || cabang).trim(),
                     group: group || "TLGA",
                   }),
                 );
