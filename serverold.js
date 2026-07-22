@@ -874,23 +874,11 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           // ==========================================
           send(9, "Menghapus data lama bulan ini...");
 
-          // Kita hapus data yang di kolom JSON-nya (data->>'cabang') sama dengan cabang yang dipilih
-          // DAN (data->>'masa') sama dengan masa yang sedang diproses
-          await client.query(
-            `DELETE FROM golongan${tahun} WHERE data->>'cabang' = $1`,
-            [cabang],
-          );
+          const whereCabang = `WHERE data LIKE '%"cabang": "${cabang}"%'`;
 
-          await client.query(
-            `DELETE FROM perkiraan${tahun} WHERE data->>'cabang' = $1`,
-            [cabang],
-          );
-
-          await client.query(
-            `DELETE FROM transaksi${tahun} WHERE data->>'cabang' = $1`,
-            [cabang],
-          );
-
+          await client.query(`DELETE FROM golongan${tahun} ${whereCabang}`);
+          await client.query(`DELETE FROM perkiraan${tahun} ${whereCabang}`);
+          await client.query(`DELETE FROM transaksi${tahun} ${whereCabang}`);
           // ==========================================
           // 1. PROSES CDG -> golongan_2026
           // ==========================================
