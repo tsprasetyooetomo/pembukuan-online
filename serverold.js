@@ -1209,7 +1209,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 const total = Math.abs(totalRaw);
 
                 const kodeTrans = getStr(row.KODE).toUpperCase();
-                const cabDBF = cabang,
+                const cabDBF = cabang;
 
                 // ✅ PENGAMAN UTAMA FIXED: Hanya skip jika kolom kritikal benar-benar kosong atau nominalnya 0
                 if (!tglDbf || !kodeTrans || total === 0) {
