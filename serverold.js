@@ -874,15 +874,14 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           // ==========================================
           send(9, "Menghapus data lama bulan ini...");
           // Gunakan parameter $1 di dalam perintah SQL
+          // Kita konversi kolom data (text) menjadi jsonb secara langsung di dalam query SQL
           const queryHapus = (tabel) =>
-            `DELETE FROM ${tabel}${tahun} WHERE data LIKE $1`;
+            `DELETE FROM ${tabel}${tahun} WHERE (data::jsonb)->>'cabang' = $1`;
 
-          // Gabungkan tanda persen (%) ke dalam nilai parameter, bukan di string SQL
-          const keywordPencarian = `%"cabang": "${cabang}"%`;
-
-          await client.query(queryHapus("golongan"), [keywordPencarian]);
-          await client.query(queryHapus("perkiraan"), [keywordPencarian]);
-          await client.query(queryHapus("transaksi"), [keywordPencarian]);
+          // Jalankan perintah dengan aman menggunakan parameter $1
+          await client.query(queryHapus("golongan"), [cabang]);
+          await client.query(queryHapus("perkiraan"), [cabang]);
+          await client.query(queryHapus("transaksi"), [cabang]);
 
           // ==========================================
           // 1. PROSES CDG -> golongan_2026
