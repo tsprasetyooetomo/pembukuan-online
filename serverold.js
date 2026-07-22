@@ -873,15 +873,15 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           // 0. HAPUS DATA LAMA BERDASARKAN CABANG & MASA
           // ==========================================
           send(9, "Menghapus data lama bulan ini...");
-          // Gunakan parameter $1 di dalam perintah SQL
-          // Kita konversi kolom data (text) menjadi jsonb secara langsung di dalam query SQL
-          const queryHapus = (tabel) =>
-            `DELETE FROM ${tabel}${tahun} WHERE (data::jsonb)->>'cabang' = $1`;
 
-          // Jalankan perintah dengan aman menggunakan parameter $1
-          await client.query(queryHapus("golongan"), [cabang]);
-          await client.query(queryHapus("perkiraan"), [cabang]);
-          await client.query(queryHapus("transaksi"), [cabang]);
+          // Modifikasi query untuk memfilter cabang ($1) DAN masa ($2)
+          const queryHapus = (tabel) =>
+            `DELETE FROM ${tabel}${tahun} WHERE (data::jsonb)->>'cabang' = $1 AND (data::jsonb)->>'masa' = $2`;
+
+          // Jalankan perintah dengan aman dengan mengirimkan array [cabang, masa]
+          await client.query(queryHapus("golongan"), [cabang, masa]);
+          await client.query(queryHapus("perkiraan"), [cabang, masa]);
+          await client.query(queryHapus("transaksi"), [cabang, masa]);
 
           // ==========================================
           // 1. PROSES CDG -> golongan_2026
