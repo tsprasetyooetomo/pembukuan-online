@@ -981,9 +981,11 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     ).trim(),
                     noperkiraan: String(r.NOACCT || r.noperkiraan || "").trim(),
                     desc: String(r.DESC || r.desc || "").trim(),
-                    total: Number(r.TOTAL || r.total || 0),
+                    total:
+                      Number(r.DB || r.db || 0) + Number(r.CR || r.cr || 0),
                     db: Number(r.DB || r.db || 0),
                     cr: Number(r.CR || r.cr || 0),
+
                     kodeTrans: String(r.KODETRANS || r.kodeTrans || "").trim(),
                     masa: masa,
                     cabang: cabang,
