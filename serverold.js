@@ -877,16 +877,18 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           // Kita hapus data yang di kolom JSON-nya (data->>'cabang') sama dengan cabang yang dipilih
           // DAN (data->>'masa') sama dengan masa yang sedang diproses
           await client.query(
-            `DELETE FROM golongan${tahun} WHERE data->>'cabang' = $1 AND data->>'masa' = $2`,
-            [cabang, masa],
+            `DELETE FROM golongan${tahun} WHERE data->>'cabang' = $1`,
+            [cabang],
           );
+
           await client.query(
-            `DELETE FROM perkiraan${tahun} WHERE data->>'cabang' = $1 AND data->>'masa' = $2`,
-            [cabang, masa],
+            `DELETE FROM perkiraan${tahun} WHERE data->>'cabang' = $1`,
+            [cabang],
           );
+
           await client.query(
-            `DELETE FROM transaksi${tahun} WHERE data->>'cabang' = $1 AND data->>'masa' = $2`,
-            [cabang, masa],
+            `DELETE FROM transaksi${tahun} WHERE data->>'cabang' = $1`,
+            [cabang],
           );
 
           // ==========================================
