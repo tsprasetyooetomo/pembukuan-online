@@ -819,11 +819,30 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
 
     bb.on("finish", async () => {
       try {
-        const { cabang, group } = fields; // ✅ Hapus_tahun & hapus_bulan dihilangkan
+        const { kode_cabang: cabang, group } = fields;
+
         const fileDbf = files["file_dbf"];
 
+        // GANTI:
+        // const fileDbf = files["file_dbf"];
+        // if (!fileDbf) { ... }
+
+        // MENJADI:
+        const fileCdg = files["file_cdg"];
+        const fileCdd = files["file_cdd"];
+        const fileDet = files["file_det"];
+
+        if (!fileCdg && !fileCdd && !fileDet) {
+          send(100, "File CDG/CDD/DET tidak ditemukan", { success: false });
+          return res.end();
+        }
+
+        // Lalu, untuk proses pembacaan DBF-nya, tentukan mana yang akan diproses
+        // Contoh jika Anda mau proses file DET:
+        const fileDbf = fileDet;
+
         if (!fileDbf) {
-          send(100, "File DBF tidak ditemukan", { success: false });
+          send(100, "File DET tidak ditemukan", { success: false });
           return res.end();
         }
 
