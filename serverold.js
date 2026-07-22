@@ -833,13 +833,24 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         const crypto = require("crypto");
         const client = await db.connect();
 
+        // ==========================================
+        // FUNGSI BARU: UNTUK MEMBUAT TABEL JIKA BELUM ADA
+        // ==========================================
+        const ensureTableExists = async (tableName) => {
+          await client.query(`
+            CREATE TABLE IF NOT EXISTS ${tableName} (
+              id TEXT PRIMARY KEY,
+              data JSONB NOT NULL
+            );
+          `);
+        };
+
         // Helper khusus untuk format tanggal "Fri Feb 13 2026..." milik DET
         const fixDate = (val) => {
           if (!val) return null;
           if (val instanceof Date) return val.toISOString().split("T")[0];
           const str = String(val).trim();
           if (/^[A-Z][a-z]/.test(str)) {
-            // Cek apakah diawali huruf besar lalu kecil (nama hari)
             const d = new Date(str);
             return isNaN(d.getTime()) ? null : d.toISOString().split("T")[0];
           }
@@ -850,6 +861,14 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           await client.query("BEGIN");
           let totalSaved = 0;
 
+          // --- CEK & BUAT TABEL KE-3 TABLE TERLEBIH DAHULU ---
+          send(8, "Menyiapkan tabel database...");
+          await ensureTableExists(`golongan${tahun}`);
+          await ensureTableExists(`perkiraan${tahun}`);
+          await ensureTableExists(`transaksi${tahun}`);
+          // Jika mutasikasir juga dynamic, tambahkan di sini. Jika sudah pasti ada, biarkan saja.
+          // await ensureTableExists(`mutasikasir`);
+
           // ==========================================
           // 1. PROSES CDG -> golongan_2026
           // ==========================================
@@ -857,21 +876,20 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             send(10, "Membaca file CDG...");
             const rows = Dbf.read(fileCdg)?.rows || [];
             if (rows.length > 0) {
-              let q = `INSERT INTO golongan_${tahun} (id, data) VALUES `;
+              let q = `INSERT INTO golongan${tahun} (id, data) VALUES `;
               let v = [],
                 p = [];
               rows.forEach((r, i) => {
                 const id = crypto.randomUUID();
                 const base = i * 2;
                 p.push(`($${base + 1}, $${base + 2})`);
-                // Disesuaikan dengan contoh JSON golongan Anda
                 v.push(
                   id,
                   JSON.stringify({
                     gol: String(r.GOLACCT || r.gol || "").trim(),
                     namaGol: String(r.PJLSAN || r.namaGol || "").trim(),
                     tipe: String(r.TIPE || r.tipe || "Golongan").trim(),
-                    masa: masa, // Pakai masa dari frontend
+                    masa: masa,
                     awal: Number(r.AWAL || r.awal || 0),
                     db: Number(r.DB || r.db || 0),
                     cr: Number(r.CR || r.cr || 0),
@@ -899,22 +917,21 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             send(35, "Membaca file CDD...");
             const rows = Dbf.read(fileCdd)?.rows || [];
             if (rows.length > 0) {
-              let q = `INSERT INTO perkiraan_${tahun} (id, data) VALUES `;
+              let q = `INSERT INTO perkiraan${tahun} (id, data) VALUES `;
               let v = [],
                 p = [];
               rows.forEach((r, i) => {
                 const id = crypto.randomUUID();
                 const base = i * 2;
                 p.push(`($${base + 1}, $${base + 2})`);
-                // Disesuaikan dengan contoh JSON perkiraan Anda
                 v.push(
                   id,
                   JSON.stringify({
-                    gol: String(r.GOLACCT || r.gol || "").trim(),
+                    gol: String(r.GOL || r.gol || "").trim(),
                     noPerk: String(r.SUBACCT || r.noPerk || "").trim(),
                     desc: String(r.PJLSAN || r.desc || "").trim(),
                     tipe: String(r.TIPE || r.tipe || "Perkiraan").trim(),
-                    masa: masa, // Pakai masa dari frontend
+                    masa: masa,
                     awal: Number(r.AWAL || r.awal || 0),
                     db: Number(r.DB || r.db || 0),
                     cr: Number(r.CR || r.cr || 0),
@@ -942,18 +959,17 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
             send(65, "Membaca file DET...");
             const rows = Dbf.read(fileDet)?.rows || [];
             if (rows.length > 0) {
-              let q = `INSERT INTO transaksi_${tahun} (id, data) VALUES `;
+              let q = `INSERT INTO transaksi${tahun} (id, data) VALUES `;
               let v = [],
                 p = [];
               rows.forEach((r, i) => {
                 const id = crypto.randomUUID();
                 const base = i * 2;
                 p.push(`($${base + 1}, $${base + 2})`);
-                // Disesuaikan dengan contoh JSON transaksi Anda
                 v.push(
                   id,
                   JSON.stringify({
-                    id: id + "_" + String(r.NO || r.no || i).trim(), // Sesuai format Anda yang ada underscore
+                    id: id + "_" + String(r.NO || r.no || i).trim(),
                     noreff: String(r.REFF || r.noreff || "").trim(),
                     tanggal: fixDate(r.DATE || r.tanggal),
                     kodeBank: String(r.REFF || r.noreff || "")
@@ -965,14 +981,12 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
                     ).trim(),
                     noperkiraan: String(r.NOACCT || r.noperkiraan || "").trim(),
                     desc: String(r.DESC || r.desc || "").trim(),
-                    total:
-                      Number(r.DB || r.db || 0) + Number(r.CR || r.cr || 0),
+                    total: Number(r.TOTAL || r.total || 0),
                     db: Number(r.DB || r.db || 0),
                     cr: Number(r.CR || r.cr || 0),
-
                     kodeTrans: String(r.KODETRANS || r.kodeTrans || "").trim(),
-                    masa: masa, // Pakai masa dari frontend
-                    cabang: String(r.KODE || r.cabang || cabang).trim(),
+                    masa: masa,
+                    cabang: cabang,
                     group: group || "TLGA",
                   }),
                 );
@@ -989,7 +1003,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           }
 
           // ==========================================
-          // SELESAI (Dulu ada Mutasi Kasir di sini, saya comment dulu)
+          // SELESAI
           // ==========================================
           await client.query("COMMIT");
           send(100, `Sukses bulan ${bulan}! ${totalSaved} data tersimpan.`, {
