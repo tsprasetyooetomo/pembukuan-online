@@ -840,7 +840,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           await client.query(`
             CREATE TABLE IF NOT EXISTS ${tableName} (
               id TEXT PRIMARY KEY,
-              data JSONB NOT NULL
+              data TEXT NOT NULL
             );
           `);
         };
