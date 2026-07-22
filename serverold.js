@@ -816,194 +816,189 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     bb.on("field", (name, val) => {
       fields[name] = val;
     });
-
     bb.on("finish", async () => {
       try {
-        const { kode_cabang: cabang, group } = fields;
-
-        const fileDbf = files["file_dbf"];
-
-        // GANTI:
-        // const fileDbf = files["file_dbf"];
-        // if (!fileDbf) { ... }
-
-        // MENJADI:
-        const fileCdg = files["file_cdg"];
+        const { kode_cabang: cabang, group, tahun, bulan, masa } = fields;
         const fileCdd = files["file_cdd"];
+        const fileCdg = files["file_cdg"];
         const fileDet = files["file_det"];
 
-        if (!fileCdg && !fileCdd && !fileDet) {
+        if (!fileCdd && !fileCdg && !fileDet) {
           send(100, "File CDG/CDD/DET tidak ditemukan", { success: false });
           return res.end();
         }
 
-        // Lalu, untuk proses pembacaan DBF-nya, tentukan mana yang akan diproses
-        // Contoh jika Anda mau proses file DET:
-        const fileDbf = fileDet;
-
-        if (!fileDbf) {
-          send(100, "File DET tidak ditemukan", { success: false });
-          return res.end();
-        }
-
-        send(10, "Membaca file DBF di server...");
+        send(5, `Mulai proses bulan ${bulan} (Masa ${masa})...`);
         const { Dbf } = require("dbf-reader");
-        const records = Dbf.read(fileDbf)?.rows || [];
-        send(25, `DBF terbaca: ${records.length} baris`);
-
-        if (records.length === 0) {
-          send(100, "File DBF kosong", { success: false });
-          return res.end();
-        }
-
-        if (!cabang) {
-          send(100, "Parameter cabang tidak ada", { success: false });
-          return res.end();
-        }
-
-        // 2. PERSIAPAN
-        send(35, "Memproses data...");
         const crypto = require("crypto");
-        const noreffMap = {};
-        const recordsToProcess = records || [];
-
-        send(
-          50,
-          `${recordsToProcess.length} baris ditemukan, mulai menyimpan...`,
-        );
-
-        // 3. INSERT KE DATABASE
         const client = await db.connect();
+
+        // Helper khusus untuk format tanggal "Fri Feb 13 2026..." milik DET
+        const fixDate = (val) => {
+          if (!val) return null;
+          if (val instanceof Date) return val.toISOString().split("T")[0];
+          const str = String(val).trim();
+          if (/^[A-Z][a-z]/.test(str)) {
+            // Cek apakah diawali huruf besar lalu kecil (nama hari)
+            const d = new Date(str);
+            return isNaN(d.getTime()) ? null : d.toISOString().split("T")[0];
+          }
+          return null;
+        };
+
         try {
           await client.query("BEGIN");
+          let totalSaved = 0;
 
-          let savedCount = 0;
-          const batchSize = 500;
-          const totalBatches = Math.ceil(recordsToProcess.length / batchSize);
-
-          for (let i = 0; i < recordsToProcess.length; i += batchSize) {
-            const batch = recordsToProcess.slice(i, i + batchSize);
-            let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
-            let values = [];
-            let placeholders = [];
-
-            batch.forEach((row, index) => {
-              const getStr = (val) =>
-                val !== undefined && val !== null ? String(val).trim() : "";
-              const getNum = (val) =>
-                val !== undefined && val !== null ? Number(val) : 0;
-
-              // ✅ 1. PARSING TANGGAL (LANGSUNG DARI OBJEK DATE)
-              let tanggalFix = "";
-              if (row.TANGGAL instanceof Date) {
-                // Jika sudah berupa Date, langsung ambil format YYYY-MM-DD
-                tanggalFix = row.TANGGAL.toISOString().split("T")[0];
-              } else {
-                // Fallback jika ternyata ada yang berupa teks string
-                let tglStr = getStr(row.TANGGAL);
-                let cleanTgl = tglStr.replace(/[^0-9\/]/g, "").trim();
-                if (cleanTgl.includes("/")) {
-                  let parts = cleanTgl.split("/");
-                  if (parts.length === 3) {
-                    let mm = parts[0].padStart(2, "0");
-                    let dd = parts[1].padStart(2, "0");
-                    let yyyy = parts[2];
-                    if (yyyy.length === 2) yyyy = "20" + yyyy;
-                    tanggalFix = `${yyyy}-${mm}-${dd}`;
-                  }
-                } else {
-                  tanggalFix = new Date().toISOString().split("T")[0];
-                }
+          // ==========================================
+          // 1. PROSES CDG -> golongan_2026
+          // ==========================================
+          if (fileCdg) {
+            send(10, "Membaca file CDG...");
+            const rows = Dbf.read(fileCdg)?.rows || [];
+            if (rows.length > 0) {
+              let q = `INSERT INTO golongan_${tahun} (id, data) VALUES `;
+              let v = [],
+                p = [];
+              rows.forEach((r, i) => {
+                const id = crypto.randomUUID();
+                const base = i * 2;
+                p.push(`($${base + 1}, $${base + 2})`);
+                // Disesuaikan dengan contoh JSON golongan Anda
+                v.push(
+                  id,
+                  JSON.stringify({
+                    gol: String(r.GOL || r.gol || "").trim(),
+                    namaGol: String(r.NAMAGOL || r.namaGol || "").trim(),
+                    tipe: String(r.TIPE || r.tipe || "Golongan").trim(),
+                    masa: masa, // Pakai masa dari frontend
+                    awal: Number(r.AWAL || r.awal || 0),
+                    db: Number(r.DB || r.db || 0),
+                    cr: Number(r.CR || r.cr || 0),
+                    akhir: Number(r.AKHIR || r.akhir || 0),
+                    cabang: cabang,
+                    group: group || "TLGA",
+                  }),
+                );
+              });
+              if (p.length > 0) {
+                q +=
+                  p.join(", ") +
+                  " ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data";
+                await client.query(q, v);
+                totalSaved += p.length;
               }
-
-              // ✅ 2. GUNAKAN NAMA FIELD YANG BENAR (PAKAI UNDERSCORE _)
-              const descRaw = getStr(row.PENJELASAN);
-              const totalRaw = getNum(row.N_RUPIAH_);
-              const total = Math.abs(totalRaw);
-              const kodeTrans = getStr(row.N_KODE_).toUpperCase();
-              const cabDBF = getStr(row.N_CABANG_);
-
-              // Skip jika tidak penting
-              if (!tanggalFix || !kodeTrans || total === 0) return;
-
-              const desc = descRaw.toUpperCase().replace(/"/g, "'");
-
-              const cabFinal = cabDBF || cabang;
-              const cabShort = (cabFinal || "PUSAT")
-                .substring(0, 3)
-                .toUpperCase();
-              const noreffKey = `${cabShort}_${tanggalFix}`;
-
-              if (!noreffMap[noreffKey]) {
-                const randomStr = Math.random()
-                  .toString(36)
-                  .substr(2, 4)
-                  .toUpperCase();
-                noreffMap[noreffKey] =
-                  `KASIR-${cabShort}-${tanggalFix}-${randomStr}`;
-              }
-
-              const noreff = noreffMap[noreffKey];
-              const id = crypto.randomUUID();
-
-              let nilaiDb = 0;
-              let nilaiCr = 0;
-              if (
-                ["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k)) ||
-                totalRaw > 0
-              ) {
-                nilaiDb = total;
-              } else {
-                nilaiCr = total;
-              }
-
-              const jsonData = {
-                id,
-                noreff,
-                tanggal: tanggalFix,
-                cabang: cabFinal,
-                group: group || "TLGA",
-                kodeTrans,
-                noperkiraan: "",
-                desc,
-                total,
-                db: nilaiDb,
-                cr: nilaiCr,
-              };
-
-              const base = index * 2;
-              placeholders.push(`($${base + 1}, $${base + 2})`);
-              values.push(id, JSON.stringify(jsonData));
-            });
-            if (placeholders.length > 0) {
-              queryText += placeholders.join(", ");
-              queryText += ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
-              await client.query(queryText, values);
+              send(25, `CDG selesai: ${p.length} data Golongan`);
             }
-
-            savedCount += placeholders.length;
-            const currentBatch = Math.floor(i / batchSize) + 1;
-            const pct = 50 + Math.round((currentBatch / totalBatches) * 50); // Progress dari 50% ke 100%
-
-            send(
-              pct,
-              `Menyimpan ke Supabase... (${savedCount} data berhasil masuk)`,
-            );
           }
 
+          // ==========================================
+          // 2. PROSES CDD -> perkiraan_2026
+          // ==========================================
+          if (fileCdd) {
+            send(35, "Membaca file CDD...");
+            const rows = Dbf.read(fileCdd)?.rows || [];
+            if (rows.length > 0) {
+              let q = `INSERT INTO perkiraan_${tahun} (id, data) VALUES `;
+              let v = [],
+                p = [];
+              rows.forEach((r, i) => {
+                const id = crypto.randomUUID();
+                const base = i * 2;
+                p.push(`($${base + 1}, $${base + 2})`);
+                // Disesuaikan dengan contoh JSON perkiraan Anda
+                v.push(
+                  id,
+                  JSON.stringify({
+                    gol: String(r.GOL || r.gol || "").trim(),
+                    noPerk: String(r.NOPERK || r.noPerk || "").trim(),
+                    desc: String(r.DESC || r.desc || "").trim(),
+                    tipe: String(r.TIPE || r.tipe || "Perkiraan").trim(),
+                    masa: masa, // Pakai masa dari frontend
+                    awal: Number(r.AWAL || r.awal || 0),
+                    db: Number(r.DB || r.db || 0),
+                    cr: Number(r.CR || r.cr || 0),
+                    akhir: Number(r.AKHIR || r.akhir || 0),
+                    cabang: cabang,
+                    group: group || "TLGA",
+                  }),
+                );
+              });
+              if (p.length > 0) {
+                q +=
+                  p.join(", ") +
+                  " ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data";
+                await client.query(q, v);
+                totalSaved += p.length;
+              }
+              send(55, `CDD selesai: ${p.length} data Perkiraan`);
+            }
+          }
+
+          // ==========================================
+          // 3. PROSES DET -> transaksi_2026
+          // ==========================================
+          if (fileDet) {
+            send(65, "Membaca file DET...");
+            const rows = Dbf.read(fileDet)?.rows || [];
+            if (rows.length > 0) {
+              let q = `INSERT INTO transaksi_${tahun} (id, data) VALUES `;
+              let v = [],
+                p = [];
+              rows.forEach((r, i) => {
+                const id = crypto.randomUUID();
+                const base = i * 2;
+                p.push(`($${base + 1}, $${base + 2})`);
+                // Disesuaikan dengan contoh JSON transaksi Anda
+                v.push(
+                  id,
+                  JSON.stringify({
+                    id: id + "_" + String(r.NO || r.no || i).trim(), // Sesuai format Anda yang ada underscore
+                    noreff: String(r.NOREFF || r.noreff || "").trim(),
+                    tanggal: fixDate(r.TANGGAL || r.tanggal),
+                    kodeBank: String(r.KODEBANK || r.kodeBank || "").trim(),
+                    cabang: String(r.CABANG || r.cabang || cabang).trim(),
+                    dariKePada: String(
+                      r.DARIKEPADA || r.dariKePada || "",
+                    ).trim(),
+                    noperkiraan: String(
+                      r.NOPERKIRAAN || r.noperkiraan || "",
+                    ).trim(),
+                    desc: String(r.DESC || r.desc || "").trim(),
+                    total: Number(r.TOTAL || r.total || 0),
+                    db: Number(r.DB || r.db || 0),
+                    cr: Number(r.CR || r.cr || 0),
+                    kodeTrans: String(r.KODETRANS || r.kodeTrans || "").trim(),
+                    masa: masa, // Pakai masa dari frontend
+                    group: group || "TLGA",
+                  }),
+                );
+              });
+              if (p.length > 0) {
+                q +=
+                  p.join(", ") +
+                  " ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data";
+                await client.query(q, v);
+                totalSaved += p.length;
+              }
+              send(85, `DET selesai: ${p.length} data Transaksi`);
+            }
+          }
+
+          // ==========================================
+          // SELESAI (Dulu ada Mutasi Kasir di sini, saya comment dulu)
+          // ==========================================
           await client.query("COMMIT");
-          send(
-            100,
-            `Sukses! ${savedCount} data kasir cabang ${cabang} tersimpan`,
-            { success: true },
-          );
+          send(100, `Sukses bulan ${bulan}! ${totalSaved} data tersimpan.`, {
+            success: true,
+          });
           res.end();
         } catch (txError) {
           await client.query("ROLLBACK");
-          let pesanError =
-            "Gagal simpan DB: " + (txError.detail || txError.message);
           console.error("DETAIL ERROR DB:", txError);
-          send(100, pesanError, { success: false });
+          send(100, "Gagal simpan DB: " + (txError.detail || txError.message), {
+            success: false,
+          });
           res.end();
         } finally {
           client.release();
