@@ -873,9 +873,16 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           // 0. HAPUS DATA LAMA BERDASARKAN CABANG & MASA
           // ==========================================
           send(9, "Menghapus data lama bulan ini...");
-          await client.query(`TRUNCATE TABLE golongan${tahun}`);
-          await client.query(`TRUNCATE TABLE perkiraan${tahun}`);
-          await client.query(`TRUNCATE TABLE transaksi${tahun}`);
+          // Gunakan parameter $1 di dalam perintah SQL
+          const queryHapus = (tabel) =>
+            `DELETE FROM ${tabel}${tahun} WHERE data LIKE $1`;
+
+          // Gabungkan tanda persen (%) ke dalam nilai parameter, bukan di string SQL
+          const keywordPencarian = `%"cabang": "${cabang}"%`;
+
+          await client.query(queryHapus("golongan"), [keywordPencarian]);
+          await client.query(queryHapus("perkiraan"), [keywordPencarian]);
+          await client.query(queryHapus("transaksi"), [keywordPencarian]);
 
           // ==========================================
           // 1. PROSES CDG -> golongan_2026
