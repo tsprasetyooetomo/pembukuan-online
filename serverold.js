@@ -867,7 +867,27 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           await ensureTableExists(`perkiraan${tahun}`);
           await ensureTableExists(`transaksi${tahun}`);
           // Jika mutasikasir juga dynamic, tambahkan di sini. Jika sudah pasti ada, biarkan saja.
-          // await ensureTableExists(`mutasikasir`);
+          // await ensureTableExists(`mutasikasir`)
+
+          // ==========================================
+          // 0. HAPUS DATA LAMA BERDASARKAN CABANG & MASA
+          // ==========================================
+          send(9, "Menghapus data lama bulan ini...");
+
+          // Kita hapus data yang di kolom JSON-nya (data->>'cabang') sama dengan cabang yang dipilih
+          // DAN (data->>'masa') sama dengan masa yang sedang diproses
+          await client.query(
+            `DELETE FROM golongan${tahun} WHERE data->>'cabang' = $1 AND data->>'masa' = $2`,
+            [cabang, masa],
+          );
+          await client.query(
+            `DELETE FROM perkiraan${tahun} WHERE data->>'cabang' = $1 AND data->>'masa' = $2`,
+            [cabang, masa],
+          );
+          await client.query(
+            `DELETE FROM transaksi${tahun} WHERE data->>'cabang' = $1 AND data->>'masa' = $2`,
+            [cabang, masa],
+          );
 
           // ==========================================
           // 1. PROSES CDG -> golongan_2026
