@@ -1205,10 +1205,10 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
                 // Gunakan Math.abs() jika nilai pengeluaran di DBF berupa minus (-)
                 // agar nilai nominalnya tetap menjadi positif saat disimpan ke JSON
-                const totalRaw = getNum(row.RUPIAH_);
+                const totalRaw = getNum(row.RUPIAH);
                 const total = Math.abs(totalRaw);
 
-                const kodeTrans = getStr(row.KODE_).toUpperCase();
+                const kodeTrans = getStr(row.KODE).toUpperCase();
                 const cabDBF = cabang,
 
                 // ✅ PENGAMAN UTAMA FIXED: Hanya skip jika kolom kritikal benar-benar kosong atau nominalnya 0
