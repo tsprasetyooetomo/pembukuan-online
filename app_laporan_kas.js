@@ -1330,22 +1330,20 @@ function viewDetailNoreff(noreff) {
     return;
   }
 
-  // Buat HTML tampilan detail dengan gaya Dark Mode
-  var html = `
-    <div style="max-height:400px; overflow-y:auto; padding:10px; color:#ffffff; background:#121212;">
-      <h4 style="margin-top:0; color:#ffffff;">Detail Transaksi: ${noreff}</h4>
-      <table border="1" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:.85rem; border: 1px solid #333333;">
-        <tr style="background:#1e1e1e; color:#ffffff;">
-          <th style="border: 1px solid #333333;">Tanggal</th>
-          <th style="border: 1px solid #333333;">Kode</th>
-          <th style="border: 1px solid #333333;">Keterangan</th>
-          <th style="border: 1px solid #333333; text-align:right;">Debit</th>
-          <th style="border: 1px solid #333333; text-align:right;">Credit</th>
-        </tr>
+  // 1. Buat HTML isi tabelnya saja (Tanpa judul agar judul tidak ikut tergulung/scroll)
+  var tableHtml = `
+    <table border="1" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:.85rem; border: 1px solid #333333;">
+      <tr style="background:#1e1e1e; color:#ffffff; position:sticky; top:0; z-index:10;">
+        <th style="border: 1px solid #333333;">Tanggal</th>
+        <th style="border: 1px solid #333333;">Kode</th>
+        <th style="border: 1px solid #333333;">Keterangan</th>
+        <th style="border: 1px solid #333333; text-align:right;">Debit</th>
+        <th style="border: 1px solid #333333; text-align:right;">Credit</th>
+      </tr>
   `;
 
   detailTransaksi.forEach(function (d) {
-    html += `
+    tableHtml += `
       <tr style="background:#121212; color:#e0e0e0;">
         <td style="border: 1px solid #333333;">${d.tanggal || "-"}</td>
         <td style="border: 1px solid #333333;">${d.kodeTrans || "-"}</td>
@@ -1355,25 +1353,45 @@ function viewDetailNoreff(noreff) {
       </tr>
     `;
   });
+  tableHtml += `</table>`;
 
-  html += `</table></div>`;
+  // 2. Gabungkan struktur layout utama (Judul fixed di atas, Tabel di tengah bisa scroll, Tombol di bawah)
+  var fullHtml = `
+    <div style="color:#ffffff; background:#121212; display:flex; flex-direction:column; gap:10px;">
+      <h4 style="margin:0; padding-bottom:5px; border-bottom:1px solid #333333; color:#ffffff;">Detail Transaksi: ${noreff}</h4>
+      
+      <!-- Area kontainer scroll khusus untuk tabel data -->
+      <div style="max-height:300px; overflow-y:auto; padding-right:5px;">
+        ${tableHtml}
+      </div>
+      
+      <!-- Area bawah khusus tombol aksi (Terpisah dari scrollbar) -->
+      <div style="display:flex; justify-content:flex-end; margin-top:5px; padding-top:10px; border-top:1px solid #333333;">
+        <button onclick="document.getElementById('modal_view_temp') ? document.getElementById('modal_view_temp').remove() : (typeof closeModal === 'function' ? closeModal() : null)" 
+                style="background:#333333; color:#ffffff; border:1px solid #444444; padding:6px 16px; border-radius:4px; cursor:pointer; font-size:.8rem; font-weight:600;"
+                onmouseover="this.style.background='#444444'" 
+                onmouseout="this.style.background='#333333'">
+          Tutup
+        </button>
+      </div>
+    </div>
+  `;
 
   // Tampilkan menggunakan modal/popup
   if (typeof showModal === "function") {
-    showModal("Detail " + noreff, html);
+    showModal("Detail " + noreff, fullHtml);
   } else {
-    // Fallback: Buat modal bertema hitam (Dark) jika tidak ada fungsi showModal
+    // Fallback: Buat modal layout box baru jika tidak ada fungsi showModal bawaan aplikasi
     var modalDiv = document.createElement("div");
     modalDiv.id = "modal_view_temp";
     modalDiv.style.cssText =
       "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:9999;";
-    modalDiv.innerHTML = `<div style="background:#121212; border: 1px solid #333333; color:#ffffff; padding:15px; border-radius:8px; width:600px; max-width:90%; position:relative; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
-      <span onclick="document.getElementById('modal_view_temp').remove()" style="position:absolute;top:10px;right:15px;cursor:pointer;font-weight:bold;font-size:1.2rem;color:#aaaaaa;">&times;</span>
-      ${html}
+    modalDiv.innerHTML = `<div style="background:#121212; border: 1px solid #333333; padding:15px; border-radius:8px; width:650px; max-width:92%; box-shadow: 0 4px 25px rgba(0,0,0,0.6);">
+      ${fullHtml}
     </div>`;
     document.body.appendChild(modalDiv);
 
-    // Tutup modal jika klik di luar kotak
+    // Tutup modal jika area background transparan di luar box diklik
     modalDiv.addEventListener("click", function (e) {
       if (e.target === modalDiv) modalDiv.remove();
     });
