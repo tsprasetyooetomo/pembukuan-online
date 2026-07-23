@@ -198,24 +198,135 @@ try {
   const initTable = async (tableName) => {
     try {
       const lowerTableName = tableName.toLowerCase();
+
+      // 1. Cek keberadaan tabel
       const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
       const resCheck = await db.query(checkQuery, [lowerTableName]);
-      const tableExists = resCheck.rows[0].exists;
+      const tableExists = resCheck.rows[0].exists; // Sudah diperbaiki dengan [0].exists
+
+      // Sanitasi nama tabel untuk mencegah SQL Injection
+      const safeTable = '"' + lowerTableName.replace(/"/g, '""') + '"';
+
+      // Daftar semua tabel master/konfigurasi
+      const masterTables = [
+        "users",
+        "formatrl",
+        "formatneraca",
+        "kodebank",
+        "golongan",
+        "perkiraan",
+        "cabang",
+        "groupproject",
+      ];
 
       if (!tableExists) {
         console.log(`🛠️ Membuat tabel baru di Supabase: ${lowerTableName}`);
-        if (tableName.match(/\d{4}$/)) {
-          await db.query(
-            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
-          );
+
+        if (masterTables.includes(lowerTableName)) {
+          if (lowerTableName === "groupproject") {
+            // KONDISI A: groupproject hanya 2 kolom
+            await db.query(
+              `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+            );
+            console.log(
+              `⚡ Tabel super master ${lowerTableName} dibuat minimalis (2 kolom).`,
+            );
+          } else if (lowerTableName === "cabang") {
+            // KONDISI B: cabang hanya ditambah kolom group (tanpa kolom cabang)
+            await db.query(
+              `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, "group" TEXT, data TEXT NOT NULL)`,
+            );
+            await db.query(`CREATE INDEX ON ${safeTable} ("group")`);
+            console.log(
+              `⚡ Tabel ${lowerTableName} dibuat dengan filter group.`,
+            );
+          } else {
+            // KONDISI C: Tabel master umum (users, perkiraan, dll) butuh cabang & group
+            await db.query(
+              `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, cabang TEXT, "group" TEXT, data TEXT NOT NULL)`,
+            );
+            await db.query(`CREATE INDEX ON ${safeTable} (cabang, "group")`);
+            console.log(
+              `⚡ Tabel master ${lowerTableName} dibuat dengan filter cabang & group.`,
+            );
+          }
         } else {
+          // KONDISI D: Tabel transaksi/operasional reguler (Lengkap dengan masa)
           await db.query(
-            `CREATE TABLE ${lowerTableName} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+            `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, "group" TEXT, data TEXT NOT NULL)`,
+          );
+          await db.query(
+            `CREATE INDEX ON ${safeTable} (masa, cabang, "group")`,
+          );
+          console.log(
+            `⚡ Index otomatis (masa, cabang, group) berhasil dibuat.`,
           );
         }
         console.log(`✅ Tabel ${lowerTableName} berhasil dibuat.`);
       } else {
-        console.log(`ℹ️ Tabel ${lowerTableName} sudah ada.`);
+        // 2. Jika tabel sudah ada, cek kolom dan index yang kurang (MIGRASI)
+        const colCheck = await db.query(
+          `SELECT column_name FROM information_schema.columns 
+         WHERE table_schema = 'public' AND table_name = $1 AND column_name IN ('masa', 'cabang', 'group')`,
+          [lowerTableName],
+        );
+
+        const existingCols = colCheck.rows.map((r) => r.column_name);
+        let columnAdded = false;
+
+        // Aturan Kolom 'masa': Hanya untuk tabel transaksi (BUKAN tabel master)
+        if (
+          !existingCols.includes("masa") &&
+          !masterTables.includes(lowerTableName)
+        ) {
+          await db.query(`ALTER TABLE ${safeTable} ADD COLUMN masa TEXT`);
+          console.log(`➕ Kolom 'masa' ditambahkan ke ${lowerTableName}`);
+          columnAdded = true;
+        }
+
+        // Aturan Kolom 'cabang': Untuk semua tabel KECUALI tabel transaksi, cabang, dan groupproject
+        if (
+          !existingCols.includes("cabang") &&
+          lowerTableName !== "cabang" &&
+          lowerTableName !== "groupproject"
+        ) {
+          await db.query(`ALTER TABLE ${safeTable} ADD COLUMN cabang TEXT`);
+          console.log(`➕ Kolom 'cabang' ditambahkan ke ${lowerTableName}`);
+          columnAdded = true;
+        }
+
+        // Aturan Kolom 'group': Untuk semua tabel KECUALI groupproject
+        if (
+          !existingCols.includes("group") &&
+          lowerTableName !== "groupproject"
+        ) {
+          await db.query(`ALTER TABLE ${safeTable} ADD COLUMN "group" TEXT`);
+          console.log(`➕ Kolom 'group' ditambahkan ke ${lowerTableName}`);
+          columnAdded = true;
+        }
+
+        // Jika ada kolom baru yang masuk pada tabel lama, buat/perbarui index pendukungnya
+        if (columnAdded) {
+          const indexName = `idx_${lowerTableName}_dimensi`;
+
+          if (lowerTableName === "cabang") {
+            await db.query(
+              `CREATE INDEX IF NOT EXISTS "${indexName}" ON ${safeTable} ("group")`,
+            );
+          } else if (lowerTableName !== "groupproject") {
+            // Kondisi tabel master lainnya & tabel transaksi reguler
+            const indexCols = masterTables.includes(lowerTableName)
+              ? `cabang, "group"`
+              : `masa, cabang, "group"`;
+            await db.query(
+              `CREATE INDEX IF NOT EXISTS "${indexName}" ON ${safeTable} (${indexCols})`,
+            );
+          }
+
+          console.log(
+            `⚡ Index susulan ${indexName} berhasil dipastikan tersedia.`,
+          );
+        }
       }
     } catch (e) {
       console.error(`⚠️ Gagal init tabel ${tableName}:`, e.message);
@@ -264,8 +375,11 @@ app.post("/api/reset-posting", async (req, res) => {
       for (const t of tables) {
         try {
           const lowerTableName = t.toLowerCase();
+          const safeTable = '"' + lowerTableName.replace(/"/g, '""') + '"'; // Tambah safeTable
+
+          // ✅ SUDAH PAKAI KOLOM FISIK (Ini sudah benar dan super cepat)
           await client.query(
-            `DELETE FROM ${lowerTableName} WHERE masa = $1 AND cabang = $2`,
+            `DELETE FROM ${safeTable} WHERE masa = $1 AND cabang = $2`,
             [masa, cabang],
           );
         } catch (e) {}
@@ -295,33 +409,34 @@ app.post("/api/clear-all-data", async (req, res) => {
         .json({ success: false, message: "Tabel tidak valid" });
 
     const lowerStoreName = storeName.toLowerCase();
-    let sql = `DELETE FROM ${lowerStoreName}`;
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"'; // Tambah safeTable
+    let sql = `DELETE FROM ${safeTable}`;
     let params = [];
+    let paramIndex = 1;
 
-    // ✅ LOGIKA KHUSUS UNTUK MUTASI KASIR (AMAN UNTUK TEKS ATAU JSONB)
+    // ✅ LOGIKA KHUSUS UNTUK MUTASI KASIR (Menggabungkan Fisik & JSON untuk tanggal)
     if (lowerStoreName === "mutasikasir") {
       let conditions = [];
-      let paramIndex = 1;
 
-      // 1. Filter Noreff
+      // 1. Filter Noreff (Tetap di JSON karena tidak ada kolom fisik noreff)
       if (req.body.noreff) {
         conditions.push(`CAST(data AS jsonb)->>'noreff' = $${paramIndex++}`);
         params.push(req.body.noreff);
       }
 
-      // 2. Filter Cabang
+      // 2. Filter Cabang -> PAKAI KOLOM FISIK SEKARANG
       if (cabang) {
-        conditions.push(`CAST(data AS jsonb)->>'cabang' = $${paramIndex++}`);
+        conditions.push(`cabang = $${paramIndex++}`);
         params.push(cabang);
       }
 
-      // ✅ TAMBAHKAN FILTER GROUP (LETAKKAN DI SINI)
+      // 3. Filter Group -> PAKAI KOLOM FISIK SEKARANG
       if (req.body.group) {
-        conditions.push(`CAST(data AS jsonb)->>'group' = $${paramIndex++}`);
+        conditions.push(`"group" = $${paramIndex++}`);
         params.push(req.body.group);
       }
 
-      // 3. Filter Tahun & Bulan
+      // 4. Filter Tahun & Bulan (Tetap di JSON karena kolom fisiknya 'masa' bukan 'tanggal')
       if (tahun && tahun !== "") {
         if (bulan && bulan !== "") {
           conditions.push(
@@ -340,14 +455,22 @@ app.post("/api/clear-all-data", async (req, res) => {
         sql += " WHERE " + conditions.join(" AND ");
       }
     }
-    // LOGIKA LAMA UNTUK TABEL TAHUNAN (Golongan, Perkiraan, Transaksi)
+    // ✅ LOGIKA UNTUK TABEL TAHUNAN (Golongan, Perkiraan, Transaksi) -> LEBIH SEDERHANA
     else {
-      const colCheckQuery = `SELECT column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name = $1 AND column_name = 'masa';`;
-      const colResult = await db.query(colCheckQuery, [lowerStoreName]);
-      const hasMasa = colResult.rows.length > 0;
-      if (hasMasa && masa && cabang) {
-        sql += ` WHERE masa = $1 AND cabang = $2`;
+      // Karena semua tabel sudah pasti punya kolom fisik 'masa' dan 'cabang' (berdasarkan initTable Anda)
+      if (masa && cabang) {
+        sql += ` WHERE masa = $${paramIndex++} AND cabang = $${paramIndex++}`;
         params = [masa, cabang];
+
+        // Opsional: Tambah filter group jika dikirim dari frontend
+        if (req.body.group) {
+          sql += ` AND "group" = $${paramIndex++}`;
+          params.push(req.body.group);
+        }
+      } else if (cabang) {
+        // Jika hanya filter cabang saja
+        sql += ` WHERE cabang = $${paramIndex++}`;
+        params = [cabang];
       }
     }
 
@@ -357,30 +480,29 @@ app.post("/api/clear-all-data", async (req, res) => {
     res.status(500).json({ success: false, message: e.message });
   }
 });
-// 3. GET ALL DATA
+
+// 3. GET ALL DATA (DIEKSTREM OPTIMASI UNTUK KECEPATAN)
 app.get("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
 
   try {
     const { storeName } = req.params;
     const filterCabang = req.query.cabang;
-    const filterGroup = req.query.group; // ✅ 1. TANGKAP PARAMETER GROUP DARI FRONTEND
+    const filterGroup = req.query.group;
+    const filterMasa = req.query.masa; // ✅ SARAN: Tangkap parameter masa juga dari frontend
 
     if (!isValidTable(storeName)) {
       return res.status(400).json({ error: "Invalid Table" });
     }
 
     const lowerStoreName = storeName.toLowerCase();
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"';
 
-    // Tabel yang wajib difilter (TAMBAHKAN GROUP KE DALAM LOGIKA)
-    // ==========================================
-    // LOGIKA FILTER BARU (CABANG & GROUP BERDIRI SENDIRI)
-    // ==========================================
     let whereClause = "";
     let params = [];
     let paramIndex = 1;
 
-    // 1. Filter Cabang (Jika bukan PUSAT)
+    // 1. Filter Cabang -> PAKAI KOLOM FISIK (Index akan bekerja 100%)
     if (
       filterCabang &&
       filterCabang.trim() !== "" &&
@@ -389,25 +511,19 @@ app.get("/api/data/:storeName", async (req, res) => {
       if (!/^[a-zA-Z0-9\-_ ]+$/.test(filterCabang)) {
         return res.status(400).json({ error: "Kode cabang tidak valid" });
       }
-      whereClause = `(data LIKE $${paramIndex++} OR data LIKE $${paramIndex++} OR data LIKE $${paramIndex++} OR data LIKE $${paramIndex++})`;
-      params.push(
-        `%"cabang":"${filterCabang}"%`,
-        `%"cabang": "${filterCabang}"%`,
-        `%"kode_cabang":"${filterCabang}"%`,
-        `%"kode_cabang": "${filterCabang}%`,
-      );
+      whereClause = `cabang = $${paramIndex++}`;
+      params.push(filterCabang);
     }
 
-    // 2. Filter Group (Berlaku untuk SEMUA, termasuk PUSAT)
+    // 2. Filter Group -> PAKAI KOLOM FISIK (Index akan bekerja 100%)
     if (filterGroup && filterGroup.trim() !== "") {
       if (!/^[a-zA-Z0-9\-_ ]+$/.test(filterGroup)) {
         return res.status(400).json({ error: "Kode group tidak valid" });
       }
 
-      const groupCondition = `(data LIKE $${paramIndex++} OR data LIKE $${paramIndex++})`;
-      params.push(`%"group":"${filterGroup}"%`, `%"group": "${filterGroup}%`);
+      const groupCondition = `"group" = $${paramIndex++}`;
+      params.push(filterGroup);
 
-      // Gabungkan dengan WHERE sebelumnya menggunakan AND
       if (whereClause === "") {
         whereClause = groupCondition;
       } else {
@@ -415,15 +531,27 @@ app.get("/api/data/:storeName", async (req, res) => {
       }
     }
 
-    // 3. Eksekusi Query SQL
-    let sql = `SELECT data FROM ${lowerStoreName}`;
+    // ✅ 3. (BONUS) Filter Masa -> PAKAI KOLOM FISIK
+    if (filterMasa && filterMasa.trim() !== "") {
+      const masaCondition = `masa = $${paramIndex++}`;
+      params.push(filterMasa);
+
+      if (whereClause === "") {
+        whereClause = masaCondition;
+      } else {
+        whereClause += " AND " + masaCondition;
+      }
+    }
+
+    // 4. Eksekusi Query SQL
+    let sql = `SELECT data FROM ${safeTable}`;
     if (whereClause !== "") {
       sql += ` WHERE ${whereClause}`;
     }
 
     var result = await db.query(sql, params);
     console.log(
-      `System: SQL Fetch | Tabel ${lowerStoreName} | Cabang: ${filterCabang || "ALL"} | Group: ${filterGroup || "ALL"} | Ditemukan: ${result.rows.length} baris`,
+      `⚡ FAST SQL Fetch | Tabel ${lowerStoreName} | Cabang: ${filterCabang || "ALL"} | Group: ${filterGroup || "ALL"} | Masa: ${filterMasa || "ALL"} | Ditemukan: ${result.rows.length} baris`,
     );
 
     // Parsing semua baris
@@ -446,8 +574,10 @@ app.get("/api/data/:storeName/:id", async (req, res) => {
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
     const lowerStoreName = storeName.toLowerCase();
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"'; // Tambah safeTable
+
     const result = await db.query(
-      `SELECT data FROM ${lowerStoreName} WHERE id = $1`,
+      `SELECT data FROM ${safeTable} WHERE id = $1`,
       [id],
     );
     const row = result.rows[0];
@@ -463,7 +593,7 @@ app.get("/api/data/:storeName/:id", async (req, res) => {
   }
 });
 
-// 5. POST DATA
+// 5. POST DATA (CONTOH PERUBAHAN)
 app.post("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
@@ -472,31 +602,46 @@ app.post("/api/data/:storeName", async (req, res) => {
       return res.status(400).json({ error: "Invalid Table" });
     const data = req.body;
     if (!data.id) return res.status(400).json({ error: "ID Required" });
+
     const lowerStoreName = storeName.toLowerCase();
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"';
+
+    // LOGIKA BARU: Isi kolom fisiknya ambil dari JSON yang dikirim frontend
     await db.query(
-      `INSERT INTO ${lowerStoreName} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
-      [data.id, JSON.stringify(data)],
+      `INSERT INTO ${safeTable} (id, masa, cabang, "group", data) 
+       VALUES ($1, $2, $3, $4, $5) 
+       ON CONFLICT (id) DO UPDATE SET 
+         masa = EXCLUDED.masa, 
+         cabang = EXCLUDED.cabang, 
+         "group" = EXCLUDED."group", 
+         data = EXCLUDED.data`,
+      [
+        data.id,
+        data.masa || null,
+        data.cabang || null,
+        data.group || null,
+        JSON.stringify(data),
+      ],
     );
     res.status(201).json({ message: "Created" });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
-
 // 6. PUT DATA (BY ID)
 app.put("/api/data/:storeName/:id", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
     const { storeName, id } = req.params;
-    const lowerStoreName = storeName.toLowerCase(); // ✅ PINDAHKAN KE ATAS
+    const lowerStoreName = storeName.toLowerCase();
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"'; // Tambahkan keamanan
 
-    // ✅ CEK MENGGUNAKAN YANG SUDAH DI-LOWERCASE
     if (!isValidTable(lowerStoreName)) {
       return res.status(400).json({ error: "Invalid Table" });
     }
 
     const result = await db.query(
-      `SELECT data FROM ${lowerStoreName} WHERE id = $1`,
+      `SELECT data FROM ${safeTable} WHERE id = $1`,
       [id],
     );
     const row = result.rows[0];
@@ -506,17 +651,26 @@ app.put("/api/data/:storeName/:id", async (req, res) => {
           ...req.body,
         }
       : req.body;
+
     merged.id = id;
-    await db.query(`UPDATE ${lowerStoreName} SET data = $1 WHERE id = $2`, [
-      JSON.stringify(merged),
-      id,
-    ]);
+
+    // ✅ UBAH QUERY UPDATE-NYA MENJADI INI:
+    await db.query(
+      `UPDATE ${safeTable} SET masa = $1, cabang = $2, "group" = $3, data = $4 WHERE id = $5`,
+      [
+        merged.masa || null,
+        merged.cabang || null,
+        merged.group || null,
+        JSON.stringify(merged),
+        id,
+      ],
+    );
+
     res.json({ message: "Updated" });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
-
 // 7. PUT UPSERT
 app.put("/api/data/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
@@ -526,22 +680,43 @@ app.put("/api/data/:storeName", async (req, res) => {
       return res.status(400).json({ error: "Invalid Table" });
     const data = req.body;
     if (!data.id) return res.status(400).json({ error: "ID Required" });
+
     const lowerStoreName = storeName.toLowerCase();
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"'; // Tambahkan safeTable
+
+    // 1. Ambil data lama (jika ada) untuk di-merge
     const result = await db.query(
-      `SELECT data FROM ${lowerStoreName} WHERE id = $1`,
+      `SELECT data FROM ${safeTable} WHERE id = $1`,
       [data.id],
     );
     const row = result.rows[0];
+
+    // 2. Proses Merge (Gabungkan data lama dengan data baru dari frontend)
     let merged = row
       ? {
           ...(typeof row.data === "string" ? JSON.parse(row.data) : row.data),
           ...data,
         }
       : data;
+
+    // 3. SIMPAN DENGAN KOLOM FISIK BARU
     await db.query(
-      `INSERT INTO ${lowerStoreName} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
-      [data.id, JSON.stringify(merged)],
+      `INSERT INTO ${safeTable} (id, masa, cabang, "group", data) 
+       VALUES ($1, $2, $3, $4, $5) 
+       ON CONFLICT (id) DO UPDATE SET 
+         masa = EXCLUDED.masa, 
+         cabang = EXCLUDED.cabang, 
+         "group" = EXCLUDED."group", 
+         data = EXCLUDED.data`,
+      [
+        merged.id,
+        merged.masa || null,
+        merged.cabang || null,
+        merged.group || null,
+        JSON.stringify(merged),
+      ],
     );
+
     res.json({ message: "Upserted" });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -556,7 +731,9 @@ app.delete("/api/data/:storeName/:id", async (req, res) => {
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
     const lowerStoreName = storeName.toLowerCase();
-    await db.query(`DELETE FROM ${lowerStoreName} WHERE id = $1`, [id]);
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"'; // ✅ Tambah Safe Table
+
+    await db.query(`DELETE FROM ${safeTable} WHERE id = $1`, [id]);
     res.json({ message: "Deleted" });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -571,7 +748,9 @@ app.delete("/api/data/:storeName", async (req, res) => {
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
     const lowerStoreName = storeName.toLowerCase();
-    await db.query(`DELETE FROM ${lowerStoreName}`);
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"'; // ✅ Tambah Safe Table
+
+    await db.query(`DELETE FROM ${safeTable}`);
     res.json({ message: "Cleared" });
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -586,8 +765,10 @@ app.get("/api/count/:storeName", async (req, res) => {
     if (!isValidTable(storeName))
       return res.status(400).json({ error: "Invalid Table" });
     const lowerStoreName = storeName.toLowerCase();
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"'; // ✅ Tambah Safe Table
+
     const result = await db.query(
-      `SELECT COUNT(id) as total FROM ${lowerStoreName}`,
+      `SELECT COUNT(id) as total FROM ${safeTable}`,
     );
     const row = result.rows[0];
     res.json(row ? Number(row.total) : 0);
@@ -604,7 +785,9 @@ app.get("/api/backup", async (req, res) => {
     for (const t of ALLOWED_TABLES) {
       try {
         const lowerTableName = t.toLowerCase();
-        const result = await db.query(`SELECT data FROM ${lowerTableName}`);
+        const safeTable = '"' + lowerTableName.replace(/"/g, '""') + '"'; // ✅ Tambah Safe Table
+
+        const result = await db.query(`SELECT data FROM ${safeTable}`);
         backupData[t] = result.rows.map((r) =>
           typeof r.data === "string" ? JSON.parse(r.data) : r.data,
         );
@@ -620,7 +803,9 @@ app.get("/api/backup", async (req, res) => {
   }
 });
 
-// 12. BATCH
+// ====================================================================
+// 12. BATCH (DIEKSTREM OPTIMASI - MENGGUNAKAN KOLOM FISIK)
+// ====================================================================
 app.post("/api/batch/:storeName", async (req, res) => {
   if (!db) return res.status(500).json({ success: false, message: "DB Error" });
   try {
@@ -628,7 +813,9 @@ app.post("/api/batch/:storeName", async (req, res) => {
     const data = req.body;
     if (!Array.isArray(data))
       return res.json({ success: true, message: "No data" });
+
     const lowerStoreName = storeName.toLowerCase();
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"';
 
     const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
     const resCheck = await db.query(checkQuery, [lowerStoreName]);
@@ -637,14 +824,23 @@ app.post("/api/batch/:storeName", async (req, res) => {
     if (!tableExists && storeName.match(/\d{4}$/)) {
       console.log(`🛠️ Auto-create tabel tahunan: ${lowerStoreName}`);
       await db.query(
-        `CREATE TABLE ${lowerStoreName} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, data TEXT NOT NULL)`,
+        `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, "group" TEXT, data TEXT NOT NULL)`,
       );
     }
 
     const client = await db.connect();
     try {
       await client.query("BEGIN");
-      const queryText = `INSERT INTO ${lowerStoreName} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+
+      // ✅ QUERY BARU: Sudah memasukkan masa, cabang, dan group ke kolom fisik
+      const queryText = `INSERT INTO ${safeTable} (id, masa, cabang, "group", data) 
+                         VALUES ($1, $2, $3, $4, $5) 
+                         ON CONFLICT (id) DO UPDATE SET 
+                           masa = EXCLUDED.masa, 
+                           cabang = EXCLUDED.cabang, 
+                           "group" = EXCLUDED."group", 
+                           data = EXCLUDED.data`;
+
       for (const item of data) {
         const id =
           item.id ||
@@ -652,7 +848,15 @@ app.post("/api/batch/:storeName", async (req, res) => {
           item.gol ||
           item.nomor ||
           `${lowerStoreName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-        await client.query(queryText, [id, JSON.stringify(item)]);
+
+        // ✅ PARAMETER BARU: Urutannya harus sama dengan VALUES ($1, $2, $3, $4, $5)
+        await client.query(queryText, [
+          id,
+          item.masa || null,
+          item.cabang || null,
+          item.group || null,
+          JSON.stringify(item),
+        ]);
       }
       await client.query("COMMIT");
     } catch (transactionError) {
@@ -667,18 +871,30 @@ app.post("/api/batch/:storeName", async (req, res) => {
   }
 });
 
-// 13. SAVE BATCH
+// ====================================================================
+// 13. SAVE BATCH (DIEKSTREM OPTIMASI - MENGGUNAKAN KOLOM FISIK)
+// ====================================================================
 app.post("/api/save-batch", async (req, res) => {
   if (!db) return res.status(500).json({ success: false, message: "DB Error" });
   try {
     const { storeName, data } = req.body;
     if (!storeName || !Array.isArray(data)) return res.json({ success: true });
     const lowerStoreName = storeName.toLowerCase();
+    const safeTable = '"' + lowerStoreName.replace(/"/g, '""') + '"';
 
     const client = await db.connect();
     try {
       await client.query("BEGIN");
-      const queryText = `INSERT INTO ${lowerStoreName} (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+
+      // ✅ QUERY BARU
+      const queryText = `INSERT INTO ${safeTable} (id, masa, cabang, "group", data) 
+                         VALUES ($1, $2, $3, $4, $5) 
+                         ON CONFLICT (id) DO UPDATE SET 
+                           masa = EXCLUDED.masa, 
+                           cabang = EXCLUDED.cabang, 
+                           "group" = EXCLUDED."group", 
+                           data = EXCLUDED.data`;
+
       for (const item of data) {
         const id =
           item.id ||
@@ -686,7 +902,15 @@ app.post("/api/save-batch", async (req, res) => {
           item.gol ||
           item.nomor ||
           `${lowerStoreName}_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-        await client.query(queryText, [id, JSON.stringify(item)]);
+
+        // ✅ PARAMETER BARU
+        await client.query(queryText, [
+          id,
+          item.masa || null,
+          item.cabang || null,
+          item.group || null,
+          JSON.stringify(item),
+        ]);
       }
       await client.query("COMMIT");
     } catch (transactionError) {
@@ -702,16 +926,17 @@ app.post("/api/save-batch", async (req, res) => {
 });
 
 // 14. SALDO HARIAN CLEAR RANGE
-// PAKAI KODE INI:
 app.post("/api/saldo-harian/clear-range", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
   try {
-    const { tanggalAwal, tanggalAkhir } = req.body; // ✅ Tidak pakai cabang & char4 lagi
+    const { tanggalAwal, tanggalAkhir } = req.body;
     if (!tanggalAwal || !tanggalAkhir)
       return res.status(400).json({ error: "Date Required" });
 
+    const safeTable = '"saldo_harian"'; // ✅ Tambah Safe Table
+
     // ✅ LOGIKA BARU: Hapus berdasarkan rentang tanggal di dalam format JSON
-    const sql = `DELETE FROM saldo_harian WHERE CAST(data AS jsonb)->>'tanggal' >= $1 AND CAST(data AS jsonb)->>'tanggal' <= $2`;
+    const sql = `DELETE FROM ${safeTable} WHERE CAST(data AS jsonb)->>'tanggal' >= $1 AND CAST(data AS jsonb)->>'tanggal' <= $2`;
     await db.query(sql, [tanggalAwal, tanggalAkhir]);
 
     res.json({ message: "Cleared" });
@@ -729,15 +954,17 @@ app.post("/api/saldo-harian", async (req, res) => {
     const id = `${cabang}_${char4}_${tanggal}`;
     const jsonData = JSON.stringify({ cabang, char4, tanggal, saldo_akhir });
 
+    // ✅ UBAH: Tambah kolom cabang saat insert
     await db.query(
-      `INSERT INTO saldo_harian (id, data) VALUES ($1, $2) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`,
-      [id, jsonData],
+      `INSERT INTO "saldo_harian" (id, cabang, data) VALUES ($1, $2, $3) ON CONFLICT (id) DO UPDATE SET cabang = EXCLUDED.cabang, data = EXCLUDED.data`,
+      [id, cabang || null, jsonData],
     );
     res.json({ success: true });
   } catch (e) {
-    res.status(500).json({ error: e.message }); // DIPERBAIKI: Kurung tutup yang benar
+    res.status(500).json({ error: e.message });
   }
 });
+
 // Tambahkan ini di file routing backend Anda (misalnya index.js atau app.js)
 app.post("/api/saldo-kasir/clear-range", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
@@ -749,29 +976,31 @@ app.post("/api/saldo-kasir/clear-range", async (req, res) => {
       return res.status(400).json({ message: "Parameter tidak lengkap" });
     }
 
-    const matchObj = JSON.stringify({
-      cabang: cabang,
-      group: group.trim().toUpperCase(),
-    });
-
-    // Perhatikan ada CAST() di setiap pemanggilan "data"
+    // ✅ UBAH: Pakai kolom fisik cabang & group, JSON hanya untuk tanggal
     const sql = `
-      DELETE FROM saldokasir 
-      WHERE CAST("data" AS jsonb) @> $1::jsonb 
-        AND CAST("data" AS jsonb)->>'tanggal' >= $2 
-        AND CAST("data" AS jsonb)->>'tanggal' <= $3
+      DELETE FROM "saldokasir" 
+      WHERE cabang = $1 
+        AND "group" = $2 
+        AND CAST(data AS jsonb)->>'tanggal' >= $3 
+        AND CAST(data AS jsonb)->>'tanggal' <= $4
     `;
 
-    await db.query(sql, [matchObj, tanggalAwal, tanggalAkhir]);
+    await db.query(sql, [
+      cabang,
+      group.trim().toUpperCase(),
+      tanggalAwal,
+      tanggalAkhir,
+    ]);
 
-    res.json({ message: "Range saldo kasir berhasil dihapus (TEXT to JSONB)" });
+    res.json({ message: "Range saldo kasir berhasil dihapus" });
   } catch (err) {
-    console.error("ERROR TEXT JSON:", err.message);
+    console.error("ERROR CLEAR RANGE:", err.message);
     res.status(500).json({ error: err.message });
   }
 });
+
 // ============================================================================
-// 16. ENDPOINT IMPOR FOXPRO (.DBF) - TANPA MULTER (PURE EXPRESS)
+// 16. ENDPOINT IMPOR FOXPRO (.DBF) - OPTIMASI KOLOM FISIK
 // ============================================================================
 app.post("/api/impor-foxpro-online", async (req, res) => {
   if (!db) {
@@ -785,18 +1014,16 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     return res.end();
   }
 
-  // WAJIB HEADER SSE
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
-  res.setHeader("X-Accel-Buffering", "no"); // matiin buffer nginx Railway
+  res.setHeader("X-Accel-Buffering", "no");
   res.flushHeaders();
 
   const send = (percent, msg, extra = {}) => {
     res.write(
       `data: ${JSON.stringify({ percent, message: msg, ...extra })}\n\n`,
     );
-    //res.flush(); // WAJIB biar langsung push ke browser
   };
 
   try {
@@ -816,6 +1043,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
     bb.on("field", (name, val) => {
       fields[name] = val;
     });
+
     bb.on("finish", async () => {
       try {
         const { kode_cabang: cabang, group, tahun, bulan, masa } = fields;
@@ -833,19 +1061,15 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         const crypto = require("crypto");
         const client = await db.connect();
 
-        // ==========================================
-        // FUNGSI BARU: UNTUK MEMBUAT TABEL JIKA BELUM ADA
-        // ==========================================
         const ensureTableExists = async (tableName) => {
+          const safeTable = '"' + tableName.replace(/"/g, '""') + '"';
           await client.query(`
-            CREATE TABLE IF NOT EXISTS ${tableName} (
-              id TEXT PRIMARY KEY,
-              data TEXT NOT NULL
+            CREATE TABLE IF NOT EXISTS ${safeTable} (
+              id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, "group" TEXT, data TEXT NOT NULL
             );
           `);
         };
 
-        // Helper khusus untuk format tanggal "Fri Feb 13 2026..." milik DET
         const fixDate = (val) => {
           if (!val) return null;
           if (val instanceof Date) return val.toISOString().split("T")[0];
@@ -861,27 +1085,66 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           await client.query("BEGIN");
           let totalSaved = 0;
 
-          // --- CEK & BUAT TABEL KE-3 TABLE TERLEBIH DAHULU ---
           send(8, "Menyiapkan tabel database...");
           await ensureTableExists(`golongan${tahun}`);
           await ensureTableExists(`perkiraan${tahun}`);
           await ensureTableExists(`transaksi${tahun}`);
-          // Jika mutasikasir juga dynamic, tambahkan di sini. Jika sudah pasti ada, biarkan saja.
-          // await ensureTableExists(`mutasikasir`)
 
-          // ==========================================
-          // 0. HAPUS DATA LAMA BERDASARKAN CABANG & MASA
-          // ==========================================
+          // ✅ UBAH: HAPUS DATA LAMA PAKAI KOLOM FISIK (Super Cepat)
           send(9, "Menghapus data lama bulan ini...");
+          const queryHapus = (tabel) => {
+            const safeTable = '"' + tabel + tahun + '"';
+            return `DELETE FROM ${safeTable} WHERE masa = $1 AND cabang = $2 AND "group" = $3`;
+          };
+          await client.query(queryHapus("golongan"), [
+            masa,
+            cabang,
+            group || "TLGA",
+          ]);
+          await client.query(queryHapus("perkiraan"), [
+            masa,
+            cabang,
+            group || "TLGA",
+          ]);
+          await client.query(queryHapus("transaksi"), [
+            masa,
+            cabang,
+            group || "TLGA",
+          ]);
 
-          // Modifikasi query untuk memfilter cabang ($1) DAN masa ($2)
-          const queryHapus = (tabel) =>
-            `DELETE FROM ${tabel}${tahun} WHERE (data::jsonb)->>'cabang' = $1 AND (data::jsonb)->>'masa' = $2`;
+          // ✅ FUNGSI HELPER INSERT BARU (Mengisi Kolom Fisik)
+          const insertBatchWithCols = async (tableName, rows, mapperFn) => {
+            if (rows.length === 0) return 0;
+            const safeTable = '"' + tableName + '"';
+            let q = `INSERT INTO ${safeTable} (id, masa, cabang, "group", data) VALUES `;
+            let v = [],
+              p = [];
 
-          // Jalankan perintah dengan aman dengan mengirimkan array [cabang, masa]
-          await client.query(queryHapus("golongan"), [cabang, masa]);
-          await client.query(queryHapus("perkiraan"), [cabang, masa]);
-          await client.query(queryHapus("transaksi"), [cabang, masa]);
+            rows.forEach((r, i) => {
+              const id = crypto.randomUUID();
+              const base = i * 5; // ✅ Karena ada 5 parameter ($1 s/d $5)
+              p.push(
+                `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`,
+              );
+
+              const jsonData = mapperFn(r, id);
+              v.push(
+                id,
+                jsonData.masa,
+                jsonData.cabang,
+                jsonData.group,
+                JSON.stringify(jsonData),
+              );
+            });
+
+            if (p.length > 0) {
+              q +=
+                p.join(", ") +
+                ' ON CONFLICT (id) DO UPDATE SET masa = EXCLUDED.masa, cabang = EXCLUDED.cabang, "group" = EXCLUDED."group", data = EXCLUDED.data';
+              await client.query(q, v);
+            }
+            return p.length;
+          };
 
           // ==========================================
           // 1. PROSES CDG -> golongan_2026
@@ -889,39 +1152,24 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           if (fileCdg) {
             send(10, "Membaca file CDG...");
             const rows = Dbf.read(fileCdg)?.rows || [];
-            if (rows.length > 0) {
-              let q = `INSERT INTO golongan${tahun} (id, data) VALUES `;
-              let v = [],
-                p = [];
-              rows.forEach((r, i) => {
-                const id = crypto.randomUUID();
-                const base = i * 2;
-                p.push(`($${base + 1}, $${base + 2})`);
-                v.push(
-                  id,
-                  JSON.stringify({
-                    gol: String(r.GOLACCT || r.gol || "").trim(),
-                    namaGol: String(r.PJLSAN || r.namaGol || "").trim(),
-                    tipe: String(r.TIPE || r.tipe || "Golongan").trim(),
-                    masa: masa,
-                    awal: Number(r.AWAL || r.awal || 0),
-                    db: Number(r.DB || r.db || 0),
-                    cr: Number(r.CR || r.cr || 0),
-                    akhir: Number(r.AKHIR || r.akhir || 0),
-                    cabang: cabang,
-                    group: group || "TLGA",
-                  }),
-                );
-              });
-              if (p.length > 0) {
-                q +=
-                  p.join(", ") +
-                  " ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data";
-                await client.query(q, v);
-                totalSaved += p.length;
-              }
-              send(25, `CDG selesai: ${p.length} data Golongan`);
-            }
+            totalSaved += await insertBatchWithCols(
+              `golongan${tahun}`,
+              rows,
+              (r, id) => ({
+                id: id,
+                masa: masa,
+                cabang: cabang,
+                group: group || "TLGA",
+                gol: String(r.GOLACCT || r.gol || "").trim(),
+                namaGol: String(r.PJLSAN || r.namaGol || "").trim(),
+                tipe: String(r.TIPE || r.tipe || "Golongan").trim(),
+                awal: Number(r.AWAL || r.awal || 0),
+                db: Number(r.DB || r.db || 0),
+                cr: Number(r.CR || r.cr || 0),
+                akhir: Number(r.AKHIR || r.akhir || 0),
+              }),
+            );
+            send(25, `CDG selesai`);
           }
 
           // ==========================================
@@ -930,40 +1178,25 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           if (fileCdd) {
             send(35, "Membaca file CDD...");
             const rows = Dbf.read(fileCdd)?.rows || [];
-            if (rows.length > 0) {
-              let q = `INSERT INTO perkiraan${tahun} (id, data) VALUES `;
-              let v = [],
-                p = [];
-              rows.forEach((r, i) => {
-                const id = crypto.randomUUID();
-                const base = i * 2;
-                p.push(`($${base + 1}, $${base + 2})`);
-                v.push(
-                  id,
-                  JSON.stringify({
-                    gol: String(r.GOL || r.gol || "").trim(),
-                    noPerk: String(r.SUBACCT || r.noPerk || "").trim(),
-                    desc: String(r.PJLSAN || r.desc || "").trim(),
-                    tipe: String(r.TIPE || r.tipe || "Perkiraan").trim(),
-                    masa: masa,
-                    awal: Number(r.AWAL || r.awal || 0),
-                    db: Number(r.DB || r.db || 0),
-                    cr: Number(r.CR || r.cr || 0),
-                    akhir: Number(r.AKHIR || r.akhir || 0),
-                    cabang: cabang,
-                    group: group || "TLGA",
-                  }),
-                );
-              });
-              if (p.length > 0) {
-                q +=
-                  p.join(", ") +
-                  " ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data";
-                await client.query(q, v);
-                totalSaved += p.length;
-              }
-              send(55, `CDD selesai: ${p.length} data Perkiraan`);
-            }
+            totalSaved += await insertBatchWithCols(
+              `perkiraan${tahun}`,
+              rows,
+              (r, id) => ({
+                id: id,
+                masa: masa,
+                cabang: cabang,
+                group: group || "TLGA",
+                gol: String(r.GOL || r.gol || "").trim(),
+                noPerk: String(r.SUBACCT || r.noPerk || "").trim(),
+                desc: String(r.PJLSAN || r.desc || "").trim(),
+                tipe: String(r.TIPE || r.tipe || "Perkiraan").trim(),
+                awal: Number(r.AWAL || r.awal || 0),
+                db: Number(r.DB || r.db || 0),
+                cr: Number(r.CR || r.cr || 0),
+                akhir: Number(r.AKHIR || r.akhir || 0),
+              }),
+            );
+            send(55, `CDD selesai`);
           }
 
           // ==========================================
@@ -972,55 +1205,31 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
           if (fileDet) {
             send(65, "Membaca file DET...");
             const rows = Dbf.read(fileDet)?.rows || [];
-            if (rows.length > 0) {
-              let q = `INSERT INTO transaksi${tahun} (id, data) VALUES `;
-              let v = [],
-                p = [];
-              rows.forEach((r, i) => {
-                const id = crypto.randomUUID();
-                const base = i * 2;
-                p.push(`($${base + 1}, $${base + 2})`);
-                v.push(
-                  id,
-                  JSON.stringify({
-                    id: id + "_" + String(r.NO || r.no || i).trim(),
-                    noreff: String(r.REFF || r.noreff || "").trim(),
-                    tanggal: fixDate(r.DATE || r.tanggal),
-                    kodeBank: String(r.REFF || r.noreff || "")
-                      .trim()
-                      .substring(3, 4),
-
-                    dariKePada: String(
-                      r.DARIKEPADA || r.dariKePada || "",
-                    ).trim(),
-                    noperkiraan: String(r.NOACCT || r.noperkiraan || "").trim(),
-                    desc: String(r.DESC || r.desc || "").trim(),
-                    total:
-                      Number(r.DB || r.db || 0) + Number(r.CR || r.cr || 0),
-                    db: Number(r.DB || r.db || 0),
-                    cr: Number(r.CR || r.cr || 0),
-
-                    kodeTrans: String(r.KODETRANS || r.kodeTrans || "").trim(),
-                    masa: masa,
-                    cabang: cabang,
-                    group: group || "TLGA",
-                  }),
-                );
-              });
-              if (p.length > 0) {
-                q +=
-                  p.join(", ") +
-                  " ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data";
-                await client.query(q, v);
-                totalSaved += p.length;
-              }
-              send(85, `DET selesai: ${p.length} data Transaksi`);
-            }
+            totalSaved += await insertBatchWithCols(
+              `transaksi${tahun}`,
+              rows,
+              (r, id) => ({
+                id: id + "_" + String(r.NO || r.no || 0).trim(),
+                masa: masa,
+                cabang: cabang,
+                group: group || "TLGA",
+                noreff: String(r.REFF || r.noreff || "").trim(),
+                tanggal: fixDate(r.DATE || r.tanggal),
+                kodeBank: String(r.REFF || r.noreff || "")
+                  .trim()
+                  .substring(3, 4),
+                dariKePada: String(r.DARIKEPADA || r.dariKePada || "").trim(),
+                noperkiraan: String(r.NOACCT || r.noperkiraan || "").trim(),
+                desc: String(r.DESC || r.desc || "").trim(),
+                total: Number(r.DB || r.db || 0) + Number(r.CR || r.cr || 0),
+                db: Number(r.DB || r.db || 0),
+                cr: Number(r.CR || r.cr || 0),
+                kodeTrans: String(r.KODETRANS || r.kodeTrans || "").trim(),
+              }),
+            );
+            send(85, `DET selesai`);
           }
 
-          // ==========================================
-          // SELESAI
-          // ==========================================
           await client.query("COMMIT");
           send(100, `Sukses bulan ${bulan}! ${totalSaved} data tersimpan.`, {
             success: true,
@@ -1041,7 +1250,6 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
         res.end();
       }
     });
-
     req.pipe(bb);
   } catch (error) {
     send(100, "Error: " + error.message, { success: false });
@@ -1050,7 +1258,7 @@ app.post("/api/impor-foxpro-online", async (req, res) => {
 });
 
 // ============================================================================
-// 18. ENDPOINT IMPOR MUTASI KASIR ONLINE (SSE STREAMING PROGRESS)
+// 18. ENDPOINT IMPOR MUTASI KASIR ONLINE (OPTIMASI KOLOM FISIK)
 // ============================================================================
 app.post("/api/impor-mutasikasir-online", async (req, res) => {
   if (!db) {
@@ -1064,7 +1272,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
     return res.end();
   }
 
-  // WAJIB HEADER SSE
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
   res.setHeader("Connection", "keep-alive");
@@ -1104,7 +1311,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           send(100, "File DBF tidak ditemukan", { success: false });
           return res.end();
         }
-
         if (!cabang) {
           send(100, "Parameter cabang tidak ada", { success: false });
           return res.end();
@@ -1122,62 +1328,55 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
         const crypto = require("crypto");
         const client = await db.connect();
+        const groupFinal = group || "TLGA";
 
-        // ==========================================
-        // 1. HAPUS DATA LAMA JIKA DIPILIH
-        // ==========================================
+        // ✅ UBAH: HAPUS DATA LAMA PAKAI KOLOM FISIK (Super Cepat)
         if (hapus_tahun || hapus_bulan) {
           send(20, "Menghapus data lama di database...");
-          const cabShort = (cabang || "PUSAT").substring(0, 3).toUpperCase();
-          let norefPrefix = `KASIR-${cabShort}-`;
+          let sql = `DELETE FROM "mutasikasir" WHERE cabang = $1 AND "group" = $2`;
+          let params = [cabang, groupFinal];
 
+          // Karena kolom fisiknya 'masa', kita harus hitung masa dari tahun & bulan yang diinput
           if (hapus_tahun && hapus_bulan) {
-            norefPrefix += `${hapus_tahun}-${hapus_bulan}`;
+            const masaHapus =
+              hapus_bulan.padStart(2, "0") + hapus_tahun.slice(-2);
+            sql += ` AND masa = $3`;
+            params.push(masaHapus);
           } else if (hapus_tahun) {
-            norefPrefix += `${hapus_tahun}`;
+            sql += ` AND masa LIKE $3`;
+            params.push(`%${hapus_tahun.slice(-2)}`);
           }
 
-          // Karena tipe data TEXT, gunakan LIKE
-          let sql = `DELETE FROM mutasikasir WHERE data LIKE $1`;
-          let params = [`${norefPrefix}%`];
           await client.query(sql, params);
           send(25, "Data lama berhasil dihapus");
         } else {
           send(25, "Mode tambah data (tidak menghapus yang lama)");
         }
 
-        // ==========================================
-        // 2. PROSES PARSE DATA
-        // ==========================================
         send(30, "Memproses data...");
         const noreffMap = {};
-        let lastParsedFormat = "MDY"; // ✅ DARI FOXPRO: Smart parser tanggal
+        let lastParsedFormat = "MDY";
 
-        const validRecords = records.filter((row) => {
-          const getNum = (val) =>
-            val !== undefined && val !== null ? Number(val) : 0;
-          return getNum(row.RUPIAH) > 0; // Sesuaikan nama kolom DBF jika berbeda
-        });
-
+        const validRecords = records.filter(
+          (row) => Number(row.RUPIAH || 0) > 0,
+        );
         send(
           40,
           `${validRecords.length} data valid ditemukan, mulai menyimpan...`,
         );
 
-        // ==========================================
-        // 3. INSERT KE DATABASE (POLA FOXPRO: BATCH 500)
-        // ==========================================
         try {
           await client.query("BEGIN");
-
-          let savedCount = 0;
-          let errorCount = 0;
-          const batchSize = 500; // ✅ DARI FOXPRO: Batching 500 baris
+          let savedCount = 0,
+            errorCount = 0;
+          const batchSize = 500;
           const totalBatches = Math.ceil(validRecords.length / batchSize);
 
           for (let i = 0; i < validRecords.length; i += batchSize) {
             const batch = validRecords.slice(i, i + batchSize);
-            let queryText = `INSERT INTO mutasikasir (id, data) VALUES `;
+
+            // ✅ UBAH QUERY: Pakai Kolom Fisik
+            let queryText = `INSERT INTO "mutasikasir" (id, masa, cabang, "group", data) VALUES `;
             let values = [];
             let placeholders = [];
 
@@ -1198,7 +1397,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 const totalRaw = getNum(row.RUPIAH);
                 const total = Math.abs(totalRaw);
                 const kodeTrans = getStr(row.KODE).toUpperCase();
-                const cabDBF = cabang;
 
                 if (!tglDbf || !kodeTrans || total === 0) {
                   errorCount++;
@@ -1207,7 +1405,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
                 const desc = descRaw.toUpperCase().replace(/"/g, "'");
 
-                // ✅ DARI FOXPRO: Smart Parser Tanggal Anti Terbalik
                 let tanggalFix = "";
                 if (row.TANGGAL instanceof Date) {
                   let mm = String(row.TANGGAL.getMonth() + 1).padStart(2, "0");
@@ -1215,19 +1412,18 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   let yyyy = row.TANGGAL.getFullYear();
                   tanggalFix = `${yyyy}-${mm}-${dd}`;
                 } else {
-                  let tglStr = String(row.TANGGAL || "").trim();
-                  let cleanTgl = tglStr.replace(/[^0-9\/]/g, "");
-
-                  if (cleanTgl.includes("/")) {
-                    let parts = cleanTgl.split("/");
+                  let tglStr = String(row.TANGGAL || "")
+                    .trim()
+                    .replace(/[^0-9\/]/g, "");
+                  if (tglStr.includes("/")) {
+                    let parts = tglStr.split("/");
                     if (parts.length === 3) {
-                      let part1 = parts[0].padStart(2, "0");
-                      let part2 = parts[1].padStart(2, "0");
+                      let part1 = parts[0].padStart(2, "0"),
+                        part2 = parts[1].padStart(2, "0");
                       let yyyy =
                         parts[2].length === 2 ? "20" + parts[2] : parts[2];
                       let mm = "",
                         dd = "";
-
                       if (parseInt(part1) > 12) {
                         dd = part1;
                         mm = part2;
@@ -1254,26 +1450,18 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   continue;
                 }
 
-                const cabFinal = cabDBF || cabang;
-                const cabShort = (cabFinal || "PUSAT")
+                const cabShort = (cabang || "PUSAT")
                   .substring(0, 3)
                   .toUpperCase();
                 const noreffKey = `${cabShort}_${tanggalFix}`;
-
                 if (!noreffMap[noreffKey]) {
-                  const randomStr = Math.random()
-                    .toString(36)
-                    .substr(2, 4)
-                    .toUpperCase();
                   noreffMap[noreffKey] =
-                    `KASIR-${cabShort}-${tanggalFix}-${randomStr}`;
+                    `KASIR-${cabShort}-${tanggalFix}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
                 }
 
-                const noreff = noreffMap[noreffKey];
                 const id = crypto.randomUUID();
-
-                let nilaiDb = 0;
-                let nilaiCr = 0;
+                let nilaiDb = 0,
+                  nilaiCr = 0;
                 if (
                   ["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k)) ||
                   totalRaw > 0
@@ -1283,24 +1471,34 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   nilaiCr = total;
                 }
 
+                // Hitung masa dari tanggal yang sudah difix (format: YYYY-MM-DD -> MMYY)
+                const masaFix =
+                  tanggalFix.substring(5, 7) + tanggalFix.substring(2, 4);
+
                 const jsonData = {
-                  id: id,
-                  noreff: noreff,
+                  id,
+                  noreff: noreffMap[noreffKey],
                   tanggal: tanggalFix,
-                  cabang: cabFinal,
-                  group: group || "TLGA",
-                  kodeTrans: kodeTrans,
+                  kodeTrans,
                   noperkiraan: "",
-                  desc: desc,
-                  total: total,
+                  desc,
+                  total,
                   db: nilaiDb,
                   cr: nilaiCr,
                 };
 
-                // ✅ DARI FOXPRO: Penggunaan base index yang rapi
+                // ✅ UBAH BASE INDEX: Karena sekarang ada 5 kolom (id, masa, cabang, group, data)
                 const base = values.length;
-                placeholders.push(`($${base + 1}, $${base + 2})`);
-                values.push(id, JSON.stringify(jsonData));
+                placeholders.push(
+                  `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`,
+                );
+                values.push(
+                  id,
+                  masaFix,
+                  cabang,
+                  groupFinal,
+                  JSON.stringify(jsonData),
+                );
               } catch (errPerBaris) {
                 errorCount++;
                 console.warn(
@@ -1310,11 +1508,10 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
               }
             }
 
-            // ✅ DARI FOXPRO: Eksekusi aman per batch
             if (placeholders.length > 0) {
               queryText +=
                 placeholders.join(", ") +
-                ` ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data`;
+                ` ON CONFLICT (id) DO UPDATE SET masa = EXCLUDED.masa, cabang = EXCLUDED.cabang, "group" = EXCLUDED."group", data = EXCLUDED.data`;
               try {
                 await client.query(queryText, values);
               } catch (errDb) {
@@ -1326,7 +1523,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
             const currentBatch = Math.floor(i / batchSize) + 1;
             const pct = 40 + Math.round((currentBatch / totalBatches) * 60);
 
-            // ✅ DARI FOXPRO: Pengaman stream agar server tidak crash kalau browser ditutup
             try {
               send(
                 pct,
@@ -1338,7 +1534,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           }
 
           await client.query("COMMIT");
-
           try {
             send(
               100,
@@ -1368,7 +1563,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         res.end();
       }
     });
-
     req.pipe(bb);
   } catch (error) {
     send(100, "Error: " + error.message, { success: false });
