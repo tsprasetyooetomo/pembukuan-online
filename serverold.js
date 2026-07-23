@@ -14,9 +14,9 @@ const app = express();
 app.use(express.static(__dirname));
 
 // Middleware wajib untuk membaca body request
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
 
+app.use(express.json({ limit: "50mb" })); // <--- Tambahkan limit ini
+app.use(express.urlencoded({ extended: true, limit: "50mb" })); // <--- Tambahkan limit ini
 // ============================================================================
 // 5. LOGIC APLIKASI (ROUTES & DATABASE)
 // ============================================================================
