@@ -1101,177 +1101,93 @@ async function getSaldoAwalKasir(cabang, tglAwal, group) {
 
 /* ---------- FUNGSI REFRESH & RENDER TABEL ---------- */
 async function refreshSaldoKasir() {
-  var tglAwal = $("fk_tgl_awal").value;
-  var tglAkhir = $("fk_tgl_akhir").value;
-  var cab = $("fk_cabang").value;
+  const tglAwal = $("fk_tgl_awal").value;
+  const tglAkhir = $("fk_tgl_akhir").value;
+  const cab = $("fk_cabang").value;
+  const activeGroup = localStorage.getItem("group") || "TLGA";
 
   // =========================================================================
-  // 1. LOGIKA FALLBACK PENCARIAN SALDO AWAL (CASCADE)
+  // 1. AMBIL SALDO AWAL (Gunakan fungsi terpusat getSaldoAwalKasir)
   // =========================================================================
+  // Biarkan fungsi getSaldoAwalKasir yang menghandle fallback saldoKasir -> saldokasirawal -> 0
+  let saldoAwalMaster = await getSaldoAwalKasir(cab, tglAwal, activeGroup);
 
-  // Ambil group aktif dari localStorage (fallback ke 'TLGA' jika kosong)
-  var activeGroup = localStorage.getItem("group") || "TLGA";
-
-  // Kirim 3 parameter: cabang, tanggal awal, dan group
-  var saldoAwalMaster = await getSaldoAwalKasir(cab, tglAwal, activeGroup);
-  // Cek apakah ketemu di tabel "saldokasir"
-
-  // Cek apakah ketemu di tabel "saldokasir"
-  if (
-    saldoAwalMaster === null ||
-    saldoAwalMaster === undefined ||
-    isNaN(saldoAwalMaster)
-  ) {
-    console.log("🔍 Tidak ketemu di saldokasir, mencari ke saldokasirawal...");
-
-    try {
-      // KODE BARU YANG DIPERBAIKI:
-      var rawSaldoRawal = await db.getAll("saldokasirawal");
-      var arrSaldoRawal = rawSaldoRawal
-        ? Array.isArray(rawSaldoRawal)
-          ? rawSaldoRawal
-          : Object.values(rawSaldoRawal)
-        : [];
-
-      // ✅ AMBIL GROUP AKTIF
-      var activeGroup = localStorage.getItem("group") || "TLGA";
-
-      // ✅ FILTER: CABANG, GROUP, DAN TANGGAL HARUS SESUAI
-      var dataCocok = arrSaldoRawal.filter(function (s) {
-        var cabData = String(s.cabang || "").trim();
-        var tglData = String(s.tanggal || s.tgl_awal || "").trim();
-        var groupData = String(s.group || "").trim(); // <- Tambahkan pengecekan Group
-
-        return (
-          cabData === cab && groupData === activeGroup && tglData <= tglAwal
-        );
-      });
-
-      if (dataCocok.length > 0) {
-        // Urutkan dari tanggal terbesar ke terkecil
-        dataCocok.sort(function (a, b) {
-          var tglA = a.tanggal || a.tgl_awal || "";
-          var tglB = b.tanggal || b.tgl_awal || "";
-          return tglB.localeCompare(tglA); // Descending
-        });
-
-        // Ambil data paling terakhir (paling mendekati tanggal awal filter)
-        var saldoTerakhir = dataCocok[0];
-
-        // Ambil nilai akhirnya
-        saldoAwalMaster = num(
-          saldoTerakhir.akhir ||
-            saldoTerakhir.saldo ||
-            saldoTerakhir.saldo_akhir ||
-            0,
-        );
-
-        console.log(
-          "✅ Ditemukan saldo di saldokasirawal (Group: " + activeGroup + "): ",
-          saldoAwalMaster,
-        );
-      } else {
-        // Jika di saldokasirawal juga kosong
-        saldoAwalMaster = 0;
-        console.warn(
-          "⚠️ Saldo awal TIDAK DITEMUKAN di saldokasir maupun saldokasirawal untuk Group: " +
-            activeGroup +
-            ". Menggunakan 0.",
-        );
-      }
-    } catch (err) {
-      console.error("Error membaca saldokasirawal:", err);
-      saldoAwalMaster = 0;
-    }
-
-    // Tampilkan peringatan ke kasir jika saldo awalnya 0
-    if (saldoAwalMaster === 0) {
-      if (typeof toast === "function") {
-        toast(
-          "Saldo awal Rp 0 (Tidak ditemukan di riwayat untuk group ini). Pastikan data sudah di-Posting.",
-          "wrn",
-        );
-      }
-    }
+  // Jika hasilnya tetap 0, beri info toast peringatan ke user
+  if (saldoAwalMaster === 0 && typeof toast === "function") {
+    toast("Saldo awal Rp 0 (Tidak ditemukan di riwayat untuk group ini). Pastikan data sudah di-Posting.", "wrn");
   }
-  // 2. AMBIL DATA MUTASI DARI TABEL mutasikasir
-  var filteredData = (DBCache.mutasikasir || []).filter(function (t) {
-    var isDateOk = true;
-    if (tglAwal && tglAkhir) {
-      isDateOk = t.tanggal && t.tanggal >= tglAwal && t.tanggal <= tglAkhir;
-    } else if (tglAwal) {
-      isDateOk = t.tanggal && t.tanggal >= tglAwal;
-    } else if (tglAkhir) {
-      isDateOk = t.tanggal && t.tanggal <= tglAkhir;
-    }
-    if (!isDateOk) return false;
 
-    var transCab = t.cabang || "Pusat";
+  // =========================================================================
+  // 2. AMBIL DATA MUTASI DARI TABEL mutasikasir (DENGAN FILTER GROUP)
+  // =========================================================================
+  const filteredData = (DBCache.mutasikasir || []).filter(t => {
+    // Filter Tanggal
+    if (tglAwal && (!t.tanggal || t.tanggal < tglAwal)) return false;
+    if (tglAkhir && (!t.tanggal || t.tanggal > tglAkhir)) return false;
+
+    // Filter Cabang
+    const transCab = t.cabang || "Pusat";
     if (cab && transCab !== cab) return false;
+
+    // 🌟 FIX: Filter Group agar mutasi tidak bercampur dengan group lain
+    const transGroup = t.group || "";
+    if (activeGroup && transGroup.trim() !== activeGroup.trim()) return false;
 
     return true;
   });
 
+  // =========================================================================
   // 3. GROUPING DATA BERDASARKAN NOREFF
-  // (Sisa kode di bawah ini TIDAK PERLU DIUBAH, biarkan tetap seperti semula)
-  var groupedMap = {};
-  filteredData.forEach(function (t) {
-    var keyRef = t.noreff || t.id || "-";
-    var typeIndicator = keyRef.substring(0, 2).toUpperCase();
+  // =========================================================================
+  const groupedMap = {};
+  filteredData.forEach(t => {
+    const keyRef = t.noreff || t.id || "-";
+    const typeIndicator = keyRef.substring(0, 2).toUpperCase();
 
     if (!groupedMap[keyRef]) {
-      groupedMap[keyRef] = {
-        tanggal: t.tanggal || "-",
-        noreff: keyRef,
-        db: 0,
-        cr: 0,
-      };
+      groupedMap[keyRef] = { tanggal: t.tanggal || "-", noreff: keyRef, db: 0, cr: 0 };
     }
 
-    var valDb = num(t.db || 0);
-    var valCr = num(t.cr || 0);
-    var valNominal = num(t.nominal || 0);
+    let valDb = num(t.db || 0);
+    let valCr = num(t.cr || 0);
+    const valNominal = num(t.nominal || 0);
 
+    // Fallback jika kolom db/cr kosong tapi nominal terisi
     if (valDb === 0 && valCr === 0 && valNominal > 0) {
-      if (
-        typeIndicator === "PJ" ||
-        typeIndicator === "TK" ||
-        typeIndicator === "KT"
-      ) {
-        valDb = valNominal;
-      } else {
-        valCr = valNominal;
-      }
+      if (["PJ", "TK", "KT"].includes(typeIndicator)) valDb = valNominal;
+      else valCr = valNominal;
     }
 
     groupedMap[keyRef].db += valDb;
     groupedMap[keyRef].cr += valCr;
   });
 
-  var groupedData = Object.values(groupedMap);
-  groupedData.sort(function (a, b) {
-    var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
-    if (dateComp !== 0) return dateComp;
-    return (a.noreff || "").localeCompare(b.noreff || "");
+  // Sorting data hasil grouping (Berdasarkan Tanggal ASC, lalu NoRef ASC)
+  const groupedData = Object.values(groupedMap).sort((a, b) => {
+    return (a.tanggal || "").localeCompare(b.tanggal || "") || (a.noreff || "").localeCompare(b.noreff || "");
   });
-  var rows = [];
-  var runBal = saldoAwalMaster;
-  var totalDb = 0;
-  var totalCr = 0;
-  var lastDate = null;
 
-  groupedData.forEach(function (t) {
+  // =========================================================================
+  // 4. SUSUN ROW TABEL & HITUNG RUNNING BALANCE
+  // =========================================================================
+  const rows = [];
+  let runBal = saldoAwalMaster;
+  let totalDb = 0;
+  let totalCr = 0;
+  let lastDate = null;
+
+  groupedData.forEach(t => {
+    // Tambah pemisah visual jika berganti tanggal (buat object khusus atau lewati jika merusak style)
     if (lastDate !== null && lastDate !== t.tanggal) {
-      rows.push(["", "", "", "", "", "", ""]); // Tambah 1 kolom kosong lagi untuk spasi
+      rows.push(["", "", "", "", "", "", ""]); 
     }
     lastDate = t.tanggal;
 
-    var saldoAwalRow = runBal;
-    runBal += t.db - t.cr;
+    const saldoAwalRow = runBal;
+    runBal += (t.db - t.cr);
 
-    // ✅ TAMBAHKAN KOLOM AKSI DI SINI (Index ke-6)
-    // Tombol View memanggil fungsi viewDetailNoreff() membawa parameter noreff
-    var aksiHtml = `<button class="btn btn-s" style="padding:2px 8px; font-size:.7rem;" onclick="viewDetailNoreff('${esc(t.noreff)}')"><i class="fa-solid fa-eye"></i> View</button>`;
+    // Tombol Aksi View Detail
+    const aksiHtml = `<button class="btn btn-s" style="padding:2px 8px; font-size:.7rem;" onclick="viewDetailNoreff('${esc(t.noreff)}')"><i class="fa-solid fa-eye"></i> View</button>`;
 
     rows.push([
       t.tanggal,
@@ -1280,48 +1196,33 @@ async function refreshSaldoKasir() {
       fmtN(t.db),
       fmtN(t.cr),
       fmtN(runBal),
-      aksiHtml, // Masukkan tombol ke dalam baris
+      aksiHtml
     ]);
 
     totalDb += t.db;
     totalCr += t.cr;
   });
 
+  // Simpan data state aktif
   DATA_KASIR_AKTIF.saldoAwalMaster = saldoAwalMaster;
   DATA_KASIR_AKTIF.groupedData = groupedData;
 
-  var foot = [
-    "",
-    groupedData.length + " No Ref",
-    "",
-    fmtN(totalDb),
-    fmtN(totalCr),
-    fmtN(totalDb - totalCr),
-    "", // ✅ Tambahkan 1 kolom kosong di footer
-  ];
+  // Setup UI Tampilan Tabel
+  const headers = ["Tanggal", "No Ref", "Saldo Awal", "Debit (PJ/TK/KT)", "Credit (BE/CS/KK/SK)", "Saldo Akhir", "Aksi"];
+  const foot = ["", `${groupedData.length} No Ref`, "", fmtN(totalDb), fmtN(totalCr), fmtN(totalDb - totalCr), ""];
 
-  // ✅ TAMBAHKAN HEADER "AKSI" DI PALING KANAN
-  var headers = [
-    "Tanggal",
-    "No Ref",
-    "Saldo Awal",
-    "Debit (PJ/TK/KT)",
-    "Credit (BE/CS/KK/SK)",
-    "Saldo Akhir",
-    "Aksi", // Header baru
-  ];
-
-  var areaTbl = $("kasirTbl");
+  const areaTbl = $("kasirTbl");
   if (areaTbl) {
     areaTbl.innerHTML = wrapTable(
       buildTable(headers, rows, {
-        numCols: [2, 3, 4, 5], // Indeks kolom yang berisi angka (format tetap sama)
+        numCols:,
         foot: foot,
         emptyMsg: "Tidak ada data mutasi kasir untuk periode ini",
-      }),
+      })
     );
   }
 }
+
 function viewDetailNoreff(noreff) {
   // Ambil data mentah dari cache berdasarkan noreff yang diklik
   var detailTransaksi = (DBCache.mutasikasir || []).filter(function (t) {
