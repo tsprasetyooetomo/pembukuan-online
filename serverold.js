@@ -1584,7 +1584,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 // 🔧 ENDPOINT SEMENTARA: MIGRASI DATA LAMA KE KOLOM FISIK
 // Jalankan 1 kali saja lewat browser, lalu HAPUS kode ini setelah selesai!
 // ============================================================================
-app.get("/api/migrasi-kolom-fisik", async (req, res) => {
+app.post("/api/migrasi-kolom-fisik", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
 
   // KEAMANAN: Jangan sampai sembarangan orang menjalankan ini
@@ -1593,14 +1593,13 @@ app.get("/api/migrasi-kolom-fisik", async (req, res) => {
     return res.status(403).json({ error: "Akses ditolak! Butuh secret key." });
   }
 
-  // Set header agar browser tidak timeout dan menampilkan teks langsung
+  // Set header agar browser tidak timeout dan menampilkan teks langsung (streaming)
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Transfer-Encoding", "chunked");
 
   try {
     res.write("🚀 Memulai migrasi data lama ke kolom fisik...\n\n");
 
-    // Daftar tabel yang ingin Anda migrasi
     const tablesToMigrate = [
       "golongan",
       "perkiraan",
@@ -1608,44 +1607,56 @@ app.get("/api/migrasi-kolom-fisik", async (req, res) => {
       "mutasikasir",
       "saldo_harian",
       "saldokasirawal",
+      "users",
+      "kodebank",
+      "cabang",
     ];
 
     for (const tableName of tablesToMigrate) {
-      // Cari juga tabel yang ada tahunnya (misal: transaksi2024, transaksi2025)
+      // PERBAIKAN BUG 2: Gunakan .toLowerCase() pada kedua sisi agar tabel tahunan berhuruf kapital tetap kena filter
       const dynamicTables = ALLOWED_TABLES.filter(
-        (t) => t.toLowerCase().startsWith(tableName) && t !== tableName,
+        (t) =>
+          t.toLowerCase().startsWith(tableName.toLowerCase()) &&
+          t.toLowerCase() !== tableName.toLowerCase(),
       );
 
       const tablesToProcess = [tableName, ...dynamicTables];
 
       for (const tName of tablesToProcess) {
-        const safeTable = '"' + tName.replace(/"/g, '""') + '"';
+        // Buat nama tabel menjadi huruf kecil sesuai standar Supabase/Postgres Anda
+        const lowerTName = tName.toLowerCase();
+        const safeTable = '"' + lowerTName.replace(/"/g, '""') + '"';
+
+        let client = null; // Inisialisasi di luar try agar bisa di-release dengan aman jika gagal total
 
         try {
           // 1. Cek kolom apa saja yang benar-benar dimiliki oleh tabel ini di database
           const colCheck = await db.query(
             `SELECT column_name FROM information_schema.columns 
              WHERE table_schema = 'public' AND table_name = $1 AND column_name IN ('cabang', 'masa', 'group')`,
-            [tName],
+            [lowerTName],
           );
 
           const existingCols = colCheck.rows.map((r) => r.column_name);
 
-          // Jika tabel tidak punya kolom dimensi sama sekali (seperti 'groupproject'), skip
           if (existingCols.length === 0) {
-            res.write(`ℹ️ ${tName}: Ditandai skip (tidak punya kolom fisik)\n`);
+            res.write(
+              `ℹ️ ${lowerTName}: Ditandai skip (tidak punya kolom fisik)\n`,
+            );
             continue;
           }
 
           // 2. Ambil semua data JSON
           const result = await db.query(`SELECT id, data FROM ${safeTable}`);
           if (result.rows.length === 0) {
-            res.write(`ℹ️ ${tName}: Kosong (0 baris data)\n`);
+            res.write(`ℹ️ ${lowerTName}: Kosong (0 baris data)\n`);
             continue;
           }
 
           let updatedCount = 0;
-          const client = await db.connect();
+
+          // PERBAIKAN BUG 1: Ambil koneksi client di sini
+          client = await db.connect();
 
           try {
             await client.query("BEGIN");
@@ -1654,18 +1665,15 @@ app.get("/api/migrasi-kolom-fisik", async (req, res) => {
               const jsonData =
                 typeof row.data === "string" ? JSON.parse(row.data) : row.data;
 
-              // Siapkan array data dan query dinamis berdasarkan kolom yang TERSEDIA
               const updateFields = [];
               const queryValues = [];
               let paramIndex = 1;
 
-              // Hanya isi 'masa' jika tabelnya punya kolom 'masa'
               if (existingCols.includes("masa")) {
                 updateFields.push(`masa = $${paramIndex++}`);
                 queryValues.push(jsonData.masa || null);
               }
 
-              // Hanya isi 'cabang' jika tabelnya punya kolom 'cabang'
               if (existingCols.includes("cabang")) {
                 updateFields.push(`cabang = $${paramIndex++}`);
                 queryValues.push(
@@ -1673,15 +1681,13 @@ app.get("/api/migrasi-kolom-fisik", async (req, res) => {
                 );
               }
 
-              // Hanya isi 'group' jika tabelnya punya kolom 'group'
               if (existingCols.includes("group")) {
                 updateFields.push(`"group" = $${paramIndex++}`);
                 queryValues.push(jsonData.group || null);
               }
 
-              // Jika ada kolom yang perlu diupdate, jalankan query-nya
               if (updateFields.length > 0) {
-                queryValues.push(row.id); // Tambahkan ID untuk klausa WHERE
+                queryValues.push(row.id);
                 const updateQuery = `UPDATE ${safeTable} SET ${updateFields.join(", ")} WHERE id = $${paramIndex}`;
 
                 await client.query(updateQuery, queryValues);
@@ -1689,14 +1695,19 @@ app.get("/api/migrasi-kolom-fisik", async (req, res) => {
               }
             }
             await client.query("COMMIT");
-            res.write(`✅ ${tName}: Berhasil migrasi ${updatedCount} baris\n`);
-          } catch (txErr) {
-            await client.query("ROLLBACK"); // Batalkan jika ada error
             res.write(
-              `❌ Gagal migrasi data di dalam tabel ${tName}: ${txErr.message}\n`,
+              `✅ ${lowerTName}: Berhasil migrasi ${updatedCount} baris\n`,
+            );
+          } catch (txErr) {
+            if (client) await client.query("ROLLBACK"); // Hanya rollback jika transaksi sempat berjalan
+            res.write(
+              `❌ Gagal migrasi data di dalam tabel ${lowerTName}: ${txErr.message}\n`,
             );
           } finally {
-            client.release();
+            if (client) {
+              client.release(); // Pastikan koneksi dilepas kembali ke pool
+              client = null;
+            }
           }
         } catch (err) {
           res.write(`❌ Gagal inisialisasi tabel ${tName}: ${err.message}\n`);
@@ -1710,6 +1721,7 @@ app.get("/api/migrasi-kolom-fisik", async (req, res) => {
     res.status(500).send("Error: " + e.message);
   }
 });
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
