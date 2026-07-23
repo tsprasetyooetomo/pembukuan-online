@@ -1114,13 +1114,16 @@ async function refreshSaldoKasir() {
 
   // Jika hasilnya tetap 0, beri info toast peringatan ke user
   if (saldoAwalMaster === 0 && typeof toast === "function") {
-    toast("Saldo awal Rp 0 (Tidak ditemukan di riwayat untuk group ini). Pastikan data sudah di-Posting.", "wrn");
+    toast(
+      "Saldo awal Rp 0 (Tidak ditemukan di riwayat untuk group ini). Pastikan data sudah di-Posting.",
+      "wrn",
+    );
   }
 
   // =========================================================================
   // 2. AMBIL DATA MUTASI DARI TABEL mutasikasir (DENGAN FILTER GROUP)
   // =========================================================================
-  const filteredData = (DBCache.mutasikasir || []).filter(t => {
+  const filteredData = (DBCache.mutasikasir || []).filter((t) => {
     // Filter Tanggal
     if (tglAwal && (!t.tanggal || t.tanggal < tglAwal)) return false;
     if (tglAkhir && (!t.tanggal || t.tanggal > tglAkhir)) return false;
@@ -1140,12 +1143,17 @@ async function refreshSaldoKasir() {
   // 3. GROUPING DATA BERDASARKAN NOREFF
   // =========================================================================
   const groupedMap = {};
-  filteredData.forEach(t => {
+  filteredData.forEach((t) => {
     const keyRef = t.noreff || t.id || "-";
     const typeIndicator = keyRef.substring(0, 2).toUpperCase();
 
     if (!groupedMap[keyRef]) {
-      groupedMap[keyRef] = { tanggal: t.tanggal || "-", noreff: keyRef, db: 0, cr: 0 };
+      groupedMap[keyRef] = {
+        tanggal: t.tanggal || "-",
+        noreff: keyRef,
+        db: 0,
+        cr: 0,
+      };
     }
 
     let valDb = num(t.db || 0);
@@ -1164,7 +1172,10 @@ async function refreshSaldoKasir() {
 
   // Sorting data hasil grouping (Berdasarkan Tanggal ASC, lalu NoRef ASC)
   const groupedData = Object.values(groupedMap).sort((a, b) => {
-    return (a.tanggal || "").localeCompare(b.tanggal || "") || (a.noreff || "").localeCompare(b.noreff || "");
+    return (
+      (a.tanggal || "").localeCompare(b.tanggal || "") ||
+      (a.noreff || "").localeCompare(b.noreff || "")
+    );
   });
 
   // =========================================================================
@@ -1176,15 +1187,15 @@ async function refreshSaldoKasir() {
   let totalCr = 0;
   let lastDate = null;
 
-  groupedData.forEach(t => {
+  groupedData.forEach((t) => {
     // Tambah pemisah visual jika berganti tanggal (buat object khusus atau lewati jika merusak style)
     if (lastDate !== null && lastDate !== t.tanggal) {
-      rows.push(["", "", "", "", "", "", ""]); 
+      rows.push(["", "", "", "", "", "", ""]);
     }
     lastDate = t.tanggal;
 
     const saldoAwalRow = runBal;
-    runBal += (t.db - t.cr);
+    runBal += t.db - t.cr;
 
     // Tombol Aksi View Detail
     const aksiHtml = `<button class="btn btn-s" style="padding:2px 8px; font-size:.7rem;" onclick="viewDetailNoreff('${esc(t.noreff)}')"><i class="fa-solid fa-eye"></i> View</button>`;
@@ -1196,7 +1207,7 @@ async function refreshSaldoKasir() {
       fmtN(t.db),
       fmtN(t.cr),
       fmtN(runBal),
-      aksiHtml
+      aksiHtml,
     ]);
 
     totalDb += t.db;
@@ -1208,17 +1219,34 @@ async function refreshSaldoKasir() {
   DATA_KASIR_AKTIF.groupedData = groupedData;
 
   // Setup UI Tampilan Tabel
-  const headers = ["Tanggal", "No Ref", "Saldo Awal", "Debit (PJ/TK/KT)", "Credit (BE/CS/KK/SK)", "Saldo Akhir", "Aksi"];
-  const foot = ["", `${groupedData.length} No Ref`, "", fmtN(totalDb), fmtN(totalCr), fmtN(totalDb - totalCr), ""];
+  // Setup UI Tampilan Tabel
+  const headers = [
+    "Tanggal",
+    "No Ref",
+    "Saldo Awal",
+    "Debit (PJ/TK/KT)",
+    "Credit (BE/CS/KK/SK)",
+    "Saldo Akhir",
+    "Aksi",
+  ];
+  const foot = [
+    "",
+    `${groupedData.length} No Ref`,
+    "",
+    fmtN(totalDb),
+    fmtN(totalCr),
+    fmtN(totalDb - totalCr),
+    "",
+  ];
 
   const areaTbl = $("kasirTbl");
   if (areaTbl) {
     areaTbl.innerHTML = wrapTable(
       buildTable(headers, rows, {
-        numCols:,
+        numCols: [2, 3, 4, 5],
         foot: foot,
         emptyMsg: "Tidak ada data mutasi kasir untuk periode ini",
-      })
+      }),
     );
   }
 }
