@@ -1576,14 +1576,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 // JALANKAN SERVER - WAJIB DI PALING BAWAH
 // ============================================================================
 
-// ============================================================================
-// 🔧 ENDPOINT SEMENTARA: MIGRASI DATA LAMA KE KOLOM FISIK
-// Jalankan 1 kali saja lewat browser, lalu HAPUS kode ini setelah selesai!
-// ============================================================================
-// ============================================================================
-// 🔧 ENDPOINT SEMENTARA: MIGRASI DATA LAMA KE KOLOM FISIK
-// Jalankan 1 kali saja lewat browser, lalu HAPUS kode ini setelah selesai!
-// ============================================================================
 app.post("/api/migrasi-kolom-fisik", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
 
@@ -1592,12 +1584,22 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
     return res.status(403).json({ error: "Akses ditolak! Butuh secret key." });
   }
 
-  res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.setHeader("Transfer-Encoding", "chunked");
+  // 1. SET HEADER UNTUK SERVER-SENT EVENTS (SSE) AGAR BISA DIBACA FRONT-END ASYNCHRONOUSLY
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+
+  // Fungsi pembantu untuk mengirim log terstruktur ke front-end
+  const sendProgress = (status, message, table = "", percent = 0) => {
+    res.write(
+      `data: ${JSON.stringify({ status, message, table, percent })}\n\n`,
+    );
+  };
 
   try {
-    res.write(
-      "🚀 Memulai migrasi data lama dengan sistem Batch (Cicilan)...\n\n",
+    sendProgress(
+      "start",
+      "🚀 Memulai migrasi data lama dengan sistem Batch (Cicilan)...",
     );
 
     const tablesToMigrate = [
@@ -1612,7 +1614,7 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
       "cabang",
     ];
 
-    const BATCH_SIZE = 500; // Memproses maksimal 500 baris per tahap agar tidak stuck
+    const BATCH_SIZE = 500;
 
     for (const tableName of tablesToMigrate) {
       const dynamicTables = ALLOWED_TABLES.filter(
@@ -1628,24 +1630,26 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
         const safeTable = '"' + lowerTName.replace(/"/g, '""') + '"';
 
         try {
-          // 1. Cek kolom fisik yang tersedia
+          // Cek kolom fisik yang tersedia (Gunakan LOWER agar kebal huruf kapital)
           const colCheck = await db.query(
             `SELECT column_name FROM information_schema.columns 
-             WHERE table_schema = 'public' AND table_name = $1 AND column_name IN ('cabang', 'masa', 'group')`,
+             WHERE table_schema = 'public' AND LOWER(table_name) = LOWER($1) AND column_name IN ('cabang', 'masa', 'group')`,
             [lowerTName],
           );
 
           const existingCols = colCheck.rows.map((r) => r.column_name);
 
           if (existingCols.length === 0) {
-            res.write(
-              `ℹ️ ${lowerTName}: Ditandai skip (tidak punya kolom fisik)\n`,
+            sendProgress(
+              "skip",
+              `ℹ️ Ditandai skip (tidak punya kolom fisik)`,
+              lowerTName,
+              100,
             );
             continue;
           }
 
-          // 2. Hitung total baris yang perlu dimigrasi (yang kolom fisiknya masih KOSONG / NULL)
-          // Ini trik cerdas agar jika server mati, saat dijalankan ulang tidak mengulang dari nol
+          // Hitung total baris yang perlu dimigrasi
           let whereClause = [];
           if (existingCols.includes("masa")) whereClause.push("masa IS NULL");
           if (existingCols.includes("cabang"))
@@ -1658,12 +1662,20 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
           const totalToMigrate = parseInt(countRes.rows[0].count);
 
           if (totalToMigrate === 0) {
-            res.write(`✅ ${lowerTName}: Sudah aman (0 baris perlu migrasi)\n`);
+            sendProgress(
+              "success",
+              `✅ Sudah aman (0 baris perlu migrasi)`,
+              lowerTName,
+              100,
+            );
             continue;
           }
 
-          res.write(
-            `⏳ ${lowerTName}: Menemukan ${totalToMigrate} baris data lama yang perlu dicicil...\n`,
+          sendProgress(
+            "processing",
+            `⏳ Menemukan ${totalToMigrate} baris data lama yang perlu dicicil...`,
+            lowerTName,
+            0,
           );
 
           let offset = 0;
@@ -1671,7 +1683,6 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
 
           // Loop Cicilan Data
           while (offset < totalToMigrate) {
-            // Ambil data sebagian saja (Sesuai batas BATCH_SIZE)
             const selectQuery = `SELECT id, data FROM ${safeTable} WHERE ${whereClause.join(" OR ")} LIMIT ${BATCH_SIZE}`;
             const result = await db.query(selectQuery);
 
@@ -1715,36 +1726,54 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
               await client.query("COMMIT");
             } catch (txErr) {
               await client.query("ROLLBACK");
-              res.write(
-                `❌ Gagal pada cicilan tabel ${lowerTName}: ${txErr.message}\n`,
+              sendProgress(
+                "error",
+                `❌ Gagal pada cicilan data: ${txErr.message}`,
+                lowerTName,
               );
-              throw txErr; // Lempar ke catch luar untuk lanjut ke tabel berikutnya
+              throw txErr;
             } finally {
               client.release();
             }
 
-            // Tampilkan progres cicilan ke browser secara berkala
-            res.write(
-              `   ↳ Berhasil memproses ${totalUpdated} / ${totalToMigrate} baris...\n`,
+            // HITUNG PERSENTASE PROGRESS PER TABEL
+            const currentPercent = Math.min(
+              Math.round((totalUpdated / totalToMigrate) * 100),
+              100,
+            );
+            sendProgress(
+              "progress",
+              `Memproses ${totalUpdated} / ${totalToMigrate} baris...`,
+              lowerTName,
+              currentPercent,
             );
 
-            // Jika batch_size ternyata lebih besar dari sisa data, hentikan loop untuk tabel ini
             if (result.rows.length < BATCH_SIZE) break;
           }
 
-          res.write(
-            `🎉 ${lowerTName}: Selesai migrasi total ${totalUpdated} baris\n`,
+          sendProgress(
+            "success",
+            `🎉 Selesai migrasi total ${totalUpdated} baris`,
+            lowerTName,
+            100,
           );
         } catch (err) {
-          res.write(`❌ Penghentian paksa tabel ${tName}: ${err.message}\n`);
+          sendProgress(
+            "error",
+            `❌ Penghentian paksa tabel: ${err.message}`,
+            tName,
+          );
         }
       }
     }
 
-    res.write("\n🎉 SEMUA PROSES MIGRASI BATCH SELESAI!");
-    res.status(200).end();
+    sendProgress("done", "🎉 SEMUA PROSES MIGRASI BATCH SELESAI!");
+    res.end();
   } catch (e) {
-    res.status(500).send("Error Utama: " + e.message);
+    res.write(
+      `data: ${JSON.stringify({ status: "fatal", message: "Error Utama: " + e.message })}\n\n`,
+    );
+    res.end();
   }
 });
 
