@@ -199,15 +199,15 @@ try {
     try {
       const lowerTableName = tableName.toLowerCase();
 
-      // 1. Cek keberadaan tabel
-      const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1);`;
+      // 1. Cek keberadaan tabel (Gunakan LOWER agar kebal huruf kapital)
+      const checkQuery = `SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_schema = 'public' AND LOWER(table_name) = LOWER($1));`;
       const resCheck = await db.query(checkQuery, [lowerTableName]);
-      const tableExists = resCheck.rows[0].exists; // Sudah diperbaiki dengan [0].exists
+      const tableExists = resCheck.rows[0].exists;
 
       // Sanitasi nama tabel untuk mencegah SQL Injection
       const safeTable = '"' + lowerTableName.replace(/"/g, '""') + '"';
 
-      // Daftar semua tabel master/konfigurasi
+      // Daftar tabel master murni (Butuh Cabang & Group, Tanpa Masa)
       const masterTables = [
         "users",
         "formatrl",
@@ -216,45 +216,38 @@ try {
         "golongan",
         "perkiraan",
         "cabang",
-        "groupproject",
-        "saldokasir",
-        "saldokasirawal",
-        "saldo_harian",
       ];
 
       if (!tableExists) {
         console.log(`🛠️ Membuat tabel baru di Supabase: ${lowerTableName}`);
 
-        if (masterTables.includes(lowerTableName)) {
-          if (lowerTableName === "groupproject") {
-            // KONDISI A: groupproject hanya 2 kolom
-            await db.query(
-              `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
-            );
-            console.log(
-              `⚡ Tabel super master ${lowerTableName} dibuat minimalis (2 kolom).`,
-            );
-          } else if (lowerTableName === "cabang") {
-            // KONDISI B: cabang hanya ditambah kolom group (tanpa kolom cabang)
-            await db.query(
-              `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, "group" TEXT, data TEXT NOT NULL)`,
-            );
-            await db.query(`CREATE INDEX ON ${safeTable} ("group")`);
-            console.log(
-              `⚡ Tabel ${lowerTableName} dibuat dengan filter group.`,
-            );
-          } else {
-            // KONDISI C: Tabel master umum (users, perkiraan, dll) butuh cabang & group
-            await db.query(
-              `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, cabang TEXT, "group" TEXT, data TEXT NOT NULL)`,
-            );
-            await db.query(`CREATE INDEX ON ${safeTable} (cabang, "group")`);
-            console.log(
-              `⚡ Tabel master ${lowerTableName} dibuat dengan filter cabang & group.`,
-            );
-          }
+        if (lowerTableName === "groupproject") {
+          // KONDISI A: groupproject hanya 2 kolom
+          await db.query(
+            `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, data TEXT NOT NULL)`,
+          );
+          console.log(
+            `⚡ Tabel super master ${lowerTableName} dibuat minimalis (2 kolom).`,
+          );
+        } else if (lowerTableName === "cabang") {
+          // KONDISI B: cabang hanya ditambah kolom group (tanpa kolom cabang)
+          await db.query(
+            `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, "group" TEXT, data TEXT NOT NULL)`,
+          );
+          await db.query(`CREATE INDEX ON ${safeTable} ("group")`);
+          console.log(`⚡ Tabel ${lowerTableName} dibuat dengan filter group.`);
+        } else if (masterTables.includes(lowerTableName)) {
+          // KONDISI C: Tabel master umum (users, perkiraan, golongan, dll) butuh cabang & group
+          await db.query(
+            `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, cabang TEXT, "group" TEXT, data TEXT NOT NULL)`,
+          );
+          await db.query(`CREATE INDEX ON ${safeTable} (cabang, "group")`);
+          console.log(
+            `⚡ Tabel master ${lowerTableName} dibuat dengan filter cabang & group.`,
+          );
         } else {
-          // KONDISI D: Tabel transaksi/operasional reguler (Lengkap dengan masa)
+          // KONDISI D: Tabel transaksi reguler & Tabel tahunan dinamis (transaksi2024, transaksi2026, dll)
+          // Lengkap dengan MASA, CABANG, dan GROUP
           await db.query(
             `CREATE TABLE ${safeTable} (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, "group" TEXT, data TEXT NOT NULL)`,
           );
@@ -262,39 +255,43 @@ try {
             `CREATE INDEX ON ${safeTable} (masa, cabang, "group")`,
           );
           console.log(
-            `⚡ Index otomatis (masa, cabang, group) berhasil dibuat.`,
+            `⚡ Tabel operasional/tahunan ${lowerTableName} dibuat lengkap dengan kolom dimensi.`,
           );
         }
         console.log(`✅ Tabel ${lowerTableName} berhasil dibuat.`);
       } else {
-        // 2. Jika tabel sudah ada, cek kolom dan index yang kurang (MIGRASI)
+        // 2. Jika tabel sudah ada, cek kolom yang kurang (MIGRASI STRUKTUR FISIK)
+        // Gunakan LOWER(table_name) agar kebal huruf besar/kecil di database
         const colCheck = await db.query(
           `SELECT column_name FROM information_schema.columns 
-         WHERE table_schema = 'public' AND table_name = $1 AND column_name IN ('masa', 'cabang', 'group')`,
+           WHERE table_schema = 'public' AND LOWER(table_name) = LOWER($1) AND column_name IN ('masa', 'cabang', 'group')`,
           [lowerTableName],
         );
 
         const existingCols = colCheck.rows.map((r) => r.column_name);
         let columnAdded = false;
 
-        // Aturan Kolom 'masa': Hanya untuk tabel transaksi (BUKAN tabel master)
+        // Aturan Kolom 'masa': Hanya untuk tabel operasional & tahunan (BUKAN tabel master)
         if (
           !existingCols.includes("masa") &&
-          !masterTables.includes(lowerTableName)
+          !masterTables.includes(lowerTableName) &&
+          lowerTableName !== "groupproject"
         ) {
           await db.query(`ALTER TABLE ${safeTable} ADD COLUMN masa TEXT`);
-          console.log(`➕ Kolom 'masa' ditambahkan ke ${lowerTableName}`);
+          console.log(`➕ Kolom 'masa' ditambahkan ke tabel ${lowerTableName}`);
           columnAdded = true;
         }
 
-        // Aturan Kolom 'cabang': Untuk semua tabel KECUALI tabel transaksi, cabang, dan groupproject
+        // Aturan Kolom 'cabang': Untuk semua tabel KECUALI tabel cabang dan groupproject
         if (
           !existingCols.includes("cabang") &&
           lowerTableName !== "cabang" &&
           lowerTableName !== "groupproject"
         ) {
           await db.query(`ALTER TABLE ${safeTable} ADD COLUMN cabang TEXT`);
-          console.log(`➕ Kolom 'cabang' ditambahkan ke ${lowerTableName}`);
+          console.log(
+            `➕ Kolom 'cabang' ditambahkan ke tabel ${lowerTableName}`,
+          );
           columnAdded = true;
         }
 
@@ -304,11 +301,13 @@ try {
           lowerTableName !== "groupproject"
         ) {
           await db.query(`ALTER TABLE ${safeTable} ADD COLUMN "group" TEXT`);
-          console.log(`➕ Kolom 'group' ditambahkan ke ${lowerTableName}`);
+          console.log(
+            `➕ Kolom 'group' ditambahkan ke tabel ${lowerTableName}`,
+          );
           columnAdded = true;
         }
 
-        // Jika ada kolom baru yang masuk pada tabel lama, buat/perbarui index pendukungnya
+        // Jika ada kolom baru yang disuntikkan, pastikan INDEX-nya terbuat otomatis
         if (columnAdded) {
           const indexName = `idx_${lowerTableName}_dimensi`;
 
@@ -317,7 +316,6 @@ try {
               `CREATE INDEX IF NOT EXISTS "${indexName}" ON ${safeTable} ("group")`,
             );
           } else if (lowerTableName !== "groupproject") {
-            // Kondisi tabel master lainnya & tabel transaksi reguler
             const indexCols = masterTables.includes(lowerTableName)
               ? `cabang, "group"`
               : `masa, cabang, "group"`;
@@ -325,10 +323,7 @@ try {
               `CREATE INDEX IF NOT EXISTS "${indexName}" ON ${safeTable} (${indexCols})`,
             );
           }
-
-          console.log(
-            `⚡ Index susulan ${indexName} berhasil dipastikan tersedia.`,
-          );
+          console.log(`⚡ Index susulan ${indexName} dipastikan tersedia.`);
         }
       }
     } catch (e) {
