@@ -1577,7 +1577,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 // 🔧 ENDPOINT SEMENTARA: MIGRASI DATA LAMA KE KOLOM FISIK
 // Jalankan 1 kali saja lewat browser, lalu HAPUS kode ini setelah selesai!
 // ============================================================================
-app.get("/api/migrasi-kolom-fisik", async (req, res) => {
+app.post("/api/migrasi-kolom-fisik", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
 
   // KEAMANAN: Jangan sampai sembarangan orang menjalankan ini
