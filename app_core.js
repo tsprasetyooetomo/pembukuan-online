@@ -931,6 +931,125 @@ var currentPanel = "blank";
 var PANEL_MAP = {};
 var AFTER_RENDER = {};
 
+PANEL_MAP["migrasiFisik"] = async function renderMigrasiFisik() {
+  return `
+    <div style="font-family: sans-serif; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
+      <div style="display: flex; align-items: center; gap: 10px; border-bottom: 2px solid #eee; padding-bottom: 10px; margin-bottom: 20px;">
+        <i class="fa-solid fa-arrows-spin fa-spin" style="font-size: 24px; color: #007bff; --fa-animation-duration: 3s;"></i>
+        <h2 style="margin: 0; font-size: 18px; color: #333;">Utility: Sinkronisasi Struktur Kolom Fisik</h2>
+      </div>
+
+      <p style="color: #666; font-size: 13px; line-height: 1.5; margin-bottom: 20px;">
+        Fitur ini berguna untuk mengurai data dimensi dari kolom JSON <code>data</code> (seperti masa, cabang, dan group) ke dalam bentuk struktur kolom database fisik Supabase demi mengoptimalkan kecepatan pencarian laporan keuangan secara signifikan.
+      </p>
+      
+      <div style="margin-bottom: 25px;">
+        <button id="btnMulaiMigrasi" style="padding: 12px 24px; background: #007bff; color: white; border: none; border-radius: 4px; font-weight: bold; cursor: pointer; transition: background 0.2s; font-size: 13px;">
+          <i class="fas fa-play" style="margin-right: 8px;"></i> Mulai Jalankan Migrasi Batch
+        </button>
+      </div>
+
+      <!-- Progress Area -->
+      <div id="panelProgress" style="display: none; background: #f8f9fa; padding: 15px; border-radius: 6px; border: 1px solid #e9ecef;">
+        <div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 13px; margin-bottom: 8px;">
+          <span>Status Kerja: <span id="txtNamaTabel" style="color: #007bff;">-</span></span>
+          <span id="txtPersen">0%</span>
+        </div>
+        
+        <!-- Batang Progress -->
+        <div style="width: 100%; background: #dee2e6; height: 14px; border-radius: 7px; overflow: hidden; margin-bottom: 15px;">
+          <div id="barPersen" style="width: 0%; background: #28a745; height: 100%; transition: width 0.3s ease;"></div>
+        </div>
+
+        <!-- Tampilan Log Hitam Ala Terminal -->
+        <div id="boxLogTerminal" style="background: #1e1e1e; color: #39ff14; font-family: monospace; padding: 12px; border-radius: 4px; height: 180px; overflow-y: auto; font-size: 11px; line-height: 1.6; white-space: pre-wrap;"></div>
+      </div>
+    </div>
+  `;
+};
+
+AFTER_RENDER["migrasiFisik"] = function initMigrasiFisikUI() {
+  const btn = document.getElementById("btnMulaiMigrasi");
+  if (!btn) return;
+
+  btn.addEventListener("click", async function () {
+    const panel = document.getElementById("panelProgress");
+    const txtTabel = document.getElementById("txtNamaTabel");
+    const txtPersen = document.getElementById("txtPersen");
+    const bar = document.getElementById("barPersen");
+    const terminal = document.getElementById("boxLogTerminal");
+
+    // Kunci tombol agar tidak memicu dobel request
+    btn.disabled = true;
+    btn.style.background = "#6c757d";
+    btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Memproses Data...`;
+
+    panel.style.display = "block";
+    terminal.innerHTML = "🔌 Menyambungkan ke server Railway...\n";
+
+    try {
+      const response = await fetch(
+        "/api/migrasi-kolom-fisik?secret=ubahdata2024",
+        {
+          method: "POST",
+        },
+      );
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const payload = JSON.parse(line.replace("data: ", ""));
+
+            // 1. Update terminal teks
+            terminal.innerHTML += `> ${payload.message}\n`;
+            terminal.scrollTop = terminal.scrollHeight;
+
+            // 2. Update Informasi tabel operasional
+            if (payload.table) {
+              txtTabel.innerText = payload.table.toUpperCase();
+            }
+
+            // 3. Update grafik batang persentase
+            if (payload.percent !== undefined) {
+              txtPersen.innerText = `${payload.percent}%`;
+              bar.style.width = `${payload.percent}%`;
+            }
+
+            // 4. Selesai sempurna
+            if (payload.status === "done") {
+              btn.innerHTML = `<i class="fas fa-check"></i> Selesai Sukses`;
+              btn.style.background = "#28a745";
+              terminal.innerHTML += `\n[FINISH] Hubungan diputus secara aman. Database sudah sinkron.\n`;
+
+              if (typeof toast === "function") {
+                toast("Migrasi kolom fisik selesai!", "ok");
+              } else {
+                alert(
+                  "🎉 Sukses! Seluruh data transaksi & master berhasil dimigrasi ke kolom fisik.",
+                );
+              }
+            }
+          }
+        }
+      }
+    } catch (err) {
+      terminal.innerHTML += `\n🔴 ERROR KONEKSI: ${err.message}\n`;
+      btn.disabled = false;
+      btn.style.background = "#007bff";
+      btn.innerHTML = `<i class="fas fa-play"></i> Coba Ulangi Migrasi`;
+    }
+  });
+};
+
 async function navigate(id) {
   // 1. Bersihkan seleksi (ini jangan dihapus)
   [
