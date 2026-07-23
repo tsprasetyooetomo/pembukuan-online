@@ -1587,18 +1587,18 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 app.post("/api/migrasi-kolom-fisik", async (req, res) => {
   if (!db) return res.status(500).json({ error: "DB Error" });
 
-  // KEAMANAN: Jangan sampai sembarangan orang menjalankan ini
   const secretKey = req.query.secret;
   if (secretKey !== "ubahdata2024") {
     return res.status(403).json({ error: "Akses ditolak! Butuh secret key." });
   }
 
-  // Set header agar browser tidak timeout dan menampilkan teks langsung (streaming)
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
   res.setHeader("Transfer-Encoding", "chunked");
 
   try {
-    res.write("🚀 Memulai migrasi data lama ke kolom fisik...\n\n");
+    res.write(
+      "🚀 Memulai migrasi data lama dengan sistem Batch (Cicilan)...\n\n",
+    );
 
     const tablesToMigrate = [
       "golongan",
@@ -1612,8 +1612,9 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
       "cabang",
     ];
 
+    const BATCH_SIZE = 500; // Memproses maksimal 500 baris per tahap agar tidak stuck
+
     for (const tableName of tablesToMigrate) {
-      // PERBAIKAN BUG 2: Gunakan .toLowerCase() pada kedua sisi agar tabel tahunan berhuruf kapital tetap kena filter
       const dynamicTables = ALLOWED_TABLES.filter(
         (t) =>
           t.toLowerCase().startsWith(tableName.toLowerCase()) &&
@@ -1623,14 +1624,11 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
       const tablesToProcess = [tableName, ...dynamicTables];
 
       for (const tName of tablesToProcess) {
-        // Buat nama tabel menjadi huruf kecil sesuai standar Supabase/Postgres Anda
         const lowerTName = tName.toLowerCase();
         const safeTable = '"' + lowerTName.replace(/"/g, '""') + '"';
 
-        let client = null; // Inisialisasi di luar try agar bisa di-release dengan aman jika gagal total
-
         try {
-          // 1. Cek kolom apa saja yang benar-benar dimiliki oleh tabel ini di database
+          // 1. Cek kolom fisik yang tersedia
           const colCheck = await db.query(
             `SELECT column_name FROM information_schema.columns 
              WHERE table_schema = 'public' AND table_name = $1 AND column_name IN ('cabang', 'masa', 'group')`,
@@ -1646,79 +1644,107 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
             continue;
           }
 
-          // 2. Ambil semua data JSON
-          const result = await db.query(`SELECT id, data FROM ${safeTable}`);
-          if (result.rows.length === 0) {
-            res.write(`ℹ️ ${lowerTName}: Kosong (0 baris data)\n`);
+          // 2. Hitung total baris yang perlu dimigrasi (yang kolom fisiknya masih KOSONG / NULL)
+          // Ini trik cerdas agar jika server mati, saat dijalankan ulang tidak mengulang dari nol
+          let whereClause = [];
+          if (existingCols.includes("masa")) whereClause.push("masa IS NULL");
+          if (existingCols.includes("cabang"))
+            whereClause.push("cabang IS NULL");
+          if (existingCols.includes("group"))
+            whereClause.push('"group" IS NULL');
+
+          const countQuery = `SELECT COUNT(*) FROM ${safeTable} WHERE ${whereClause.join(" OR ")}`;
+          const countRes = await db.query(countQuery);
+          const totalToMigrate = parseInt(countRes.rows[0].count);
+
+          if (totalToMigrate === 0) {
+            res.write(`✅ ${lowerTName}: Sudah aman (0 baris perlu migrasi)\n`);
             continue;
           }
 
-          let updatedCount = 0;
+          res.write(
+            `⏳ ${lowerTName}: Menemukan ${totalToMigrate} baris data lama yang perlu dicicil...\n`,
+          );
 
-          // PERBAIKAN BUG 1: Ambil koneksi client di sini
-          client = await db.connect();
+          let offset = 0;
+          let totalUpdated = 0;
 
-          try {
-            await client.query("BEGIN");
+          // Loop Cicilan Data
+          while (offset < totalToMigrate) {
+            // Ambil data sebagian saja (Sesuai batas BATCH_SIZE)
+            const selectQuery = `SELECT id, data FROM ${safeTable} WHERE ${whereClause.join(" OR ")} LIMIT ${BATCH_SIZE}`;
+            const result = await db.query(selectQuery);
 
-            for (const row of result.rows) {
-              const jsonData =
-                typeof row.data === "string" ? JSON.parse(row.data) : row.data;
+            if (result.rows.length === 0) break;
 
-              const updateFields = [];
-              const queryValues = [];
-              let paramIndex = 1;
+            const client = await db.connect();
+            try {
+              await client.query("BEGIN");
 
-              if (existingCols.includes("masa")) {
-                updateFields.push(`masa = $${paramIndex++}`);
-                queryValues.push(jsonData.masa || null);
+              for (const row of result.rows) {
+                const jsonData =
+                  typeof row.data === "string"
+                    ? JSON.parse(row.data)
+                    : row.data;
+                const updateFields = [];
+                const queryValues = [];
+                let paramIndex = 1;
+
+                if (existingCols.includes("masa")) {
+                  updateFields.push(`masa = $${paramIndex++}`);
+                  queryValues.push(jsonData.masa || null);
+                }
+                if (existingCols.includes("cabang")) {
+                  updateFields.push(`cabang = $${paramIndex++}`);
+                  queryValues.push(
+                    jsonData.cabang || jsonData.kode_cabang || null,
+                  );
+                }
+                if (existingCols.includes("group")) {
+                  updateFields.push(`"group" = $${paramIndex++}`);
+                  queryValues.push(jsonData.group || null);
+                }
+
+                if (updateFields.length > 0) {
+                  queryValues.push(row.id);
+                  const updateQuery = `UPDATE ${safeTable} SET ${updateFields.join(", ")} WHERE id = $${paramIndex}`;
+                  await client.query(updateQuery, queryValues);
+                  totalUpdated++;
+                }
               }
-
-              if (existingCols.includes("cabang")) {
-                updateFields.push(`cabang = $${paramIndex++}`);
-                queryValues.push(
-                  jsonData.cabang || jsonData.kode_cabang || null,
-                );
-              }
-
-              if (existingCols.includes("group")) {
-                updateFields.push(`"group" = $${paramIndex++}`);
-                queryValues.push(jsonData.group || null);
-              }
-
-              if (updateFields.length > 0) {
-                queryValues.push(row.id);
-                const updateQuery = `UPDATE ${safeTable} SET ${updateFields.join(", ")} WHERE id = $${paramIndex}`;
-
-                await client.query(updateQuery, queryValues);
-                updatedCount++;
-              }
+              await client.query("COMMIT");
+            } catch (txErr) {
+              await client.query("ROLLBACK");
+              res.write(
+                `❌ Gagal pada cicilan tabel ${lowerTName}: ${txErr.message}\n`,
+              );
+              throw txErr; // Lempar ke catch luar untuk lanjut ke tabel berikutnya
+            } finally {
+              client.release();
             }
-            await client.query("COMMIT");
+
+            // Tampilkan progres cicilan ke browser secara berkala
             res.write(
-              `✅ ${lowerTName}: Berhasil migrasi ${updatedCount} baris\n`,
+              `   ↳ Berhasil memproses ${totalUpdated} / ${totalToMigrate} baris...\n`,
             );
-          } catch (txErr) {
-            if (client) await client.query("ROLLBACK"); // Hanya rollback jika transaksi sempat berjalan
-            res.write(
-              `❌ Gagal migrasi data di dalam tabel ${lowerTName}: ${txErr.message}\n`,
-            );
-          } finally {
-            if (client) {
-              client.release(); // Pastikan koneksi dilepas kembali ke pool
-              client = null;
-            }
+
+            // Jika batch_size ternyata lebih besar dari sisa data, hentikan loop untuk tabel ini
+            if (result.rows.length < BATCH_SIZE) break;
           }
+
+          res.write(
+            `🎉 ${lowerTName}: Selesai migrasi total ${totalUpdated} baris\n`,
+          );
         } catch (err) {
-          res.write(`❌ Gagal inisialisasi tabel ${tName}: ${err.message}\n`);
+          res.write(`❌ Penghentian paksa tabel ${tName}: ${err.message}\n`);
         }
       }
     }
 
-    res.write("\n🎉 MIGRASI SELESAI! Silakan coba filter data Anda sekarang.");
+    res.write("\n🎉 SEMUA PROSES MIGRASI BATCH SELESAI!");
     res.status(200).end();
   } catch (e) {
-    res.status(500).send("Error: " + e.message);
+    res.status(500).send("Error Utama: " + e.message);
   }
 });
 
