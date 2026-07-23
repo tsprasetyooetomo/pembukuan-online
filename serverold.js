@@ -1572,6 +1572,108 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 // ============================================================================
 // JALANKAN SERVER - WAJIB DI PALING BAWAH
 // ============================================================================
+
+// ============================================================================
+// 🔧 ENDPOINT SEMENTARA: MIGRASI DATA LAMA KE KOLOM FISIK
+// Jalankan 1 kali saja lewat browser, lalu HAPUS kode ini setelah selesai!
+// ============================================================================
+app.get("/api/migrasi-kolom-fisik", async (req, res) => {
+  if (!db) return res.status(500).json({ error: "DB Error" });
+
+  // KEAMANAN: Jangan sampai sembarangan orang menjalankan ini
+  const secretKey = req.query.secret;
+  if (secretKey !== "ubahdata2024") {
+    return res.status(403).json({ error: "Akses ditolak! Butuh secret key." });
+  }
+
+  try {
+    res.write("🚀 Memulai migrasi data lama ke kolom fisik...\n\n");
+
+    // Daftar tabel yang ingin Anda migrasi (sesuaikan jika perlu)
+    const tablesToMigrate = [
+      "golongan",
+      "perkiraan",
+      "transaksi",
+      "mutasikasir",
+      "saldo_harian",
+      "saldokasirawal",
+    ];
+
+    for (const tableName of tablesToMigrate) {
+      // Cari juga tabel yang ada tahunnya (misal: transaksi2024)
+      const dynamicTables = ALLOWED_TABLES.filter(
+        (t) => t.toLowerCase().startsWith(tableName) && t !== tableName,
+      );
+
+      const tablesToProcess = [tableName, ...dynamicTables];
+
+      for (const tName of tablesToProcess) {
+        const safeTable = '"' + tName.replace(/"/g, '""') + '"';
+
+        try {
+          // 1. Cek apakah tabel punya kolom fisik 'cabang'
+          const colCheck = await db.query(
+            `
+            SELECT column_name FROM information_schema.columns 
+            WHERE table_name = $1 AND column_name IN ('cabang', 'masa', 'group')
+          `,
+            [tName],
+          );
+
+          if (colCheck.rows.length === 0) {
+            continue; // Skip tabel yang tidak punya kolom fisik (misal: users)
+          }
+
+          // 2. Ambil semua data
+          const result = await db.query(`SELECT id, data FROM ${safeTable}`);
+          if (result.rows.length === 0) continue;
+
+          let updatedCount = 0;
+          const client = await db.connect();
+
+          try {
+            await client.query("BEGIN");
+
+            for (const row of result.rows) {
+              const jsonData =
+                typeof row.data === "string" ? JSON.parse(row.data) : row.data;
+
+              // Ambil nilai dari dalam JSON
+              const masa = jsonData.masa || null;
+              const cabang = jsonData.cabang || jsonData.kode_cabang || null;
+              const group = jsonData.group || null;
+
+              // Update kolom fisiknya
+              await client.query(
+                `
+                UPDATE ${safeTable} 
+                SET masa = $1, cabang = $2, "group" = $3 
+                WHERE id = $4
+              `,
+                [masa, cabang, group, row.id],
+              );
+
+              updatedCount++;
+            }
+            await client.query("COMMIT");
+          } finally {
+            client.release();
+          }
+
+          res.write(`✅ ${tName}: Berhasil migrasi ${updatedCount} baris\n`);
+        } catch (err) {
+          res.write(`❌ Gagal migrasi tabel ${tName}: ${err.message}\n`);
+        }
+      }
+    }
+
+    res.write("\n🎉 MIGRASI SELESAI! Silakan coba filter data Anda sekarang.");
+    res.status(200).end();
+  } catch (e) {
+    res.status(500).send("Error: " + e.message);
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 
 app.listen(PORT, () => {
