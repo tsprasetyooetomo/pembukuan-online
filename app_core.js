@@ -875,7 +875,14 @@ var MENUS = [
   {
     group: "USER",
     icon: "fa-users",
-    items: [{ id: "userMgmt", label: "Manajemen User", icon: "fa-user-gear" }],
+    items: [
+      { id: "userMgmt", label: "Manajemen User", icon: "fa-user-gear" },
+      {
+        id: "migrasiFisik",
+        label: "Migrasi Kolom Fisik",
+        icon: "fa-arrows-spin",
+      },
+    ],
   },
 ];
 
