@@ -1609,24 +1609,32 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
 
       for (const tName of tablesToProcess) {
         const safeTable = '"' + tName.replace(/"/g, '""') + '"';
+        // ... (Bagian atas kode Anda tetap sama) ...
 
         try {
-          // 1. Cek apakah tabel punya kolom fisik 'cabang'
+          // 1. Cek kolom apa saja yang benar-benar dimiliki oleh tabel ini di database
           const colCheck = await db.query(
-            `
-            SELECT column_name FROM information_schema.columns 
-            WHERE table_name = $1 AND column_name IN ('cabang', 'masa', 'group')
-          `,
+            `SELECT column_name FROM information_schema.columns 
+     WHERE table_schema = 'public' AND table_name = $1 AND column_name IN ('cabang', 'masa', 'group')`,
             [tName],
           );
 
-          if (colCheck.rows.length === 0) {
-            continue; // Skip tabel yang tidak punya kolom fisik (misal: users)
+          const existingCols = colCheck.rows.map((r) => r.column_name);
+
+          // Jika tabel tidak punya kolom dimensi sama sekali (seperti 'groupproject'), skip migrasi
+          if (existingCols.length === 0) {
+            res.write(
+              `ℹ️ ${tName}: Ditandai skip (tidak membutuhkan kolom dimensi fisik)\n`,
+            );
+            continue;
           }
 
-          // 2. Ambil semua data
+          // 2. Ambil semua data JSON
           const result = await db.query(`SELECT id, data FROM ${safeTable}`);
-          if (result.rows.length === 0) continue;
+          if (result.rows.length === 0) {
+            res.write(`ℹ️ ${tName}: Kosong (0 baris data)\n`);
+            continue;
+          }
 
           let updatedCount = 0;
           const client = await db.connect();
@@ -1638,32 +1646,55 @@ app.post("/api/migrasi-kolom-fisik", async (req, res) => {
               const jsonData =
                 typeof row.data === "string" ? JSON.parse(row.data) : row.data;
 
-              // Ambil nilai dari dalam JSON
-              const masa = jsonData.masa || null;
-              const cabang = jsonData.cabang || jsonData.kode_cabang || null;
-              const group = jsonData.group || null;
+              // Siapkan array data dan query dinamis berdasarkan kolom yang TERSEDIA di tabel
+              const updateFields = [];
+              const queryValues = [];
+              let paramIndex = 1;
 
-              // Update kolom fisiknya
-              await client.query(
-                `
-                UPDATE ${safeTable} 
-                SET masa = $1, cabang = $2, "group" = $3 
-                WHERE id = $4
-              `,
-                [masa, cabang, group, row.id],
-              );
+              // Hanya isi 'masa' jika tabelnya punya kolom 'masa' (Tabel transaksi)
+              if (existingCols.includes("masa")) {
+                updateFields.push(`masa = $${paramIndex++}`);
+                queryValues.push(jsonData.masa || null);
+              }
 
-              updatedCount++;
+              // Hanya isi 'cabang' jika tabelnya punya kolom 'cabang'
+              if (existingCols.includes("cabang")) {
+                updateFields.push(`cabang = $${paramIndex++}`);
+                queryValues.push(
+                  jsonData.cabang || jsonData.kode_cabang || null,
+                );
+              }
+
+              // Hanya isi 'group' jika tabelnya punya kolom 'group'
+              if (existingCols.includes("group")) {
+                updateFields.push(`"group" = $${paramIndex++}`);
+                queryValues.push(jsonData.group || null);
+              }
+
+              // Jika ada kolom yang perlu diupdate, jalankan query-nya
+              if (updateFields.length > 0) {
+                queryValues.push(row.id); // Tambahkan ID untuk klausa WHERE
+                const updateQuery = `UPDATE ${safeTable} SET ${updateFields.join(", ")} WHERE id = $${paramIndex}`;
+
+                await client.query(updateQuery, queryValues);
+                updatedCount++;
+              }
             }
             await client.query("COMMIT");
+            res.write(`✅ ${tName}: Berhasil migrasi ${updatedCount} baris\n`);
+          } catch (txErr) {
+            await client.query("ROLLBACK"); // Batalkan jika ada error agar tidak mengunci tabel berikutnya
+            res.write(
+              `❌ Gagal migrasi data di dalam tabel ${tName}: ${txErr.message}\n`,
+            );
           } finally {
             client.release();
           }
-
-          res.write(`✅ ${tName}: Berhasil migrasi ${updatedCount} baris\n`);
         } catch (err) {
-          res.write(`❌ Gagal migrasi tabel ${tName}: ${err.message}\n`);
+          res.write(`❌ Gagal inisialisasi tabel ${tName}: ${err.message}\n`);
         }
+
+        // ... (Bagian bawah kode Anda tetap sama) ...
       }
     }
 
