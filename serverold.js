@@ -1405,7 +1405,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
                 let tanggalFix = "";
                 if (row.TANGGAL instanceof Date) {
-                  let mm = String(row.TANGGAL.getMonth() + 1).padStart(2, "0");
+                  let mm = String(row.TANGGAL.getMonth()).padStart(2, "0");
                   let dd = String(row.TANGGAL.getDate()).padStart(2, "0");
                   let yyyy = row.TANGGAL.getFullYear();
                   tanggalFix = `${yyyy}-${mm}-${dd}`;
@@ -1477,12 +1477,16 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   id,
                   noreff: noreffMap[noreffKey],
                   tanggal: tanggalFix,
+
                   kodeTrans,
                   noperkiraan: "",
                   desc,
                   total,
                   db: nilaiDb,
                   cr: nilaiCr,
+                  masa: masaFix,
+                  cabang: cabang, // Pastikan ini tetap masuk ke JSON
+                  group: groupFinal, // Pastikan ini tetap masuk ke JSON
                 };
 
                 // ✅ UBAH BASE INDEX: Karena sekarang ada 5 kolom (id, masa, cabang, group, data)
