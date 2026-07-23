@@ -217,6 +217,9 @@ try {
         "perkiraan",
         "cabang",
         "groupproject",
+        "saldokasir",
+        "saldokasirawal",
+        "saldo_harian",
       ];
 
       if (!tableExists) {
