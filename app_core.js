@@ -870,19 +870,17 @@ var MENUS = [
         label: "Import FoxPro Online",
         icon: "fa-cloud-arrow-up",
       },
-    ],
-  },
-  {
-    group: "USER",
-    icon: "fa-users",
-    items: [
-      { id: "userMgmt", label: "Manajemen User", icon: "fa-user-gear" },
       {
         id: "migrasiFisik",
         label: "Migrasi Kolom Fisik",
         icon: "fa-arrows-spin",
       },
     ],
+  },
+  {
+    group: "USER",
+    icon: "fa-users",
+    items: [{ id: "userMgmt", label: "Manajemen User", icon: "fa-user-gear" }],
   },
 ];
 
