@@ -1067,9 +1067,12 @@ async function getSaldoAwalKasir(cabang, tglAwal, group) {
 
   // ✅ TAMBAHKAN FILTER GROUP DI SINI
   var found = dataSaldo.filter(function (s) {
+    // 🌟 Tambahkan pengecekan cabang agar data tidak bercampur dengan cabang lain
+    var isCabangOk =
+      !cabang || String(s.cabang || "").trim() === String(cabang).trim();
     var isGroupOk =
       !group || String(s.group || "").trim() === String(group).trim();
-    return isGroupOk && s.tgl_awal <= tglAwal;
+    return isCabangOk && isGroupOk && s.tgl_awal <= tglAwal;
   });
 
   if (found.length > 0) {
