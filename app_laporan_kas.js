@@ -1319,7 +1319,6 @@ async function refreshSaldoKasir() {
     );
   }
 }
-
 function viewDetailNoreff(noreff) {
   // Ambil data mentah dari cache berdasarkan noreff yang diklik
   var detailTransaksi = (DBCache.mutasikasir || []).filter(function (t) {
@@ -1331,46 +1330,45 @@ function viewDetailNoreff(noreff) {
     return;
   }
 
-  // Buat HTML tampilan detail
+  // Buat HTML tampilan detail dengan gaya Dark Mode
   var html = `
-    <div style="max-height:400px; overflow-y:auto; padding:10px;">
-      <h4 style="margin-top:0;">Detail Transaksi: ${noreff}</h4>
-      <table border="1" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:.85rem;">
-        <tr style="background:#f2f2f2;">
-          <th>Tanggal</th>
-          <th>Kode</th>
-          <th>Keterangan</th>
-          <th style="text-align:right;">Debit</th>
-          <th style="text-align:right;">Credit</th>
+    <div style="max-height:400px; overflow-y:auto; padding:10px; color:#ffffff; background:#121212;">
+      <h4 style="margin-top:0; color:#ffffff;">Detail Transaksi: ${noreff}</h4>
+      <table border="1" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:.85rem; border: 1px solid #333333;">
+        <tr style="background:#1e1e1e; color:#ffffff;">
+          <th style="border: 1px solid #333333;">Tanggal</th>
+          <th style="border: 1px solid #333333;">Kode</th>
+          <th style="border: 1px solid #333333;">Keterangan</th>
+          <th style="border: 1px solid #333333; text-align:right;">Debit</th>
+          <th style="border: 1px solid #333333; text-align:right;">Credit</th>
         </tr>
   `;
 
   detailTransaksi.forEach(function (d) {
     html += `
-      <tr>
-        <td>${d.tanggal || "-"}</td>
-        <td>${d.kodeTrans || "-"}</td>
-        <td>${d.desc || "-"}</td>
-        <td style="text-align:right;">${d.db > 0 ? fmtN(d.db) : "-"}</td>
-        <td style="text-align:right;">${d.cr > 0 ? fmtN(d.cr) : "-"}</td>
+      <tr style="background:#121212; color:#e0e0e0;">
+        <td style="border: 1px solid #333333;">${d.tanggal || "-"}</td>
+        <td style="border: 1px solid #333333;">${d.kodeTrans || "-"}</td>
+        <td style="border: 1px solid #333333;">${d.desc || "-"}</td>
+        <td style="border: 1px solid #333333; text-align:right; color:#4caf50;">${d.db > 0 ? fmtN(d.db) : "-"}</td>
+        <td style="border: 1px solid #333333; text-align:right; color:#f44336;">${d.cr > 0 ? fmtN(d.cr) : "-"}</td>
       </tr>
     `;
   });
 
   html += `</table></div>`;
 
-  // Tampilkan menggunakan modal/popup (Menggunakan alert sederhana jika tidak punya modal custom)
-  // Jika Anda punya fungsi modal custom (misal: showModal(judul, isi)), ganti baris bawah dengan fungsi tersebut.
+  // Tampilkan menggunakan modal/popup
   if (typeof showModal === "function") {
     showModal("Detail " + noreff, html);
   } else {
-    // Fallback: Buat modal sederhana jika tidak ada fungsi showModal
+    // Fallback: Buat modal bertema hitam (Dark) jika tidak ada fungsi showModal
     var modalDiv = document.createElement("div");
     modalDiv.id = "modal_view_temp";
     modalDiv.style.cssText =
-      "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:9999;";
-    modalDiv.innerHTML = `<div style="background:#fff;padding:15px;border-radius:8px;width:600px;max-width:90%;position:relative;">
-      <span onclick="document.getElementById('modal_view_temp').remove()" style="position:absolute;top:10px;right:15px;cursor:pointer;font-weight:bold;font-size:1.2rem;">&times;</span>
+      "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:9999;";
+    modalDiv.innerHTML = `<div style="background:#121212; border: 1px solid #333333; color:#ffffff; padding:15px; border-radius:8px; width:600px; max-width:90%; position:relative; box-shadow: 0 4px 20px rgba(0,0,0,0.5);">
+      <span onclick="document.getElementById('modal_view_temp').remove()" style="position:absolute;top:10px;right:15px;cursor:pointer;font-weight:bold;font-size:1.2rem;color:#aaaaaa;">&times;</span>
       ${html}
     </div>`;
     document.body.appendChild(modalDiv);
@@ -1472,19 +1470,26 @@ async function postingSaldoKasir() {
     var arrDataUntukDisimpan = [];
     for (var tgl in mapRekapHarian) {
       var r = mapRekapHarian[tgl];
+
+      // ✅ TAMBAHKAN LOGIKA MASA FIX (YYYY-MM-DD -> MMYY)
+      var masaFix = "";
+      if (r.tanggal && r.tanggal.length === 10) {
+        masaFix = r.tanggal.substring(5, 7) + r.tanggal.substring(2, 4);
+      }
+
       arrDataUntukDisimpan.push({
         id: `${cab}_${cab}_${activeGroup}_${r.tanggal}`,
+        masa: masaFix, // ✅ TAMBAHKAN INI
         cabang: cab,
         char4: cab,
         tanggal: r.tanggal,
         db: r.totalDb,
         cr: r.totalCr,
-        saldo_akhir: r.saldoAkhirHariIni, // Pakai saldo akhir yang sudah benar
-        awal: r.saldoAkhirHariIni - (r.totalDb - r.totalCr), // Hitung saldo awal hari itu secara terbalik
+        saldo_akhir: r.saldoAkhirHariIni,
+        awal: r.saldoAkhirHariIni - (r.totalDb - r.totalCr),
         group: activeGroup,
       });
     }
-
     if (arrDataUntukDisimpan.length === 0) {
       if (typeof toast === "function")
         toast("Tidak ada data valid yang bisa diproses.", "wrn");
