@@ -280,6 +280,93 @@
           }
         });
       });
+      // Contoh fungsi handler ketika item menu diklik (sesuaikan dengan framework/sistem Anda)
+      function onMenuClick(menuId) {
+        // Sembunyikan semua view menu terlebih dahulu
+        document.getElementById("view-migrasiFisik").style.display = "none";
+        // ... sembunyikan view lainnya ...
+
+        // Tampilkan view yang dipilih
+        if (menuId === "migrasiFisik") {
+          document.getElementById("view-migrasiFisik").style.display = "block";
+        }
+      }
+
+      // Fungsi utama penembak API streaming data
+      async function eksekusiMigrasiSSE() {
+        const btn = document.getElementById("btnMulaiMigrasi");
+        const panel = document.getElementById("panelProgress");
+        const txtTabel = document.getElementById("txtNamaTabel");
+        const txtPersen = document.getElementById("txtPersen");
+        const bar = document.getElementById("barPersen");
+        const terminal = document.getElementById("boxLogTerminal");
+
+        // Kunci tombol agar tidak diklik dua kali
+        btn.disabled = true;
+        btn.style.background = "#6c757d";
+        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Memproses Data...`;
+
+        panel.style.display = "block";
+        terminal.innerHTML = "🔌 Menyambungkan ke server Railway...\n";
+
+        try {
+          // Tembak endpoint POST SSE yang sudah dibuat sebelumnya
+          const response = await fetch(
+            "/api/migrasi-kolom-fisik?secret=ubahdata2024",
+            {
+              method: "POST",
+            },
+          );
+
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value);
+            const lines = chunk.split("\n");
+
+            for (const line of lines) {
+              if (line.startsWith("data: ")) {
+                // Konversi baris teks streaming menjadi objek JSON asli
+                const payload = JSON.parse(line.replace("data: ", ""));
+
+                // 1. Update teks log di terminal hitam
+                terminal.innerHTML += `> ${payload.message}\n`;
+                terminal.scrollTop = terminal.scrollHeight; // Auto scroll ke bawah
+
+                // 2. Ambil informasi tabel yang sedang dikerjakan
+                if (payload.table) {
+                  txtTabel.innerText = payload.table.toUpperCase();
+                }
+
+                // 3. Update animasi grafik persentase
+                if (payload.percent !== undefined) {
+                  txtPersen.innerText = `${payload.percent}%`;
+                  bar.style.width = `${payload.percent}%`;
+                }
+
+                // 4. Deteksi tanda selesai dari server
+                if (payload.status === "done") {
+                  btn.innerHTML = `<i class="fas fa-check"></i> Selesai Sukses`;
+                  btn.style.background = "#28a745";
+                  terminal.innerHTML += `\n[FINISH] Hubungan diputus secara aman. Database sudah sinkron.\n`;
+                  alert(
+                    "🎉 Sukses! Seluruh data transaksi & master berhasil dimigrasi ke kolom fisik.",
+                  );
+                }
+              }
+            }
+          }
+        } catch (err) {
+          terminal.innerHTML += `\n🔴 ERROR KONEKSI: ${err.message}\n`;
+          btn.disabled = false;
+          btn.style.background = "#007bff";
+          btn.innerHTML = `<i class="fas fa-play"></i> Coba Ulangi Migrasi`;
+        }
+      }
     </script>
   </body>
 </html>
