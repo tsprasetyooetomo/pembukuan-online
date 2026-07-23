@@ -1055,8 +1055,8 @@ function renderLaporanSaldoKasir() {
 }
 
 /* ---------- FUNGSI AMBIL SALDO AWAL DARI TABEL saldokasir ---------- */
-async function getSaldoAwalKasir(cabang, tglAwal) {
-  // Langsung ambil dari memory (DBCache), karena data SUDAH difilter cabang & group oleh serverold.js
+async function getSaldoAwalKasir(cabang, tglAwal, group) {
+  // Langsung ambil dari memory (DBCache)
   var dataSaldo = DBCache.saldoKasir || [];
   var dataSaldoAwal = DBCache.saldokasirawal || [];
 
@@ -1064,20 +1064,28 @@ async function getSaldoAwalKasir(cabang, tglAwal) {
   dataSaldo.sort(function (a, b) {
     return (a.tgl_awal || "").localeCompare(b.tgl_awal || "");
   });
+
+  // ✅ TAMBAHKAN FILTER GROUP DI SINI
   var found = dataSaldo.filter(function (s) {
-    return s.tgl_awal <= tglAwal;
+    var isGroupOk =
+      !group || String(s.group || "").trim() === String(group).trim();
+    return isGroupOk && s.tgl_awal <= tglAwal;
   });
 
   if (found.length > 0) {
-    return num(found[found.length - 1].akhir || 0); // Ambil index terakhir (yang tanggalnya paling besar tapi masih <= tglAwal)
+    return num(found[found.length - 1].akhir || 0); // Ambil index terakhir
   }
 
   // 2. Fallback Cari di saldoKasirawal
   dataSaldoAwal.sort(function (a, b) {
     return (a.tgl_awal || "").localeCompare(b.tgl_awal || "");
   });
+
+  // ✅ TAMBAHKAN FILTER GROUP DI SINI JUGA
   var foundAwal = dataSaldoAwal.filter(function (s) {
-    return s.tgl_awal <= tglAwal;
+    var isGroupOk =
+      !group || String(s.group || "").trim() === String(group).trim();
+    return isGroupOk && s.tgl_awal <= tglAwal;
   });
 
   if (foundAwal.length > 0) {
@@ -1097,8 +1105,12 @@ async function refreshSaldoKasir() {
   // =========================================================================
   // 1. LOGIKA FALLBACK PENCARIAN SALDO AWAL (CASCADE)
   // =========================================================================
-  var saldoAwalMaster = await getSaldoAwalKasir(cab, tglAwal);
 
+  // Ambil group aktif dari localStorage (fallback ke 'TLGA' jika kosong)
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
+  // Kirim 3 parameter: cabang, tanggal awal, dan group
+  var saldoAwalMaster = await getSaldoAwalKasir(cab, tglAwal, activeGroup);
   // Cek apakah ketemu di tabel "saldokasir"
 
   // Cek apakah ketemu di tabel "saldokasir"
@@ -1239,7 +1251,6 @@ async function refreshSaldoKasir() {
     if (dateComp !== 0) return dateComp;
     return (a.noreff || "").localeCompare(b.noreff || "");
   });
-
   var rows = [];
   var runBal = saldoAwalMaster;
   var totalDb = 0;
@@ -1248,12 +1259,16 @@ async function refreshSaldoKasir() {
 
   groupedData.forEach(function (t) {
     if (lastDate !== null && lastDate !== t.tanggal) {
-      rows.push(["", "", "", "", "", ""]);
+      rows.push(["", "", "", "", "", "", ""]); // Tambah 1 kolom kosong lagi untuk spasi
     }
     lastDate = t.tanggal;
 
     var saldoAwalRow = runBal;
     runBal += t.db - t.cr;
+
+    // ✅ TAMBAHKAN KOLOM AKSI DI SINI (Index ke-6)
+    // Tombol View memanggil fungsi viewDetailNoreff() membawa parameter noreff
+    var aksiHtml = `<button class="btn btn-s" style="padding:2px 8px; font-size:.7rem;" onclick="viewDetailNoreff('${esc(t.noreff)}')"><i class="fa-solid fa-eye"></i> View</button>`;
 
     rows.push([
       t.tanggal,
@@ -1262,6 +1277,7 @@ async function refreshSaldoKasir() {
       fmtN(t.db),
       fmtN(t.cr),
       fmtN(runBal),
+      aksiHtml, // Masukkan tombol ke dalam baris
     ]);
 
     totalDb += t.db;
@@ -1278,28 +1294,94 @@ async function refreshSaldoKasir() {
     fmtN(totalDb),
     fmtN(totalCr),
     fmtN(totalDb - totalCr),
+    "", // ✅ Tambahkan 1 kolom kosong di footer
   ];
 
+  // ✅ TAMBAHKAN HEADER "AKSI" DI PALING KANAN
   var headers = [
     "Tanggal",
     "No Ref",
     "Saldo Awal",
     "Debit (PJ/TK/KT)",
-    "Kredit (BE/CS/KK/SK)",
+    "Credit (BE/CS/KK/SK)",
     "Saldo Akhir",
+    "Aksi", // Header baru
   ];
 
   var areaTbl = $("kasirTbl");
   if (areaTbl) {
     areaTbl.innerHTML = wrapTable(
       buildTable(headers, rows, {
-        numCols: [2, 3, 4, 5],
+        numCols: [2, 3, 4, 5], // Indeks kolom yang berisi angka (format tetap sama)
         foot: foot,
         emptyMsg: "Tidak ada data mutasi kasir untuk periode ini",
       }),
     );
   }
 }
+
+function viewDetailNoreff(noreff) {
+  // Ambil data mentah dari cache berdasarkan noreff yang diklik
+  var detailTransaksi = (DBCache.mutasikasir || []).filter(function (t) {
+    return t.noreff === noreff;
+  });
+
+  if (detailTransaksi.length === 0) {
+    alert("Detail transaksi tidak ditemukan di cache.");
+    return;
+  }
+
+  // Buat HTML tampilan detail
+  var html = `
+    <div style="max-height:400px; overflow-y:auto; padding:10px;">
+      <h4 style="margin-top:0;">Detail Transaksi: ${noreff}</h4>
+      <table border="1" cellpadding="5" style="width:100%; border-collapse:collapse; font-size:.85rem;">
+        <tr style="background:#f2f2f2;">
+          <th>Tanggal</th>
+          <th>Kode</th>
+          <th>Keterangan</th>
+          <th style="text-align:right;">Debit</th>
+          <th style="text-align:right;">Credit</th>
+        </tr>
+  `;
+
+  detailTransaksi.forEach(function (d) {
+    html += `
+      <tr>
+        <td>${d.tanggal || "-"}</td>
+        <td>${d.kodeTrans || "-"}</td>
+        <td>${d.desc || "-"}</td>
+        <td style="text-align:right;">${d.db > 0 ? fmtN(d.db) : "-"}</td>
+        <td style="text-align:right;">${d.cr > 0 ? fmtN(d.cr) : "-"}</td>
+      </tr>
+    `;
+  });
+
+  html += `</table></div>`;
+
+  // Tampilkan menggunakan modal/popup (Menggunakan alert sederhana jika tidak punya modal custom)
+  // Jika Anda punya fungsi modal custom (misal: showModal(judul, isi)), ganti baris bawah dengan fungsi tersebut.
+  if (typeof showModal === "function") {
+    showModal("Detail " + noreff, html);
+  } else {
+    // Fallback: Buat modal sederhana jika tidak ada fungsi showModal
+    var modalDiv = document.createElement("div");
+    modalDiv.id = "modal_view_temp";
+    modalDiv.style.cssText =
+      "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:9999;";
+    modalDiv.innerHTML = `<div style="background:#fff;padding:15px;border-radius:8px;width:600px;max-width:90%;position:relative;">
+      <span onclick="document.getElementById('modal_view_temp').remove()" style="position:absolute;top:10px;right:15px;cursor:pointer;font-weight:bold;font-size:1.2rem;">&times;</span>
+      ${html}
+    </div>`;
+    document.body.appendChild(modalDiv);
+
+    // Tutup modal jika klik di luar kotak
+    modalDiv.addEventListener("click", function (e) {
+      if (e.target === modalDiv) modalDiv.remove();
+    });
+  }
+}
+
 async function postingSaldoKasir() {
   // 1. Ambil parameter dari filter UI
   var tglAwal = $("fk_tgl_awal").value;
