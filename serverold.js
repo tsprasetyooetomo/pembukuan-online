@@ -1318,15 +1318,18 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         const { Dbf } = require("dbf-reader");
         const records = Dbf.read(fileDbf)?.rows || [];
         send(15, `DBF terbaca: ${records.length} baris`);
-        // Tambahkan kode debug biner ini
-        console.log("=== ISI TEKS MURNI DI DALAM FILE DBF ===");
-        console.log(
-          records
-            .toString("ascii", 0, 1000)
-            .replace(/[^a-zA-Z0-9\-\/_\s:]/g, ""),
-        );
-        console.log("========================================");
-
+        // Mengubah object menjadi teks string agar isinya kelihatan jelas di terminal
+        // 💡 PERBAIKAN: Mengambil indeks [0] untuk melihat isi data baris pertama dari file DBF
+        if (records.length > 0) {
+          console.log(
+            "ISI DETAIL BARIS PERTAMA DBF:",
+            JSON.stringify(records[0], null, 2),
+          );
+        } else {
+          console.log(
+            "File DBF terbaca tetapi tidak ada baris data di dalamnya.",
+          );
+        }
         if (records.length === 0) {
           send(100, "File DBF kosong", { success: false });
           return res.end();
@@ -1335,28 +1338,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         const crypto = require("crypto");
         const client = await db.connect();
         const groupFinal = group || "TLGA";
-
-        // HAPUS DATA LAMA PAKAI KOLOM FISIK
-        if (hapus_tahun || hapus_bulan) {
-          send(20, "Menghapus data lama di database...");
-          let sql = `DELETE FROM "mutasikasir" WHERE cabang = $1 AND "group" = $2`;
-          let params = [cabang, groupFinal];
-
-          if (hapus_tahun && hapus_bulan) {
-            const masaHapus =
-              hapus_bulan.padStart(2, "0") + hapus_tahun.slice(-2);
-            sql += ` AND masa = $3`;
-            params.push(masaHapus);
-          } else if (hapus_tahun) {
-            sql += ` AND masa LIKE $3`;
-            params.push(`%${hapus_tahun.slice(-2)}`);
-          }
-
-          await client.query(sql, params);
-          send(25, "Data lama berhasil dihapus");
-        } else {
-          send(25, "Mode tambah data (tidak menghapus yang lama)");
-        }
 
         send(30, "Memproses data...");
         const noreffMap = {};
