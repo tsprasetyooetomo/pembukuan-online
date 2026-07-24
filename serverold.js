@@ -1320,16 +1320,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         send(15, `DBF terbaca: ${records.length} baris`);
         // Mengubah object menjadi teks string agar isinya kelihatan jelas di terminal
         // 💡 PERBAIKAN: Mengambil indeks [0] untuk melihat isi data baris pertama dari file DBF
-        if (records.length > 0) {
-          console.log(
-            "ISI DETAIL BARIS PERTAMA DBF:",
-            JSON.stringify(records[0], null, 2),
-          );
-        } else {
-          console.log(
-            "File DBF terbaca tetapi tidak ada baris data di dalamnya.",
-          );
-        }
+
         if (records.length === 0) {
           send(100, "File DBF kosong", { success: false });
           return res.end();
@@ -1433,6 +1424,16 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 if (!tanggalFix) {
                   errorCount++;
                   continue;
+                }
+                // 🚀 LOGIKA KOREKSI OTOMATIS BULAN TERBALIK
+                // Jika aplikasi mendeteksi bulan 09 padahal Anda sedang mengimpor data Agustus
+                if (
+                  tanggalFix.substring(5, 7) === "09" &&
+                  hapus_bulan === "08"
+                ) {
+                  // Ubah string "2024-09-01" menjadi "2024-08-01"
+                  tanggalFix =
+                    tanggalFix.substring(0, 5) + "08" + tanggalFix.substring(7);
                 }
 
                 const cabShort = (cabang || "PUSAT")
