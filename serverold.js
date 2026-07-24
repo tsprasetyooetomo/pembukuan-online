@@ -1318,8 +1318,14 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         const { Dbf } = require("dbf-reader");
         const records = Dbf.read(fileDbf)?.rows || [];
         send(15, `DBF terbaca: ${records.length} baris`);
-
-        console.log("STRUKTUR KOLOM DBF:", records?.fields);
+        // Tambahkan kode debug biner ini
+        console.log("=== ISI TEKS MURNI DI DALAM FILE DBF ===");
+        console.log(
+          records
+            .toString("ascii", 0, 1000)
+            .replace(/[^a-zA-Z0-9\-\/_\s:]/g, ""),
+        );
+        console.log("========================================");
 
         if (records.length === 0) {
           send(100, "File DBF kosong", { success: false });
