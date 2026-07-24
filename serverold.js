@@ -1404,24 +1404,28 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 const desc = descRaw.toUpperCase().replace(/"/g, "'");
 
                 let tanggalFix = "";
-                // AMBIL TANGGAL SEBAGAI TEKS MURNI, JANGAN PAKE OBJEK DATE
 
-                // Bersihkan dari karakter aneh, sisakan hanya angka dan slash
-                let tglStr = tglDbf.replace(/[^0-9\/]/g, "");
+                if (tglDbf) {
+                  // Bersihkan spasi dan ganti strip/dash menjadi slash agar seragam
+                  let tglStr = tglDbf
+                    .trim()
+                    .replace(/[-]/g, "/")
+                    .replace(/[^0-9\/]/g, "");
 
-                if (tglStr.includes("/")) {
                   let parts = tglStr.split("/");
-                  if (parts.length === 3) {
-                    // Kita paksa format MM/DD/YYYY sesuai info Anda
+
+                  // Pastikan ada 3 bagian (Bulan, Tanggal, Tahun)
+                  if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
                     let mm = parts[0].padStart(2, "0");
                     let dd = parts[1].padStart(2, "0");
                     let yyyy =
                       parts[2].length === 2 ? "20" + parts[2] : parts[2];
 
-                    // ✅ TAMBAHKAN VALIDASI AGAR TIDAK ADA TANGGAL/BULAN MISTIS
+                    // Validasi logis sederhana
                     let intBulan = parseInt(mm);
                     let intTgl = parseInt(dd);
 
+                    // Bulan 1-12, Tanggal 1-31
                     if (
                       intBulan >= 1 &&
                       intBulan <= 12 &&
@@ -1429,12 +1433,17 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                       intTgl <= 31
                     ) {
                       tanggalFix = `${yyyy}-${mm}-${dd}`;
+                    } else {
+                      console.log(
+                        "Tanggal aneh ditemukan:",
+                        tglDbf,
+                        "-> ditolak",
+                      );
                     }
+                  } else {
+                    console.log("Format tanggal tidak valid:", tglDbf);
                   }
                 }
-
-                // ❌ HAPUS BLOK `if (row.TANGGAL instanceof Date)` SEPENUHNYA!
-                // Karena blok itulah biang keladi rollover tanggalnya.
 
                 if (!tanggalFix) {
                   errorCount++;
