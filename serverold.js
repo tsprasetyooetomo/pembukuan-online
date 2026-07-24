@@ -1317,9 +1317,13 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         send(5, "Membaca file DBF di server...");
         const { Dbf } = require("dbf-reader");
         const records = Dbf.read(fileDbf)?.rows || [];
+
         send(15, `DBF terbaca: ${records.length} baris`);
         // Mengubah object menjadi teks string agar isinya kelihatan jelas di terminal
         // 💡 PERBAIKAN: Mengambil indeks [0] untuk melihat isi data baris pertama dari file DBF
+        console.log("=== DATA BARIS PERTAMA DBF ===");
+        console.log(JSON.stringify(records[0], null, 2));
+        console.log("================================");
 
         if (records.length === 0) {
           send(100, "File DBF kosong", { success: false });
