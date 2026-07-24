@@ -1319,6 +1319,8 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         const records = Dbf.read(fileDbf)?.rows || [];
         send(15, `DBF terbaca: ${records.length} baris`);
 
+        console.log("STRUKTUR KOLOM DBF:", records?.fields);
+
         if (records.length === 0) {
           send(100, "File DBF kosong", { success: false });
           return res.end();
