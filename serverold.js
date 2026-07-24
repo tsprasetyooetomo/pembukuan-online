@@ -1405,51 +1405,49 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
                 let tanggalFix = "";
 
-                if (tglDbf) {
-                  // Bersihkan spasi dan ganti strip/dash menjadi slash agar seragam
-                  let tglStr = tglDbf
+                // 1. Prioritas Utama: Jika library sudah mengubahnya jadi Objek Date
+                if (row.TANGGAL instanceof Date) {
+                  let yyyy = row.TANGGAL.getFullYear();
+                  // WAJIB + 1 karena JavaScript bulan 0 = Januari, 11 = Desember
+                  let mm = String(row.TANGGAL.getMonth() + 1).padStart(2, "0");
+                  let dd = String(row.TANGGAL.getDate()).padStart(2, "0");
+
+                  // Validasi tahun jangan sampai 1970 (Invalid Date)
+                  if (yyyy > 2000) {
+                    tanggalFix = `${yyyy}-${mm}-${dd}`;
+                  }
+                }
+                // 2. Cadangan: Jika ternyata ada data yang lolos berupa String (MM/DD/YYYY)
+                else {
+                  const tglStr = String(row.TANGGAL || "")
                     .trim()
                     .replace(/[-]/g, "/")
                     .replace(/[^0-9\/]/g, "");
+                  if (tglStr.includes("/")) {
+                    let parts = tglStr.split("/");
+                    if (parts.length === 3) {
+                      let mm = parts[0].padStart(2, "0");
+                      let dd = parts[1].padStart(2, "0");
+                      let yyyy =
+                        parts[2].length === 2 ? "20" + parts[2] : parts[2];
 
-                  let parts = tglStr.split("/");
-
-                  // Pastikan ada 3 bagian (Bulan, Tanggal, Tahun)
-                  if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
-                    let mm = parts[0].padStart(2, "0");
-                    let dd = parts[1].padStart(2, "0");
-                    let yyyy =
-                      parts[2].length === 2 ? "20" + parts[2] : parts[2];
-
-                    // Validasi logis sederhana
-                    let intBulan = parseInt(mm);
-                    let intTgl = parseInt(dd);
-
-                    // Bulan 1-12, Tanggal 1-31
-                    if (
-                      intBulan >= 1 &&
-                      intBulan <= 12 &&
-                      intTgl >= 1 &&
-                      intTgl <= 31
-                    ) {
-                      tanggalFix = `${yyyy}-${mm}-${dd}`;
-                    } else {
-                      console.log(
-                        "Tanggal aneh ditemukan:",
-                        tglDbf,
-                        "-> ditolak",
-                      );
+                      if (
+                        parseInt(mm) >= 1 &&
+                        parseInt(mm) <= 12 &&
+                        parseInt(dd) >= 1 &&
+                        parseInt(dd) <= 31
+                      ) {
+                        tanggalFix = `${yyyy}-${mm}-${dd}`;
+                      }
                     }
-                  } else {
-                    console.log("Format tanggal tidak valid:", tglDbf);
                   }
                 }
 
+                // Jika setelah dua proses di atas tetap kosong, tolak baris ini
                 if (!tanggalFix) {
                   errorCount++;
                   continue;
                 }
-
                 const cabShort = (cabang || "PUSAT")
                   .substring(0, 3)
                   .toUpperCase();
