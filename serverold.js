@@ -1404,44 +1404,37 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 const desc = descRaw.toUpperCase().replace(/"/g, "'");
 
                 let tanggalFix = "";
-                if (row.TANGGAL instanceof Date) {
-                  let mm = String(row.TANGGAL.getMonth()).padStart(2, "0");
-                  let dd = String(row.TANGGAL.getDate()).padStart(2, "0");
-                  let yyyy = row.TANGGAL.getFullYear();
-                  tanggalFix = `${yyyy}-${mm}-${dd}`;
-                } else {
-                  let tglStr = String(row.TANGGAL || "")
-                    .trim()
-                    .replace(/[^0-9\/]/g, "");
-                  if (tglStr.includes("/")) {
-                    let parts = tglStr.split("/");
-                    if (parts.length === 3) {
-                      let part1 = parts[0].padStart(2, "0"),
-                        part2 = parts[1].padStart(2, "0");
-                      let yyyy =
-                        parts[2].length === 2 ? "20" + parts[2] : parts[2];
-                      let mm = "",
-                        dd = "";
-                      if (parseInt(part1) > 12) {
-                        dd = part1;
-                        mm = part2;
-                      } else if (parseInt(part2) > 12) {
-                        mm = part1;
-                        dd = part2;
-                      } else {
-                        if (lastParsedFormat === "DMY") {
-                          dd = part1;
-                          mm = part2;
-                        } else {
-                          mm = part1;
-                          dd = part2;
-                        }
-                      }
-                      lastParsedFormat = parseInt(part1) > 12 ? "DMY" : "MDY";
+                // AMBIL TANGGAL SEBAGAI TEKS MURNI, JANGAN PAKE OBJEK DATE
+
+                // Bersihkan dari karakter aneh, sisakan hanya angka dan slash
+                let tglStr = tglDbf.replace(/[^0-9\/]/g, "");
+
+                if (tglStr.includes("/")) {
+                  let parts = tglStr.split("/");
+                  if (parts.length === 3) {
+                    // Kita paksa format MM/DD/YYYY sesuai info Anda
+                    let mm = parts[0].padStart(2, "0");
+                    let dd = parts[1].padStart(2, "0");
+                    let yyyy =
+                      parts[2].length === 2 ? "20" + parts[2] : parts[2];
+
+                    // ✅ TAMBAHKAN VALIDASI AGAR TIDAK ADA TANGGAL/BULAN MISTIS
+                    let intBulan = parseInt(mm);
+                    let intTgl = parseInt(dd);
+
+                    if (
+                      intBulan >= 1 &&
+                      intBulan <= 12 &&
+                      intTgl >= 1 &&
+                      intTgl <= 31
+                    ) {
                       tanggalFix = `${yyyy}-${mm}-${dd}`;
                     }
                   }
                 }
+
+                // ❌ HAPUS BLOK `if (row.TANGGAL instanceof Date)` SEPENUHNYA!
+                // Karena blok itulah biang keladi rollover tanggalnya.
 
                 if (!tanggalFix) {
                   errorCount++;
