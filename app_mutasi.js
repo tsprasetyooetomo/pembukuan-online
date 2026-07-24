@@ -1826,24 +1826,6 @@ async function cariSaldoAwalKasir(cabang, tanggalPilih) {
     );
   });
 
-  // 🔍 DEBUG SUPER TAJAM
-  console.log("=== CEK SK ===");
-  console.log(
-    "Total Cache:",
-    cacheAsli.length,
-    "| Cabang Dicari:",
-    cabang,
-    "| Group:",
-    activeGroup,
-    "| Hasil Filter:",
-    dataSk.length,
-  );
-  if (cacheAsli.length > 0 && dataSk.length === 0) {
-    console.log(
-      "⚠️ KETEMU MASALAH: Cache ada isinya, tapi filter menolak semua. Contoh cabang di cache:",
-      cacheAsli[0].cabang,
-    );
-  }
   //console.log(dataSk);
   // 2. Optimasi: Ubah array menjadi Map berdasarkan tanggal
   var mapSaldo = {};
