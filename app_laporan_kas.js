@@ -166,6 +166,7 @@ async function simpanSnapshotSaldo(
         char4: kodeChar,
         tanggalAwal: tanggalAwal,
         tanggalAkhir: tanggalAkhir,
+        masa: masaFix,
         group: activeGroup, // ✅ Sertakan parameter group saat clear data lama
       }),
     });
@@ -1158,7 +1159,7 @@ async function refreshSaldoKasir() {
 
     let valDb = num(t.db || 0);
     let valCr = num(t.cr || 0);
-    const valNominal = num(t.nominal || 0);
+    const valNominal = num(t.total || 0);
 
     // Fallback jika kolom db/cr kosong tapi nominal terisi
     if (valDb === 0 && valCr === 0 && valNominal > 0) {
