@@ -1328,13 +1328,12 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
         const client = await db.connect();
         const groupFinal = group || "TLGA";
 
-        // ✅ UBAH: HAPUS DATA LAMA PAKAI KOLOM FISIK (Super Cepat)
+        // HAPUS DATA LAMA PAKAI KOLOM FISIK
         if (hapus_tahun || hapus_bulan) {
           send(20, "Menghapus data lama di database...");
           let sql = `DELETE FROM "mutasikasir" WHERE cabang = $1 AND "group" = $2`;
           let params = [cabang, groupFinal];
 
-          // Karena kolom fisiknya 'masa', kita harus hitung masa dari tahun & bulan yang diinput
           if (hapus_tahun && hapus_bulan) {
             const masaHapus =
               hapus_bulan.padStart(2, "0") + hapus_tahun.slice(-2);
@@ -1353,7 +1352,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
 
         send(30, "Memproses data...");
         const noreffMap = {};
-        let lastParsedFormat = "MDY";
 
         const validRecords = records.filter(
           (row) => Number(row.RUPIAH || 0) > 0,
@@ -1373,7 +1371,6 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
           for (let i = 0; i < validRecords.length; i += batchSize) {
             const batch = validRecords.slice(i, i + batchSize);
 
-            // ✅ UBAH QUERY: Pakai Kolom Fisik
             let queryText = `INSERT INTO "mutasikasir" (id, masa, cabang, "group", data) VALUES `;
             let values = [];
             let placeholders = [];
@@ -1402,27 +1399,23 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 }
 
                 const desc = descRaw.toUpperCase().replace(/"/g, "'");
-                console.log(
-                  "DATA MENTAH DBF:",
-                  row.TANGGAL,
-                  "Tipe:",
-                  typeof row.TANGGAL,
-                );
+
                 let tanggalFix = "";
 
-                // 1. Prioritas Utama: Jika library sudah mengubahnya jadi Objek Date
+                // PERBAIKAN 1: Ambil tanggal objek secara UTC murni agar tidak tergeser zona waktu server
                 if (row.TANGGAL instanceof Date) {
-                  let yyyy = row.TANGGAL.getFullYear();
-                  // WAJIB + 1 karena JavaScript bulan 0 = Januari, 11 = Desember
-                  let mm = String(row.TANGGAL.getMonth() + 1).padStart(2, "0");
-                  let dd = String(row.TANGGAL.getDate()).padStart(2, "0");
+                  let yyyy = row.TANGGAL.getUTCFullYear();
+                  let mm = String(row.TANGGAL.getUTCMonth() + 1).padStart(
+                    2,
+                    "0",
+                  );
+                  let dd = String(row.TANGGAL.getUTCDate()).padStart(2, "0");
 
-                  // Validasi tahun jangan sampai 1970 (Invalid Date)
                   if (yyyy > 2000) {
                     tanggalFix = `${yyyy}-${mm}-${dd}`;
                   }
                 }
-                // 2. Cadangan: Jika ternyata ada data yang lolos berupa String (MM/DD/YYYY)
+                // Cadangan jika lolos berupa Teks String (Format MM/DD/YYYY sesuai form DBF Anda)
                 else {
                   const tglStr = String(row.TANGGAL || "")
                     .trim()
@@ -1448,23 +1441,26 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   }
                 }
 
-                // Jika setelah dua proses di atas tetap kosong, tolak baris ini
                 if (!tanggalFix) {
                   errorCount++;
                   continue;
                 }
+
                 const cabShort = (cabang || "PUSAT")
                   .substring(0, 3)
                   .toUpperCase();
-                const noreffKey = `${cabShort}_${tanggalFix}`;
-                if (!noreffMap[noreffKey]) {
-                  noreffMap[noreffKey] =
-                    `KASIR-${cabShort}-${tanggalFix}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
-                }
+
+                // PERBAIKAN 2: Generate token random unik di setiap baris agar noreff tidak kembar total dalam satu tanggal
+                const randomToken = Math.random()
+                  .toString(36)
+                  .substr(2, 4)
+                  .toUpperCase();
+                const nomorReferensiFix = `KASIR-${cabShort}-${tanggalFix}-${randomToken}`;
 
                 const id = crypto.randomUUID();
                 let nilaiDb = 0,
                   nilaiCr = 0;
+
                 if (
                   ["PJ", "TK", "KT"].some((k) => kodeTrans.startsWith(k)) ||
                   totalRaw > 0
@@ -1474,15 +1470,14 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   nilaiCr = total;
                 }
 
-                // Hitung masa dari tanggal yang sudah difix (format: YYYY-MM-DD -> MMYY)
+                // Hitung masa (Format: MMTT, contoh: 2024-08-01 -> "0824")
                 const masaFix =
                   tanggalFix.substring(5, 7) + tanggalFix.substring(2, 4);
 
                 const jsonData = {
                   id,
-                  noreff: noreffMap[noreffKey],
+                  noreff: nomorReferensiFix,
                   tanggal: tanggalFix,
-
                   kodeTrans,
                   noperkiraan: "",
                   desc,
@@ -1490,11 +1485,10 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   db: nilaiDb,
                   cr: nilaiCr,
                   masa: masaFix,
-                  cabang: cabang, // Pastikan ini tetap masuk ke JSON
-                  group: groupFinal, // Pastikan ini tetap masuk ke JSON
+                  cabang: cabang,
+                  group: groupFinal,
                 };
 
-                // ✅ UBAH BASE INDEX: Karena sekarang ada 5 kolom (id, masa, cabang, group, data)
                 const base = values.length;
                 placeholders.push(
                   `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5})`,
@@ -1513,7 +1507,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                   errPerBaris.message,
                 );
               }
-            }
+            } // Batas For-Row
 
             if (placeholders.length > 0) {
               queryText +=
@@ -1538,7 +1532,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
             } catch (errStream) {
               console.log("Stream terputus, tapi data tetap disimpan.");
             }
-          }
+          } // Batas For-Batch
 
           await client.query("COMMIT");
           try {
@@ -1576,6 +1570,7 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
     res.end();
   }
 });
+
 // ============================================================================
 // JALANKAN SERVER - WAJIB DI PALING BAWAH
 // ============================================================================
