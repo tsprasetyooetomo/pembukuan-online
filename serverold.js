@@ -1402,7 +1402,12 @@ app.post("/api/impor-mutasikasir-online", async (req, res) => {
                 }
 
                 const desc = descRaw.toUpperCase().replace(/"/g, "'");
-
+                console.log(
+                  "DATA MENTAH DBF:",
+                  row.TANGGAL,
+                  "Tipe:",
+                  typeof row.TANGGAL,
+                );
                 let tanggalFix = "";
 
                 // 1. Prioritas Utama: Jika library sudah mengubahnya jadi Objek Date
