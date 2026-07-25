@@ -469,16 +469,32 @@ function updateMutasiSummary() {
   var noreff = _mutSession.noreff;
   if (!noreff) return;
 
+  // ✅ AMBIL PARAMETER FILTER AKTIF
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+  var activeCabang = $("m_cab") ? $("m_cab").value : "";
+
   var totalDb = 0,
     totalCr = 0;
   var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
   transaksi.forEach(function (t) {
-    if (t.noreff === noreff) {
+    // ✅ KUNCI BERDASARKAN NOREFF, GROUP, DAN CABANG
+    if (
+      t.noreff === noreff &&
+      (t.group || "TLGA") === activeGroup &&
+      t.cabang === activeCabang
+    ) {
       totalDb += num(t.db) || 0;
       totalCr += num(t.cr) || 0;
     }
   });
+
+  // ✅ JANGAN LUPA TAMPILKAN HASILNYA KE ELEMENT HTML DI LAYAR (CONTOH)
+  if ($("m_total_db")) $("m_total_db").value = fmtN(totalDb);
+  if ($("m_total_cr")) $("m_total_cr").value = fmtN(totalCr);
+
+  // Jika ada field selisih/balance:
+  if ($("m_selisih")) $("m_selisih").value = fmtN(Math.abs(totalDb - totalCr));
 }
 
 function resetToNewTransaction() {
@@ -737,8 +753,16 @@ async function clearAllDataMutasi(storeName) {
 
 async function SafeaddDetil() {
   var noreff = _mutSession.noreff || $("m_noref").value;
-  if (!noreff)
-    return toast("Isi Kode Bank & Tanggal di header terlebih dahulu", "err");
+  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+
+  // ✅ PERBAIKAN VALIDASI: Pastikan No Ref, Cabang, Kode Bank, dan Tanggal sudah terisi semua
+  if (!noreff || !activeCabang || !$("m_kb").value || !$("m_tgl").value) {
+    return toast(
+      "Isi data header (No Ref, Cabang, Kode Bank, Tanggal) secara lengkap terlebih dahulu",
+      "err",
+    );
+  }
 
   var noper = $("d_perk").value;
   var penjelasan = $("d_penjelasan").value.trim();
@@ -746,9 +770,6 @@ async function SafeaddDetil() {
 
   if (!noper || !penjelasan || rp <= 0)
     return toast("No Perkiraan, Penjelasan, dan Rp wajib diisi!", "err");
-
-  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
-  var activeGroup = localStorage.getItem("group") || "TLGA";
 
   _mutSession.isLocked = true;
   $("m_cab").disabled = true;
@@ -761,7 +782,7 @@ async function SafeaddDetil() {
       noreff: noreff,
       tanggal: $("m_tgl").value,
       kodeBank: $("m_kb").value,
-      cabang: $("m_cab").value,
+      cabang: activeCabang, // ✅ KONSISTEN MENGGUNAKAN CABANG FORM
       dariKePada: $("m_dkp").value.trim(),
       noperkiraan: noper,
       desc: penjelasan,
@@ -769,7 +790,7 @@ async function SafeaddDetil() {
       db: rp,
       cr: 0,
       kodeTrans: "",
-      group: activeGroup, // ✅ GROUP DIMASUKKAN
+      group: activeGroup, // ✅ KONSISTEN MENGGUNAKAN GROUP AKTIF
     };
 
     // ✅ GANTI db.add DENGAN fetch KE SUPABASE
@@ -802,12 +823,25 @@ async function SafeaddDetil() {
 }
 
 async function saveEditDetil(id) {
+  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG
+
+  // ✅ PERBAIKAN: Validasi pencarian cache diperketat berdasarkan ID, Group, dan Cabang aktif
   var dataLama = DBCache.transaksi
     ? DBCache.transaksi.find(function (t) {
-        return t.id === id;
+        return (
+          t.id === id &&
+          (t.group || "TLGA") === activeGroup &&
+          t.cabang === activeCabang
+        );
       })
     : null;
-  if (!dataLama) return toast("Data tidak ditemukan di cache!", "err");
+
+  if (!dataLama)
+    return toast(
+      "Data tidak ditemukan atau Anda tidak memiliki akses ke data cabang ini!",
+      "err",
+    );
 
   var noper = $("ed_perk").value;
   var penjelasan = $("ed_penjelasan").value.trim();
@@ -816,15 +850,13 @@ async function saveEditDetil(id) {
   if (!noper || !penjelasan || rp <= 0)
     return toast("Field wajib tidak boleh kosong!", "err");
 
-  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
-  var activeGroup = localStorage.getItem("group") || "TLGA";
-
   try {
     var objUpdate = Object.assign({}, dataLama, {
       noperkiraan: noper,
       desc: penjelasan,
       total: rp,
       db: rp,
+      cabang: activeCabang, // ✅ PASTIKAN CABANG TETAP TERKUNCI
       group: activeGroup, // ✅ PASTIKAN GROUP SELALU TERUPDATE
     });
 
@@ -853,8 +885,9 @@ async function saveEditDetil(id) {
 async function hapusDetil(id) {
   if (!confirm("Yakin hapus detil ini?")) return;
 
-  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE
+  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE & CABANG DARI LAYAR
   var activeGroup = localStorage.getItem("group") || "TLGA";
+  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF DARI LAYAR
 
   try {
     // ✅ GANTI db.del DENGAN fetch KE SUPABASE
@@ -868,10 +901,13 @@ async function hapusDetil(id) {
       });
     }
 
+    // ✅ SEKARANG HITUNG SISA DETIL BERDASARKAN NOREFF, GROUP, DAN CABANG
     var sisaDetil = (DBCache.transaksi || []).filter(function (t) {
       return (
-        t.noreff === _mutSession.noreff && (t.group || "TLGA") === activeGroup
-      ); // ✅ CEK GROUP SAAT HITUNG SISA
+        t.noreff === _mutSession.noreff &&
+        (t.group || "TLGA") === activeGroup &&
+        t.cabang === activeCabang // ✅ FILTER CABANG DISIPKAN DISINI
+      );
     }).length;
 
     if (sisaDetil === 0) {
@@ -894,13 +930,24 @@ async function hapusDetil(id) {
 function updateHeaderNominal() {
   var noreff = _mutSession.noreff;
   if (!noreff) return;
+
   var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF DARI LAYAR
+
   var totalRp = 0;
   var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
+
   transaksi.forEach(function (t) {
-    if (t.noreff === noreff && (t.group || "TLGA") === activeGroup)
-      totalRp += num(t.total); // ✅ FILTER GROUP
+    // ✅ SEKARANG SUDAH FILTER BERDASARKAN: NOREFF, GROUP, DAN CABANG
+    if (
+      t.noreff === noreff &&
+      (t.group || "TLGA") === activeGroup &&
+      t.cabang === activeCabang
+    ) {
+      totalRp += num(t.total);
+    }
   });
+
   $("m_nominal").value = fmtN(totalRp);
 }
 
@@ -1077,14 +1124,20 @@ function renderNoreffList() {
   box.innerHTML = html;
   if (countBox) countBox.textContent = arrNoreff.length + " transaksi";
 }
-
 function onNoreffClicked(noreffTarget) {
   if (noreffTarget === _mutSession.noreff) return;
+
   var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF DARI LAYAR
 
   var headerData = DBCache.transaksi.find(function (t) {
-    return t.noreff === noreffTarget && (t.group || "TLGA") === activeGroup; // ✅ FILTER GROUP
+    return (
+      t.noreff === noreffTarget &&
+      (t.group || "TLGA") === activeGroup &&
+      t.cabang === activeCabang
+    ); // ✅ SEKARANG SUDAH FILTER BY NOREF, GROUP, DAN CABANG
   });
+
   if (!headerData) return;
 
   _mutSession.noreff = noreffTarget;
@@ -1114,14 +1167,21 @@ function printMutasi() {
     );
 
   var activeGroup = localStorage.getItem("group") || "TLGA";
+  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF DARI LAYAR
+
   var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
+  // ✅ SEKARANG SUDAH FILTER BERDASARKAN NOREFF, GROUP, DAN CABANG
   var detilData = transaksi.filter(function (t) {
-    return t.noreff === noreff && (t.group || "TLGA") === activeGroup;
+    return (
+      t.noreff === noreff &&
+      (t.group || "TLGA") === activeGroup &&
+      t.cabang === activeCabang
+    );
   });
 
   if (detilData.length === 0)
-    return toast("Tidak ada detil untuk No Ref & Group ini", "wrn");
+    return toast("Tidak ada detil untuk No Ref, Group & Cabang ini", "wrn");
 
   var header = detilData[0];
   var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
@@ -1199,7 +1259,6 @@ function printMutasi() {
   printWindow.document.write(printHtml);
   printWindow.document.close();
 
-  // ✅ PERBAIKAN: Jalankan print langsung dengan jeda timeout tanpa mengandalkan window.onload
   setTimeout(function () {
     printWindow.print();
   }, 500);
