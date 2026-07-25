@@ -24,19 +24,18 @@ var _mutHandlers = {
 /* ================================================================
    GENERATOR OPTIONS
    ================================================================ */
-
-function generateKbOpts(cabang, selectedKb) {
+function generateKbOpts(cabang, activeGroup, selectedKb) {
   var opts = '<option value="">-- Pilih --</option>';
   var list = Array.isArray(DBCache.kodeBank) ? DBCache.kodeBank : [];
 
+  // ✅ 1. SINKRONISASI FILTER BERDASARKAN CABANG DAN GROUP
   var filtered = list.filter(function (kb) {
-    return (
+    var matchCabang =
       String(kb.cabang || "").toLowerCase() ===
-      String(cabang || "").toLowerCase()
-    );
+      String(cabang || "").toLowerCase();
+    var matchGroup = (kb.group || "TLGA") === activeGroup;
+    return matchCabang && matchGroup;
   });
-
-  if (filtered.length === 0 && list.length > 0) filtered = list;
 
   for (var i = 0; i < filtered.length; i++) {
     var kb = filtered[i];
@@ -48,25 +47,26 @@ function generateKbOpts(cabang, selectedKb) {
   }
 
   if (filtered.length === 0)
-    opts = '<option value="">Tidak ada Kode Bank</option>';
+    opts =
+      '<option value="">Tidak ada Kode Bank untuk Cabang & Group ini</option>';
   return opts;
 }
 
-function generatePerkOpts(cabangKode, selectedNoper) {
+function generatePerkOpts(cabangKode, activeGroup, selectedNoper) {
   var data = Array.isArray(DBCache.perkiraan) ? DBCache.perkiraan : [];
 
+  // ✅ 2. SINKRONISASI FILTER BERDASARKAN CABANG DAN GROUP
   var filtered = data.filter(function (p) {
-    return (
+    var matchCabang =
       String(p.cabang || "")
         .trim()
         .toLowerCase() ===
       String(cabangKode || "")
         .trim()
-        .toLowerCase()
-    );
+        .toLowerCase();
+    var matchGroup = (p.group || "TLGA") === activeGroup;
+    return matchCabang && matchGroup;
   });
-
-  if (filtered.length === 0 && data.length > 0) filtered = data;
 
   filtered.sort(function (a, b) {
     return (parseInt(a.noPerk) || 0) - (parseInt(b.noPerk) || 0);
@@ -88,6 +88,10 @@ function generatePerkOpts(cabangKode, selectedNoper) {
       );
     })
     .join("");
+
+  if (filtered.length === 0) {
+    return '<option value="">Tidak ada No Perkiraan untuk Cabang & Group ini</option>';
+  }
 
   return '<option value="">-- Pilih No Perkiraan --</option>' + opts;
 }
@@ -121,13 +125,23 @@ function generateTahunOpts(selectedTahun) {
 function populateKodeBankOpts(cabangKode) {
   var el = $("m_kb");
   if (!el) return;
-  el.innerHTML = generateKbOpts(cabangKode, el.value);
+
+  // ✅ AMBIL GROUP AKTIF
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
+  // ✅ KIRIM CABANG DAN GROUP KE FUNGSI GENERATOR OPTIONS
+  el.innerHTML = generateKbOpts(cabangKode, activeGroup, el.value);
 }
 
 function populatePerkiraanOpts(cabangKode) {
   var el = $("d_perk");
   if (!el) return;
-  el.innerHTML = generatePerkOpts(cabangKode, el.value);
+
+  // ✅ AMBIL GROUP AKTIF
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
+  // ✅ KIRIM CABANG DAN GROUP KE FUNGSI GENERATOR OPTIONS
+  el.innerHTML = generatePerkOpts(cabangKode, activeGroup, el.value);
 }
 
 function generateNoreff(kodeBank, tanggal, cabangKode) {
@@ -1376,7 +1390,8 @@ function renderMutasiKasir() {
     '<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:.3rem;">' +
     '<div style="font-size:.85rem;font-weight:700">Riwayat Detil Transaksi Kasir</div>' +
     '<div style="display:flex; gap:.4rem;">' +
-    '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportKasirDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
+    // '<button type="button" class="btn btn-sm" style="font-size:.65rem;padding:2px 6px; background:#6366f1; border-color:#6366f1; color:#fff;" onclick="promptImportKasirDBF()"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
+    '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'mutasikasir\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-sm" style="font-size:.6rem;padding:2px 8px; background:#ef4444; border-color:#ef4444; color:#fff;" onclick="executeHapusMutasiPerCabang()"><i class="fa-solid fa-broom"></i> Kosongkan Data</button>' +
     "</div></div>" +
     '<div style="margin-top:.8rem;"><table class="tbl-excel"><thead><tr><th class="col-kode">Kode</th><th>Penjelasan</th><th class="col-rp">Rp</th><th class="col-aksi">Aksi</th></tr></thead><tbody>' +
@@ -1534,18 +1549,38 @@ async function addKasirDetil() {
   }
 
   try {
+    var tanggalRaw = $("mk_tgl").value; // Ambil nilai tanggal dari form (Format standard: YYYY-MM-DD atau DD/MM/YYYY)
+    var computedMasa = "";
+
+    // LOGIKA HITUNG MASA (2 DIGIT BULAN + 2 DIGIT TAHUN) DARI INPUT TANGGAL
+    if (tanggalRaw) {
+      var parts = tanggalRaw.split(/[-/]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 4) {
+          // Format: YYYY-MM-DD (Contoh: 2026-07-25 -> parts[1]='07', parts[0]='2026')
+          computedMasa = parts[1] + parts[0].substring(2, 4); // Hasil: '0726'
+        } else if (parts[2].length === 4) {
+          // Format: DD-MM-YYYY (Contoh: 25-07-2026 -> parts[1]='07', parts[2]='2026')
+          computedMasa = parts[1] + parts[2].substring(2, 4); // Hasil: '0726'
+        }
+      }
+    }
+
     var newDetil = {
       id: uid(),
       noreff: noreff,
-      tanggal: $("mk_tgl").value,
-      cabang: $("mk_cab").value,
+      tanggal: tanggalRaw,
       kodeTrans: kode,
       noperkiraan: "",
       desc: penjelasan,
       total: rp,
       db: rp,
       cr: 0,
-      group: activeGroup,
+
+      // ✅ KOLOM SENDIRI UNTUK MASA, CABANG, DAN GROUP (Bukan dalam bentuk JSON objek lagi)
+      masa: computedMasa, // Kolom Fisik Masa (Format MMYY, misal: 0726)
+      cabang: $("mk_cab").value, // Kolom Fisik Cabang
+      group: activeGroup, // Kolom Fisik Group
     };
 
     await fetch(window.location.origin + "/api/data/mutasikasir", {
