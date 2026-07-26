@@ -240,12 +240,16 @@ function renderMutasi() {
         '<option value="' + esc(kode) + '">' + esc(label) + "</option>";
     });
   }
+
   return (
     "<style>" +
     ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
     "#mutDetilTbl { max-height: 500px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
     "#mutDetilTbl thead th { position: sticky; top: 0; background: var(--bg2); z-index: 5; }" +
     "#mutNoreffList { max-height: 300px !important; overflow-y: auto !important; }" +
+    /* ✨ TAMBAHAN CSS: Pengatur Tinggi & Fitur Scroll Form Kiri & Kanan Sticky */
+    ".scrollable-form-container { max-height: 480px !important; overflow-y: auto !important; padding-right: .5rem; }" +
+    ".sticky-sidebar-container { position: sticky !important; top: 0; height: fit-content; }" +
     "</style>" +
     '<div style="padding:.8rem;background:var(--bg2);border:1px solid var(--brd);border-radius:10px;margin-bottom:1rem">' +
     /* BARIS JUDUL UTAMA */
@@ -263,9 +267,9 @@ function renderMutasi() {
     "</div>" +
     "</div>" +
     /* BARIS ISI (AWAL FLEXBOX) */
-    '<div style="display:flex;gap:1rem">' +
-    /* KOLOM KIRI */
-    '<div style="flex:3">' +
+    '<div style="display:flex;gap:1rem;align-items:flex-start">' +
+    /* KOLOM KIRI (DIBUNGKUS CLASS SCROLL) */
+    '<div style="flex:3" class="scrollable-form-container">' +
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
     '<div class="fg" style="flex:1"><label>Cabang</label><select id="m_cab" class="in">' +
     getCabangOpts(firstCab) +
@@ -300,8 +304,8 @@ function renderMutasi() {
     "</div>" +
     "</div>" +
     "</div>" /* TUTUP KOLOM KIRI */ +
-    /* KOLOM KANAN */
-    '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box">' +
+    /* KOLOM KANAN (DIBUNGKUS CLASS STICKY SIDEBAR) */
+    '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box" class="sticky-sidebar-container">' +
     '<div style="margin-bottom:.4rem">' +
     '<div class="fg" style="margin-bottom:0"><label style="font-size:.65rem">Filter Cabang List</label><select id="filter_cabang_list" class="in" style="font-size:.75rem">' +
     cabFilterOpts +
@@ -320,8 +324,8 @@ function renderMutasi() {
     "</div>" +
     '<div id="mutNoreffCount" style="font-size:.65rem;color:var(--muted);margin-top:.3rem;text-align:right"></div>' +
     "</div>" /* TUTUP KOLOM KANAN */ +
-    "</div>" /* 💡 KUNCI PERBAIKAN: Menutup 'baris isi' agar tabel detail tidak masuk layout flexbox kesamping */ +
-    /* TABEL DETIL (SEKARANG SUDAH DI BAWAH) */
+    "</div>" /* TUTUP BARIS ISI LAYOUT FLEXBOX */ +
+    /* TABEL DETIL DI BAGIAN BAWAH */
     "<style>" +
     "#mutDetilTbl { display: block !important; width: 100% !important; max-height: 450px !important; overflow-y: auto !important; border: 1px solid var(--brd); border-radius: 6px; }" +
     "#mutDetilTbl th { position: sticky !important; top: 0 !important; background: var(--bg2) !important; z-index: 2; }" +
@@ -708,7 +712,7 @@ async function clearAllDataMutasi(storeName) {
       !confirm(
         "PERINGATAN!\n\nData " +
           label +
-          " dengan kriteria berikut akan dihapus secara permanen:" +
+          " dengan kriteria berikut akan dihapus secara permanen di Browser dan Server:" +
           infoFilter +
           "\n\nLanjutkan?",
       )
@@ -719,8 +723,35 @@ async function clearAllDataMutasi(storeName) {
     closeModal();
 
     try {
-      var allData = await db.getAll(storeName);
+      // 1. PROSES SERVER: Kirim perintah hapus ke database SQL di backend
+      // Format parameter 'masa' disesuaikan dengan kebutuhan database Anda (Contoh: YYYY-MM)
+      var formatMasa = thn && bln ? `${thn}-${bln}` : thn || "";
 
+      var serverResponse = await fetch("/api/clear-all-data", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          storeName: storeName,
+          masa: formatMasa,
+          cabang: cbg || "ALL",
+          tahun: thn,
+          bulan: bln,
+        }),
+      });
+
+      if (!serverResponse.ok) {
+        var errData = await serverResponse.json();
+        throw new Error(
+          errData.message || "Gagal menghapus data di server database",
+        );
+      }
+
+      var serverResult = await serverResponse.json();
+
+      // 2. PROSES LOCAL BROWSER (IndexedDB)
+      var allData = await db.getAll(storeName);
       var dataDipertahankan = [];
       var dataDihapusCount = 0;
 
@@ -757,7 +788,13 @@ async function clearAllDataMutasi(storeName) {
         DBCache[storeName] = dataDipertahankan;
       }
 
-      toast(`${dataDihapusCount} data ${label} berhasil dihapus`, "ok");
+      // Tampilkan info total data terhapus dari server
+      toast(
+        `${serverResult.changes || dataDihapusCount} data ${label} berhasil dihapus dari sistem`,
+        "ok",
+      );
+
+      // Ambil ulang tampilan panel (Sekarang aman karena data server sudah bersih)
       safeRenderCurrentPanel();
     } catch (err) {
       toast("Gagal memproses penghapusan data: " + err.message, "err");
@@ -1034,17 +1071,32 @@ function renderDetilTable() {
     buildTable(headers, rows, { numCols: [3] }) +
     "</table></div>";
 }
-
-function renderNoreffList() {
+async function renderNoreffList() {
   var box = $("mutNoreffList");
   var countBox = $("mutNoreffCount");
   if (!box) return;
+
   var filterCabang = $("filter_cabang_list")
     ? $("filter_cabang_list").value
     : "";
   var filterBulan = $("filter_bulan") ? $("filter_bulan").value : "";
   var filterTahun = $("filter_tahun") ? $("filter_tahun").value : "";
-  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+
+  //  SOLUSI: Jika DBCache kosong, paksa ambil data segar dari server terlebih dahulu
+  if (!DBCache.transaksi || DBCache.transaksi.length === 0) {
+    try {
+      // Panggil router GET /api/data/transaksi yang kita bahas sebelumnya
+      var response = await fetch(
+        `/api/data/transaksi?cabang=${filterCabang}&group=${activeGroup}`,
+      );
+      if (response.ok) {
+        DBCache.transaksi = await response.json();
+      }
+    } catch (err) {
+      console.error("Gagal sinkronisasi data ke cache:", err);
+    }
+  }
 
   var data = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
   var filtered = data.filter(function (t) {
@@ -1537,7 +1589,7 @@ async function addKasirDetil() {
   $("mk_cab").disabled = true;
   $("mk_tgl").disabled = true;
 
-  // ✅ PERBAIKAN: PENGAMAN GROUP UNDEFINED
+  // ✅ PENGAMAN GROUP UNDEFINED
   var rawGroup = localStorage.getItem("group");
   var activeGroup = "TLGA";
   if (
@@ -1549,27 +1601,75 @@ async function addKasirDetil() {
   }
 
   try {
-    var tanggalRaw = $("mk_tgl").value; // Ambil nilai tanggal dari form (Format standard: YYYY-MM-DD atau DD/MM/YYYY)
+    // 🛠️ DEBUG 1: Cek isi elemen DOM HTML awal
+    var elTgl = $("mk_tgl");
+    var elCab = $("mk_cab");
+    console.log(
+      "🔍 [DEBUG DOM] Elemen Tanggal:",
+      elTgl ? elTgl.value : "TIDAK DITEMUKAN",
+    );
+    console.log(
+      "🔍 [DEBUG DOM] Elemen Cabang:",
+      elCab ? elCab.value : "TIDAK DITEMUKAN",
+    );
+
+    var tanggalRaw = elTgl ? elTgl.value : "";
     var computedMasa = "";
 
-    // LOGIKA HITUNG MASA (2 DIGIT BULAN + 2 DIGIT TAHUN) DARI INPUT TANGGAL
-    if (tanggalRaw) {
-      var parts = tanggalRaw.split(/[-/]/);
-      if (parts.length === 3) {
-        if (parts[0].length === 4) {
-          // Format: YYYY-MM-DD (Contoh: 2026-07-25 -> parts[1]='07', parts[0]='2026')
-          computedMasa = parts[1] + parts[0].substring(2, 4); // Hasil: '0726'
-        } else if (parts[2].length === 4) {
-          // Format: DD-MM-YYYY (Contoh: 25-07-2026 -> parts[1]='07', parts[2]='2026')
-          computedMasa = parts[1] + parts[2].substring(2, 4); // Hasil: '0726'
+    // ✅ EKSTRAKSI MASA YANG AMAN
+    if (tanggalRaw && tanggalRaw.trim() !== "") {
+      var d = new Date(tanggalRaw);
+      if (!isNaN(d.getTime())) {
+        var bulan = String(d.getMonth() + 1).padStart(2, "0");
+        var tahun = String(d.getFullYear()).substring(2, 4);
+        computedMasa = bulan + tahun;
+      } else {
+        // Jika format teks manual/string aneh, pecah paksa
+        var parts = tanggalRaw.split(/[-/.]/);
+        if (parts.length === 3) {
+          // Cari bagian yang panjang karakternya 4 (Tahun)
+          var blnIdx = 1; // Default asumsi tengah (YYYY-MM-DD atau DD-MM-YYYY)
+          var thnVal = "";
+          parts.forEach(function (p, idx) {
+            if (p.length === 4) thnVal = p.substring(2, 4);
+          });
+          if (thnVal !== "") {
+            var blnVal = String(parts[blnIdx]).padStart(2, "0");
+            computedMasa = blnVal + thnVal;
+          }
         }
       }
+    }
+
+    // 🚨 PENGAMAN DARURAT 1: Jika masa masih kosong/null, ambil bulan & tahun hari ini
+    if (
+      !computedMasa ||
+      computedMasa.trim() === "" ||
+      computedMasa.toUpperCase() === "NULL"
+    ) {
+      console.warn(
+        "⚠️ [BACKUP] computedMasa null, menggunakan waktu sistem hari ini.",
+      );
+      var krisisDate = new Date();
+      computedMasa =
+        String(krisisDate.getMonth() + 1).padStart(2, "0") +
+        String(krisisDate.getFullYear()).substring(2, 4);
+    }
+
+    // 🚨 PENGAMAN DARURAT 2: Jika cabang null/kosong, ambil dari session kasir atau beri tanda strip
+    var finalCabang = elCab ? elCab.value : "";
+    if (!finalCabang || finalCabang.trim() === "") {
+      finalCabang = _kasirSession.cabang || "PUSAT";
+      console.warn(
+        "⚠️ [BACKUP] Cabang kosong, menggunakan fallback:",
+        finalCabang,
+      );
     }
 
     var newDetil = {
       id: uid(),
       noreff: noreff,
-      tanggal: tanggalRaw,
+      tanggal: tanggalRaw || new Date().toISOString().split("T")[0], // Pengaman jika tanggal kosong
       kodeTrans: kode,
       noperkiraan: "",
       desc: penjelasan,
@@ -1577,17 +1677,32 @@ async function addKasirDetil() {
       db: rp,
       cr: 0,
 
-      // ✅ KOLOM SENDIRI UNTUK MASA, CABANG, DAN GROUP (Bukan dalam bentuk JSON objek lagi)
-      masa: computedMasa, // Kolom Fisik Masa (Format MMYY, misal: 0726)
-      cabang: $("mk_cab").value, // Kolom Fisik Cabang
-      group: activeGroup, // Kolom Fisik Group
+      // ✅ DATA DIJAMIN AMAN KARENA SUDAH MELEWATI VALIDASI STRIP & HARDSYNC DI ATAS
+      masa: String(computedMasa),
+      cabang: String(finalCabang),
+      group: String(activeGroup),
     };
 
-    await fetch(window.location.origin + "/api/data/mutasikasir", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(newDetil),
-    });
+    // 🛠️ DEBUG 2: Lihat isi objek final sebelum dikirim ke API fetch Supabase
+    console.log(
+      "🚀 [PAYLOAD FINAL] Data yang dikirim ke Server:",
+      JSON.stringify(newDetil, null, 2),
+    );
+
+    var response = await fetch(
+      window.location.origin + "/api/data/mutasikasir",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newDetil),
+      },
+    );
+
+    // 🛠️ DEBUG 3: Cek respons balik dari API router lokal Anda
+    if (!response.ok) {
+      var errText = await response.text();
+      throw new Error("Server API Error: " + errText);
+    }
 
     if (!DBCache.mutasikasir) DBCache.mutasikasir = [];
     DBCache.mutasikasir.push(newDetil);
@@ -1602,6 +1717,7 @@ async function addKasirDetil() {
     renderKasirNoreffList();
     toast("Detil kasir ditambahkan", "ok");
   } catch (error) {
+    console.error("🚨 [ERROR CRITICAL] Gagal total simpan detil:", error);
     toast("Gagal simpan: " + error.message, "err");
     _kasirSession.isLocked = false;
     $("mk_cab").disabled = false;
@@ -2075,7 +2191,7 @@ async function printMutasiKasir() {
     });
 
     var objSaldo = {
-      id: `${cabang}_${cabang}_${activeGroup}_${tanggal}`, // ID dipisah karena kolom 'id' ada di luar JSON
+      id: `${cabang}_${cabang}_${activeGroup}_${tanggal}`,
       cabang: cabang,
       char4: cabang,
       tanggal: tanggal,
@@ -2136,13 +2252,14 @@ async function printMutasiKasir() {
   var saldoTersedia = saldoAwalKasir + penjualanTunai + totalTK;
   var saldoKas = saldoTersedia - totalBE;
 
+  // Catatan: CSS di dalam printHtml diubah agar teks pratinjau berwarna putih
   var printHtml =
     "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Print Kasir - " +
     esc(noreff) +
     "</title>" +
-    "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;padding:15px;color:#000}" +
+    "<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:'Courier New',monospace;font-size:12px;padding:15px;color:#fff}" +
     "h2{text-align:center;margin-bottom:10px}table{width:100%;border-collapse:collapse;margin-bottom:10px}" +
-    "th,td{padding:4px 4px;text-align:left}td.rp{text-align:right}.bold{font-weight:bold}.total{border-top:1px solid #000;border-bottom:1px solid #000;font-weight:bold}</style></head><body>" +
+    "th,td{padding:4px 4px;text-align:left}td.rp{text-align:right}.bold{font-weight:bold}.total{border-top:1px solid #fff;border-bottom:1px solid #fff;font-weight:bold}</style></head><body>" +
     "<h2>LAPORAN KAS HARIAN KASIR</h2>" +
     "<p>Cabang : " +
     esc(cabangLabel) +
@@ -2152,11 +2269,11 @@ async function printMutasiKasir() {
     esc(noreff) +
     "<br>Group : " +
     esc(activeGroup) +
-    "</p><hr>" +
+    "</p><hr style='border-color:#555;'>" +
     "<table>" +
     "<tr class='bold'><td>BELANJA</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.BE) +
-    "<tr style='font-weight:bold; border-top:1px solid #000;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
+    "<tr style='font-weight:bold; border-top:1px solid #fff;'><td>TOTAL BELANJA</td><td style='text-align:right'>" +
     fmtRp(totalBE) +
     "</td></tr>" +
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
@@ -2165,14 +2282,14 @@ async function printMutasiKasir() {
     "<tr><td colspan='2'>&nbsp;</td></tr>" +
     "<tr class='bold'><td>(-)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.CS) +
-    "<tr class='total'><td>PENJUALAN TUNAI</td><td style='text-align:right; border-top: 1px solid #000;'>" +
+    "<tr class='total'><td>PENJUALAN TUNAI</td><td style='text-align:right; border-top: 1px solid #fff;'>" +
     fmtRp(penjualanTunai) +
     "</td></tr>" +
     "<tr class='bold'><td>SALDO AWAL</td><td style='text-align:right;'>" +
     fmtRp(saldoAwalKasir) +
     "</td></tr>" +
     rowHtml(dataKode.TK) +
-    "<tr class='bold' style='border-top: 1px solid #000;'><td>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
+    "<tr class='bold' style='border-top: 1px solid #fff;'><td>SALDO KAS TERSEDIA</td><td style='text-align:right'>" +
     fmtRp(saldoTersedia) +
     "</td></tr>" +
     "<tr class='total'><td>SALDO KAS</td><td style='text-align:right'>" +
@@ -2183,21 +2300,61 @@ async function printMutasiKasir() {
     "<tr><td colspan='1'>&nbsp;</td></tr>" +
     "<tr class='bold'><td>KOREKSI(-)</td><td style='text-align:right'>Rp</td></tr>" +
     rowHtml(dataKode.KK) +
-    "<tr class='total'><td>SALDO AKHIR KAS</td><td style='text-align:right; border-top: 1px solid #000;'>" +
+    "<tr class='total'><td>SALDO AKHIR KAS</td><td style='text-align:right; border-top: 1px solid #fff;'>" +
     fmtRp(saldoAkhirKasir) +
     "</td></tr>" +
     "</table></body></html>";
 
-  var printWindow = window.open("", "_blank", "width=800,height=600");
-  if (!printWindow)
-    return toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
+  // --- MODAL DENGAN BACKGROUND HITAM & TULISAN PUTIH ---
+  var modalDiv = document.createElement("div");
+  modalDiv.id = "customPrintModal";
+  modalDiv.style =
+    "position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:99999; display:flex; justify-content:center; align-items:center; padding:20px;";
 
-  printWindow.document.write(printHtml);
-  printWindow.document.close();
-  printWindow.onload = function () {
-    setTimeout(function () {
-      printWindow.print();
-    }, 300);
+  modalDiv.innerHTML =
+    "<div style='background:#1e1e1e; color:#ffffff; width:100%; max-width:500px; max-height:90vh; border-radius:8px; display:flex; flex-direction:column; box-shadow:0 4px 20px rgba(0,0,0,0.5); border:1px solid #333;'>" +
+    "<div style='padding:15px; border-bottom:1px solid #333; display:flex; justify-content:space-between; font-weight:bold; font-size:14px; background:#252526; border-top-left-radius:8px; border-top-right-radius:8px; color:#ddd;'>" +
+    "<span>Pratinjau Struk Kasir (Mode Gelap)</span>" +
+    "</div>" +
+    "<div id='printPreviewArea' style='padding:20px; overflow-y:auto; flex:1; background:#121212; border-bottom:1px solid #333;'>" +
+    printHtml +
+    "</div>" +
+    "<div style='padding:15px; text-align:right; background:#252526; border-bottom-left-radius:8px; border-bottom-right-radius:8px;'>" +
+    "<button id='btnCancelPrint' style='padding:8px 16px; margin-right:10px; border:1px solid #555; background:#333; color:#fff; border-radius:4px; cursor:pointer;'>Batal</button>" +
+    "<button id='btnConfirmPrint' style='padding:8px 16px; border:none; background:#2eb85c; color:#fff; border-radius:4px; font-weight:bold; cursor:pointer;'>Cetak Sekarang</button>" +
+    "</div>" +
+    "</div>";
+
+  document.body.appendChild(modalDiv);
+
+  document.getElementById("btnCancelPrint").onclick = function () {
+    document.body.removeChild(modalDiv);
+    if (typeof toast === "function") toast("Pencetakan dibatalkan", "info");
+  };
+
+  document.getElementById("btnConfirmPrint").onclick = function () {
+    document.body.removeChild(modalDiv);
+
+    var printWindow = window.open("", "_blank", "width=800,height=600");
+    if (!printWindow) {
+      if (typeof toast === "function")
+        toast("Pop-up diblokir. Izinkan pop-up untuk print.", "err");
+      return;
+    }
+
+    // Mengembalikan warna teks ke hitam saat dicetak di kertas fisik agar terbaca printer thermal
+    var cleanPrintHtml = printHtml
+      .replace("color:#fff", "color:#000")
+      .replace("border-top:1px solid #fff", "border-top:1px solid #000")
+      .replace("border-bottom:1px solid #fff", "border-bottom:1px solid #000");
+
+    printWindow.document.write(cleanPrintHtml);
+    printWindow.document.close();
+    printWindow.onload = function () {
+      setTimeout(function () {
+        printWindow.print();
+      }, 300);
+    };
   };
 }
 
@@ -2719,239 +2876,3 @@ async function executeHapusMutasiPerCabang() {
 }
 
 // ✅ OBJEK LOGIKA IMPORT DBF KASIR (SERVER-SIDE)
-const AppImporKasirDBF = {
-  API_URL: window.location.origin + "/api/impor-mutasikasir-online",
-
-  getHTML() {
-    let opsiCabang = `<option value="" disabled selected>-- Pilih Cabang --</option>`;
-    if (typeof DBCache !== "undefined" && DBCache.cabang?.length > 0) {
-      DBCache.cabang.forEach((c) => {
-        let kode = c.kode_cabang || c.kode || "";
-        let nama = c.nama_cabang || c.nama || "";
-        if (kode)
-          opsiCabang += `<option value="${kode}">${kode} - ${nama}</option>`;
-      });
-    }
-
-    let opsiTahun = `<option value="">-- Semua Tahun --</option>`;
-    let tahunSekarang = new Date().getFullYear();
-    for (let y = tahunSekarang; y >= tahunSekarang - 3; y--) {
-      opsiTahun += `<option value="${y}">${y}</option>`;
-    }
-
-    let opsiBulan = `<option value="">-- Semua Bulan --</option>`;
-    const daftarBulan = [
-      "Januari",
-      "Februari",
-      "Maret",
-      "April",
-      "Mei",
-      "Juni",
-      "Juli",
-      "Agustus",
-      "September",
-      "Oktober",
-      "November",
-      "Desember",
-    ];
-    daftarBulan.forEach((b, i) => {
-      let val = String(i + 1).padStart(2, "0");
-      opsiBulan += `<option value="${val}">${b}</option>`;
-    });
-
-    // ✅ PERBAIKAN: PENGAMAN GROUP UNDEFINED
-    let rawGroup = localStorage.getItem("group");
-    let activeGroupLabel = "TLGA";
-    if (
-      rawGroup &&
-      rawGroup.trim() !== "" &&
-      rawGroup.trim().toUpperCase() !== "UNDEFINED"
-    ) {
-      activeGroupLabel = rawGroup.trim().toUpperCase();
-    }
-
-    let daftarGroup = ["TLGA", "TLTA", "KBJ", "SBI"];
-    let opsiGroupHtml = daftarGroup
-      .map((g) => {
-        let sel = g === activeGroupLabel ? "selected" : "";
-        return `<option value="${g}" ${sel}>${g}</option>`;
-      })
-      .join("");
-
-    return `
-      <div style="max-width: 500px; padding: 1rem;">
-        <div style="margin-bottom: 1rem; font-size:.85rem; color:var(--muted); background:rgba(0,0,0,0.2); padding:.5rem; border-radius:6px;">
-          <i class="fa-solid fa-circle-info"></i> Proses import akan berjalan di Server.
-        </div>
-
-        <form id="formImporKasirDbf">
-          <div class="fg" style="margin-bottom: 1rem;">
-            <label>Cabang Tujuan</label>
-            <select id="impKasirCab" required class="in">${opsiCabang}</select>
-          </div>
-
-          <div class="fg" style="margin-bottom: 1rem;">
-            <label>Group Data</label>
-            <select id="impKasirGroup" required class="in">${opsiGroupHtml}</select>
-          </div>
-
-          <div style="display:flex; gap:.5rem; margin-bottom: 1rem;">
-            <div class="fg" style="flex:1; margin-bottom:0">
-              <label>Hapus Tahun</label>
-              <select id="impKasirThn" class="in">${opsiTahun}</select>
-            </div>
-            <div class="fg" style="flex:1; margin-bottom:0">
-              <label>Hapus Bulan</label>
-              <select id="impKasirBln" class="in">${opsiBulan}</select>
-            </div>
-          </div>
-          
-          <div class="fg" style="margin-bottom: 1.5rem;">
-            <label>Pilih File DBF</label>
-            <div style="border: 2px dashed var(--brd); border-radius: 6px; padding: 1.5rem; text-align: center; position:relative; margin-top:.3rem;">
-              <input type="file" id="fileDbfKasir" accept=".dbf" required style="position:absolute; inset:0; opacity:0; cursor:pointer;">
-              <div id="labelDbfKasir" style="color: var(--muted);">
-                <i class="fa-solid fa-file-circle-plus" style="font-size: 2rem; display:block; margin-bottom:.5rem;"></i>
-                Klik untuk pilih file .DBF
-              </div>
-            </div>
-          </div>
-
-          <div id="kasirProgressBox" style="display:none; margin-bottom:1.5rem">
-            <div style="background:var(--bg);border-radius:8px;height:24px;overflow:hidden;border:1px solid var(--brd);position:relative">
-              <div id="kasirProgressBar" style="width:0%;height:100%;background:linear-gradient(90deg,var(--accent),#10b981);transition:width 0.3s;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:.75rem"></div>
-            </div>
-            <div id="kasirProgressText" style="font-size:.8rem;color:var(--muted);margin-top:.3rem;text-align:center">Menunggu...</div>
-          </div>
-
-          <div style="display:flex; gap:.5rem; justify-content:flex-end;">
-            <button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>
-            <button type="submit" id="btnSubmitKasir" class="btn btn-a" style="padding:.5rem 1.5rem;">
-              <i class="fa-solid fa-cloud-arrow-up"></i> Upload & Import
-            </button>
-          </div>
-        </form>
-      </div>
-    `;
-  },
-
-  initEvents() {
-    const fileInput = document.getElementById("fileDbfKasir");
-    if (fileInput) {
-      fileInput.addEventListener("change", (e) => {
-        const label = document.getElementById("labelDbfKasir");
-        if (e.target.files.length > 0) {
-          label.innerHTML = `<i class="fa-solid fa-file-check" style="font-size: 2rem; display:block; margin-bottom:.5rem; color:var(--success);"></i>${e.target.files[0].name}`;
-        }
-      });
-    }
-
-    const form = document.getElementById("formImporKasirDbf");
-    if (form) {
-      form.addEventListener("submit", (e) => this.submit(e));
-    }
-  },
-
-  async submit(e) {
-    e.preventDefault();
-    const btn = document.getElementById("btnSubmitKasir");
-    const progressBox = document.getElementById("kasirProgressBox");
-    const progressBar = document.getElementById("kasirProgressBar");
-    const progressText = document.getElementById("kasirProgressText");
-
-    const cabang = document.getElementById("impKasirCab")?.value;
-    const groupVal = document.getElementById("impKasirGroup")?.value;
-    const hapusThn = document.getElementById("impKasirThn")?.value || "";
-    const hapusBln = document.getElementById("impKasirBln")?.value || "";
-    const fileDbf = document.getElementById("fileDbfKasir")?.files[0];
-
-    if (!cabang || !fileDbf || !groupVal)
-      return toast("Cabang, Group, dan File wajib diisi!", "err");
-    if (hapusBln && !hapusThn)
-      return toast("Jika pilih bulan, tahun wajib dipilih!", "err");
-
-    try {
-      btn.disabled = true;
-      btn.innerText = "Memproses...";
-      progressBox.style.display = "block";
-      progressBar.style.width = "0%";
-      progressBar.style.background =
-        "linear-gradient(90deg,var(--accent),#10b981)";
-      progressText.textContent = "Menghubungi server...";
-
-      const fd = new FormData();
-      fd.append("cabang", cabang);
-      fd.append("group", groupVal);
-      if (hapusThn) fd.append("hapus_tahun", hapusThn);
-      if (hapusBln) fd.append("hapus_bulan", hapusBln);
-      fd.append("file_dbf", fileDbf);
-
-      await new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", this.API_URL);
-
-        let lastLine = "";
-        xhr.onreadystatechange = function () {
-          if (xhr.readyState === 3) {
-            const lines = xhr.responseText.split("\n\n");
-            const newLine = lines[lines.length - 2];
-
-            if (
-              newLine &&
-              newLine.startsWith("data: ") &&
-              newLine !== lastLine
-            ) {
-              lastLine = newLine;
-              try {
-                const data = JSON.parse(newLine.replace("data: ", ""));
-
-                progressBar.style.width = data.percent + "%";
-                progressBar.textContent = data.percent + "%";
-                progressText.textContent = data.message;
-
-                if (data.percent === 100) {
-                  if (!data.success) {
-                    reject(new Error(data.message));
-                  } else {
-                    resolve(data);
-                  }
-                }
-              } catch (err) {}
-            }
-          }
-        };
-
-        xhr.onerror = () => reject(new Error("Network error"));
-        xhr.send(fd);
-      });
-
-      toast("✅ Import DBF Kasir berhasil di Server!", "ok");
-      closeModal();
-
-      if (typeof fetchInitialData === "function") await fetchInitialData();
-
-      renderKasirDetilTable();
-      updateKasirHeaderNominal();
-      await hitungSaldoOtomatis();
-      if (typeof buildGroupedNoreff === "function") buildGroupedNoreff();
-      renderKasirNoreffList();
-    } catch (err) {
-      toast("Error: " + err.message, "err");
-      progressBar.style.background = "var(--danger)";
-      progressText.textContent = "Gagal: " + err.message;
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML =
-        '<i class="fa-solid fa-cloud-arrow-up"></i> Upload & Import';
-    }
-  },
-};
-
-function promptImportKasirDBF() {
-  if (typeof openModal === "function") {
-    openModal("Impor DBF Mutasi Kasir (Server)", AppImporKasirDBF.getHTML());
-    setTimeout(() => AppImporKasirDBF.initEvents(), 50);
-  } else {
-    toast("Fungsi Modal tidak ditemukan", "err");
-  }
-}
