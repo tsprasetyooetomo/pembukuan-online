@@ -1,3 +1,24 @@
+var APP_PAGINATION_STATE = {
+  kasir: {
+    current: 1,
+    size: 20,
+    func: "refreshSaldoKasir",
+    target: "kasirPagination",
+  },
+  inputHarian: {
+    current: 1,
+    size: 20,
+    func: "refreshInputHarian",
+    target: "inputHarianPagination",
+  },
+  kasHarian: {
+    current: 1,
+    size: 20,
+    func: "refreshKasHarian",
+    target: "kasHarianPagination",
+  },
+};
+
 /* ================================================================
    app_laporan_kas.js — KAS HARIAN & INPUT HARIAN
    ================================================================ */
@@ -21,24 +42,33 @@ function renderKasHarian() {
   lastMonth.setMonth(lastMonth.getMonth() - 1);
   var defaultStart = lastMonth.toISOString().slice(0, 10);
 
-  // Render Form Awal
+  // 1. Reset nomor halaman kas harian ke angka 1 saat menu dibuka pertama kali
+  if (APP_PAGINATION_STATE && APP_PAGINATION_STATE.kasHarian) {
+    APP_PAGINATION_STATE.kasHarian.current = 1;
+  }
+
+  // 2. Gunakan ID unik (fkh_...) dan tambahkan reset halaman pada setiap event onchange sebelum refresh dilakukan
   return `<div class="flt">
-      <div class="fg"><label>Tgl Awal</label><input type="date" id="fk_tgl_awal" value="${defaultStart}" onchange="refreshKasHarian()"></div>
-      <div class="fg"><label>Tgl Akhir</label><input type="date" id="fk_tgl_akhir" value="${today}" onchange="refreshKasHarian()"></div>
-      <div class="fg"><label>Cabang</label><select id="fk_cabang" onchange="refreshKasHarian()">${getCabangOpts("")}</select></div>
-      <div class="fg"><label>KodeBank/Kas</label><select id="fk_kodebank" onchange="refreshKasHarian()"><option value="">Semua</option></select></div>
-      <!-- TAMBAHAN: TOMBOL EXPORT -->
+      <div class="fg"><label>Tgl Awal</label><input type="date" id="fkh_tgl_awal" value="${defaultStart}" onchange="APP_PAGINATION_STATE.kasHarian.current = 1; refreshKasHarian()"></div>
+      <div class="fg"><label>Tgl Akhir</label><input type="date" id="fkh_tgl_akhir" value="${today}" onchange="APP_PAGINATION_STATE.kasHarian.current = 1; refreshKasHarian()"></div>
+      <div class="fg"><label>Cabang</label><select id="fkh_cabang" onchange="APP_PAGINATION_STATE.kasHarian.current = 1; refreshKasHarian()">${getCabangOpts("")}</select></div>
+      <div class="fg"><label>KodeBank/Kas</label><select id="fkh_kodebank" onchange="APP_PAGINATION_STATE.kasHarian.current = 1; refreshKasHarian()"><option value="">Semua</option></select></div>
+      
+      <!-- TOMBOL EXPORT -->
       <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
         <button class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportKasHarian()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> Export XLS</button>
       </div>
       <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
-        <button class="btn btn-s" style="background-color:#d93025;color:#fff;" 
-                onclick="tutupBukuHarian()">
+        <button class="btn btn-s" style="background-color:#d93025;color:#fff;" onclick="tutupBukuHarian()">
           <i class="fa-solid fa-save"></i> Tutup Buku / Simpan Saldo
         </button>
       </div>
     </div>
-    <div id="kasHarianTbl"></div>`;
+    <div id="kasHarianTbl"></div>
+    
+    <!-- Wadah tempat tombol navigasi angka halaman digambar oleh sistem -->
+    <div id="kasHarianPagination" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:5px;"></div>
+  `;
 }
 
 async function tutupBukuHarian() {
@@ -301,10 +331,12 @@ function exportKasHarian() {
     alert("Laporan kas berhasil diunduh.");
   }
 }
+
 async function refreshKasHarian() {
-  var tglAwal = $("fk_tgl_awal").value;
-  var tglAkhir = $("fk_tgl_akhir").value;
-  var cab = $("fk_cabang").value;
+  // 🌟 FIX 1: Ambil parameter menggunakan ID unik fkh_ agar tidak tabrakan antar menu
+  var tglAwal = $("fkh_tgl_awal").value;
+  var tglAkhir = $("fkh_tgl_akhir").value;
+  var cab = $("fkh_cabang").value;
 
   // --- KODE DROPDOWN KODE BANK ---
   var filteredBanks = DBCache.kodeBank.filter(function (b) {
@@ -332,7 +364,7 @@ async function refreshKasHarian() {
     })
     .join("");
 
-  var ddDigit = $("fk_kodebank");
+  var ddDigit = $("fkh_kodebank"); // 🌟 FIX 2: Sesuaikan ID fkh_
   if (ddDigit) {
     var oldVal = ddDigit.value;
     ddDigit.innerHTML = '<option value="">Semua</option>' + newOpts;
@@ -345,7 +377,7 @@ async function refreshKasHarian() {
     ddDigit.value = isValid ? oldVal : "";
   }
 
-  var selectedChar = $("fk_kodebank").value;
+  var selectedChar = $("fkh_kodebank").value; // 🌟 FIX 3: Sesuaikan ID fkh_
 
   // --- 2. FILTER DATA TRANSAKSI ---
   var filteredData = DBCache.transaksi.filter(function (t) {
@@ -399,7 +431,7 @@ async function refreshKasHarian() {
         noreff: keyRef,
         db: 0,
         cr: 0,
-        cabang: t.cabang || "Pusat", // ✅ Simpan info cabang di grup
+        cabang: t.cabang || "Pusat",
       };
     }
     groupedMap[keyRef].db += currentDb;
@@ -431,18 +463,15 @@ async function refreshKasHarian() {
   // --- 5. LOOPING TABEL ---
   groupedData.forEach(function (t) {
     if (lastDate !== null && lastDate !== t.tanggal) {
-      rows.push(["", "", "", "", "", "", "", "", ""]); // Tambah kolom kosong untuk separator tanggal
+      rows.push(["", "", "", "", "", "", "", "", ""]);
     }
     lastDate = t.tanggal;
     var saldoAwalRow = runBal;
     runBal += t.db - t.cr;
 
-    // Cari label cabang yang cantik
-    //var cabangLabel = lookupCabangLabel(t.cabang) || t.cabang || "Pusat";
     var cabangLabel = t.cabang || "-";
-
-    //var viewBtnHtml = `<button type="button" class="btn btn-s btn-a" style="padding:2px 6px;" onclick="showDetailReff('${esc(t.noreff)}')"><i class="fa-solid fa-eye"></i> View</button>`;
     var viewBtnHtml = `<button type="button" class="btn btn-s btn-a" style="padding:2px 6px;" onclick="showDetailReff('${esc(t.noreff)}', '${esc(t.cabang)}')"><i class="fa-solid fa-eye"></i> View</button>`;
+
     rows.push([
       t.tanggal,
       esc(t.dariKePada).substring(0, 25),
@@ -451,7 +480,7 @@ async function refreshKasHarian() {
       fmtN(t.db),
       fmtN(t.cr),
       fmtN(runBal),
-      esc(cabangLabel), // ✅ TAMBAHKAN KOLOM CABANG DI SINI
+      esc(cabangLabel),
       viewBtnHtml,
     ]);
     totalDb += t.db;
@@ -469,8 +498,8 @@ async function refreshKasHarian() {
     fmtN(totalDb),
     fmtN(totalCr),
     fmtN(totalDb - totalCr),
-    "", // ✅ Footer kolom Cabang kosong
-    "", // Footer kolom Aksi kosong
+    "",
+    "",
   ];
 
   // ✅ UPDATE HEADER TABEL
@@ -482,17 +511,31 @@ async function refreshKasHarian() {
     "Debit",
     "Kredit",
     "Akhir",
-    "Cabang", // ✅ HEADER CABANG DITAMBAHKAN DI SINI
+    "Cabang",
     "Aksi",
   ];
 
+  // 🌟 FIX 4: Hitung pembatasan slice untuk halaman aktif saat ini
+  const startIndex =
+    (APP_PAGINATION_STATE.kasHarian.current - 1) *
+    APP_PAGINATION_STATE.kasHarian.size;
+
+  const paginatedRows = rows.slice(
+    startIndex,
+    startIndex + APP_PAGINATION_STATE.kasHarian.size,
+  );
+
+  // 🌟 FIX 5: Masukkan 'paginatedRows' ke buildTable, BUKAN 'rows' utuh
   $("kasHarianTbl").innerHTML = wrapTable(
-    buildTable(headers, rows, {
-      numCols: [3, 4, 5, 6],
+    buildTable(headers, paginatedRows, {
+      numCols: [4, 5, 6],
       foot: foot,
       emptyMsg: "Tidak ada data",
     }),
   );
+
+  // 🌟 FIX 6: Panggil fungsi navigasi universal agar tombol angka halamannya digambar di layar
+  renderPagination("kasHarian", rows.length);
 }
 
 // ====== FILE FRONTEND (Misal: kasharian.js atau app.js) ======
@@ -682,33 +725,45 @@ AFTER_RENDER.inputHarian = refreshInputHarian;
 function renderInputHarian() {
   var today = new Date().toISOString().slice(0, 7); // Format YYYY-MM untuk input month
 
+  // 1. Reset nomor halaman ke angka 1 setiap kali menu utama dibuka pertama kali
+  if (APP_PAGINATION_STATE && APP_PAGINATION_STATE.inputHarian) {
+    APP_PAGINATION_STATE.inputHarian.current = 1;
+  }
+
+  // 2. Tambahkan reset halaman pada setiap event onchange/oninput sebelum refresh dilakukan
   return `<div class="flt">
       <div class="fg">
         <label>Periode</label>
-        <select id="fi_periode" onchange="refreshInputHarian()">
+        <select id="fi_periode" onchange="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian()">
           <option value="bulan">Bulanan</option>
           <option value="tahun">Tahunan</option>
         </select>
       </div>
-      <div class="fg"><label>Bulan/Tahun</label><input type="month" id="fi_bulan" value="${today}" onchange="refreshInputHarian()"></div>
-      <div class="fg"><label>Cabang</label><select id="fi_cabang" onchange="refreshInputHarian()">${getCabangOpts("")}</select></div>
-      <div class="fg"><label>Kode Trans</label><input type="text" id="fi_ktrans" class="in" placeholder="Semua" oninput="refreshInputHarian()"></div>
-      <div class="fg"><label>Min. Nilai</label><input type="number" id="fi_nilai" class="in" value="0" oninput="refreshInputHarian()"></div>
+      <div class="fg"><label>Bulan/Tahun</label><input type="month" id="fi_bulan" value="${today}" onchange="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian()"></div>
+      <div class="fg"><label>Cabang</label><select id="fi_cabang" onchange="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian()">${getCabangOpts("")}</select></div>
+      <div class="fg"><label>Kode Trans</label><input type="text" id="fi_ktrans" class="in" placeholder="Semua" oninput="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian()"></div>
+      <div class="fg"><label>Min. Nilai</label><input type="number" id="fi_nilai" class="in" value="0" oninput="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian()"></div>
       <div class="fg">
         <label>Golongan</label>
-        <select id="fi_gol" onchange="refreshInputHarian()">
+        <select id="fi_gol" onchange="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian()">
           <option value="">Semua</option>
-          <!-- Opsi golongan bisa diisi dinamis jika ada master datanya -->
         </select>
       </div>
       <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
         <button class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportInputHarian()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> Export XLS</button>
       </div>
     </div>
-    <div id="inputHarianTbl"></div>`;
+    <div id="inputHarianTbl"></div>
+    
+    <!-- 🌟 WAJIB ADA: Wadah tempat tombol navigasi angka halaman digambar oleh sistem -->
+    <div id="inputHarianPagination" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:5px;"></div>`;
 }
 
-async function refreshInputHarian() {
+// 🌟 1. BUAT VARIABEL MEMORI LOKAL (Letakkan di luar fungsi / di bagian atas file)
+var CACHE_INPUT_HARIAN_FILTERED = [];
+var FOOTER_INPUT_HARIAN_TOTAL = [];
+
+async function refreshInputHarian(isSwitchPage = false) {
   if (
     !$("fi_periode") ||
     !$("fi_bulan") ||
@@ -720,151 +775,187 @@ async function refreshInputHarian() {
     return;
   }
 
-  var periode = $("fi_periode").value,
-    bln = $("fi_bulan").value,
-    cab = $("fi_cabang").value,
-    ktrans = $("fi_ktrans").value,
-    nilai = num($("fi_nilai").value),
-    gol = $("fi_gol").value;
+  // 🌟 2. OPTIMASI UTAMA: Jika hanya ganti halaman (isSwitchPage = true),
+  // langsung lompat ke Tahap Render tanpa membaca ulang database IndexedDB & Re-Filter data!
+  if (!isSwitchPage) {
+    var periode = $("fi_periode").value,
+      bln = $("fi_bulan").value,
+      cab = $("fi_cabang").value,
+      ktrans = $("fi_ktrans").value,
+      nilai = num($("fi_nilai").value),
+      gol = $("fi_gol").value;
 
-  // 🛠️ PERBAIKAN: Ambil data langsung dari db karena DBCache.transaksi sudah kosong/dihapus
-  var rawData = await db.getAll("transaksi");
-  var data = (rawData || []).slice();
+    // Ambil data langsung dari db IndexedDB
+    var rawData = await db.getAll("transaksi");
+    var data = (rawData || []).slice();
 
-  // --- 1. FILTER PERIODE WAKTU ---
-  if (periode === "bulan" && bln) {
-    data = data.filter(function (t) {
-      return t.tanggal && t.tanggal.startsWith(bln);
-    });
-  } else if (periode === "tahun" && bln) {
-    var tahunSaja = bln.substring(0, 4);
-    data = data.filter(function (t) {
-      return t.tanggal && t.tanggal.startsWith(tahunSaja);
-    });
-  }
-
-  // --- 2. FILTER KODE TRANSAKSI ---
-  if (ktrans) {
-    data = data.filter(function (t) {
-      return t.kodeTrans === ktrans;
-    });
-  }
-
-  // --- 3. FILTER CABANG ---
-  if (cab) {
-    data = data.filter(function (t) {
-      return (t.cabang || "Pusat") === cab;
-    });
-  }
-
-  // --- 4. FILTER NOMINAL NILAI ---
-  if (nilai > 0) {
-    data = data.filter(function (t) {
-      var nilaiAktif =
-        num(t.total) || num(t.db || 0) || num(t.cr || 0) || num(t.nominal || 0);
-      return nilaiAktif >= nilai;
-    });
-  }
-
-  // --- 5. FILTER GOLONGAN PERKIRAAN ---
-  if (gol) {
-    var gp = DBCache.perkiraan
-      .filter(function (p) {
-        return p.gol === gol;
-      })
-      .map(function (p) {
-        return p.noPerk || p.noperkiraan || p.kode_akun;
-      });
-
-    if (gp.length) {
+    // --- 1. FILTER PERIODE WAKTU ---
+    if (periode === "bulan" && bln) {
       data = data.filter(function (t) {
-        var akunTransaksi = t.noperkiraan || t.noPerkiraan || t.kodeTrans || "";
-        return gp.indexOf(akunTransaksi) !== -1;
+        return t.tanggal && t.tanggal.startsWith(bln);
       });
-    } else {
-      data = [];
+    } else if (periode === "tahun" && bln) {
+      var tahunSaja = bln.substring(0, 4);
+      data = data.filter(function (t) {
+        return t.tanggal && t.tanggal.startsWith(tahunSaja);
+      });
     }
+
+    // --- 2. FILTER KODE TRANSAKSI ---
+    if (ktrans) {
+      data = data.filter(function (t) {
+        return t.kodeTrans === ktrans;
+      });
+    }
+
+    // --- 3. FILTER CABANG ---
+    if (cab) {
+      data = data.filter(function (t) {
+        return (t.cabang || "Pusat") === cab;
+      });
+    }
+
+    // --- 4. FILTER NOMINAL NILAI ---
+    if (nilai > 0) {
+      data = data.filter(function (t) {
+        var nilaiAktif =
+          num(t.total) ||
+          num(t.db || 0) ||
+          num(t.cr || 0) ||
+          num(t.nominal || 0);
+        return nilaiAktif >= nilai;
+      });
+    }
+
+    // --- 5. FILTER GOLONGAN PERKIRAAN ---
+    if (gol) {
+      var gp = DBCache.perkiraan
+        .filter(function (p) {
+          return p.gol === gol;
+        })
+        .map(function (p) {
+          return p.noPerk || p.noperkiraan || p.kode_akun;
+        });
+
+      if (gp.length) {
+        data = data.filter(function (t) {
+          var akunTransaksi =
+            t.noperkiraan || t.noPerkiraan || t.kodeTrans || "";
+          return gp.indexOf(akunTransaksi) !== -1;
+        });
+      } else {
+        data = [];
+      }
+    }
+
+    // --- 6. URUTKAN DATA KRONOLOGIS BERDASARKAN TANGGAL ---
+    data.sort(function (a, b) {
+      var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+      if (dateComp !== 0) return dateComp;
+      return (a.id || "").localeCompare(b.id || "");
+    });
+
+    // Simpan hasil data terfilter ke memori agar bisa dipakai instan saat ganti halaman
+    CACHE_INPUT_HARIAN_FILTERED = data;
+
+    // Hitung akumulasi total di footer (Hanya dihitung sekali saat ganti filter)
+    var sumTotal = 0,
+      sumDb = 0,
+      sumCr = 0;
+    data.forEach(function (r) {
+      var keyRef = r.noreff || "";
+      var indicator = keyRef.charAt(1).toLowerCase();
+      var rawAmount =
+        num(r.total) || num(r.db || 0) || num(r.cr || 0) || num(r.nominal || 0);
+
+      if (indicator === "p") {
+        sumCr += rawAmount;
+      } else if (indicator === "k") {
+        sumDb += rawAmount;
+      } else {
+        sumDb += num(r.db || 0);
+        sumCr += num(r.cr || 0);
+      }
+      sumTotal += rawAmount;
+    });
+
+    FOOTER_INPUT_HARIAN_TOTAL = [
+      "",
+      "",
+      "",
+      "",
+      fmtN(sumTotal),
+      fmtN(sumDb),
+      fmtN(sumCr),
+      "",
+    ];
   }
 
-  // --- 6. URUTKAN DATA KRONOLOGIS BERDASARKAN TANGGAL ---
-  data.sort(function (a, b) {
-    var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
-    if (dateComp !== 0) return dateComp;
-    return (a.id || "").localeCompare(b.id || "");
-  });
-
-  // Kolom akumulasi untuk hitung total di footer
-  var sumTotal = 0,
-    sumDb = 0,
-    sumCr = 0;
-
-  // --- 7. PETAKAN DATA KE BARIS TABEL (7 KOLOM DENGAN LOGIKA DEBET/KREDIT BARU) ---
-  var rows = data.map(function (r) {
-    var keyRef = r.noreff || "";
-    var indicator = keyRef.charAt(1).toLowerCase(); // Ambil digit ke-2 dari No Ref
-
-    var currentDb = 0;
-    var currentCr = 0;
-
-    // Ambil nominal asli transaksi
-    var rawAmount =
-      num(r.total) || num(r.db || 0) || num(r.cr || 0) || num(r.nominal || 0);
-
-    // 🛠️ ATURAN BARU SINKRONISASI AKUNTANSI INPUTAN
-    if (indicator === "p") {
-      currentCr = rawAmount; // Digit ke-2 'p' masuk Kredit
-      currentDb = 0;
-    } else if (indicator === "k") {
-      currentDb = rawAmount; // Digit ke-2 'k' masuk Debet
-      currentCr = 0;
-    } else {
-      // Fallback jika tidak mengandung p atau k
-      currentDb = num(r.db || 0);
-      currentCr = num(r.cr || 0);
-    }
-
-    // Akumulasi nilai untuk baris footer
-    sumTotal += rawAmount;
-    sumDb += currentDb;
-    sumCr += currentCr;
-
-    var isiDesc = r.desc || r.keterangan || "-";
-    var acct = r.noperkiraan || "-";
-    return [
-      esc(r.tanggal || "-"),
-      esc(keyRef || "-"),
-      esc(acct || "-"),
-      esc(isiDesc).substring(0, 25),
-      fmtN(rawAmount),
-      fmtN(currentDb),
-      fmtN(currentCr),
-      esc(lookupCabangLabel(r.cabang) || "Pusat"),
-    ];
-  });
-
-  // --- 8. SUSUN TOTAL FOOTER (8 KOLOM) ---
-  var foot = [
-    "",
-    "",
-    "",
-    "",
-    fmtN(sumTotal), // Total Nominal (Indeks 3)
-    fmtN(sumDb), // Total Debet (Indeks 4)
-    fmtN(sumCr), // Total Kredit (Indeks 5)
-    "",
-  ];
-
-  // --- 9. RENDER KE ELEMEN DOM (7 KOLOM UTUH) ---
+  // =========================================================================
+  // 🌟 3. PROSES PAGINATION LAZY RENDER (SANGAT CEPAT & RINGAN)
+  // =========================================================================
   var tblContainer = $("inputHarianTbl");
   if (tblContainer) {
-    // ✅ PERBAIKAN PADA BARIS 811 (Isi kembali nilai array untuk numCols)
+    const totalDataLength = CACHE_INPUT_HARIAN_FILTERED.length;
+
+    // Hitung pembatas index halaman aktif berdasarkan state universal
+    const startIndex =
+      (APP_PAGINATION_STATE.inputHarian.current - 1) *
+      APP_PAGINATION_STATE.inputHarian.size;
+
+    // Potong data objek mentah per halaman DULUAN sebelum diubah jadi HTML
+    const paginatedData = CACHE_INPUT_HARIAN_FILTERED.slice(
+      startIndex,
+      startIndex + APP_PAGINATION_STATE.inputHarian.size,
+    );
+
+    // Pemetaan data (.map) HANYA berjalan sebanyak 20 baris data aktif saja!
+    var paginatedRows = paginatedData.map(function (r) {
+      var keyRef = r.noreff || "";
+      var indicator = keyRef.charAt(1).toLowerCase();
+      var currentDb = 0,
+        currentCr = 0;
+      var rawAmount =
+        num(r.total) || num(r.db || 0) || num(r.cr || 0) || num(r.nominal || 0);
+
+      if (indicator === "p") {
+        currentCr = rawAmount;
+      } else if (indicator === "k") {
+        currentDb = rawAmount;
+      } else {
+        currentDb = num(r.db || 0);
+        currentCr = num(r.cr || 0);
+      }
+
+      var isiDesc = r.desc || r.keterangan || "-";
+      var acct = r.noperkiraan || "-";
+      return [
+        esc(r.tanggal || "-"),
+        esc(keyRef || "-"),
+        esc(acct || "-"),
+        esc(isiDesc).substring(0, 25),
+        fmtN(rawAmount),
+        fmtN(currentDb),
+        fmtN(currentCr),
+        esc(lookupCabangLabel(r.cabang) || "Pusat"),
+      ];
+    });
+
+    // Kirim data terpotong ke buildTable
     tblContainer.innerHTML = wrapTable(
       buildTable(
         ["Tanggal", "No Ref", "No Acct", "Desc", "Total", "DB", "CR", "Cabang"],
-        rows,
-        { numCols: [4, 5, 6], foot: foot, emptyMsg: "Tidak ada data" },
+        paginatedRows,
+        {
+          numCols: [4, 5, 6],
+          foot: FOOTER_INPUT_HARIAN_TOTAL,
+          emptyMsg: "Tidak ada data",
+        },
       ),
     );
+
+    // Panggil fungsi render tombol halaman di bawah setelah tabel berhasil di-render
+    renderPagination("inputHarian", totalDataLength);
   }
 }
 
@@ -1030,29 +1121,37 @@ let DATA_KASIR_AKTIF = {
   saldoAwalMaster: 0,
   groupedData: [],
 };
+// Letakkan di baris global/paling atas file script Anda
+var KASIR_PAGE_STATE = {
+  currentPage: 1,
+  pageSize: 20, // Ubah angka ini jika ingin menampilkan 10, 50, atau 100 baris per halaman
+};
 
 function renderLaporanSaldoKasir() {
-  // Set Tanggal Hari Ini untuk Tanggal Akhir
   var today = new Date().toISOString().slice(0, 10);
-  // Set 1 Bulan ke belakang untuk Tanggal Awal (Default)
   var lastMonth = new Date();
   lastMonth.setMonth(lastMonth.getMonth() - 1);
   var defaultStart = lastMonth.toISOString().slice(0, 10);
 
-  // Render Form Awal
+  if (APP_PAGINATION_STATE && APP_PAGINATION_STATE.kasir) {
+    APP_PAGINATION_STATE.kasir.current = 1;
+  }
+
   return `<div class="flt">
       <div class="fg"><label>Tgl Awal</label><input type="date" id="fk_tgl_awal" value="${defaultStart}"></div>
       <div class="fg"><label>Tgl Akhir</label><input type="date" id="fk_tgl_akhir" value="${today}"></div>
       <div class="fg"><label>Cabang</label><select id="fk_cabang">${getCabangOpts("")}</select></div>
       
-      <!-- DIV KHUSUS UNTUK TOMBOL AKSI -->
       <div class="fg" style="display:flex; align-items:flex-end; gap:5px; padding-bottom:2px;">
-        <button type="button" class="btn btn-g" style="font-size:.8rem; padding:4px 12px;" onclick="refreshSaldoKasir()">Terapkan</button>
+        <!-- Reset ke halaman 1 saat user menekan tombol Terapkan kembali -->
+        <button type="button" class="btn btn-g" style="font-size:.8rem; padding:4px 12px;" onclick="KASIR_PAGE_STATE.currentPage = 1; refreshSaldoKasir()">Terapkan</button>
         <button type="button" class="btn btn-a" style="font-size:.8rem; padding:4px 12px; background:#d93025; border-color:#d93025;" onclick="postingSaldoKasir()"><i class="fa-solid fa-upload"></i> Posting</button>
         <button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportSaldoKasir()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>
       </div>
     </div>
-    <div id="kasirTbl"></div>`;
+    <div id="kasirTbl"></div>
+    <!-- 🌟 WADAH ELEMEN PAGINATION TOMBOL BARU -->
+    <div id="kasirPagination" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:5px;"></div>`;
 }
 
 /* ---------- FUNGSI AMBIL SALDO AWAL DARI TABEL saldokasir ---------- */
@@ -1108,12 +1207,11 @@ async function refreshSaldoKasir() {
   const activeGroup = localStorage.getItem("group") || "TLGA";
 
   // =========================================================================
-  // 1. AMBIL SALDO AWAL (Gunakan fungsi terpusat getSaldoAwalKasir)
+  // 1. AMBIL SALDO AWAL
   // =========================================================================
-  // Biarkan fungsi getSaldoAwalKasir yang menghandle fallback saldoKasir -> saldokasirawal -> 0
   let saldoAwalMaster = await getSaldoAwalKasir(cab, tglAwal, activeGroup);
+  saldoAwalMaster = Number(saldoAwalMaster) || 0; // Memastikan tipe data angka
 
-  // Jika hasilnya tetap 0, beri info toast peringatan ke user
   if (saldoAwalMaster === 0 && typeof toast === "function") {
     toast(
       "Saldo awal Rp 0 (Tidak ditemukan di riwayat untuk group ini). Pastikan data sudah di-Posting.",
@@ -1125,15 +1223,12 @@ async function refreshSaldoKasir() {
   // 2. AMBIL DATA MUTASI DARI TABEL mutasikasir (DENGAN FILTER GROUP)
   // =========================================================================
   const filteredData = (DBCache.mutasikasir || []).filter((t) => {
-    // Filter Tanggal
     if (tglAwal && (!t.tanggal || t.tanggal < tglAwal)) return false;
     if (tglAkhir && (!t.tanggal || t.tanggal > tglAkhir)) return false;
 
-    // Filter Cabang
     const transCab = t.cabang || "Pusat";
     if (cab && transCab !== cab) return false;
 
-    // 🌟 FIX: Filter Group agar mutasi tidak bercampur dengan group lain
     const transGroup = t.group || "";
     if (activeGroup && transGroup.trim() !== activeGroup.trim()) return false;
 
@@ -1141,12 +1236,15 @@ async function refreshSaldoKasir() {
   });
 
   // =========================================================================
-  // 3. GROUPING DATA BERDASARKAN NOREFF
+  // 3. GROUPING DATA BERDASARKAN NOREFF (FIXED BUG AKUMULASI GANDA)
   // =========================================================================
+
   const groupedMap = {};
   filteredData.forEach((t) => {
     const keyRef = t.noreff || t.id || "-";
-    const typeIndicator = keyRef.substring(0, 2).toUpperCase();
+
+    // 🌟 PERUBAHAN UTAMA: Mutlak mengambil dari t.kodeTrans, bersihkan spasi, dan jadikan huruf besar
+    const typeIndicator = (t.kodeTrans || "").toUpperCase().trim();
 
     if (!groupedMap[keyRef]) {
       groupedMap[keyRef] = {
@@ -1157,18 +1255,26 @@ async function refreshSaldoKasir() {
       };
     }
 
-    let valDb = num(t.db || 0);
-    let valCr = num(t.cr || 0);
+    // Mengambil nilai angka (prioritas kolom db, jika 0 pakai kolom total)
+    const nilaiDbAsli = num(t.db || 0);
     const valNominal = num(t.total || 0);
+    const nilaiUang = nilaiDbAsli > 0 ? nilaiDbAsli : valNominal;
 
-    // Fallback jika kolom db/cr kosong tapi nominal terisi
-    if (valDb === 0 && valCr === 0 && valNominal > 0) {
-      if (["PJ", "TK", "KT"].includes(typeIndicator)) valDb = valNominal;
-      else valCr = valNominal;
+    let hitungDb = 0;
+    let hitungCr = 0;
+
+    // ATURAN AKUNTANSI: Jika kodeTrans PJ, TK, atau KT masuk Debit, selebihnya Kredit
+    if (["PJ", "TK", "KT"].includes(typeIndicator)) {
+      hitungDb = nilaiUang;
+      hitungCr = 0;
+    } else {
+      hitungCr = nilaiUang;
+      hitungDb = 0;
     }
 
-    groupedMap[keyRef].db += valDb;
-    groupedMap[keyRef].cr += valCr;
+    // Akumulasi data dilakukan sekali di akhir perulangan objek
+    groupedMap[keyRef].db += hitungDb;
+    groupedMap[keyRef].cr += hitungCr;
   });
 
   // Sorting data hasil grouping (Berdasarkan Tanggal ASC, lalu NoRef ASC)
@@ -1183,20 +1289,23 @@ async function refreshSaldoKasir() {
   // 4. SUSUN ROW TABEL & HITUNG RUNNING BALANCE
   // =========================================================================
   const rows = [];
-  let runBal = saldoAwalMaster;
+  let runBal = Number(saldoAwalMaster) || 0;
   let totalDb = 0;
   let totalCr = 0;
   let lastDate = null;
 
   groupedData.forEach((t) => {
-    // Tambah pemisah visual jika berganti tanggal (buat object khusus atau lewati jika merusak style)
+    // Tambah pemisah visual jika berganti tanggal (string kosong bersih)
     if (lastDate !== null && lastDate !== t.tanggal) {
       rows.push(["", "", "", "", "", "", ""]);
     }
     lastDate = t.tanggal;
 
+    const currentDb = Number(t.db) || 0;
+    const currentCr = Number(t.cr) || 0;
+
     const saldoAwalRow = runBal;
-    runBal += t.db - t.cr;
+    runBal += currentDb - currentCr;
 
     // Tombol Aksi View Detail
     const aksiHtml = `<button class="btn btn-s" style="padding:2px 8px; font-size:.7rem;" onclick="viewDetailNoreff('${esc(t.noreff)}')"><i class="fa-solid fa-eye"></i> View</button>`;
@@ -1205,22 +1314,24 @@ async function refreshSaldoKasir() {
       t.tanggal,
       esc(t.noreff),
       fmtN(saldoAwalRow),
-      fmtN(t.db),
-      fmtN(t.cr),
+      fmtN(currentDb),
+      fmtN(currentCr),
       fmtN(runBal),
       aksiHtml,
     ]);
 
-    totalDb += t.db;
-    totalCr += t.cr;
+    totalDb += currentDb;
+    totalCr += currentCr;
   });
 
-  // Simpan data state aktif
+  // Simpan data state aktif ke global state
   DATA_KASIR_AKTIF.saldoAwalMaster = saldoAwalMaster;
   DATA_KASIR_AKTIF.groupedData = groupedData;
 
-  // Setup UI Tampilan Tabel
-  // Setup UI Tampilan Tabel
+  // =========================================================================
+  // 5. SETUP UI TAMPILAN TABEL
+  // =========================================================================
+
   const headers = [
     "Tanggal",
     "No Ref",
@@ -1230,26 +1341,94 @@ async function refreshSaldoKasir() {
     "Saldo Akhir",
     "Aksi",
   ];
+
   const foot = [
     "",
     `${groupedData.length} No Ref`,
     "",
     fmtN(totalDb),
     fmtN(totalCr),
-    fmtN(totalDb - totalCr),
+    fmtN(saldoAwalMaster + totalDb - totalCr),
     "",
   ];
 
   const areaTbl = $("kasirTbl");
   if (areaTbl) {
+    // 🌟 LOGIKA POTONG BARIS DATA PER HALAMAN
+    const totalData = rows.length;
+
+    const startIndex =
+      (APP_PAGINATION_STATE.inputHarian.current - 1) *
+      APP_PAGINATION_STATE.inputHarian.size;
+    const paginatedRows = rows.slice(
+      startIndex,
+      startIndex + APP_PAGINATION_STATE.inputHarian.size,
+    );
+
+    // Panggil fungsi universal di paling bawah:
+    renderPagination("inputHarian", rows.length);
+
+    // Kirim 'paginatedRows' ke fungsi pembuat tabel, bukan 'rows' utuh lagi
     areaTbl.innerHTML = wrapTable(
-      buildTable(headers, rows, {
+      buildTable(headers, paginatedRows, {
         numCols: [2, 3, 4, 5],
         foot: foot,
         emptyMsg: "Tidak ada data mutasi kasir untuk periode ini",
       }),
     );
+
+    // 🌟 PANGGIL FUNGSI UNTUK MERENDER TOMBOL ANGKA NAVIGASI HALAMAN DI BAWAHNYA
+    renderPaginationControls(totalData);
   }
+}
+function renderPaginationControls(totalItems) {
+  var areaPage = $("kasirPagination");
+  if (!areaPage) return;
+
+  var totalPages = Math.ceil(totalItems / KASIR_PAGE_STATE.pageSize) || 1;
+
+  // Jika data sedikit dan hanya ada 1 halaman, sembunyikan baris pagination tombol
+  if (totalPages <= 1) {
+    areaPage.innerHTML = "";
+    return;
+  }
+
+  var current = KASIR_PAGE_STATE.currentPage;
+  var html = "";
+
+  // 1. Tombol Back / Sebelumnya
+  var disablePrev = current === 1 ? "disabled" : "";
+  html += `<button class="btn btn-s" ${disablePrev} style="padding:4px 10px; font-size:.75rem;" onclick="gantiHalamanKasir(${current - 1})"><i class="fa-solid fa-angle-left"></i> Prev</button>`;
+
+  // 2. Tombol Angka Halaman (Membatasi tampilan agar tidak terlalu panjang jika ada puluhan halaman)
+  var startPage = Math.max(1, current - 2);
+  var endPage = Math.min(totalPages, startPage + 4);
+  if (endPage - startPage < 4) {
+    startPage = Math.max(1, endPage - 4);
+  }
+
+  for (var i = startPage; i <= endPage; i++) {
+    var isActive = i === current;
+    var bgStyle = isActive
+      ? "background:#1e1e1e; color:#fff; font-weight:bold; border-color:#333;"
+      : "background:#fff; color:#333;";
+    html += `<button class="btn" style="padding:4px 10px; font-size:.75rem; ${bgStyle}" onclick="gantiHalamanKasir(${i})">${i}</button>`;
+  }
+
+  // 3. Tombol Next / Selanjutnya
+  var disableNext = current === totalPages ? "disabled" : "";
+  html += `<button class="btn btn-s" ${disableNext} style="padding:4px 10px; font-size:.75rem;" onclick="gantiHalamanKasir(${current + 1})">Next <i class="fa-solid fa-angle-right"></i></button>`;
+
+  // 4. Informasi teks kecil pendukung
+  html += `<span style="font-size:.75rem; margin-left:10px; color:#555;">Hal ${current} dari ${totalPages} (Total ${totalItems} baris)</span>`;
+
+  areaPage.innerHTML = html;
+}
+
+// Fungsi trigger saat tombol angka halaman diklik oleh user
+function gantiHalamanKasir(targetPage) {
+  KASIR_PAGE_STATE.currentPage = targetPage;
+  refreshSaldoKasir(); // Muat ulang data tabel mengacu halaman baru
 }
 
 function viewDetailNoreff(noreff) {
@@ -1276,13 +1455,34 @@ function viewDetailNoreff(noreff) {
   `;
 
   detailTransaksi.forEach(function (d) {
+    // 🌟 PERUBAHAN UTAMA: Deteksi indikator kodeTrans (Contoh: "BE", "PJ", "TK")
+    var typeIndicator = (d.kodeTrans || "").toUpperCase().trim();
+
+    // Ambil nilai angka (prioritas kolom db, jika 0 pakai kolom total)
+    var nilaiDbAsli = num(d.db || 0);
+    var valNominal = num(d.total || 0);
+    var nilaiUang = nilaiDbAsli > 0 ? nilaiDbAsli : valNominal;
+
+    var tampilDb = 0;
+    var tampilCr = 0;
+
+    // Pisahkan posisi nilai berdasarkan aturan kodeTrans resmi
+    if (["PJ", "TK", "KT"].includes(typeIndicator)) {
+      tampilDb = nilaiUang;
+      tampilCr = 0;
+    } else {
+      tampilCr = nilaiUang;
+      tampilDb = 0;
+    }
+
     tableHtml += `
       <tr style="background:#121212; color:#e0e0e0;">
         <td style="border: 1px solid #333333;">${d.tanggal || "-"}</td>
         <td style="border: 1px solid #333333;">${d.kodeTrans || "-"}</td>
         <td style="border: 1px solid #333333;">${d.desc || "-"}</td>
-        <td style="border: 1px solid #333333; text-align:right; color:#4caf50;">${d.db > 0 ? fmtN(d.db) : "-"}</td>
-        <td style="border: 1px solid #333333; text-align:right; color:#f44336;">${d.cr > 0 ? fmtN(d.cr) : "-"}</td>
+        <!-- Cetak nilai sesuai hasil seleksi kodeTrans di atas -->
+        <td style="border: 1px solid #333333; text-align:right; color:#4caf50;">${tampilDb > 0 ? fmtN(tampilDb) : "-"}</td>
+        <td style="border: 1px solid #333333; text-align:right; color:#f44336;">${tampilCr > 0 ? fmtN(tampilCr) : "-"}</td>
       </tr>
     `;
   });
@@ -1315,7 +1515,10 @@ function viewDetailNoreff(noreff) {
     showModal("Detail " + noreff, fullHtml);
   } else {
     // Fallback: Buat modal layout box baru jika tidak ada fungsi showModal bawaan aplikasi
-    var modalDiv = document.createElement("div");
+    var modalDiv = document.getElementById("modal_view_temp");
+    if (modalDiv) modalDiv.remove(); // Hapus modal lama jika masih menggantung
+
+    modalDiv = document.createElement("div");
     modalDiv.id = "modal_view_temp";
     modalDiv.style.cssText =
       "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;justify-content:center;align-items:center;z-index:9999;";
@@ -1386,10 +1589,8 @@ async function postingSaldoKasir() {
 
   try {
     // ====================================================================
-    // 1. REKAP PER TANGGAL (Mengambil Running Balance Terakhir per Hari)
+    // 1. REKAP PER TANGGAL (FIXED BUG: AKUMULASI KUMULATIF)
     // ====================================================================
-    // Kita hitung ulang running balance di sini untuk memastikan akurasi,
-    // berdasarkan urutan yang sama persis dengan saat refresh.
     var groupedData = DATA_KASIR_AKTIF.groupedData;
     groupedData.sort(function (a, b) {
       var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
@@ -1398,23 +1599,36 @@ async function postingSaldoKasir() {
     });
 
     var mapRekapHarian = {};
-    var runBal = DATA_KASIR_AKTIF.saldoAwalMaster; // Mulai dari saldo awal master
+    var runBal = Number(DATA_KASIR_AKTIF.saldoAwalMaster) || 0; // Mulai dari saldo awal master
 
     groupedData.forEach(function (t) {
       var tglTransaksi = t.tanggal || "-";
       if (tglTransaksi.indexOf(" ") > -1)
         tglTransaksi = tglTransaksi.split(" ")[0];
 
-      // Hitung running balance
-      runBal += num(t.db) - num(t.cr);
+      // Ambil angka mutasi baris aktif
+      var dbVal = num(t.db || 0);
+      var crVal = num(t.cr || 0);
 
-      // Simpan data per tanggal (yang paling bawah/terakhir akan menimpa yang sebelumnya)
-      mapRekapHarian[tglTransaksi] = {
-        tanggal: tglTransaksi,
-        totalDb: num(t.db),
-        totalCr: num(t.cr),
-        saldoAkhirHariIni: runBal, // <- INI YANG BENAR (Running Balance)
-      };
+      // Hitung running balance baris aktif
+      runBal += dbVal - crVal;
+
+      // Inisialisasi map harian jika tanggal baru pertama kali dibaca
+      if (!mapRekapHarian[tglTransaksi]) {
+        mapRekapHarian[tglTransaksi] = {
+          tanggal: tglTransaksi,
+          totalDb: 0,
+          totalCr: 0,
+          saldoAkhirHariIni: 0,
+        };
+      }
+
+      // FIX: Akumulasikan secara kumulatif agar tidak menimpa nota sebelumnya
+      mapRekapHarian[tglTransaksi].totalDb += dbVal;
+      mapRekapHarian[tglTransaksi].totalCr += crVal;
+
+      // Update saldo akhir harian (akan otomatis menyimpan nilai paling akhir di penghujung hari)
+      mapRekapHarian[tglTransaksi].saldoAkhirHariIni = runBal;
     });
 
     // Konversi ke array untuk dikirim
@@ -1422,7 +1636,7 @@ async function postingSaldoKasir() {
     for (var tgl in mapRekapHarian) {
       var r = mapRekapHarian[tgl];
 
-      // ✅ TAMBAHKAN LOGIKA MASA FIX (YYYY-MM-DD -> MMYY)
+      // LOGIKA MASA FIX (YYYY-MM-DD -> MMYY)
       var masaFix = "";
       if (r.tanggal && r.tanggal.length === 10) {
         masaFix = r.tanggal.substring(5, 7) + r.tanggal.substring(2, 4);
@@ -1430,17 +1644,19 @@ async function postingSaldoKasir() {
 
       arrDataUntukDisimpan.push({
         id: `${cab}_${cab}_${activeGroup}_${r.tanggal}`,
-        masa: masaFix, // ✅ TAMBAHKAN INI
+        masa: masaFix,
         cabang: cab,
         char4: cab,
         tanggal: r.tanggal,
         db: r.totalDb,
         cr: r.totalCr,
         saldo_akhir: r.saldoAkhirHariIni,
+        // FIX: Perhitungan Saldo Awal Hari Ini diambil dari Saldo Akhir dikurangi akumulasi bersih mutasi hari itu
         awal: r.saldoAkhirHariIni - (r.totalDb - r.totalCr),
         group: activeGroup,
       });
     }
+
     if (arrDataUntukDisimpan.length === 0) {
       if (typeof toast === "function")
         toast("Tidak ada data valid yang bisa diproses.", "wrn");
@@ -1454,14 +1670,13 @@ async function postingSaldoKasir() {
       );
 
     // ====================================================================
-    // 2. PROSES SIMPAN KE SERVER (TIDAK DIUBAH)
+    // 2. PROSES SIMPAN KE SERVER
     // ====================================================================
     await fetch(API_BASE_URL + "/api/saldo-kasir/clear-range", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         cabang: cab,
-        //char4: cab,
         tanggalAwal: tglAwal,
         tanggalAkhir: tglAkhir,
         group: activeGroup,
@@ -1489,7 +1704,7 @@ async function postingSaldoKasir() {
     // 3. UPDATE CACHE DBCACHE LOKAL
     if (!DBCache.saldokasir) DBCache.saldokasir = [];
 
-    // Hapus dulu data lama di cache supaya tidak duplicate saat di-refresh ulang
+    // Hapus data lama di cache agar tidak duplicate
     DBCache.saldokasir = DBCache.saldokasir.filter(function (item) {
       return !(
         item.cabang === cab &&
@@ -1499,7 +1714,7 @@ async function postingSaldoKasir() {
       );
     });
 
-    // Masukkan data baru
+    // Masukkan data baru hasil rekap
     arrDataUntukDisimpan.forEach(function (item) {
       DBCache.saldokasir.push(item);
     });
@@ -1518,6 +1733,7 @@ async function postingSaldoKasir() {
     else alert("Gagal posting: " + err.message);
   }
 }
+
 /* ---------- FUNGSI EXPORT KASIR ---------- */
 function exportSaldoKasir() {
   var groupedData = DATA_KASIR_AKTIF.groupedData;
@@ -1532,19 +1748,21 @@ function exportSaldoKasir() {
 
   var tglAwal = $("fk_tgl_awal").value;
   var tglAkhir = $("fk_tgl_akhir").value;
-  var cab = $("fk_cabang").value;
+  var cab = $("fk_cabang").value || "Semua";
 
-  // BANGUN CSV / EXCEL
-  var csvContent = "Tanggal;Keterangan;No Ref;Awal;Debit;Kredit;Akhir\r\n";
-  var runBal = saldoAwalMaster;
+  // 🌟 FIX 1: Gunakan Header BOM (\uFEFF) agar Microsoft Excel langsung otomatis memisahkan kolom dengan rapi
+  var csvContent =
+    "\uFEFFTanggal;Keterangan;No Ref;Awal;Debit;Kredit;Akhir\r\n";
+  var runBal = Number(saldoAwalMaster) || 0;
   var totalDb = 0;
   var totalCr = 0;
   var lastDate = null;
 
   groupedData.forEach(function (t) {
-    if (lastDate !== null && lastDate !== t.tanggal) {
-      csvContent += ";;;;;;\r\n"; // Baris pemisah antar tanggal
-    }
+    // FIX 2: Baris pemisah visual jika ganti tanggal dibuat bersih tanpa merusak struktur baris database Excel
+    //if (lastDate !== null && lastDate !== t.tanggal) {
+    // csvContent += ";;Berganti Tanggal;;;;\r\n";
+    // }
     lastDate = t.tanggal;
 
     var saldoAwalRow = runBal;
@@ -1552,11 +1770,12 @@ function exportSaldoKasir() {
     var crVal = num(t.cr || 0);
     runBal += dbVal - crVal;
 
-    var cleanKet = (t.keterangan || t.desc || t.dariKePada || "").replace(
+    // Bersihkan karakter semicolon agar tidak memotong pemisah kolom CSV secara tidak sengaja
+    var cleanKet = (t.keterangan || t.desc || t.dariKePada || "-").replace(
       /;/g,
       ",",
     );
-    var cleanReff = (t.noreff || t.id || "").replace(/;/g, ",");
+    var cleanReff = (t.noreff || t.id || "-").replace(/;/g, ",");
 
     csvContent +=
       (t.tanggal || "-") +
@@ -1578,6 +1797,9 @@ function exportSaldoKasir() {
     totalCr += crVal;
   });
 
+  // 🌟 FIX 3: Rumus baris TOTAL Akhir disesuaikan dengan rumus akuntansi (Saldo Awal + Total Debit - Total Kredit)
+  var totalAkhirFinal = (Number(saldoAwalMaster) || 0) + totalDb - totalCr;
+
   csvContent +=
     ";;TOTAL;" +
     groupedData.length +
@@ -1586,7 +1808,7 @@ function exportSaldoKasir() {
     ";" +
     totalCr +
     ";" +
-    (totalDb - totalCr) +
+    totalAkhirFinal +
     "\r\n";
 
   // DOWNLOAD FILE
@@ -1594,13 +1816,7 @@ function exportSaldoKasir() {
   var link = document.createElement("a");
   var url = URL.createObjectURL(blob);
   var namaFile =
-    "Laporan_SaldoKasir_" +
-    (cab || "Semua") +
-    "_" +
-    tglAwal +
-    "_to_" +
-    tglAkhir +
-    ".csv";
+    "Laporan_SaldoKasir_" + cab + "_" + tglAwal + "_to_" + tglAkhir + ".csv";
 
   link.setAttribute("href", url);
   link.setAttribute("download", namaFile);
@@ -1611,5 +1827,58 @@ function exportSaldoKasir() {
 
   if (typeof toast === "function") {
     toast("Laporan Saldo Kasir berhasil diunduh.");
+  }
+}
+function renderPagination(moduleKey, totalItems) {
+  var state = APP_PAGINATION_STATE[moduleKey];
+  var areaPage = $(state.target);
+  if (!areaPage) return;
+
+  var totalPages = Math.ceil(totalItems / state.size) || 1;
+
+  // Jika hanya ada 1 halaman, bersihkan wadah tombol
+  if (totalPages <= 1) {
+    areaPage.innerHTML = "";
+    return;
+  }
+
+  var current = state.current;
+  var html = "";
+
+  // 1. Tombol Back / Sebelumnya
+  var disablePrev = current === 1 ? "disabled" : "";
+  html += `<button class="btn btn-s" ${disablePrev} style="padding:4px 10px; font-size:.75rem;" onclick="gantiHalamanUniversal('${moduleKey}', ${current - 1})"><i class="fa-solid fa-angle-left"></i> Prev</button>`;
+
+  // 2. Batasi Angka Halaman (Maksimal 5 tombol angka muncul)
+  var startPage = Math.max(1, current - 2);
+  var endPage = Math.min(totalPages, startPage + 4);
+  if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+
+  for (var i = startPage; i <= endPage; i++) {
+    var isActive = i === current;
+    var bgStyle = isActive
+      ? "background:#1e1e1e; color:#fff; font-weight:bold; border-color:#333;"
+      : "background:#fff; color:#333;";
+    html += `<button class="btn" style="padding:4px 10px; font-size:.75rem; ${bgStyle}" onclick="gantiHalamanUniversal('${moduleKey}', ${i})">${i}</button>`;
+  }
+
+  // 3. Tombol Next / Selanjutnya
+  var disableNext = current === totalPages ? "disabled" : "";
+  html += `<button class="btn btn-s" ${disableNext} style="padding:4px 10px; font-size:.75rem;" onclick="gantiHalamanUniversal('${moduleKey}', ${current + 1})">Next <i class="fa-solid fa-angle-right"></i></button>`;
+
+  // 4. Informasi teks kecil pendukung
+  html += `<span style="font-size:.75rem; margin-left:10px; color:#555;">Hal ${current} dari ${totalPages} (Total ${totalItems} baris)</span>`;
+
+  areaPage.innerHTML = html;
+}
+
+// Fungsi Trigger Perpindahan Halaman Universal
+function gantiHalamanUniversal(moduleKey, targetPage) {
+  APP_PAGINATION_STATE[moduleKey].current = targetPage;
+
+  // Memanggil fungsi refresh secara dinamis berdasarkan string nama fungsi di state
+  var namaFungsiRefresh = APP_PAGINATION_STATE[moduleKey].func;
+  if (typeof window[namaFungsiRefresh] === "function") {
+    window[namaFungsiRefresh]();
   }
 }
