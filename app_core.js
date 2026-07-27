@@ -2583,11 +2583,13 @@ function previewMappedData(storeName) {
         }
       }
     });
-
+    // =========================================================================
+    // 🛠️ FIX: PENGECOALIAN DUPLIKAT INTERNAL UNTUK MUTASIKASIR
+    // =========================================================================
     if (!isReqValid) {
       invalid++;
     } else if (storeName === "transaksi") {
-      // ✅ LOGIKA SEDERHANA: SELALU CEK DUPLIKAT
+      // Logika untuk store transaksi (Tetap seperti bawaan Anda)
       if (existingTransKeys.has(compositeKey)) {
         dupDB++;
       } else if (importedKeys.has(compositeKey)) {
@@ -2599,11 +2601,16 @@ function previewMappedData(storeName) {
         _readyToImport.push(obj);
       }
     } else {
+      // Logika untuk store selain transaksi (Termasuk mutasikasir)
       if (isDuplicateInDB(storeName, obj, compositeKey)) {
         dupDB++;
-      } else if (importedKeys.has(compositeKey)) {
+      }
+      // 🌟 KONDISI PENGECUALIAN: Jika storeName adalah 'mutasikasir', LEWATKAN sensor dupBatch
+      else if (storeName !== "mutasikasir" && importedKeys.has(compositeKey)) {
         dupBatch++;
       } else {
+        // Data otomatis lolos sebagai VALID jika berupa 'mutasikasir'
+        // walaupun compositeKey-nya kembar di dalam file DBF
         valid++;
         importedKeys.add(compositeKey);
         obj._compositeKey = compositeKey;
@@ -2612,6 +2619,16 @@ function previewMappedData(storeName) {
     }
   }
   console.log("Cabang kosong terdeteksi, diisi otomatis111:", obj.cabang);
+  // Salin ini tepat di atas baris "// --- LOOP 2: RENDER PREVIEW ---"
+  console.log("=== ANALISIS KEHILANGAN DATA IMPORT ===");
+  console.log("Total Asli File DBF:", _dbfParsed.records.length);
+  console.log("1. Gagal karena Salah Tahun:", skippedWrongYear);
+  console.log("2. Gagal karena Salah Bulan:", skippedWrongMonth);
+  console.log("3. Gagal karena Salah Cabang:", skippedWrongCabang);
+  console.log("4. Gagal karena Duplikat di DB Aplikasi:", dupDB);
+  console.log("5. Gagal karena Duplikat di Internal File DBF:", dupBatch);
+  console.log("6. Total Data Lolos (Valid):", valid);
+
   // --- LOOP 2: RENDER PREVIEW ---
   var previewRows = [];
   var LIMIT_PREVIEW = 50;
