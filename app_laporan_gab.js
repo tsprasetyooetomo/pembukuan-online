@@ -604,7 +604,6 @@ function kembaliKeRLGabungan() {
 async function tampilkanRLPerCabangSD(kodeCabang) {
   if (!window._rlGabFilterMasa) return;
 
-  // ✅ TAMBAHAN OPSI GROUP: AMBIL GROUP AKTIF DARI DATA GLOBAL
   var activeGroup =
     window._rlGabunganData && window._rlGabunganData.activeGroup
       ? window._rlGabunganData.activeGroup
@@ -644,7 +643,9 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       "NOV",
       "DES",
     ];
-    var mapGolongan = {};
+
+    // ⬇️ PERUBAHAN 1: Menjadi variabel global sementara
+    _tmpMapGolonganForChart = {};
 
     for (let b = 1; b <= 12; b++) {
       let blnStr = ("0" + b).slice(-2);
@@ -656,8 +657,6 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
         let cabangData = String(
           g.cabang || g.cab || g.kode_cabang || "",
         ).trim();
-
-        // ✅ TAMBAHAN OPSI GROUP: FILTER GROUP DI DATA RL LEBAR
         let groupData = String(g.group || "").trim();
         let cocokGroup = groupData === activeGroup;
 
@@ -673,8 +672,10 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
 
       dataBulanIni.forEach((item) => {
         let kodeGol = String(item.gol || item.golongan || "");
-        if (!mapGolongan[kodeGol]) {
-          mapGolongan[kodeGol] = {
+
+        // ⬇️ PERUBAHAN 2: pakai nama variabel yang baru
+        if (!_tmpMapGolonganForChart[kodeGol]) {
+          _tmpMapGolonganForChart[kodeGol] = {
             gol: kodeGol,
             namaGol: item.namaGol || item.nama_golongan || "",
             cabang: kodeCabang,
@@ -682,15 +683,16 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
             total: 0,
           };
           for (let x = 1; x <= 12; x++)
-            mapGolongan[kodeGol].bulan[("0" + x).slice(-2)] = 0;
+            _tmpMapGolonganForChart[kodeGol].bulan[("0" + x).slice(-2)] = 0;
         }
         let saldoAkhir = Number((item.db || 0) - (item.cr || 0));
-        mapGolongan[kodeGol].bulan[blnStr] = saldoAkhir;
-        mapGolongan[kodeGol].total += saldoAkhir;
+        _tmpMapGolonganForChart[kodeGol].bulan[blnStr] = saldoAkhir;
+        _tmpMapGolonganForChart[kodeGol].total += saldoAkhir;
       });
     }
 
-    let listGol = Object.values(mapGolongan)
+    // ⬇️ PERUBAHAN 3: pakai nama variabel yang baru
+    let listGol = Object.values(_tmpMapGolonganForChart)
       .filter((g) => g.total !== 0)
       .sort((a, b) => parseInt(a.gol) - parseInt(b.gol));
 
@@ -701,6 +703,7 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
         "</div>";
       return;
     }
+
     let html =
       '<div style="margin-bottom: 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">' +
       '<h4 style="margin:0; color:#fff; font-size:1.1rem;">RL Lebar: ' +
@@ -711,7 +714,12 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       filterTahunFull +
       "</h4>" +
       '<div style="display:flex; gap:8px;">' +
-      // ✅ TOMBOL DOWNLOAD EXCEL BARU (Aman dari eror karakter khusus/tanda kutip)
+      // ⬇️ PERUBAHAN 4: Kirim variabel _tmpMapGolonganForChart ke grafik
+      '<button class="btn" style="background:#0284c7; color:#fff; border:1px solid #0369a1; font-size:.8rem; padding:5px 15px; cursor:pointer;" onclick="gambarChartRLPerCabang([\'' +
+      kodeCabang +
+      "'], _tmpMapGolonganForChart, window._rlGabunganData.mapMasterCab)\">" +
+      '<i class="fa-solid fa-chart-line"></i> Grafik Tren HPP' +
+      "</button>" +
       '<button class="btn btn-g" style="background:#1b5e20; color:#fff; border:1px solid #2e7d32; font-size:.8rem; padding:5px 15px; cursor:pointer;" onclick="downloadRLLebarExcel(\'' +
       encodeURIComponent(namaCab) +
       "', '" +
@@ -1619,6 +1627,246 @@ function lihatGrafikRLGabungan() {
   // Ambil data lalu kirim ke fungsi pembuka jendela baru
   var d = window._rlGabunganData;
   renderGrafikRLGabungan(d.daftarCabang, d.dataByCabang, d.mapMasterCab);
+}
+
+var _tmpMapGolonganForChart = {};
+
+function gambarChartRLPerCabang(daftarCabang, mapGolongan, mapMasterCab) {
+  var seriesGrafik = [];
+  var catatanKakiPenjualan = {};
+  var namaBulanFull = [
+    "JAN",
+    "FEB",
+    "MAR",
+    "APR",
+    "MEI",
+    "JUN",
+    "JUL",
+    "AGS",
+    "SEP",
+    "OKT",
+    "NOV",
+    "DES",
+  ];
+
+  // =========================================================================
+  // 1. AMBIL BATAS BULAN YANG DIPILIH
+  // =========================================================================
+  var partMasa = window._rlGabFilterMasa.split("-");
+  var bulanPilihan = Number(partMasa[0]);
+  var tahunPilihan = partMasa[1];
+
+  // Potong array bulan hanya sampai bulan yang dipilih
+  var rentangBulanX = namaBulanFull.slice(0, bulanPilihan);
+
+  daftarCabang.forEach(function (cab) {
+    var namaCabangAsli = mapMasterCab[cab] || cab;
+    var mapDataHPP = {};
+
+    // Loop 12 bulan (karena datanya memang 12 bulan)
+    for (let b = 1; b <= 12; b++) {
+      var blnStr = ("0" + b).slice(-2);
+      var totalPenjualan = 0;
+
+      Object.keys(mapGolongan).forEach(function (kodeGol) {
+        var itemData = mapGolongan[kodeGol];
+        var digitDepan = String(kodeGol).charAt(0);
+
+        var nilaiSaldo = 0;
+        if (
+          itemData &&
+          itemData.bulan &&
+          itemData.bulan[blnStr] !== undefined
+        ) {
+          nilaiSaldo = num(itemData.bulan[blnStr]);
+        }
+
+        if (digitDepan === "3") {
+          totalPenjualan += nilaiSaldo;
+        } else if (digitDepan === "4") {
+          // Simpan objek lengkapnya (termasuk namaGol) agar bisa dipakai saat membuat series
+          if (!mapDataHPP[kodeGol])
+            mapDataHPP[kodeGol] = { nama: itemData.namaGol || "-", data: [] };
+          mapDataHPP[kodeGol].data.push(nilaiSaldo);
+        }
+      });
+
+      // Simpan penjualan positif untuk catatan kaki
+      catatanKakiPenjualan[b] =
+        (catatanKakiPenjualan[b] || 0) + totalPenjualan * -1;
+    }
+
+    // --- BUAT GARIS HPP TERPERINCI (MENGGUNAKAN NAMA GOLONGAN) ---
+    Object.keys(mapDataHPP).forEach(function (kodeHPP) {
+      var objHPP = mapDataHPP[kodeHPP];
+
+      // 🔥 POTONG DATA HPP: Ambil hanya array dari index 0 sampai bulanPilihan
+      var dataHPPTerpotong = objHPP.data.slice(0, bulanPilihan);
+
+      var adaDataHPP = dataHPPTerpotong.some(function (val) {
+        return val !== 0;
+      });
+
+      if (adaDataHPP) {
+        seriesGrafik.push({
+          // ✅ PERUBAHAN: Nama series diambil dari namaGol (ex: "Ayam") + kode (ex: "401")
+          name: objHPP.nama + " (" + kodeHPP + ")",
+          type: "line",
+          smooth: true,
+          symbol: "circle",
+          symbolSize: 6,
+          data: dataHPPTerpotong,
+          lineStyle: { width: 2 },
+          emphasis: { focus: "series" },
+        });
+      }
+    });
+  });
+
+  // =========================================================================
+  // 2. SIAPKAN CATATAN KAKI (JUGA DIPOTONG SESUAI BULAN)
+  // =========================================================================
+  var footnotes = [];
+  for (let i = 1; i <= bulanPilihan; i++) {
+    var valPenj = catatanKakiPenjualan[i] || 0;
+    footnotes.push("Penj: Rp " + Number(valPenj).toLocaleString("id-ID"));
+  }
+
+  // =========================================================================
+  // 3. BUKA POPUP
+  // =========================================================================
+  var lebarLayarMaksimal = window.screen.availWidth;
+  var tinggiLayarMaksimal = window.screen.availHeight;
+  var lebar = Math.floor(lebarLayarMaksimal / 2);
+  var tinggi = tinggiLayarMaksimal - 60;
+  var kiri = lebar;
+  var atas = 0;
+
+  var winGrafik = window.open(
+    "",
+    "GrafikRLLebarPerCabang",
+    "width=" +
+      lebar +
+      ",height=" +
+      tinggi +
+      ",top=" +
+      atas +
+      ",left=" +
+      kiri +
+      ",resizable=yes,scrollbars=yes",
+  );
+
+  if (!winGrafik) {
+    alert("Mohon izinkan pop-up pada browser Anda.");
+    return;
+  }
+
+  winGrafik.document.open();
+  winGrafik.document.write(`<!DOCTYPE html><html><head>
+  <title>Rincian Tren HPP s/d Bulan Pilihan</title>
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"><\/script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; } 
+    body { background: #0b0f19; color: #fff; font-family: 'Segoe UI', sans-serif; padding: 15px; overflow-y: auto; } 
+    .header-container { text-align: center; margin-bottom: 15px; padding: 10px; background: #0f1623; border: 1px solid #1c2844; border-radius: 6px; }
+    .header-container h2 { font-size: 1.15rem; color: #f59e0b; }
+    .header-container p { font-size: 0.78rem; color: #8899b0; margin-top: 3px; }
+    #canvasChart { width: 100%; height: 85vh; background: #0f1623; border: 1px solid #1c2844; border-radius: 8px; padding: 12px; }
+    .loading-text { color: #f59e0b; text-align: center; margin-top: 50px; font-size: 1.2rem; }
+  </style></head>
+  <body>
+    <div class="header-container">
+      <h2>Tren Rincian HPP Komponen</h2>
+      <p>Analisis Akumulatif Januari s/d ${rentangBulanX[rentangBulanX.length - 1]} ${tahunPilihan}</p>
+    </div>
+    <div id="canvasChart"><div class="loading-text">Memuat Grafik...</div></div>
+    
+    <script>
+      function waitEcharts(cb) {
+        if (typeof echarts !== "undefined") { cb(); return; }
+        setTimeout(function() { waitEcharts(cb); }, 100);
+      }
+
+      waitEcharts(function() {
+        var domTarget = document.getElementById("canvasChart");
+        domTarget.innerHTML = ""; 
+        var lineChart = echarts.init(domTarget, "dark");
+
+        var formatMataUang = function (val) {
+          return "Rp " + Number(val).toLocaleString("id-ID");
+        };
+
+        var optionLine = {
+          backgroundColor: "#0f1623",
+          tooltip: {
+            trigger: "axis",
+            axisPointer: { type: "cross", label: { backgroundColor: "#141c2e" } },
+            backgroundColor: "rgba(15, 23, 42, 0.95)",
+            borderColor: "#1c2844",
+            textStyle: { color: "#fff", fontSize: 11 },
+            formatter: function (params) {
+              var tip = "<b>Bulan: " + params[0].name + "</b><br/>";
+              params.sort((a, b) => b.value - a.value);
+              params.forEach(function (p) {
+                tip += '<span style="display:inline-block;margin-right:5px;border-radius:50%;width:8px;height:8px;background-color:' + p.color + ';"></span>' + p.seriesName + ': <b style="color:' + p.color + '">' + formatMataUang(p.value) + '</b><br/>';
+              });
+              return tip;
+            },
+          },
+          legend: { 
+            type: "scroll", 
+            bottom: 0, 
+            // ✅ PERUBAHAN: Legenda dibuat lebih lebar agar teks panjang tidak kepotong
+            width: "90%", 
+            itemWidth: 20, 
+            itemHeight: 10,
+            textStyle: { color: "#8899b0", fontSize: 10 }
+          },
+          grid: { 
+            left: "4%", right: "4%", bottom: "20%", top: "6%", containLabel: true 
+          },
+          xAxis: {
+            type: "category",
+            boundaryGap: false,
+            data: ${JSON.stringify(rentangBulanX)},
+            axisLabel: { 
+              color: "#8899b0", 
+              fontSize: 11, 
+              fontWeight: "bold",
+              formatter: function (value, index) {
+                return '{title|' + value + '}\\n{foot|' + ${JSON.stringify(footnotes)}[index] + '}';
+              },
+              rich: {
+                title: { color: '#fff', lineHeight: 18 },
+                foot: { color: '#f59e0b', fontSize: 9, lineHeight: 14 }
+              }
+            },
+            axisLine: { lineStyle: { color: "#1c2844" } },
+            axisTick: { alignWithLabel: true, lineStyle: { color: "#1c2844" } } 
+          },
+          yAxis: {
+            type: "value",
+            min: 'dataMin', 
+            axisLabel: {
+              color: "#8899b0", fontSize: 10,
+              formatter: function (v) {
+                if (Math.abs(v) >= 1000000000) return (v / 1000000000).toFixed(1) + ' M';
+                if (Math.abs(v) >= 1000000) return (v / 1000000).toFixed(1) + ' Jt';
+                if (Math.abs(v) >= 1000) return (v / 1000).toFixed(0) + ' Rb';
+                return v.toLocaleString("id-ID");
+              },
+            },
+            splitLine: { lineStyle: { color: "#1c2844", type: "dashed" } },
+          },
+          series: ${JSON.stringify(seriesGrafik)}
+        };
+
+        lineChart.setOption(optionLine);
+        window.addEventListener("resize", function () { lineChart.resize(); });
+      });
+    <\/script>
+  </body></html>`);
+  winGrafik.document.close();
 }
 
 PANEL_MAP.arusKas = renderArusKasGabungan;
