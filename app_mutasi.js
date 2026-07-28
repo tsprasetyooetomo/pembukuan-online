@@ -240,7 +240,6 @@ function renderMutasi() {
         '<option value="' + esc(kode) + '">' + esc(label) + "</option>";
     });
   }
-
   return (
     "<style>" +
     ".pnl.active { display: block !important; height: auto !important; overflow: visible !important; }" +
@@ -270,10 +269,23 @@ function renderMutasi() {
     '<div style="display:flex;gap:1rem;align-items:flex-start">' +
     /* KOLOM KIRI (DIBUNGKUS CLASS SCROLL) */
     '<div style="flex:3" class="scrollable-form-container">' +
+    /* OPSI GROUP DI FORM INPUT KIRI */
+    /* ✨ OPSI GROUP DI FORM INPUT KIRI */
     '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
-    '<div class="fg" style="flex:1"><label>Cabang</label><select id="m_cab" class="in">' +
-    getCabangOpts(firstCab) +
+    '<div class="fg" style="flex:1"><label>Group <span class="req">*</span></label><select id="m_group" class="in" onchange="localStorage.setItem(\'group\', this.value); var fb = $(\'filter_group_list\'); if(fb) fb.value = this.value; reloadCabangDropdown(); renderNoreffList();">' +
+    getGroupOpts(localStorage.getItem("group") || "TLGA") +
     "</select></div>" +
+    "</div>" +
+    /* BARIS CABANG (PENTING: tambahkan parameter group aktif saat render pertama kali) */
+    '<div style="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:flex-end">' +
+    '<div class="fg" style="flex:1"><label>Cabang</label><select id="m_cab" class="in">' +
+    getCabangOpts(
+      typeof firstCab !== "undefined" ? firstCab : "",
+      localStorage.getItem("group") || "TLGA",
+    ) +
+    "</select></div>" +
+    // ... sisa input bank, tanggal, dll ...
+
     '<div class="fg" style="flex:1"><label>Kode Bank</label><select id="m_kb" class="in">' +
     kbOpts +
     "</select></div>" +
@@ -282,12 +294,15 @@ function renderMutasi() {
     '"></div>' +
     '<div class="fg" style="flex:1"><label>No Ref</label><input id="m_noref" class="in" readonly style="background:var(--bg);opacity:.8"></div>' +
     "</div>" +
-    '<div style="display:flex;gap:.5rem;margin-bottom:.5rem">' +
-    '<div class="fg" style="flex:2"><label>Dari / Kepada <span class="req">*</span></label><input id="m_dkp" class="in" placeholder="Nama pihak terkait"></div>' +
-    '<div class="fg" style="flex:1"><label>Nominal / Rp</label><input id="m_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
+    /* 🛠️ PERBAIKAN: SEJAJARKAN DARI/KEPADA, NOMINAL, DAN TOMBOL ACTION */
+    '<div style="display:flex;gap:.5rem;margin-bottom:.5rem;align-items:flex-end">' +
+    '<div class="fg" style="flex:4;margin-bottom:0"><label>Dari / Kepada <span class="req">*</span></label><input id="m_dkp" class="in" placeholder="Nama pihak terkait"></div>' +
+    '<div class="fg" style="flex:2;margin-bottom:0"><label>Nominal / Rp</label><input id="m_nominal" class="in" readonly style="background:var(--bg);font-weight:700;color:var(--success)" value="0"></div>' +
+    '<div style="display:flex;gap:.3rem;flex:3">' +
+    '<button type="button" class="btn btn-inf" style="flex:1;white-space:nowrap;padding:7px 8px;font-size:.7rem" onclick="openDBFImportModal(\'transaksi\')"><i class="fa-solid fa-file-import"></i> Import</button>' +
+    '<button type="button" class="btn btn-r" style="flex:1;white-space:nowrap;padding:7px 8px;font-size:.7rem" onclick="clearAllDataMutasi(\'transaksi\')"><i class="fa-solid fa-trash-can"></i> Kosongkan</button>' +
     "</div>" +
-    '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'transaksi\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
-    '<button type="button" class="btn btn-r" onclick="clearAllDataMutasi(\'transaksi\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
+    "</div>" +
     /* FORM DETIL */
     '<div style="margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--brd)">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
@@ -306,16 +321,25 @@ function renderMutasi() {
     "</div>" /* TUTUP KOLOM KIRI */ +
     /* KOLOM KANAN (DIBUNGKUS CLASS STICKY SIDEBAR) */
     '<div style="flex:1;border-left:1px solid var(--brd);padding-left:.8rem;display:flex;flex-direction:column;box-sizing:border-box" class="sticky-sidebar-container">' +
+    /* FILTER GROUP LIST */
     '<div style="margin-bottom:.4rem">' +
-    '<div class="fg" style="margin-bottom:0"><label style="font-size:.65rem">Filter Cabang List</label><select id="filter_cabang_list" class="in" style="font-size:.75rem">' +
-    cabFilterOpts +
+    '<div class="fg" style="margin-bottom:0"><label style="font-size:.65rem">Filter Group List</label><select id="filter_group_list" class="in" style="font-size:.75rem" onchange="localStorage.setItem(\'group\', this.value); var mg = $(\'m_group\'); if(mg) mg.value = this.value; reloadCabangDropdown(); renderNoreffList();">' +
+    getGroupOpts(localStorage.getItem("group") || "TLGA") +
+    "</select></div>" +
+    "</div>" +
+    /* 🛠️ PERBAIKAN FILTER CABANG SEBELAH KANAN */
+    '<div style="margin-bottom:.4rem">' +
+    '<div class="fg" style="margin-bottom:0"><label style="font-size:.65rem">Filter Cabang List</label><select id="filter_cabang_list" class="in" style="font-size:.75rem" onchange="renderNoreffList();">' +
+    // ✨ Membuat opsi "Semua Cabang" di paling atas, lalu diikuti daftar cabang yang sudah tersaring groupnya
+    '<option value="">-- Semua Cabang --</option>' +
+    getCabangOpts("", localStorage.getItem("group") || "TLGA") +
     "</select></div>" +
     "</div>" +
     '<div style="display:flex;gap:.4rem;margin-bottom:.4rem">' +
-    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Bulan</label><select id="filter_bulan" class="in" style="font-size:.75rem;padding:3px 5px" onchange="renderNoreffList();">' +
     bulanOpts +
     "</select></div>" +
-    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Tahun</label><select id="filter_tahun" class="in" style="font-size:.75rem;padding:3px 5px">' +
+    '<div class="fg" style="flex:1;margin-bottom:0"><label style="font-size:.65rem">Tahun</label><select id="filter_tahun" class="in" style="font-size:.75rem;padding:3px 5px" onchange="renderNoreffList();">' +
     tahunOpts +
     "</select></div>" +
     "</div>" +
@@ -1084,26 +1108,34 @@ async function renderNoreffList() {
   var activeGroup = localStorage.getItem("group") || "TLGA";
 
   //  SOLUSI: Jika DBCache kosong, paksa ambil data segar dari server terlebih dahulu
-  if (!DBCache.transaksi || DBCache.transaksi.length === 0) {
-    try {
-      // Panggil router GET /api/data/transaksi yang kita bahas sebelumnya
-      var response = await fetch(
-        `/api/data/transaksi?cabang=${filterCabang}&group=${activeGroup}`,
-      );
-      if (response.ok) {
-        DBCache.transaksi = await response.json();
-      }
-    } catch (err) {
-      console.error("Gagal sinkronisasi data ke cache:", err);
+  // 🛠️ PERBAIKAN: Hapus pengecekan 'if DBCache kosong'. Paksa fetch ulang setiap fungsi ini dipanggil agar filter sinkron dengan backend
+  try {
+    var response = await fetch(
+      `/api/data/transaksi?cabang=${filterCabang}&group=${activeGroup}`,
+    );
+    if (response.ok) {
+      DBCache.transaksi = await response.json();
     }
+  } catch (err) {
+    console.error("Gagal sinkronisasi data ke cache:", err);
   }
 
   var data = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
   var filtered = data.filter(function (t) {
     if (!t.noreff || !t.tanggal) return false;
-    if ((t.group || "TLGA") !== activeGroup) return false; // ✅ FILTER GROUP
-    if (filterCabang && String(t.cabang || "") !== String(filterCabang))
-      return false;
+    if ((t.group || "TLGA") !== activeGroup) return false;
+
+    // 🛠️ PERBAIKAN LOGIKA: Jika filterCabang di frontend adalah "PUSAT" atau kosong,
+    // pastikan data dengan cabang "Pusat", "", atau null tetap lolos filter
+    if (filterCabang && filterCabang.toUpperCase() !== "PUSAT") {
+      if (
+        String(t.cabang || "").toUpperCase() !==
+        String(filterCabang).toUpperCase()
+      ) {
+        return false;
+      }
+    }
+
     if (filterBulan) {
       var dataBulan = t.tanggal.substring(5, 7);
       var userBulan = filterBulan.padStart(2, "0");
