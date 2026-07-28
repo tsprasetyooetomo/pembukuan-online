@@ -2310,10 +2310,21 @@ async function handleDBFRead(file, storeName) {
 /* ================================================================
    GLOBAL HELPER: DROPDOWN CABANG
    ================================================================ */
-function getCabangOpts(selectedVal) {
+// 🛠️ PERBAIKAN: Tambahkan parameter targetGroup
+function getCabangOpts(selectedVal, targetGroup) {
   var cabangs = DBCache.cabang || [];
+  
+  // 🛠️ FILTER UTAMA: Jika targetGroup diisi, saring cabang yang memiliki group yang cocok saja
+  if (targetGroup) {
+    cabangs = cabangs.filter(function (c) {
+      // Menyamakan format teks ke huruf besar (Uppercase) agar pencocokan akurat
+      return String(c.group || "").toUpperCase() === String(targetGroup).toUpperCase();
+    });
+  }
+
   var html = '<option value="">-- Pilih Cabang --</option>';
   var found = false;
+  
   cabangs.forEach(function (c) {
     var val = c.kode || c.nama;
     var label = (c.kode ? c.kode + " - " : "") + (c.nama || "");
@@ -2328,6 +2339,7 @@ function getCabangOpts(selectedVal) {
       esc(label) +
       "</option>";
   });
+  
   if (selectedVal && !found)
     html +=
       '<option value="' +
@@ -2336,6 +2348,26 @@ function getCabangOpts(selectedVal) {
       esc(selectedVal) +
       " (Data Lama)</option>";
   return html;
+}
+
+function reloadCabangDropdown() {
+  // Ambil group aktif dari localStorage, default ke TLGA jika kosong
+  var currentGroup = localStorage.getItem("group") || "TLGA";
+  
+  // 1. Update Dropdown Cabang di Form Input Utama (Kolom Kiri)
+  var mCabSelect = $("m_cab");
+  if (mCabSelect) {
+    var selectedLeft = mCabSelect.value; // Simpan nilai lama agar tidak ter-reset jika masih satu group
+    mCabSelect.innerHTML = getCabangOpts(selectedLeft, currentGroup);
+  }
+
+  // 2. Update Dropdown Filter Cabang di Sidebar Riwayat (Kolom Kanan)
+  var filterCabSelect = $("filter_cabang_list");
+  if (filterCabSelect) {
+    // Generate opsi khusus untuk filter sidebar (menyertakan opsi "-- Pilih Cabang --" di atas)
+    filterCabSelect.innerHTML = getCabangOpts("", currentGroup);
+    filterCabSelect.value = ""; // Reset ke default agar filter aman dari data group sebelumnya
+  }
 }
 
 function lookupCabangLabel(kode) {
