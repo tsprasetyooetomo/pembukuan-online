@@ -181,7 +181,7 @@ async function terapkanOpsiNeraca() {
     return;
   }
 
-  closeModal();
+  if (typeof closeModal === "function") closeModal();
   var part = valmasa.split("-");
   var filtertahunfull = part[0];
   var filterbulan = part[1];
@@ -770,11 +770,17 @@ async function lihatDetilPerkiraan(kodeGol, masa, cabang) {
     activeGroup = rawGroup.trim().toUpperCase();
   }
 
-  openModal(
-    "Detil Perkiraan: " + kodeGol,
-    '<div style="text-align:center; padding:2rem;"><span class="spinner"></span><br>Memuat data...</div>',
-    "",
-  );
+  if (typeof openModal === "function") {
+    openModal(
+      "Detil Perkiraan: " + kodeGol,
+      '<div style="text-align:center; padding:2rem;"><span class="spinner"></span><br>Memuat data...</div>',
+      "",
+    );
+  } else {
+    // Jika tidak ada modal (mode Viewer), gunakan alert biasa
+    alert("Fitur ini hanya tersedia di halaman utama (Admin).");
+    return;
+  }
 
   try {
     var rawData = await db.getAll(namaStoreBackup);
@@ -1057,8 +1063,7 @@ async function terapkanOpsiDetilNeraca() {
     return;
   }
 
-  closeModal();
-
+  if (typeof closeModal === "function") closeModal();
   // Parsing Tanggal
   var part = valmasa.split("-");
   var filtertahunfull = part[0];
