@@ -166,8 +166,9 @@ async function saveUser(e, editId) {
       username: username,
       nama: nama,
       role: role,
-      cabang: cabang,
-      group: group, // <-- GROUP DIMASUKKAN KE OBJEK BARU
+      cabang: cabang || "Pusat", // Untuk kolom CABANG
+      group: group || "", // Untuk kolom GROUP
+
       password: password,
     };
     await db.add("users", newObj);
