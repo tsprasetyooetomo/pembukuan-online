@@ -28,7 +28,6 @@ function generateKbOpts(cabang, activeGroup, selectedKb) {
   var opts = '<option value="">-- Pilih --</option>';
   var list = Array.isArray(DBCache.kodeBank) ? DBCache.kodeBank : [];
 
-  // ✅ 1. SINKRONISASI FILTER BERDASARKAN CABANG DAN GROUP
   var filtered = list.filter(function (kb) {
     var matchCabang =
       String(kb.cabang || "").toLowerCase() ===
@@ -55,7 +54,6 @@ function generateKbOpts(cabang, activeGroup, selectedKb) {
 function generatePerkOpts(cabangKode, activeGroup, selectedNoper) {
   var data = Array.isArray(DBCache.perkiraan) ? DBCache.perkiraan : [];
 
-  // ✅ 2. SINKRONISASI FILTER BERDASARKAN CABANG DAN GROUP
   var filtered = data.filter(function (p) {
     var matchCabang =
       String(p.cabang || "")
@@ -68,8 +66,13 @@ function generatePerkOpts(cabangKode, activeGroup, selectedNoper) {
     return matchCabang && matchGroup;
   });
 
+  // 🌟 FIX UTAMA: Urutkan berbasis String Alami agar format akun bertitik (Contoh: 100.0001) berurutan dengan sempurna
   filtered.sort(function (a, b) {
-    return (parseInt(a.noPerk) || 0) - (parseInt(b.noPerk) || 0);
+    return String(a.noPerk || "").localeCompare(
+      String(b.noPerk || ""),
+      undefined,
+      { numeric: true },
+    );
   });
 
   var opts = filtered
@@ -83,7 +86,7 @@ function generatePerkOpts(cabangKode, activeGroup, selectedNoper) {
         ">" +
         esc(p.noPerk) +
         " — " +
-        esc(p.desc || "") +
+        esc(p.desc || p.nama_akun || "") + // Tambahkan fallback ke nama_akun jika desc kosong
         "</option>"
       );
     })
@@ -98,13 +101,39 @@ function generatePerkOpts(cabangKode, activeGroup, selectedNoper) {
 
 function generateBulanOpts(selectedBulan) {
   var now = new Date();
-  var defaultBulan = selectedBulan || String(now.getMonth() + 1);
+
+  // 🌟 STANDARISASI: Paksa defaultBulan memiliki format 2 digit (Contoh: "03", "08") agar cocok dengan input tanggal HTML
+  var defaultBulan = selectedBulan
+    ? String(selectedBulan).padStart(2, "0")
+    : String(now.getMonth() + 1).padStart(2, "0");
+
+  var daftarNamaBulan = [
+    "Januari",
+    "Februari",
+    "Maret",
+    "April",
+    "Mei",
+    "Juni",
+    "Juli",
+    "Agustus",
+    "September",
+    "Oktober",
+    "November",
+    "Desember",
+  ];
 
   var opts = '<option value="">-- Bulan --</option>';
   for (var m = 1; m <= 12; m++) {
-    var val = String(m);
+    var val = String(m).padStart(2, "0"); // Set value dropdown menjadi format 2 digit ("01", "02")
     var sel = val === defaultBulan ? " selected" : "";
-    opts += '<option value="' + val + '"' + sel + ">" + val + "</option>";
+    opts +=
+      '<option value="' +
+      val +
+      '"' +
+      sel +
+      ">" +
+      daftarNamaBulan[m - 1] +
+      "</option>"; // Tampilkan teks nama bulan agar lebih rapi
   }
   return opts;
 }
@@ -126,10 +155,7 @@ function populateKodeBankOpts(cabangKode) {
   var el = $("m_kb");
   if (!el) return;
 
-  // ✅ AMBIL GROUP AKTIF
   var activeGroup = localStorage.getItem("group") || "TLGA";
-
-  // ✅ KIRIM CABANG DAN GROUP KE FUNGSI GENERATOR OPTIONS
   el.innerHTML = generateKbOpts(cabangKode, activeGroup, el.value);
 }
 
@@ -137,10 +163,7 @@ function populatePerkiraanOpts(cabangKode) {
   var el = $("d_perk");
   if (!el) return;
 
-  // ✅ AMBIL GROUP AKTIF
   var activeGroup = localStorage.getItem("group") || "TLGA";
-
-  // ✅ KIRIM CABANG DAN GROUP KE FUNGSI GENERATOR OPTIONS
   el.innerHTML = generatePerkOpts(cabangKode, activeGroup, el.value);
 }
 
@@ -149,36 +172,38 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
 
   var cab = cabangKode || "Pusat";
 
-  // ✅ DARI FILE BARU: 1. Standarisasi format Kode Bank (harus tepat 4 karakter)
+  // 1. Standarisasi format Kode Bank (harus tepat 4 karakter)
   var kb = kodeBank.padEnd(4, " ").substring(0, 4);
 
-  // ✅ DARI FILE BARU: 2. Olah data Tanggal untuk mendapatkan Bulan dan Tahun (Format: MMTT)
+  // 2. Olah data Tanggal untuk mendapatkan format MMTT (Contoh: Agustus 2024 -> 0824)
   var dt = new Date(tanggal);
   var bln = String(dt.getMonth() + 1).padStart(2, "0");
   var thn = String(dt.getFullYear()).substring(2);
-  var blnThnTarget = bln + thn;
+  var blnThnTarget = bln + thn; // Format: MMYY (Contoh: "0824")
 
-  // ✅ DARI FILE BARU: 3. Bangun Prefix untuk Transaksi Baru
   var currentPrefix = kb + blnThnTarget;
-
   var nextUrut = 1;
 
-  // ✅ DARI FILE BARU: 4. AMBIL DATA TRANSAKSI DI BULAN DAN CABANG YANG SAMA
-  var dataRaw = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
+  // 🌟 FIX UTAMA: Alihkan pencarian nomor urut terakhir ke DBCache.listrefftransaksi
+  // Karena tabel listrefftransaksi murni memegang index nomor reff fisik terlengkap
+  var dataRaw = Array.isArray(DBCache.listrefftransaksi)
+    ? DBCache.listrefftransaksi
+    : [];
 
   var activeList = dataRaw.filter(function (t) {
-    if (!t.noreff || !t.tanggal) return false;
+    if (!t.noreff || !t.masa) return false;
 
-    if (String(t.cabang || "Pusat") !== String(cab)) return false;
+    // Filter Cabang secara adil
+    if (String(t.cabang || "Pusat").toUpperCase() !== String(cab).toUpperCase())
+      return false;
 
-    var dataBln = t.tanggal.substring(5, 7);
-    var dataThn = t.tanggal.substring(0, 4);
-    if (dataBln !== bln || dataThn !== String(dt.getFullYear())) return false;
+    // Cocokkan langsung menggunakan kolom 'masa' fisik (Format: MMYY)
+    if (t.masa !== blnThnTarget) return false;
 
     return true;
   });
 
-  // ✅ DARI FILE BARU: 5. FIX SORTING: URUTKAN MURNI BERDASARKAN 4 DIGIT ANGKA PALING KANAN
+  // 3. URUTKAN MURNI BERDASARKAN 4 DIGIT ANGKA PALING KANAN INDEKS NOTA
   activeList.sort(function (a, b) {
     var numA =
       parseInt((a.noreff || "").substring((a.noreff || "").length - 4), 10) ||
@@ -189,7 +214,7 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
     return numA - numB;
   });
 
-  // ✅ DARI FILE BARU: 6. AMBIL BARIS PALING AKHIR (ANGKA TERBESAR DI LIST)
+  // 4. AMBIL NOMOR TERAKHIR UNTUK DITAMBAH 1 URUTANNYA
   if (activeList.length > 0) {
     var notaTerakhir = activeList[activeList.length - 1];
     var lastNoreff = notaTerakhir.noreff || "";
@@ -202,7 +227,7 @@ function generateNoreff(kodeBank, tanggal, cabangKode) {
     }
   }
 
-  // ✅ DARI FILE BARU: 7. Kembalikan Nomor Referensi Baru
+  // 5. Kembalikan Nomor Referensi Baru (Contoh Hasil Akhir: "BCA 08240005")
   return currentPrefix + String(nextUrut).padStart(4, "0");
 }
 
@@ -307,7 +332,10 @@ function renderMutasi() {
     '<div style="margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--brd)">' +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">' +
     '<div style="font-size:.8rem;font-weight:700;color:var(--info)"><i class="fa-solid fa-list-ol"></i> Tambah Detil Jurnal</div>' +
+    '<div style="display:flex;gap:.3rem">' +
     '<button type="button" class="btn btn-sm" style="background:var(--info);color:#fff;font-size:.7rem;padding:3px 10px" onclick="printMutasi()"><i class="fa-solid fa-print"></i> Print</button>' +
+    '<button type="button" class="btn btn-sm btn-r" style="font-size:.7rem;padding:3px 10px" onclick="doDeleteSingleReff()"><i class="fa-solid fa-trash"></i> Hapus 1 Ref</button>' +
+    "</div>" +
     "</div>" +
     '<div style="display:flex;gap:.5rem;align-items:flex-end">' +
     '<div class="fg" style="flex:2;margin-bottom:0"><label>No Perkiraan <span class="req">*</span></label><select id="d_perk" class="in">' +
@@ -368,7 +396,7 @@ function initMutasiState() {
   var tglEl = $("m_tgl");
   var bulanEl = $("filter_bulan");
   var tahunEl = $("filter_tahun");
-  var filterCabListEl = $("filter_cabang_list"); // ✅ DARI FILE BARU
+  var filterCabListEl = $("filter_cabang_list");
 
   if (!cabEl) return;
 
@@ -379,7 +407,6 @@ function initMutasiState() {
     bulanEl.removeEventListener("change", _mutHandlers.bulan);
   if (_mutHandlers.tahun)
     tahunEl.removeEventListener("change", _mutHandlers.tahun);
-  // ✅ DARI FILE BARU: Cleanup event listener filter cabang
   if (_mutHandlers.filterCabList && filterCabListEl)
     filterCabListEl.removeEventListener("change", _mutHandlers.filterCabList);
 
@@ -388,7 +415,7 @@ function initMutasiState() {
   _mutHandlers.tgl = onHeaderChange;
   _mutHandlers.bulan = onFilterChange;
   _mutHandlers.tahun = onFilterChange;
-  _mutHandlers.filterCabList = renderNoreffList; // ✅ DARI FILE BARU
+  _mutHandlers.filterCabList = onFilterChange; // 🔥 DISERAGAMKAN: Panggil onFilterChange agar filter list sinkron
 
   cabEl.addEventListener("change", _mutHandlers.cab);
   kbEl.addEventListener("change", _mutHandlers.kb);
@@ -396,7 +423,6 @@ function initMutasiState() {
   bulanEl.addEventListener("change", _mutHandlers.bulan);
   tahunEl.addEventListener("change", _mutHandlers.tahun);
 
-  // ✅ DARI FILE BARU: Pasang event listener baru
   if (filterCabListEl)
     filterCabListEl.addEventListener("change", _mutHandlers.filterCabList);
 
@@ -415,7 +441,7 @@ function initMutasiState() {
   renderDetilTable();
   renderNoreffList();
   updateMutasiSummary();
-  // ✅ Tambahin ini biar bisa scroll
+
   setTimeout(() => {
     document.body.style.overflowY = "auto";
     document.documentElement.style.overflowY = "auto";
@@ -436,9 +462,11 @@ function onCabangChange() {
   $("m_noref").value = "";
   $("m_nominal").value = "0";
 
+  // 🔥 PERBAIKAN LOGIKA: Saat cabang form utama diubah, bersihkan tabel detail aktifnya,
+  // JANGAN ikut memicu renderNoreffList milik panel kanan agar filter pencarian riwayat tidak bentrok.
   renderDetilTable();
-  renderNoreffList();
   updateMutasiSummary();
+  onHeaderChange(); // Otomatis generate nomor reff baru untuk cabang terpilih ini
 }
 
 function onKbChange() {
@@ -456,11 +484,13 @@ function onHeaderChange() {
   var tgl = $("m_tgl").value;
   var cab = $("m_cab").value;
 
-  var newNoref = generateNoreff(kb, tgl, cab);
-  $("m_noref").value = newNoref;
-  _mutSession.noreff = newNoref;
-
-  updateMutasiSummary();
+  // Pastikan parameter tidak kosong sebelum generate nomor referensi otomatis
+  if (kb && tgl && cab) {
+    var newNoref = generateNoreff(kb, tgl, cab);
+    $("m_noref").value = newNoref;
+    _mutSession.noreff = newNoref;
+    updateMutasiSummary();
+  }
 }
 
 function onFilterChange() {
@@ -481,12 +511,25 @@ function _mutUnlockHeader() {
 }
 
 function editDetil(id) {
-  var d = DBCache.transaksi.find(function (t) {
-    return t.id === id;
-  });
-  if (!d) return;
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+  var activeCab = $("m_cab") ? $("m_cab").value : "";
 
-  var activeCab = $("m_cab").value;
+  // 🌟 FIX 1: Validasi pencarian objek edit diperketat berdasarkan ID, Group, dan Cabang aktif
+  var transaksiList = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
+  var d = transaksiList.find(function (t) {
+    return (
+      t.id === id &&
+      (t.group || "TLGA") === activeGroup &&
+      String(t.cabang || "").toUpperCase() === String(activeCab).toUpperCase()
+    );
+  });
+
+  if (!d)
+    return toast(
+      "Data tidak ditemukan atau Anda tidak memiliki akses ke cabang ini!",
+      "err",
+    );
+
   var perkOpts = generatePerkOpts(activeCab, d.noperkiraan);
 
   openModal(
@@ -495,13 +538,13 @@ function editDetil(id) {
       perkOpts +
       "</select></div>" +
       '<div class="fg"><label>Penjelasan</label><input id="ed_penjelasan" value="' +
-      esc(d.desc) +
+      esc(d.desc || d.keterangan || "") +
       '"></div>' +
       '<div class="fg"><label>Rp</label><input type="number" id="ed_rp" value="' +
-      d.total +
+      (d.total || d.db || 0) +
       '"></div>',
     '<button class="btn btn-g" onclick="closeModal()">Batal</button>' +
-      '<button class="btn btn-a" onclick="event.preventDefault(); event.stopPropagation();saveEditDetil(\'' +
+      '<button class="btn btn-a" onclick="event.preventDefault(); event.stopPropagation(); saveEditDetil(\'' +
       id +
       "')\">Update</button>",
   );
@@ -511,7 +554,6 @@ function updateMutasiSummary() {
   var noreff = _mutSession.noreff;
   if (!noreff) return;
 
-  // ✅ AMBIL PARAMETER FILTER AKTIF
   var activeGroup = localStorage.getItem("group") || "TLGA";
   var activeCabang = $("m_cab") ? $("m_cab").value : "";
 
@@ -520,37 +562,39 @@ function updateMutasiSummary() {
   var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
   transaksi.forEach(function (t) {
-    // ✅ KUNCI BERDASARKAN NOREFF, GROUP, DAN CABANG
     if (
       t.noreff === noreff &&
       (t.group || "TLGA") === activeGroup &&
-      t.cabang === activeCabang
+      String(t.cabang || "").toUpperCase() ===
+        String(activeCabang).toUpperCase()
     ) {
-      totalDb += num(t.db) || 0;
-      totalCr += num(t.cr) || 0;
+      // 🌟 FIX 2: Toleransi multi-field angka nominal (Mendukung data lokal form maupun data DBF)
+      totalDb += num(t.db || t.total || 0);
+      totalCr += num(t.cr || 0);
     }
   });
 
-  // ✅ JANGAN LUPA TAMPILKAN HASILNYA KE ELEMENT HTML DI LAYAR (CONTOH)
   if ($("m_total_db")) $("m_total_db").value = fmtN(totalDb);
   if ($("m_total_cr")) $("m_total_cr").value = fmtN(totalCr);
-
-  // Jika ada field selisih/balance:
   if ($("m_selisih")) $("m_selisih").value = fmtN(Math.abs(totalDb - totalCr));
 }
 
 function resetToNewTransaction() {
   _mutSession = { noreff: "", isLocked: false };
 
-  $("m_cab").disabled = false;
-  $("m_kb").disabled = false;
-  $("m_tgl").disabled = false;
+  if ($("m_cab")) $("m_cab").disabled = false;
+  if ($("m_kb")) $("m_kb").disabled = false;
+  if ($("m_tgl")) $("m_tgl").disabled = false;
 
-  $("m_noref").value = "";
-  $("m_dkp").value = "";
-  $("m_nominal").value = "0";
+  if ($("m_noref")) $("m_noref").value = "";
+  if ($("m_dkp")) $("m_dkp").value = "";
+  if ($("m_nominal")) $("m_nominal").value = "0";
 
-  onHeaderChange();
+  // Pastikan memanggil fungsi bawaan sistem jika ada
+  if (typeof onHeaderChange === "function") {
+    onHeaderChange();
+  }
+
   renderDetilTable();
   renderNoreffList();
   updateMutasiSummary();
@@ -642,6 +686,7 @@ function showConfirm1(message, onYes) {
 async function clearAllDataMutasi(storeName) {
   var labelMap = {
     transaksi: "Transaksi",
+    mutasikasir: "Mutasi Kasir", // Tambahkan label mutasikasir sekalian agar dinamis
   };
   var label = labelMap[storeName] || storeName;
 
@@ -730,13 +775,21 @@ async function clearAllDataMutasi(storeName) {
     var thn = document.getElementById("del_tahun").value;
     var cbg = document.getElementById("del_cabang").value;
 
-    var infoFilter = `\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg || "Semua"}`;
+    // 🔥 PERBAIKAN GROUP: Ambil dari localStorage aktif (Contoh: "TLGA") agar sinkron ke server
+    var activeGroup = localStorage.getItem("group") || "TLGA";
+
+    var calculatedMasaRef = "";
+    if (bln && thn) {
+      calculatedMasaRef = bln + String(thn).substring(2, 4);
+    }
+
+    var infoFilter = `\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg || "Semua"}\nGroup: ${activeGroup}${calculatedMasaRef ? "\nMasa Ref: " + calculatedMasaRef : ""}`;
 
     if (
       !confirm(
         "PERINGATAN!\n\nData " +
           label +
-          " dengan kriteria berikut akan dihapus secara permanen di Browser dan Server:" +
+          " beserta Referensi Transaksi terkait dengan kriteria berikut akan dihapus secara permanen di Browser dan Server:" +
           infoFilter +
           "\n\nLanjutkan?",
       )
@@ -745,12 +798,12 @@ async function clearAllDataMutasi(storeName) {
     }
 
     closeModal();
+    toast("Menghubungi server untuk menghapus data...", "inf");
 
     try {
-      // 1. PROSES SERVER: Kirim perintah hapus ke database SQL di backend
-      // Format parameter 'masa' disesuaikan dengan kebutuhan database Anda (Contoh: YYYY-MM)
       var formatMasa = thn && bln ? `${thn}-${bln}` : thn || "";
 
+      // 1. PROSES SERVER: Kirim parameter hapus ke backend
       var serverResponse = await fetch("/api/clear-all-data", {
         method: "POST",
         headers: {
@@ -762,6 +815,8 @@ async function clearAllDataMutasi(storeName) {
           cabang: cbg || "ALL",
           tahun: thn,
           bulan: bln,
+          group: activeGroup, // 🔥 Diubah dari "TRANSAKSI" menjadi activeGroup ("TLGA")
+          masaRef: calculatedMasaRef || null,
         }),
       });
 
@@ -774,7 +829,7 @@ async function clearAllDataMutasi(storeName) {
 
       var serverResult = await serverResponse.json();
 
-      // 2. PROSES LOCAL BROWSER (IndexedDB)
+      // 2. PROSES LOCAL BROWSER (IndexedDB untuk store utama)
       var allData = await db.getAll(storeName);
       var dataDipertahankan = [];
       var dataDihapusCount = 0;
@@ -812,13 +867,40 @@ async function clearAllDataMutasi(storeName) {
         DBCache[storeName] = dataDipertahankan;
       }
 
-      // Tampilkan info total data terhapus dari server
+      // 🌟 3. BERSIHKAN CACHE LOKAL BROWSER: listrefftransaksi
+      // Mengubah filter agar mencocokkan logic penghapusan database backend secara akurat
+      var targetCacheRef =
+        storeName === "mutasikasir" ? "listreffkasir" : "listrefftransaksi";
+
+      if (DBCache[targetCacheRef] && Array.isArray(DBCache[targetCacheRef])) {
+        DBCache[targetCacheRef] = DBCache[targetCacheRef].filter(
+          function (ref) {
+            var cocokCabangRef = !cbg || ref.cabang === cbg;
+            var cocokGroupRef =
+              String(ref.group || "")
+                .trim()
+                .toUpperCase() === activeGroup.toUpperCase();
+
+            var cocokMasaRef = true;
+            if (calculatedMasaRef) {
+              cocokMasaRef = ref.masa === calculatedMasaRef;
+            } else if (thn) {
+              var shortThn = String(thn).substring(2, 4);
+              cocokMasaRef = ref.masa && ref.masa.endsWith(shortThn);
+            }
+
+            // Jika kriteria COCOK dengan filter hapus, return FALSE agar dibuang dari cache
+            var isDataYangDihapus =
+              cocokCabangRef && cocokGroupRef && cocokMasaRef;
+            return !isDataYangDihapus;
+          },
+        );
+      }
+
       toast(
-        `${serverResult.changes || dataDihapusCount} data ${label} berhasil dihapus dari sistem`,
+        `${serverResult.changes || dataDihapusCount} data ${label} & tabel referensi berhasil dibersihkan`,
         "ok",
       );
-
-      // Ambil ulang tampilan panel (Sekarang aman karena data server sudah bersih)
       safeRenderCurrentPanel();
     } catch (err) {
       toast("Gagal memproses penghapusan data: " + err.message, "err");
@@ -828,10 +910,10 @@ async function clearAllDataMutasi(storeName) {
 
 async function SafeaddDetil() {
   var noreff = _mutSession.noreff || $("m_noref").value;
-  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF
-  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+  var activeCabang = $("m_cab") ? $("m_cab").value : "";
+  var activeGroup = localStorage.getItem("group") || "TLGA";
 
-  // ✅ PERBAIKAN VALIDASI: Pastikan No Ref, Cabang, Kode Bank, dan Tanggal sudah terisi semua
+  // ✅ VALIDASI SEBELUM INPUT
   if (!noreff || !activeCabang || !$("m_kb").value || !$("m_tgl").value) {
     return toast(
       "Isi data header (No Ref, Cabang, Kode Bank, Tanggal) secara lengkap terlebih dahulu",
@@ -852,23 +934,31 @@ async function SafeaddDetil() {
   $("m_tgl").disabled = true;
 
   try {
+    var rawDate = $("m_tgl").value; // Format: YYYY-MM-DD
+    var calculatedMasa = "";
+    if (rawDate && rawDate.includes("-")) {
+      var parts = rawDate.split("-");
+      calculatedMasa = parts[1] + parts[0].substring(2, 4); // Menghasilkan format MMYY (Contoh: "0824")
+    }
+
     var newDetil = {
       id: uid(),
       noreff: noreff,
-      tanggal: $("m_tgl").value,
+      tanggal: rawDate,
       kodeBank: $("m_kb").value,
-      cabang: activeCabang, // ✅ KONSISTEN MENGGUNAKAN CABANG FORM
+      cabang: activeCabang,
       dariKePada: $("m_dkp").value.trim(),
       noperkiraan: noper,
       desc: penjelasan,
       total: rp,
       db: rp,
       cr: 0,
-      kodeTrans: "",
-      group: activeGroup, // ✅ KONSISTEN MENGGUNAKAN GROUP AKTIF
+      kodeTrans: "BM",
+      group: activeGroup,
+      masa: calculatedMasa,
     };
 
-    // ✅ GANTI db.add DENGAN fetch KE SUPABASE
+    // 🌟 1. SIMPAN BARIS JURNAL KE TABEL TRANSAKSI UTAMA
     await fetch(window.location.origin + "/api/data/transaksi", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -878,10 +968,42 @@ async function SafeaddDetil() {
     if (!DBCache.transaksi) DBCache.transaksi = [];
     DBCache.transaksi.push(newDetil);
 
+    // 🌟 2. SINKRONISASI INDEKS: Daftarkan nomor referensi ke tabel listrefftransaksi
+    if (!DBCache.listrefftransaksi) DBCache.listrefftransaksi = [];
+    var isReffExist = DBCache.listrefftransaksi.some(function (r) {
+      return (
+        r.noreff === noreff &&
+        (r.group || "TLGA") === activeGroup &&
+        r.cabang === activeCabang
+      );
+    });
+
+    if (!isReffExist) {
+      var newReffObj = {
+        id: "REF_" + Math.random().toString(36).substring(2, 9),
+        noreff: noreff,
+        masa: calculatedMasa,
+        cabang: activeCabang,
+        group: activeGroup,
+      };
+
+      // Push langsung ke server backend menggunakan skema 5 kolom murni Anda
+      await fetch(window.location.origin + "/api/data/listrefftransaksi", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newReffObj),
+      });
+
+      DBCache.listrefftransaksi.push(newReffObj);
+    }
+
+    // Reset Form Input Detail
     $("d_perk").value = "";
     $("d_penjelasan").value = "";
     $("d_rp").value = "";
     $("d_penjelasan").focus();
+
+    // Re-render UI
     renderDetilTable();
     updateHeaderNominal();
     renderNoreffList();
@@ -898,10 +1020,9 @@ async function SafeaddDetil() {
 }
 
 async function saveEditDetil(id) {
-  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
-  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+  var activeCabang = $("m_cab") ? $("m_cab").value : "";
 
-  // ✅ PERBAIKAN: Validasi pencarian cache diperketat berdasarkan ID, Group, dan Cabang aktif
   var dataLama = DBCache.transaksi
     ? DBCache.transaksi.find(function (t) {
         return (
@@ -931,18 +1052,16 @@ async function saveEditDetil(id) {
       desc: penjelasan,
       total: rp,
       db: rp,
-      cabang: activeCabang, // ✅ PASTIKAN CABANG TETAP TERKUNCI
-      group: activeGroup, // ✅ PASTIKAN GROUP SELALU TERUPDATE
+      cabang: activeCabang,
+      group: activeGroup,
     });
 
-    // ✅ GANTI db.get/db.put DENGAN fetch KE SUPABASE
     await fetch(window.location.origin + "/api/data/transaksi/" + id, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(objUpdate),
     });
 
-    // Update cache lokal
     var idx = DBCache.transaksi.findIndex((t) => t.id === id);
     if (idx !== -1) DBCache.transaksi[idx] = objUpdate;
 
@@ -960,12 +1079,11 @@ async function saveEditDetil(id) {
 async function hapusDetil(id) {
   if (!confirm("Yakin hapus detil ini?")) return;
 
-  // ✅ AMBIL NILAI GROUP DARI LOCALSTORAGE & CABANG DARI LAYAR
   var activeGroup = localStorage.getItem("group") || "TLGA";
-  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF DARI LAYAR
+  var activeCabang = $("m_cab") ? $("m_cab").value : "";
+  var targetNoreff = _mutSession.noreff;
 
   try {
-    // ✅ GANTI db.del DENGAN fetch KE SUPABASE
     await fetch(window.location.origin + "/api/data/transaksi/" + id, {
       method: "DELETE",
     });
@@ -976,24 +1094,53 @@ async function hapusDetil(id) {
       });
     }
 
-    // ✅ SEKARANG HITUNG SISA DETIL BERDASARKAN NOREFF, GROUP, DAN CABANG
     var sisaDetil = (DBCache.transaksi || []).filter(function (t) {
       return (
-        t.noreff === _mutSession.noreff &&
+        t.noreff === targetNoreff &&
         (t.group || "TLGA") === activeGroup &&
-        t.cabang === activeCabang // ✅ FILTER CABANG DISIPKAN DISINI
+        t.cabang === activeCabang
       );
     }).length;
 
+    // 🌟 REFF CLEANSING AUTOMATION: Jika seluruh baris detail mutasi habis dipotong,
+    // hapus juga baris nomor referensinya dari tabel penampung listrefftransaksi
     if (sisaDetil === 0) {
       _mutSession.isLocked = false;
       if ($("m_cab")) $("m_cab").disabled = false;
       if ($("m_kb")) $("m_kb").disabled = false;
       if ($("m_tgl")) $("m_tgl").disabled = false;
       if ($("m_nominal")) $("m_nominal").value = "0";
+
+      var reffCacheList = Array.isArray(DBCache.listrefftransaksi)
+        ? DBCache.listrefftransaksi
+        : [];
+      var reffTargetObj = reffCacheList.find(function (r) {
+        return (
+          r.noreff === targetNoreff &&
+          (r.group || "TLGA") === activeGroup &&
+          r.cabang === activeCabang
+        );
+      });
+
+      if (reffTargetObj && reffTargetObj.id) {
+        await fetch(
+          window.location.origin +
+            "/api/data/listrefftransaksi/" +
+            reffTargetObj.id,
+          {
+            method: "DELETE",
+          },
+        );
+
+        DBCache.listrefftransaksi = reffCacheList.filter(function (r) {
+          return r.id !== reffTargetObj.id;
+        });
+      }
     }
 
     renderDetilTable();
+    updateHeaderNominal();
+    renderNoreffList(); // Segarkan panel kanan agar langsung lenyap dari riwayat jika habis
     updateMutasiSummary();
     toast("Detil transaksi berhasil dihapus.", "ok");
   } catch (error) {
@@ -1006,20 +1153,19 @@ function updateHeaderNominal() {
   var noreff = _mutSession.noreff;
   if (!noreff) return;
 
-  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
-  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF DARI LAYAR
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+  var activeCabang = $("m_cab") ? $("m_cab").value : "";
 
   var totalRp = 0;
   var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
   transaksi.forEach(function (t) {
-    // ✅ SEKARANG SUDAH FILTER BERDASARKAN: NOREFF, GROUP, DAN CABANG
     if (
       t.noreff === noreff &&
       (t.group || "TLGA") === activeGroup &&
       t.cabang === activeCabang
     ) {
-      totalRp += num(t.total);
+      totalRp += num(t.total || t.db || 0);
     }
   });
 
@@ -1029,7 +1175,7 @@ function updateHeaderNominal() {
 function renderDetilTable() {
   var noreff = _mutSession.noreff;
   var activeCab = $("m_cab") ? $("m_cab").value : "";
-  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
+  var activeGroup = localStorage.getItem("group") || "TLGA";
   var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
   var detilData = [];
@@ -1039,7 +1185,7 @@ function renderDetilTable() {
         t.noreff === noreff &&
         String(t.cabang || "") === String(activeCab) &&
         (t.group || "TLGA") === activeGroup
-      ); // ✅ FILTER GROUP
+      );
     });
   }
 
@@ -1065,7 +1211,7 @@ function renderDetilTable() {
       r.tanggal || "-",
       esc(r.noperkiraan || "-"),
       esc(r.desc || "-"),
-      '<span style="font-weight:600">' + fmtN(r.total) + "</span>",
+      '<span style="font-weight:600">' + fmtN(r.total || r.db || 0) + "</span>",
       '<span style="font-size:.75rem;color:var(--muted)">' +
         esc(r.noreff) +
         "</span>",
@@ -1077,7 +1223,7 @@ function renderDetilTable() {
         '\')"><i class="fa-solid fa-pen"></i></button> ' +
         '<button type="button" class="btn btn-r btn-sm" onclick="event.preventDefault(); event.stopPropagation(); hapusDetil(\'' +
         r.id +
-        "'); return false;\"><i class='fa-solid fa-trash'></i></button>",
+        '\'); return false;"><i class="fa-solid fa-trash"></i></button>',
     ];
   });
 
@@ -1095,6 +1241,7 @@ function renderDetilTable() {
     buildTable(headers, rows, { numCols: [3] }) +
     "</table></div>";
 }
+
 async function renderNoreffList() {
   var box = $("mutNoreffList");
   var countBox = $("mutNoreffCount");
@@ -1107,26 +1254,30 @@ async function renderNoreffList() {
   var filterTahun = $("filter_tahun") ? $("filter_tahun").value : "";
   var activeGroup = localStorage.getItem("group") || "TLGA";
 
-  //  SOLUSI: Jika DBCache kosong, paksa ambil data segar dari server terlebih dahulu
-  // 🛠️ PERBAIKAN: Hapus pengecekan 'if DBCache kosong'. Paksa fetch ulang setiap fungsi ini dipanggil agar filter sinkron dengan backend
+  // 🔄 1. AMBIL DATA LANGSUNG DARI TABEL listrefftransaksi
   try {
     var response = await fetch(
-      `/api/data/transaksi?cabang=${filterCabang}&group=${activeGroup}`,
+      `/api/data/listrefftransaksi?cabang=${filterCabang}&group=${activeGroup}`,
     );
     if (response.ok) {
-      DBCache.transaksi = await response.json();
+      DBCache.listrefftransaksi = await response.json();
     }
   } catch (err) {
-    console.error("Gagal sinkronisasi data ke cache:", err);
+    console.error("Gagal sinkronisasi data listrefftransaksi ke cache:", err);
   }
 
-  var data = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
+  var data = Array.isArray(DBCache.listrefftransaksi)
+    ? DBCache.listrefftransaksi
+    : [];
+
+  // 🔍 2. PROSES FILTERING DATA BERDASARKAN PARAMETER FILTER AKTIF
   var filtered = data.filter(function (t) {
-    if (!t.noreff || !t.tanggal) return false;
+    if (!t.noreff) return false;
+
+    // Validasi kecocokan Group
     if ((t.group || "TLGA") !== activeGroup) return false;
 
-    // 🛠️ PERBAIKAN LOGIKA: Jika filterCabang di frontend adalah "PUSAT" atau kosong,
-    // pastikan data dengan cabang "Pusat", "", atau null tetap lolos filter
+    // Filter Cabang (Mendukung "PUSAT", "", atau Null)
     if (filterCabang && filterCabang.toUpperCase() !== "PUSAT") {
       if (
         String(t.cabang || "").toUpperCase() !==
@@ -1136,18 +1287,37 @@ async function renderNoreffList() {
       }
     }
 
-    if (filterBulan) {
-      var dataBulan = t.tanggal.substring(5, 7);
-      var userBulan = filterBulan.padStart(2, "0");
-      if (dataBulan !== userBulan) return false;
+    // Filter Berdasarkan Kolom 'masa' Fisik (Format: MMYY, Contoh: "0824")
+    if (filterBulan || filterTahun) {
+      var targetMasa = "";
+      var userBln = filterBulan ? filterBulan.padStart(2, "0") : "";
+      var userThn = filterTahun ? String(filterTahun).substring(2, 4) : "";
+
+      if (t.masa && t.masa.length === 4) {
+        var dataBln = t.masa.substring(0, 2);
+        var dataThn = t.masa.substring(2, 4);
+
+        if (userBln && dataBln !== userBln) return false;
+        if (userThn && dataThn !== userThn) return false;
+      } else {
+        // Fallback jika kolom masa kosong tetapi ada properti tanggal pembantu di objek
+        if (t.tanggal) {
+          var fallbackBln = t.tanggal.substring(5, 7);
+          var fallbackThn = t.tanggal.substring(0, 4);
+          if (userBln && fallbackBln !== userBln) return false;
+          if (filterTahun && fallbackThn !== filterTahun) return false;
+        } else {
+          return false; // Buang data jika tidak memiliki info waktu sama sekali
+        }
+      }
     }
-    if (filterTahun && t.tanggal.substring(0, 4) !== filterTahun) return false;
     return true;
   });
 
+  // JIKA HASIL FILTER KOSONG
   if (filtered.length === 0) {
     box.innerHTML =
-      '<div style="padding:.8rem;color:var(--muted);text-align:center;font-size:.75rem"><i class="fa-solid fa-filter-circle-xmark"></i> Tidak ada data<br><small>Group: ' +
+      '<div style="padding:.8rem;color:var(--muted);text-align:center;font-size:.75rem"><i class="fa-solid fa-filter-circle-xmark"></i> Tidak ada data referensi<br><small>Group: ' +
       esc(activeGroup) +
       " | Cabang: " +
       esc(filterCabang || "Semua") +
@@ -1160,39 +1330,25 @@ async function renderNoreffList() {
     return;
   }
 
-  var uniqueNoreff = {};
-  filtered.forEach(function (t) {
-    if (t.noreff && !uniqueNoreff[t.noreff]) {
-      uniqueNoreff[t.noreff] = {
-        tanggal: t.tanggal || "-",
-        jumlahDetil: 0,
-        totalRp: 0,
-        cabang: t.cabang || "-",
-      };
-    }
-    if (uniqueNoreff[t.noreff]) {
-      uniqueNoreff[t.noreff].jumlahDetil++;
-      uniqueNoreff[t.noreff].totalRp += num(t.total);
-    }
-  });
-
-  var arrNoreff = Object.keys(uniqueNoreff).map(function (noreff) {
-    return Object.assign({ noreff: noreff }, uniqueNoreff[noreff]);
-  });
-  arrNoreff.sort(function (a, b) {
+  // 📊 3. URUTKAN DAFTAR REFERENSI
+  filtered.sort(function (a, b) {
     var suffixA = String(a.noreff || "").slice(-8);
     var suffixB = String(b.noreff || "").slice(-8);
     return suffixA.localeCompare(suffixB, undefined, { numeric: true });
   });
 
+  //  paintbrush 4. RENDER HTML KE ELEMEN FRONTEND
+  // Karena tabel listreff murni penampung kode unik, kolom 'Total Rp' diganti menjadi info Cabang/Masa agar lebih informatif
   var html =
-    '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1"><th style="padding:4px;text-align:left;font-size:.65rem">No Ref</th><th style="padding:4px;text-align:center;font-size:.65rem;width:30px">D</th><th style="padding:4px;text-align:right;font-size:.65rem;width:65px">Total</th></tr></thead><tbody>';
-  arrNoreff.forEach(function (item) {
+    '<table style="width:100%;border-collapse:collapse"><thead><tr style="background:var(--bg2);position:sticky;top:0;z-index:1"><th style="padding:4px;text-align:left;font-size:.65rem">No Referensi Transaksi</th><th style="padding:4px;text-align:center;font-size:.65rem;width:45px">Masa</th><th style="padding:4px;text-align:right;font-size:.65rem;width:50px">Cabang</th></tr></thead><tbody>';
+
+  filtered.forEach(function (item) {
     var isActive = item.noreff === _mutSession.noreff;
     var rowStyle =
       "cursor:pointer;border-bottom:1px solid var(--brd);transition:background .15s;";
     if (isActive)
       rowStyle += "background:var(--accent);color:#fff;font-weight:600;";
+
     html +=
       '<tr style="' +
       rowStyle +
@@ -1202,58 +1358,104 @@ async function renderNoreffList() {
       (isActive ? 'data-active="1"' : "") +
       ">";
 
+    // Kolom 1: Nomor Referensi Fisik
     html +=
-      '<td style="padding:4px;font-size:.7rem;font-family:monospace">' +
+      '<td style="padding:4px;font-size:.7rem;font-family:monospace;font-weight:bold">' +
       esc(item.noreff) +
-      (item.cabang
-        ? ' <small style="opacity:0.7">(' + esc(item.cabang) + ")</small>"
-        : "") +
       "</td>";
+
+    // Kolom 2: Kode Masa (MMYY)
     html +=
-      '<td style="padding:4px;font-size:.65rem;text-align:center">' +
-      item.jumlahDetil +
+      '<td style="padding:4px;font-size:.65rem;text-align:center;color:var(--muted)">' +
+      esc(item.masa || "-") +
       "</td>";
+
+    // Kolom 3: Kode Cabang Fisik
     html +=
-      '<td style="padding:4px;font-size:.7rem;text-align:right;font-weight:600">' +
-      fmtN(item.totalRp) +
+      '<td style="padding:4px;font-size:.65rem;text-align:right;font-weight:600;padding-right:8px">' +
+      esc(item.cabang || "-") +
       "</td></tr>";
   });
+
   html += "</tbody></table>";
   box.innerHTML = html;
-  if (countBox) countBox.textContent = arrNoreff.length + " transaksi";
+
+  if (countBox) countBox.textContent = filtered.length + " referensi";
 }
-function onNoreffClicked(noreffTarget) {
+
+async function onNoreffClicked(noreffTarget) {
   if (noreffTarget === _mutSession.noreff) return;
 
-  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP
-  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF DARI LAYAR
+  var activeGroup = localStorage.getItem("group") || "TLGA";
+  var activeCabang = $("m_cab") ? $("m_cab").value : "";
 
-  var headerData = DBCache.transaksi.find(function (t) {
+  var cacheSource = Array.isArray(DBCache.listrefftransaksi)
+    ? DBCache.listrefftransaksi
+    : [];
+
+  // Cari data penunjuk dari tabel listrefftransaksi
+  var headerData = cacheSource.find(function (t) {
+    var matchCabang =
+      !activeCabang ||
+      String(t.cabang || "").toUpperCase() ===
+        String(activeCabang).toUpperCase();
     return (
       t.noreff === noreffTarget &&
       (t.group || "TLGA") === activeGroup &&
-      t.cabang === activeCabang
-    ); // ✅ SEKARANG SUDAH FILTER BY NOREF, GROUP, DAN CABANG
+      matchCabang
+    );
   });
 
   if (!headerData) return;
 
+  try {
+    toast("Memuat detail jurnal...", "info");
+
+    // 🌟 AMBIL DATA ON-DEMAND: Tarik dari server murni hanya yang sesuai dengan No Ref, Cabang, dan Group
+    var response = await fetch(
+      `/api/data/transaksi?search=${encodeURIComponent(noreffTarget)}&cabang=${headerData.cabang || activeCabang}&group=${activeGroup}`,
+    );
+
+    if (response.ok) {
+      // Ganti isi DBCache.transaksi murni hanya dengan baris detail milik nota aktif ini
+      DBCache.transaksi = await response.json();
+    } else {
+      DBCache.transaksi = [];
+    }
+  } catch (err) {
+    console.error("🔥 Gagal memuat data transaksi spesifik:", err);
+    DBCache.transaksi = [];
+  }
+
+  // 📝 MASUKKAN DATA HEADER KE INPUT FORM LAYAR
   _mutSession.noreff = noreffTarget;
   _mutSession.isLocked = true;
+
   $("m_noref").value = noreffTarget;
-  $("m_tgl").value = headerData.tanggal || "";
+  $("m_tgl").value =
+    headerData.tanggal ||
+    (DBCache.transaksi[0] ? DBCache.transaksi[0].tanggal : "");
   $("m_cab").value = headerData.cabang || "";
-  $("m_kb").value = headerData.kodeBank || "";
-  $("m_dkp").value = headerData.dariKePada || "";
+
+  // Ambil kode bank dan dkp dari baris transaksi yang berhasil di-load jika di listreff kosong
+  var firstRow = DBCache.transaksi[0] || {};
+  $("m_kb").value = headerData.kodeBank || firstRow.kodeBank || "";
+  $("m_dkp").value = headerData.dariKePada || firstRow.dariKePada || "";
+
+  // Kunci form header agar tidak bisa diedit sembarangan
   $("m_cab").disabled = true;
   $("m_kb").disabled = true;
   $("m_tgl").disabled = true;
+
+  // Kirim data cabang untuk memperbarui opsi dropdown bank & perkiraan
   populateKodeBankOpts(headerData.cabang);
   populatePerkiraanOpts(headerData.cabang);
+
+  // 🔄 RE-RENDER ELEMEN LAYAR
   updateHeaderNominal();
-  renderDetilTable();
-  renderNoreffList();
-  updateMutasiSummary();
+  renderDetilTable(); // Menggambar baris detail jurnal yang baru di-fetch
+  renderNoreffList(); // Berikan efek highlight aktif di panel riwayat kanan
+  updateMutasiSummary(); // Hitung balance saldo debet/kredit untuk nota ini
 }
 
 function printMutasi() {
@@ -1265,31 +1467,36 @@ function printMutasi() {
     );
 
   var activeGroup = localStorage.getItem("group") || "TLGA";
-  var activeCabang = $("m_cab") ? $("m_cab").value : ""; // ✅ AMBIL CABANG AKTIF DARI LAYAR
+  var activeCabang = $("m_cab") ? $("m_cab").value : "";
 
+  // 📝 Detail baris jurnal TETAP diambil dari cache transaksi utama (untuk nominal & akun)
   var transaksi = Array.isArray(DBCache.transaksi) ? DBCache.transaksi : [];
 
-  // ✅ SEKARANG SUDAH FILTER BERDASARKAN NOREFF, GROUP, DAN CABANG
   var detilData = transaksi.filter(function (t) {
     return (
       t.noreff === noreff &&
       (t.group || "TLGA") === activeGroup &&
-      t.cabang === activeCabang
+      String(t.cabang || "").toUpperCase() ===
+        String(activeCabang).toUpperCase()
     );
   });
 
   if (detilData.length === 0)
-    return toast("Tidak ada detil untuk No Ref, Group & Cabang ini", "wrn");
+    return toast(
+      "Tidak ada detil jurnal untuk No Ref, Group & Cabang ini",
+      "wrn",
+    );
 
-  var header = detilData[0];
-  var cabangLabel = lookupCabangLabel(header.cabang) || header.cabang || "-";
-  var tanggal = header.tanggal || "-";
-  var kodeBank = header.kodeBank || "-";
-  var dariKePada = header.dariKePada || "-";
+  // 🌟 FIX HEADER: Ambil data header langsung dari nilai input FORM LAYAR AKTIF yang sedang dibuka
+  // Karena tabel listrefftransaksi baru tidak menyimpan info text dkp/bank untuk efisiensi ruang
+  var cabangLabel = lookupCabangLabel(activeCabang) || activeCabang || "-";
+  var tanggal = $("m_tgl") ? $("m_tgl").value : "-";
+  var kodeBank = $("m_kb") ? $("m_kb").value : "-";
+  var dariKePada = $("m_dkp") ? $("m_dkp").value : "-";
 
   var totalRp = 0;
   detilData.forEach(function (t) {
-    totalRp += num(t.total);
+    totalRp += num(t.total || t.db || t.cr || 0); // Kompatibilitas multi-field nominal
   });
 
   var kbList = Array.isArray(DBCache.kodeBank) ? DBCache.kodeBank : [];
@@ -1331,11 +1538,11 @@ function printMutasi() {
       "<tr><td class='center'>" +
       (idx + 1) +
       "</td><td>" +
-      esc(d.noperkiraan || "-") +
+      esc(d.noperkiraan || d.noPerk || "-") +
       "</td><td>" +
-      esc(d.desc || "-") +
+      esc(d.desc || d.keterangan || "-") +
       "</td><td class='rp'>" +
-      fmtN(d.total) +
+      fmtN(d.total || d.db || d.cr || 0) +
       "</td></tr>";
   });
 
@@ -1360,6 +1567,115 @@ function printMutasi() {
   setTimeout(function () {
     printWindow.print();
   }, 500);
+}
+
+async function doDeleteSingleReff() {
+  var currentNoreff =
+    typeof _mutSession !== "undefined" ? _mutSession.noreff : null;
+
+  if (!currentNoreff) {
+    toast(
+      "Pilih data transaksi di tabel riwayat kanan terlebih dahulu!",
+      "err",
+    );
+    return;
+  }
+
+  if (
+    !confirm(
+      "Apakah Anda yakin ingin menghapus TOTAL data transaksi beserta nomor referensi untuk No Ref: " +
+        currentNoreff +
+        "?",
+    )
+  ) {
+    return;
+  }
+
+  try {
+    toast("Sedang menghapus data mutasi...", "info");
+
+    // 1. Ambil detail item transaksi utama yang mau dibuang dari backend
+    var transaksiData = Array.isArray(DBCache.transaksi)
+      ? DBCache.transaksi
+      : [];
+    var itemsToDelete = transaksiData.filter(function (t) {
+      return t.noreff === currentNoreff;
+    });
+
+    // 2. HAPUS BARIS MUTASI UTAMA SATU PER SATU KE SERVER
+    if (itemsToDelete.length > 0) {
+      for (var i = 0; i < itemsToDelete.length; i++) {
+        var targetId = itemsToDelete[i].id;
+        var response = await fetch("/api/data/transaksi/" + targetId, {
+          method: "DELETE",
+        });
+        if (!response.ok) {
+          throw new Error(
+            "Gagal menghapus detail baris mutasi ID: " + targetId,
+          );
+        }
+      }
+    }
+
+    // 🌟 3. FIX REFF: HAPUS JUGA KODE REFERENSI DARI TABEL listrefftransaksi DI BACKEND SERVER
+    // Kita cari ID fisik dari nomor referensi aktif di cache listrefftransaksi
+    var reffCacheList = Array.isArray(DBCache.listrefftransaksi)
+      ? DBCache.listrefftransaksi
+      : [];
+    var reffTargetObj = reffCacheList.find(function (r) {
+      return r.noreff === currentNoreff;
+    });
+
+    if (reffTargetObj && reffTargetObj.id) {
+      var deleteReffResponse = await fetch(
+        "/api/data/listrefftransaksi/" + reffTargetObj.id,
+        {
+          method: "DELETE",
+        },
+      );
+      if (!deleteReffResponse.ok) {
+        console.warn(
+          "⚠️ Gagal menghapus kunci referensi fisik di server, baris dilewati.",
+        );
+      }
+    }
+
+    // 4. MANUAL CACHE UPDATE (FRONTEND BROWSER MEMORY)
+    // Buang item mutasi dari cache utama
+    DBCache.transaksi = transaksiData.filter(function (t) {
+      return t.noreff !== currentNoreff;
+    });
+
+    // Buang item referensi dari cache listrefftransaksi agar hilang dari daftar kanan
+    DBCache.listrefftransaksi = reffCacheList.filter(function (r) {
+      return r.noreff !== currentNoreff;
+    });
+
+    // 5. Kosongkan kembali form input form layar
+    if (typeof resetToNewTransaction === "function") {
+      resetToNewTransaction();
+    } else {
+      if ($("m_noref")) $("m_noref").value = "";
+      if ($("m_dkp")) $("m_dkp").value = "";
+      if ($("m_nominal")) $("m_nominal").value = "0";
+      if ($("mutDetilTbl")) $("mutDetilTbl").innerHTML = "";
+    }
+
+    // 6. Gambar ulang panel daftar riwayat di sebelah kanan layar (No Ref langsung lenyap)
+    if (typeof renderNoreffList === "function") {
+      renderNoreffList();
+    }
+
+    toast(
+      "Transaksi " +
+        currentNoreff +
+        " dan nomor referensinya berhasil dihapus total!",
+      "ok",
+    );
+  } catch (err) {
+    console.error("🔥 GAGAL HAPUS 1 REFF TRANS:", err.message);
+    toast("Gagal menghapus transaksi: " + err.message, "err");
+  }
 }
 
 /* ================================================================
@@ -2818,7 +3134,6 @@ async function executeHapusMutasiPerCabang() {
       </div>
     </div>`,
   );
-
   document.getElementById("btnKonfirmasiHapusMutasi").onclick =
     async function () {
       var grp = document.getElementById("del_group").value;
@@ -2828,13 +3143,19 @@ async function executeHapusMutasiPerCabang() {
 
       if (!cbg) return toast("Kode Cabang wajib dipilih!", "err");
 
-      var infoFilter = `\nGroup: ${grp}\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg}`;
+      // 🌟 Hitung parameter masa (MMYY) jika bulan dan tahun dipilih
+      var calculatedMasa = "";
+      if (bln && thn) {
+        calculatedMasa = bln + String(thn).substring(2, 4);
+      }
+
+      var infoFilter = `\nGroup: ${grp}\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg}${calculatedMasa ? "\nMasa: " + calculatedMasa : ""}`;
 
       if (
         !confirm(
           "PERINGATAN!\n\nData " +
             label +
-            " dengan kriteria berikut akan dihapus permanen dari Server:" +
+            " dan Referensi Kasir terkait dengan kriteria berikut akan dihapus permanen dari Server:" +
             infoFilter +
             "\n\nLanjutkan?",
         )
@@ -2854,6 +3175,7 @@ async function executeHapusMutasiPerCabang() {
             tahun: thn,
             bulan: bln,
             group: grp,
+            masa: calculatedMasa || null, // 🌟 Kirim parameter masa ke backend
           }),
         });
 
@@ -2861,6 +3183,9 @@ async function executeHapusMutasiPerCabang() {
         if (!response.ok || !result.success)
           throw new Error(result.message || "Gagal menghubungi server");
 
+        // =========================================================================
+        // 🌟 1. BERSIHKAN CACHE LOKAL: mutasikasir
+        // =========================================================================
         var dataDipertahankan = [];
         var allData = DBCache.mutasikasir || [];
 
@@ -2871,24 +3196,48 @@ async function executeHapusMutasiPerCabang() {
             String(item.group || "")
               .trim()
               .toUpperCase() === grp.toUpperCase();
-
-          var cocokTahun = true;
-          if (thn) cocokTahun = item.tanggal && item.tanggal.startsWith(thn);
-
-          var cocokBulan = true;
-          if (thn && bln)
-            cocokBulan =
-              item.tanggal && item.tanggal.startsWith(thn + "-" + bln);
+          var cocokTahun = thn
+            ? item.tanggal && item.tanggal.startsWith(thn)
+            : true;
+          var cocokBulan =
+            thn && bln
+              ? item.tanggal && item.tanggal.startsWith(thn + "-" + bln)
+              : true;
 
           if (cocokCabang && cocokGroup && cocokTahun && cocokBulan) {
-            // Dihapus (tidak masuk array)
+            // Dihapus
           } else {
             dataDipertahankan.push(item);
           }
         }
-
         DBCache.mutasikasir = dataDipertahankan;
 
+        // =========================================================================
+        // 🌟 2. BERSIHKAN CACHE LOKAL: listreffkasir
+        // =========================================================================
+        if (DBCache.listreffkasir && Array.isArray(DBCache.listreffkasir)) {
+          DBCache.listreffkasir = DBCache.listreffkasir.filter(function (ref) {
+            var cocokCabangRef = ref.cabang === cbg;
+            var cocokGroupRef =
+              String(ref.group || "")
+                .trim()
+                .toUpperCase() === grp.toUpperCase();
+
+            var cocokMasaRef = true;
+            if (calculatedMasa) {
+              cocokMasaRef = ref.masa === calculatedMasa;
+            } else if (thn) {
+              // Jika hanya pilih tahun, cek apakah 2 digit belakang masa cocok dengan 2 digit belakang tahun
+              var shortThn = String(thn).substring(2, 4);
+              cocokMasaRef = ref.masa && ref.masa.endsWith(shortThn);
+            }
+
+            // Jika semua kriteria cocok, kembalikan false (artinya dihapus dari cache)
+            return !(cocokCabangRef && cocokGroupRef && cocokMasaRef);
+          });
+        }
+
+        // Render ulang tampilan komponen UI
         renderKasirDetilTable();
         updateKasirHeaderNominal();
         await hitungSaldoOtomatis();
@@ -2897,7 +3246,7 @@ async function executeHapusMutasiPerCabang() {
         renderKasirNoreffList();
 
         toast(
-          `✅ Berhasil menghapus ${result.changes} data ${label} dari Server`,
+          `✅ Berhasil menghapus data ${label} dan Referensi terkait dari Server`,
           "ok",
         );
       } catch (err) {
