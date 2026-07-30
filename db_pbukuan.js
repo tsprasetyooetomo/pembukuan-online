@@ -7,33 +7,41 @@
 // YANG BENAR (Otomatis mengikuti domain tempat web dibuka):
 const API_BASE_URL = window.location.origin;
 let _importSukses = 0;
-
 class PembukuanDB {
   constructor(dbFilePath) {
     this.db = null;
-    // this.dbFilePath = dbFilePath || "./pembukuan.db";
-
     this.dbFilePath =
-      dbFilePath || "D:/karyawan-backend/db_pbukuan/pembukuan.db";
+      dbFilePath || "D:/telaga-html/pembukuan/pembukuan_lokal.db";
     this._putCount = 0;
 
-    // Definisi Skema Tabel
+    // Definisi Skema Tabel dengan Kolom Spesifik
     this.stores = [
-      { name: "golongan" },
-      { name: "perkiraan" },
-      { name: "transaksi" },
-      { name: "users" },
-      { name: "formatRL" },
-      { name: "formatNeraca" },
-      { name: "postedMonths" },
-      { name: "kodeBank" },
-      { name: "cabang" },
-      { name: "detiltransaksi" },
-      { name: "groupproject" }, // <-- TAMBAHKAN INI
-      { name: "saldoKasir" },
-      { name: "mutasikasir" },
-      { name: "saldokasirawal" },
-      { name: "saldo_harian" },
+      { name: "golongan", cols: [] },
+      { name: "perkiraan", cols: [] },
+      {
+        name: "transaksi",
+        cols: [{ name: "noreff", unique: false }],
+      },
+      { name: "users", cols: [] },
+      { name: "formatRL", cols: [] },
+      { name: "formatNeraca", cols: [] },
+      { name: "postedMonths", cols: [] },
+      { name: "kodeBank", cols: [] },
+      { name: "cabang", cols: [] },
+      { name: "detiltransaksi", cols: [] },
+      { name: "groupproject", cols: [] },
+      { name: "saldoKasir", cols: [] },
+      {
+        name: "mutasikasir",
+        cols: [{ name: "noreff", unique: false }],
+      },
+      { name: "saldokasirawal", cols: [] },
+      { name: "saldo_harian", cols: [] },
+      { name: "datasales", cols: [] },
+
+      // 🌟 FLAG BARU: Berikan penanda isListReff agar sistem membedakan skema tabelnya
+      { name: "listreffkasir", cols: [], isListReff: true },
+      { name: "listrefftransaksi", cols: [], isListReff: true },
     ];
   }
 
@@ -44,51 +52,57 @@ class PembukuanDB {
     var sqlite3 = require("sqlite3").verbose();
     var self = this;
 
-    // Ambil path yang sudah mendukung Railway Volume
-    const dbPath = process.env.RAILWAY_VOLUME_MOUNT_PATH
-      ? path.join(process.env.RAILWAY_VOLUME_MOUNT_PATH, "pembukuan.db")
-      : path.join(__dirname, "pembukuan.db");
-
     return new Promise(function (resolve, reject) {
       self.db = new sqlite3.Database(self.dbFilePath, function (err) {
         if (err) return reject(err);
         self.db.run("PRAGMA journal_mode = WAL;");
         self.db.serialize(function () {
           self.stores.forEach(function (store) {
-            // 1. Buat Tabel
-            self.db.run(
-              "CREATE TABLE IF NOT EXISTS " +
-                store.name +
-                " (id TEXT PRIMARY KEY, data TEXT NOT NULL)",
-            );
-
-            // 2. Tambah Kolom & Index Individual
-            store.cols.forEach(function (col) {
-              // Abaikan error jika kolom sudah ada
+            // 🌟 1. BUAT TABEL BERDASARKAN KATEGORI
+            if (store.isListReff) {
+              // Jika tabel listreff, buat murni 5 kolom fisik sesuai permintaan Anda (TANPA KOLOM 'data')
               self.db.run(
-                "ALTER TABLE " +
+                "CREATE TABLE IF NOT EXISTS " +
                   store.name +
-                  " ADD COLUMN " +
-                  col.name +
-                  " TEXT",
-                function () {},
+                  ' (id TEXT PRIMARY KEY, masa TEXT, cabang TEXT, "group" TEXT, noreff TEXT)',
               );
-
-              var u = col.unique ? "UNIQUE " : "";
+            } else {
+              // Tabel default NoSQL/JSON lainnya tetap normal menggunakan kolom 'data'
               self.db.run(
-                "CREATE " +
-                  u +
-                  "INDEX IF NOT EXISTS idx_" +
+                "CREATE TABLE IF NOT EXISTS " +
                   store.name +
-                  "_" +
-                  col.name +
-                  " ON " +
-                  store.name +
-                  " (" +
-                  col.name +
-                  ")",
+                  " (id TEXT PRIMARY KEY, data TEXT NOT NULL)",
               );
-            });
+            }
+
+            // 2. Tambah Kolom & Index Individual (Hanya jika ada definisi kolom tambahan)
+            if (store.cols && store.cols.length > 0) {
+              store.cols.forEach(function (col) {
+                self.db.run(
+                  "ALTER TABLE " +
+                    store.name +
+                    " ADD COLUMN " +
+                    col.name +
+                    " TEXT",
+                  function () {},
+                );
+
+                var u = col.unique ? "UNIQUE " : "";
+                self.db.run(
+                  "CREATE " +
+                    u +
+                    "INDEX IF NOT EXISTS idx_" +
+                    store.name +
+                    "_" +
+                    col.name +
+                    " ON " +
+                    store.name +
+                    " (" +
+                    col.name +
+                    ")",
+                );
+              });
+            }
 
             // 3. Tambah Composite Unique Index (Jika ada)
             if (store.uniqueGroup && store.uniqueGroup.length > 0) {
@@ -540,23 +554,64 @@ class PembukuanDB {
       body: js,
     });
   }
-
   _batchBrowser(storeName, dataArray) {
+    // 1. Ambil nilai group aktif dari filter halaman saat ini (jika ada)
+    let groupFilterValue =
+      typeof getActiveGroupFilter === "function" ? getActiveGroupFilter() : "";
+
+    // 2. Siapkan data cache cabang untuk pencarian fallback otomatis
+    var listCabang = (typeof DBCache !== "undefined" && DBCache.cabang) || [];
+
+    // 🔍 DEBUG FRONTEND
+    console.log("=== DEBUG FRONTEND (SMART DETECT) ===");
+    console.log("Nama Store:", storeName);
+    console.log(
+      "Nilai Group dari Filter Halaman:",
+      groupFilterValue || "(Kosong/Semua Group)",
+    );
+    console.log("Jumlah dataArray asli:", dataArray.length);
+
+    // Sisipkan groupValue ke setiap item secara dinamis
+    const dataDenganGroup = dataArray.map(function (item) {
+      let finalGroup = item.group || groupFilterValue;
+
+      // ✨ JIKA MASIH KOSONG, CARI BERDASARKAN KODE CABANG ITEM TERSEBUT
+      if (!finalGroup && item.cabang) {
+        var cocokCabang = listCabang.find(function (c) {
+          // Samakan kode cabang (misal: '03' atau '3')
+          return (
+            String(c.kode) === String(item.cabang) ||
+            String(c.id) === String(item.cabang)
+          );
+        });
+
+        if (cocokCabang && cocokCabang.group) {
+          finalGroup = cocokCabang.group;
+        }
+      }
+
+      return Object.assign({}, item, {
+        group: finalGroup || "", // Berikan string kosong jika benar-benar tidak ketemu
+      });
+    });
+
+    if (dataDenganGroup.length > 0) {
+      console.log(
+        "Contoh data pertama setelah SMART DETECT:",
+        dataDenganGroup[0],
+      );
+    }
+    console.log("======================================");
+
     return fetch(API_BASE_URL + "/api/batch/" + storeName, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dataArray),
+      body: JSON.stringify(dataDenganGroup),
     }).then(function (res) {
       if (!res.ok) {
-        return res
-          .json()
-          .then(function (err) {
-            throw new Error(err.error || "HTTP " + res.status);
-          })
-          .catch(function (e) {
-            if (e.message && e.message.startsWith("HTTP")) throw e;
-            throw new Error("HTTP " + res.status);
-          });
+        return res.json().then(function (err) {
+          throw new Error(err.error || "HTTP " + res.status);
+        });
       }
       return res.json();
     });
