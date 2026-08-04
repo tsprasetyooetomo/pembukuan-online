@@ -50,39 +50,81 @@ function renderKasHarian() {
     APP_PAGINATION_STATE.kasHarian.current = 1;
   }
 
-  // 2. Gunakan ID unik (fkh_...) dan tambahkan reset halaman pada setiap event onchange sebelum refresh dilakukan
-  return `<div class="flt">
-      <div class="fg"><label>Tgl Awal</label><input type="date" id="fkh_tgl_awal" value="${defaultStart}" onchange="APP_PAGINATION_STATE.kasHarian.current = 1; refreshKasHarian()"></div>
-      <div class="fg"><label>Tgl Akhir</label><input type="date" id="fkh_tgl_akhir" value="${today}" onchange="APP_PAGINATION_STATE.kasHarian.current = 1; refreshKasHarian()"></div>
-      <div class="fg"><label>Cabang</label><select id="fkh_cabang" onchange="APP_PAGINATION_STATE.kasHarian.current = 1; refreshKasHarian()">${getCabangOpts("")}</select></div>
-      <div class="fg"><label>KodeBank/Kas</label><select id="fkh_kodebank" onchange="APP_PAGINATION_STATE.kasHarian.current = 1; refreshKasHarian()"><option value="">Semua</option></select></div>
+  // Ambil group aktif dari session browser untuk dilempar ke parameter getGroupOpts
+  var activeGroupSession = localStorage.getItem("group") || "";
+
+  // 2. Render UI Filter - Semua dropdown dan tombol dipaksa lurus horizontal sejajar satu baris
+  return `<div class="flt" style="display: flex; flex-direction: row; flex-wrap: nowrap !important; gap: .6rem; align-items: flex-end; justify-content: flex-start; height: auto !important; padding: .6rem; min-height: 45px; overflow-x: auto; width: 100%;">
       
-      <!-- TOMBOL EXPORT -->
-      <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
-        <button class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportKasHarian()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> Export XLS</button>
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Tgl Awal</label>
+        <input type="date" id="fkh_tgl_awal" value="${defaultStart}" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
       </div>
-      <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
-        <button class="btn btn-s" style="background-color:#d93025;color:#fff;" onclick="tutupBukuHarian()">
+      
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Tgl Akhir</label>
+        <input type="date" id="fkh_tgl_akhir" value="${today}" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+      </div>
+      
+      <!-- 🌟 ELEMEN GROUP: SEKARANG 100% DINAMIS MENGGUNAKAN FUNGSI getGroupOpts() ANDA -->
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Group</label>
+        <select id="fkh_group" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+          ${getGroupOpts(activeGroupSession)}
+        </select>
+      </div>
+
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Cabang</label>
+        <select id="fkh_cabang" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+          ${getCabangOpts("")}
+        </select>
+      </div>
+      
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 130px; min-width: 110px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">KodeBank/Kas</label>
+        <select id="fkh_kodebank" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+          <option value="">Semua</option>
+        </select>
+      </div>
+      
+      <!-- TOMBOL TERAPKAN MANUAL -->
+      <div class="fg" style="flex: 0 0 auto;">
+        <button class="btn btn-b" style="background-color: #0284c7 !important; color: #fff !important; border-color: #0284c7 !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="refreshKasHarian(false)" title="Terapkan Filter">
+          <i class="fa-solid fa-filter"></i> Terapkan
+        </button>
+      </div>
+
+      <!-- TOMBOL EXPORT -->
+      <div class="fg" style="flex: 0 0 auto;">
+        <button class="btn btn-s" style="background-color: #107c41 !important; color: #fff !important; border-color: #107c41 !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="exportKasHarian()" title="Download Excel/CSV">
+          <i class="fa-solid fa-file-excel"></i> Export XLS
+        </button>
+      </div>
+      
+      <!-- TOMBOL TUTUP BUKU -->
+      <div class="fg" style="flex: 0 0 auto;">
+        <button class="btn btn-s" style="background-color: #8e24aa !important; color: #fff !important; border-color: #8e24aa !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="tutupBukuHarian()">
           <i class="fa-solid fa-save"></i> Tutup Buku / Simpan Saldo
         </button>
       </div>
     </div>
     <div id="kasHarianTbl"></div>
-    
-    <!-- Wadah tempat tombol navigasi angka halaman digambar oleh sistem -->
     <div id="kasHarianPagination" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:5px;"></div>
   `;
 }
 
 async function tutupBukuHarian() {
-  // 1. Ambil parameter dari filter UI
-  var tglAwal = $("fk_tgl_awal").value;
-  var tglAkhir = $("fk_tgl_akhir").value;
-  var cab = $("fk_cabang").value || "Pusat";
-  var selectedChar = $("fk_kodebank").value;
-  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ Tambahkan filter group agar data konsisten
+  // 🌟 FIX 1: Ambil data filter secara dinamis dari elemen fkh_...
+  var tglAwal = $("fkh_tgl_awal").value;
+  var tglAkhir = $("fkh_tgl_akhir").value;
+  var cab = $("fkh_cabang").value || "Pusat";
+  var selectedChar = $("fkh_kodebank").value;
 
-  console.log(activeGroup);
+  // 🔥 PERBAIKAN UTAMA: Ambil nilai Group dari dropdown HTML layar, fallback ke localStorage jika element belum siap
+  var activeGroup = $("fkh_group")
+    ? $("fkh_group").value
+    : localStorage.getItem("group") || "TLGA";
 
   if (!selectedChar) {
     if (typeof toast === "function") toast("Pilih Kode Bank/Kas dulu!", "wrn");
@@ -90,13 +132,26 @@ async function tutupBukuHarian() {
     return;
   }
 
-  // 2. Konfirmasi tindakan pengguna terlebih dahulu
   var ok = confirm(
-    `Tutup buku dan perbarui saldo harian?\nPeriode: ${tglAwal} s/d ${tglAkhir}`,
+    `Tutup buku dan perbarui saldo harian?\nPeriode: ${tglAwal} s/d ${tglAkhir}\nGroup: ${activeGroup}\nKode Bank/Kas: ${selectedChar}`,
   );
   if (!ok) return;
 
-  // 3. GENERATE SELURUH TANGGAL & HITUNG SALDO PER HARI (DAILY LOOP)
+  try {
+    if (typeof toast === "function")
+      toast("Menarik data jurnal transaksi dari server...", "info");
+
+    // Ambil data transaksi spesifik berdasarkan rentang waktu, cabang, dan group akuntansi aktif dari dropdown layar
+    var responseTrx = await fetch(
+      `/api/data/transaksi?cabang=${encodeURIComponent(cab)}&group=${activeGroup}`,
+    );
+    if (responseTrx.ok) {
+      DBCache.transaksi = await responseTrx.json();
+    }
+  } catch (err) {
+    console.error("Gagal menarik data transaksi pembukuan untuk saldo:", err);
+  }
+
   var daftarSaldoHarian = [];
   var dateStart = new Date(tglAwal);
   var dateEnd = new Date(tglAkhir);
@@ -104,15 +159,13 @@ async function tutupBukuHarian() {
   // Ambil saldo awal mutlak untuk tanggal awal proses
   var runningSaldo = await getSaldoAwalClient(cab, selectedChar, tglAwal);
 
-  // ✅ PERBAIKAN BUG LOOP TANGGAL: Gunakan variabel penanda baru agar tidak merusak objek dateStart asli
+  // Loop tanggal harian
   for (var d = new Date(dateStart); d <= dateEnd; d.setDate(d.getDate() + 1)) {
-    // ✅ PERBAIKAN TANGGAL ACUAN: Gunakan d.getFullYear() dsb. agar terhindar dari bug timezone minus 1 hari akibat toISOString()
     var yyyy = d.getFullYear();
     var mm = String(d.getMonth() + 1).padStart(2, "0");
     var dd = String(d.getDate()).padStart(2, "0");
     var tglLoop = yyyy + "-" + mm + "-" + dd;
 
-    // Ambil transaksi khusus untuk tanggal hari berjalan ini
     var transaksiHariIni = (
       Array.isArray(DBCache.transaksi) ? DBCache.transaksi : []
     ).filter(function (t) {
@@ -120,25 +173,28 @@ async function tutupBukuHarian() {
       var tCab = t.cabang || "Pusat";
       if (cab && tCab !== cab) return false;
 
-      // ✅ Tambahkan validasi kecocokan group data
+      // Validasi kecocokan group data secara dinamis
       if ((t.group || "TLGA") !== activeGroup) return false;
 
       var tReff = t.noreff || "";
-      var tChar = tReff.length >= 4 ? tReff.charAt(3) : " ";
-      return tChar === selectedChar;
+      return tReff.toUpperCase().startsWith(String(selectedChar).toUpperCase());
     });
 
     // Hitung mutasi di hari tersebut
     var mutasiHariIni = 0;
     transaksiHariIni.forEach(function (t) {
-      var type = (t.noreff || "").substring(0, 2).toLowerCase();
-      var amt = num(t.db) || num(t.cr) || num(t.nominal) || 0;
-      if (type === "kp") mutasiHariIni += amt;
-      else if (type === "kk") mutasiHariIni -= amt;
-      else mutasiHariIni += num(t.db) - num(t.cr);
+      var keyRef = (t.noreff || "").toLowerCase();
+      var amt = num(t.total) || num(t.db || 0) || num(t.cr || 0);
+
+      if (keyRef.includes("kasir") || keyRef.charAt(1) === "p") {
+        if (keyRef.includes("k-")) mutasiHariIni += amt;
+        else if (keyRef.includes("p-")) mutasiHariIni -= amt;
+        else mutasiHariIni += num(t.db || 0) - num(t.cr || 0);
+      } else {
+        mutasiHariIni += num(t.db || 0) - num(t.cr || 0);
+      }
     });
 
-    // Akumulasikan saldo akhir untuk hari berjalan ini
     runningSaldo = runningSaldo + mutasiHariIni;
 
     daftarSaldoHarian.push({
@@ -164,11 +220,12 @@ async function tutupBukuHarian() {
       );
     else
       alert("Seluruh data saldo harian periode tersebut berhasil diperbarui!");
-    if (typeof refreshKasHarian === "function") refreshKasHarian();
+
+    if (typeof refreshKasHarian === "function") refreshKasHarian(false);
   } else {
     if (typeof toast === "function")
-      toast("Gagal memperbarui saldo. Periksa log konsol.", "err");
-    else alert("Gagal memperbarui saldo. Periksa log konsol.");
+      toast("Gagal memperbarui saldo. Periksa log konsol backend Anda.", "err");
+    else alert("Gagal memperbarui saldo. Periksa log konsol backend Anda.");
   }
 }
 
@@ -182,16 +239,19 @@ async function simpanSnapshotSaldo(
   try {
     const kodeCabang = cabang || "Pusat";
     const kodeChar = char4 || " ";
-    const activeGroup = localStorage.getItem("group") || "TLGA";
 
-    console.log("=== MEMULAI ANALISIS PROSES SIMPAN ===");
-    console.log(
-      "Jumlah baris data terdeteksi:",
-      daftarSaldo ? daftarSaldo.length : 0,
-    );
+    // 🔥 PERBAIKAN UTAMA: Ambil nilai Group dari dropdown HTML layar agar sinkron saat penyimpanan database batch
+    const activeGroup = $("fkh_group")
+      ? $("fkh_group").value
+      : localStorage.getItem("group") || "TLGA";
 
-    // Endpoint Clear Range
-    await fetch(API_BASE_URL + "/api/saldo-harian/clear-range", {
+    var partsMasa = String(tanggalAwal).split("-");
+    const calculatedMasaSnapshot = partsMasa[1] + partsMasa[0].substring(2, 4);
+
+    console.log("=== MEMULAI PROSES SIMPAN SALDO HARIAN ===");
+
+    // 1. Bersihkan range lama di backend
+    await fetch(window.location.origin + "/api/saldo-harian/clear-range", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -199,37 +259,33 @@ async function simpanSnapshotSaldo(
         char4: kodeChar,
         tanggalAwal: tanggalAwal,
         tanggalAkhir: tanggalAkhir,
-        masa: masaFix,
-        group: activeGroup, // ✅ Sertakan parameter group saat clear data lama
+        masa: calculatedMasaSnapshot,
+        group: activeGroup, // Dikirim secara dinamis
       }),
     });
 
-    // ✅ PERBAIKAN PAYLOAD: Sesuaikan mapping ID agar unik per group dan gunakan schema document store yang sama dengan POST sebelumnya jika disimpan dalam satu kolom data
+    // 2. Petakan payload data murni sesuai skema kolom database SQLite
     const dataSiapSimpan = daftarSaldo.map((item) => {
-      const payloadRaw = {
-        id: `${kodeCabang}_${kodeChar}_${activeGroup}_${item.tanggal}`, // ✅ Tambah unsur group di primary key
+      return {
+        id: `${kodeCabang}_${kodeChar}_${activeGroup}_${item.tanggal}`,
         cabang: kodeCabang,
         char4: kodeChar,
         tanggal: item.tanggal,
         saldo_akhir: item.saldoAkhir,
         group: activeGroup,
+        masa: calculatedMasaSnapshot,
       };
-
-      // Catatan: Jika backend /api/batch/saldo_harian mengharapkan format {id, data: JSON}, gunakan penyesuaian di bawah ini.
-      // Namun jika tabel Anda kolomnya bertipe reguler/flat (bukan JSONB), struktur payloadRaw langsung di bawah ini sudah benar:
-      return payloadRaw;
     });
 
-    console.log(
-      "Jumlah data setelah diformat siap kirim:",
-      dataSiapSimpan.length,
+    // 3. Tembak massal ke batch API
+    var response = await fetch(
+      window.location.origin + `/api/batch/saldo_harian`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(dataSiapSimpan),
+      },
     );
-
-    var response = await fetch(API_BASE_URL + `/api/batch/saldo_harian`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(dataSiapSimpan),
-    });
 
     if (!response.ok) return false;
     return await response.json();
@@ -239,28 +295,40 @@ async function simpanSnapshotSaldo(
   }
 }
 
-/* ---------- FUNGSI EXPORT KAS HARIAN ---------- */
 function exportKasHarian() {
   // 1. Ambil data langsung dari wadah global hasil render layar
-  var groupedData = DATA_KAS_AKTIF.groupedData;
-  var saldoAwalMaster = DATA_KAS_AKTIF.saldoAwalMaster;
+  var groupedData = DATA_KAS_AKTIF ? DATA_KAS_AKTIF.groupedData : [];
+  var saldoAwalMaster = DATA_KAS_AKTIF
+    ? num(DATA_KAS_AKTIF.saldoAwalMaster)
+    : 0;
 
   // 2. Validasi jika data di layar masih kosong
   if (!groupedData || groupedData.length === 0) {
-    alert(
-      "Tidak ada data di layar yang bisa di-export! Silakan refresh atau pilih filter data terlebih dahulu.",
-    );
+    if (typeof toast === "function") {
+      toast(
+        "Tidak ada data di layar yang bisa di-export! Silakan klik Terapkan filter data terlebih dahulu.",
+        "wrn",
+      );
+    } else {
+      alert(
+        "Tidak ada data di layar yang bisa di-export! Silakan klik Terapkan filter data terlebih dahulu.",
+      );
+    }
     return;
   }
 
-  // 3. Ambil parameter tanggal dan cabang hanya untuk penamaan file
-  var tglAwal = $("fk_tgl_awal").value;
-  var tglAkhir = $("fk_tgl_akhir").value;
-  var cab = $("fk_cabang").value;
+  // 🌟 FIX 1: Ambil parameter filter secara akurat dari ID fkh_... (Termasuk Group baru)
+  var tglAwal = $("fkh_tgl_awal") ? $("fkh_tgl_awal").value : "";
+  var tglAkhir = $("fkh_tgl_akhir") ? $("fkh_tgl_akhir").value : "";
+  var cab = $("fkh_cabang") ? $("fkh_cabang").value : "";
+  var grp = $("fkh_group")
+    ? $("fkh_group").value
+    : localStorage.getItem("group") || "TLGA";
 
-  // --- 4. BANGUN CSV / EXCEL ---
+  // --- 3. BANGUN STRUKTUR SPREADSHEET ---
+  // 🌟 FIX 2: SUNTIKKAN BOM \uFEFF di awal agar Excel otomatis memisahkan kolom titik koma (;) tanpa berantakan
   var csvContent =
-    "Tanggal;Dari/Kepada;No Ref (Unik);Awal;Debit;Kredit;Akhir\r\n";
+    "\uFEFFTanggal;Dari/Kepada;No Ref (Unik);Awal;Debit;Kredit;Akhir\r\n";
   var runBal = saldoAwalMaster;
   var totalDb = 0;
   var totalCr = 0;
@@ -268,16 +336,19 @@ function exportKasHarian() {
 
   groupedData.forEach(function (t) {
     if (lastDate !== null && lastDate !== t.tanggal) {
-      csvContent += ";;;;;;\r\n"; // Baris pemisah antar tanggal
+      csvContent += ";;;;;;\r\n"; // Baris kosong pemisah estetika antar tanggal laporan
     }
     lastDate = t.tanggal;
     var saldoAwalRow = runBal;
-    runBal += t.db - t.cr;
-    var cleanDariKe = (t.dariKePada || "").replace(/;/g, ",");
-    var cleanReff = (t.noreff || "").replace(/;/g, ",");
+
+    // Akumulasi berjalan untuk kolom saldo awal dan akhir baris
+    runBal += num(t.db) - num(t.cr);
+
+    var cleanDariKe = (t.dariKePada || t.desc || "-").replace(/;/g, ",");
+    var cleanReff = (t.noreff || "-").replace(/;/g, ",");
 
     csvContent +=
-      t.tanggal +
+      (t.tanggal || "-") +
       ";" +
       cleanDariKe +
       ";" +
@@ -285,20 +356,20 @@ function exportKasHarian() {
       ";" +
       saldoAwalRow +
       ";" +
-      t.db +
+      num(t.db) +
       ";" +
-      t.cr +
+      num(t.cr) +
       ";" +
       runBal +
       "\r\n";
 
-    totalDb += t.db;
-    totalCr += t.cr;
+    totalDb += num(t.db);
+    totalCr += num(t.cr);
   });
 
-  // Baris Total Akumulasi
+  // Baris Total Akumulasi spreadsheet di bagian paling bawah
   csvContent +=
-    ";;TOTAL NYA;" +
+    ";;TOTAL REKAPITULASI;" +
     groupedData.length +
     " ref;" +
     totalDb +
@@ -308,12 +379,16 @@ function exportKasHarian() {
     (totalDb - totalCr) +
     "\r\n";
 
-  // --- 5. DOWNLOAD FILE ---
+  // --- 4. PROSES DOWNLOAD BLOB FILE CSV ---
   var blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   var link = document.createElement("a");
   var url = URL.createObjectURL(blob);
+
+  // 🌟 FIX 3: Sertakan parameter nama Group (grp) ke dalam penamaan file spreadsheet
   var namaFile =
     "Laporan_Kas_Harian_" +
+    (grp || "ALL") +
+    "_" +
     (cab || "Semua") +
     "_" +
     tglAwal +
@@ -329,11 +404,12 @@ function exportKasHarian() {
   document.body.removeChild(link);
 
   if (typeof toast === "function") {
-    toast("Laporan kas berhasil diunduh.");
+    toast("Laporan kas harian berhasil diunduh.", "ok");
   } else {
-    alert("Laporan kas berhasil diunduh.");
+    alert("Laporan kas harian berhasil diunduh.");
   }
 }
+
 // Pastikan variabel global penampung data kas aktif Anda sudah siap
 window.DATA_KAS_AKTIF = window.DATA_KAS_AKTIF || {};
 
@@ -343,7 +419,8 @@ async function refreshKasHarian(isSwitchPage = false) {
     !$("fkh_tgl_awal") ||
     !$("fkh_tgl_akhir") ||
     !$("fkh_cabang") ||
-    !$("fkh_kodebank")
+    !$("fkh_kodebank") ||
+    !$("fkh_group")
   ) {
     return;
   }
@@ -352,22 +429,27 @@ async function refreshKasHarian(isSwitchPage = false) {
   var tglAkhir = $("fkh_tgl_akhir").value;
   var cab = $("fkh_cabang").value;
 
+  // 🌟 FIX 1: Ambil nilai Group secara dinamis dari dropdown HTML layar
+  var activeGroup = $("fkh_group").value;
+
   // =========================================================================
-  // 🌟 FIX LOGIKA OPTIMASI DROPDOWN BANK
-  // Hanya buat ulang daftar dropdown JIKA user mengubah filter utama (bukan saat ganti halaman)
+  // 🌟 OPTIMASI DROPDOWN BANK (Hanya dijalankan saat klik tombol Terapkan)
   // =========================================================================
   if (!isSwitchPage) {
-    var filteredBanks = DBCache.kodeBank.filter(function (b) {
-      if (!cab) return true;
-      var bankCabang = b.cabang || "Pusat";
-      return bankCabang === cab;
+    var bankList = Array.isArray(DBCache.kodeBank) ? DBCache.kodeBank : [];
+    var filteredBanks = bankList.filter(function (b) {
+      var matchCabang = !cab || (b.cabang || "Pusat") === cab;
+      var matchGroup = (b.group || "TLGA") === activeGroup;
+      return matchCabang && matchGroup;
     });
 
     var digitMap = {};
     filteredBanks.forEach(function (b) {
-      var fullKode = b.kodebank || "";
-      var char4 = fullKode.length >= 4 ? fullKode.charAt(3) : " ";
-      var penj = b.penjelasan || "Bank " + char4;
+      var fullKode = b.kodebank || b.kode_bank || "";
+      // Gunakan karakter ke-4 atau karakter terakhir sebagai penanda unik indeks
+      var char4 =
+        fullKode.length >= 4 ? fullKode.charAt(3) : fullKode.slice(-1) || " ";
+      var penj = b.penjelasan || b.nama_bank || "Bank " + char4;
       if (!digitMap[char4]) digitMap[char4] = [];
       if (digitMap[char4].indexOf(penj) === -1) digitMap[char4].push(penj);
     });
@@ -399,97 +481,140 @@ async function refreshKasHarian(isSwitchPage = false) {
   }
 
   var selectedChar = $("fkh_kodebank").value;
+  var tblContainer = $("kasHarianTbl");
 
-  // --- 2. FILTER DATA TRANSAKSI ---
-  var filteredData = DBCache.transaksi.filter(function (t) {
-    var isDateOk = true;
-    if (tglAwal && tglAkhir) {
-      isDateOk = t.tanggal && t.tanggal >= tglAwal && t.tanggal <= tglAkhir;
-    } else if (tglAwal) {
-      isDateOk = t.tanggal && t.tanggal >= tglAwal;
-    } else if (tglAkhir) {
-      isDateOk = t.tanggal && t.tanggal <= tglAkhir;
-    }
-    if (!isDateOk) return false;
-    var transCab = t.cabang || "Pusat";
-    if (cab && transCab !== cab) return false;
-    if (selectedChar !== "") {
-      var transReff = t.noreff || "";
-      var transChar4 = transReff.length >= 4 ? transReff.charAt(3) : " ";
-      if (transChar4 !== selectedChar) return false;
-    }
-    return true;
-  });
-
-  // --- 3. GROUPING DATA ---
-  var groupedMap = {};
-  filteredData.forEach(function (t) {
-    var keyRef = t.noreff || "-";
-    var typeIndicator = keyRef.substring(0, 2).toLowerCase();
-    var currentDb = 0,
-      currentCr = 0;
-    var rawAmount =
-      num(t.db || 0) ||
-      num(t.cr || 0) ||
-      num(t.nominal || 0) ||
-      num(t.jumlah || 0);
-
-    if (typeIndicator === "kp") {
-      currentDb = rawAmount;
-    } else if (typeIndicator === "kk") {
-      currentCr = rawAmount;
-    } else {
-      currentDb = num(t.db || 0);
-      currentCr = num(t.cr || 0);
+  // =========================================================================
+  // 🌟 PROSES TARIK DATA & FILTERING (HANYA SAAT KLIK TOMBOL TERAPKAN)
+  // =========================================================================
+  if (!isSwitchPage) {
+    if (tblContainer) {
+      tblContainer.innerHTML =
+        '<div style="padding:2rem; text-align:center;"><span class="spinner"></span><br>Sedang memuat rekapan kas dari server...</div>';
     }
 
-    if (!groupedMap[keyRef]) {
-      groupedMap[keyRef] = {
-        tanggal: t.tanggal || "-",
-        dariKePada: t.dariKePada || t.keterangan || "UMUM",
-        noreff: keyRef,
-        db: 0,
-        cr: 0,
-        cabang: t.cabang || "Pusat",
-      };
+    try {
+      // 🌟 KUNCI LAZY LOADING: Tarik data mutasi spesifik dari server secara terarah
+      var url = `/api/data/transaksi?group=${activeGroup}`;
+      if (cab) url += `&cabang=${encodeURIComponent(cab)}`;
+
+      var response = await fetch(url);
+      if (!response.ok)
+        throw new Error("Gagal mengunduh data jurnal dari server");
+
+      var rawServerData = await response.json();
+      var dataMutasi = Array.isArray(rawServerData) ? rawServerData : [];
+
+      // --- A. FILTER RENTANG TANGGAL & KODE BANK INDEKS ---
+      var filteredData = dataMutasi.filter(function (t) {
+        var isDateOk = true;
+        if (tglAwal && tglAkhir) {
+          isDateOk = t.tanggal && t.tanggal >= tglAwal && t.tanggal <= tglAkhir;
+        } else if (tglAwal) {
+          isDateOk = t.tanggal && t.tanggal >= tglAwal;
+        } else if (tglAkhir) {
+          isDateOk = t.tanggal && t.tanggal <= tglAkhir;
+        }
+        if (!isDateOk) return false;
+
+        // Cocokkan Kode Bank berdasarkan karakter indeks pemicu
+        if (selectedChar !== "") {
+          var transReff = t.noreff || "";
+          var transChar4 = transReff.length >= 4 ? transReff.charAt(3) : " ";
+          if (transChar4 !== selectedChar) return false;
+        }
+        return true;
+      });
+
+      // --- B. GROUPING DATA BERDASARKAN NOMOR REFERENSI (NOTAL) ---
+      var groupedMap = {};
+      filteredData.forEach(function (t) {
+        var keyRef = t.noreff || "-";
+        var typeIndicator = keyRef.substring(0, 2).toLowerCase();
+        var currentDb = 0,
+          currentCr = 0;
+        var rawAmount = num(t.db || t.total || 0);
+
+        if (keyRef.includes("kasir") || keyRef.charAt(1) === "p") {
+          if (keyRef.includes("k-"))
+            currentDb = rawAmount; // Masuk
+          else if (keyRef.includes("p-"))
+            currentCr = rawAmount; // Keluar
+          else {
+            currentDb = num(t.db || 0);
+            currentCr = num(t.cr || 0);
+          }
+        } else {
+          currentDb = num(t.db || 0);
+          currentCr = num(t.cr || 0);
+        }
+
+        if (!groupedMap[keyRef]) {
+          groupedMap[keyRef] = {
+            tanggal: t.tanggal || "-",
+            dariKePada: t.dariKePada || t.desc || t.keterangan || "UMUM",
+            noreff: keyRef,
+            db: 0,
+            cr: 0,
+            cabang: t.cabang || "Pusat",
+          };
+        }
+        groupedMap[keyRef].db += currentDb;
+        groupedMap[keyRef].cr += currentCr;
+      });
+
+      var groupedData = Object.values(groupedMap);
+
+      // Urutkan data secara kronologis tanggal dan nomor urut akhir nota
+      groupedData.sort(function (a, b) {
+        var dateComp = a.tanggal.localeCompare(b.tanggal);
+        if (dateComp !== 0) return dateComp;
+        var suffixA = a.noreff.substring(Math.max(0, a.noreff.length - 8));
+        var suffixB = b.noreff.substring(Math.max(0, b.noreff.length - 8));
+        return suffixA.localeCompare(suffixB);
+      });
+
+      // --- C. AMBIL SALDO AWAL SPREADSHEET ---
+      var saldoAwalMaster = 0;
+      if (selectedChar !== "") {
+        saldoAwalMaster = await getSaldoAwalClient(cab, selectedChar, tglAwal);
+      }
+
+      // Simpan data olahan matang ke state global memori aktif halaman
+      if (typeof DATA_KAS_AKTIF === "undefined") DATA_KAS_AKTIF = {};
+      DATA_KAS_AKTIF.saldoAwalMaster = saldoAwalMaster;
+      DATA_KAS_AKTIF.groupedData = groupedData;
+    } catch (error) {
+      console.error("🔥 Gagal memproses data kas harian:", error.message);
+      if (tblContainer)
+        tblContainer.innerHTML = `<div style="color:var(--accent); padding:2rem; text-align:center;">⚠️ Gagal memuat data kas: ${error.message}</div>`;
+      return;
     }
-    groupedMap[keyRef].db += currentDb;
-    groupedMap[keyRef].cr += currentCr;
-  });
-
-  var groupedData = Object.values(groupedMap);
-  groupedData.sort(function (a, b) {
-    var dateComp = a.tanggal.localeCompare(b.tanggal);
-    if (dateComp !== 0) return dateComp;
-    var suffixA = a.noreff.substring(Math.max(0, a.noreff.length - 8));
-    var suffixB = b.noreff.substring(Math.max(0, b.noreff.length - 8));
-    return suffixA.localeCompare(suffixB);
-  });
-
-  // --- 4. AMBIL SALDO AWAL CLIENT ---
-  var saldoAwalMaster = 0;
-  if (selectedChar !== "") {
-    saldoAwalMaster = await getSaldoAwalClient(cab, selectedChar, tglAwal);
   }
 
+  // =========================================================================
+  // 🌟 PROSES PAGINATION LAZY ROWS GENERATION (HANYA MEMBACA CACHE MATANG)
+  // =========================================================================
+  var finalGroupedData = DATA_KAS_AKTIF ? DATA_KAS_AKTIF.groupedData || [] : [];
+  var finalSaldoMaster = DATA_KAS_AKTIF
+    ? num(DATA_KAS_AKTIF.saldoAwalMaster)
+    : 0;
+
   var rows = [],
-    runBal = saldoAwalMaster,
+    runBal = finalSaldoMaster,
     totalDb = 0,
     totalCr = 0;
   var lastDate = null;
 
-  // --- 5. LOOPING DATA KRONOLOGIS KE ROW TABEL ---
-  groupedData.forEach(function (t) {
-    // Tambah pemisah visual jika tanggal berganti
+  // Bangun seluruh struktur baris kronologis menggunakan data olahan di memori
+  finalGroupedData.forEach(function (t) {
     if (lastDate !== null && lastDate !== t.tanggal) {
-      rows.push(["", "", "", "", "", "", "", "", ""]);
+      rows.push(["", "", "", "", "", "", "", "", ""]); // Baris pemisah visual antar tanggal laporan
     }
     lastDate = t.tanggal;
     var saldoAwalRow = runBal;
     runBal += t.db - t.cr;
 
-    var cabangLabel = t.cabang || "-";
-    var viewBtnHtml = `<button type="button" class="btn btn-s btn-a" style="padding:2px 6px;" onclick="showDetailReff('${esc(t.noreff)}', '${esc(t.cabang)}')"><i class="fa-solid fa-eye"></i> View</button>`;
+    var viewBtnHtml = `<button type="button" class="btn btn-s btn-a" style="padding:2px 6px;" onclick="showDetailReff('${esc(t.noreff)}', '${esc(t.cabang)}', '${esc(t.group)}')"><i class="fa-solid fa-eye"></i> View</button>`;
 
     rows.push([
       t.tanggal,
@@ -499,18 +624,14 @@ async function refreshKasHarian(isSwitchPage = false) {
       fmtN(t.db),
       fmtN(t.cr),
       fmtN(runBal),
-      esc(cabangLabel),
+      esc(lookupCabangLabel(t.cabang) || "Pusat"),
       viewBtnHtml,
     ]);
     totalDb += t.db;
     totalCr += t.cr;
   });
 
-  // Simpan data state aktif ke global
-  DATA_KAS_AKTIF.saldoAwalMaster = saldoAwalMaster;
-  DATA_KAS_AKTIF.groupedData = groupedData;
-
-  // Susun Header & Footer Tabel UI
+  // Susun Footer rekapitulasi data tabel
   var headers = [
     "Tanggal",
     "Dari/Kepada",
@@ -526,7 +647,7 @@ async function refreshKasHarian(isSwitchPage = false) {
     "",
     "",
     "",
-    groupedData.length + " ref unik",
+    finalGroupedData.length + " ref unik",
     fmtN(totalDb),
     fmtN(totalCr),
     fmtN(totalDb - totalCr),
@@ -534,211 +655,225 @@ async function refreshKasHarian(isSwitchPage = false) {
     "",
   ];
 
-  // =========================================================================
-  // 🌟 AMBIL DATA HALAMAN AKTIF & SLICE DENGAN BENAR
-  // =========================================================================
-  var tblContainer = $("kasHarianTbl");
+  // Ambil halaman pemotongan data aktif
   if (tblContainer) {
     const currentPage = APP_PAGINATION_STATE.kasHarian.current || 1;
     const pageSize = APP_PAGINATION_STATE.kasHarian.size || 20;
-
     const startIndex = (currentPage - 1) * pageSize;
+
+    // Potong baris tabel murni hanya sebanyak 20 baris per halaman aktif layar monitor Anda
     const paginatedRows = rows.slice(startIndex, startIndex + pageSize);
 
-    // Render Tabel Utama dengan baris terpotong
     tblContainer.innerHTML = wrapTable(
       buildTable(headers, paginatedRows, {
         numCols: [4, 5, 6],
         foot: foot,
-        emptyMsg: "Tidak ada data",
+        emptyMsg:
+          "Tidak ada data kas. Silakan sesuaikan kriteria filter lalu klik Terapkan kembali.",
       }),
     );
 
-    // 🌟 RENDER NAVIGASI TOMBOL ANGKA DI BAWAH TABEL
     renderPagination("kasHarian", rows.length);
   }
 }
 
 // 🌟 MAKSURKAN KE SCOPE GLOBAL WINDOW AGAR BISA DIAKSES OLEH gantiHalamanUniversal
 window.refreshKasHarian = refreshKasHarian;
-
-// ====== FILE FRONTEND (Misal: kasharian.js atau app.js) ======
-/* ---------- HELPER: AMBIL SALDO AWAL (READ SALDO_HARIAN) ---------- */
-async function getSaldoAwalClient(cabang, tglAwal) {
+async function getSaldoAwalClient(cabang, kodeBankKas, tglAwal) {
   var cab = cabang || "Pusat";
 
-  // 1. Pastikan data saldo_harian sudah ada di memori (DBCache)
-  if (!DBCache.saldo_harian) {
-    console.log("Fetching saldo_harian...");
-    DBCache.saldo_harian = await db.getAll("saldo_harian");
-  }
+  // 🔥 AMBIL PARAMETER GROUP SECARA DINAMIS DARI LAYAR FORM KAS
+  var activeGroup = $("fkh_group")
+    ? $("fkh_group").value
+    : localStorage.getItem("group") || "TLGA";
 
-  // ✅ KEAMAN: Pastikan selalu berupa Array
-  var rawSaldoHarian = Array.isArray(DBCache.saldo_harian)
-    ? DBCache.saldo_harian
-    : typeof DBCache.saldo_harian === "object"
-      ? Object.values(DBCache.saldo_harian || {})
-      : [];
+  // Karena kodeBankKas bisa berupa karakter tunggal indeks pemicu (Contoh: "A", "B", " "),
+  // kita standarisasi parameternya agar query ke backend aman
+  var charPenanda = kodeBankKas || " ";
 
-  // 2. CARI SALDO TERAKHIR DI TABEL saldo_harian SEBELUM tglAwal
-  var listSaldo = rawSaldoHarian.filter(function (s) {
-    // Flexibilitas nama kolom cabang (kode_cabang atau cabang)
-    var sCab = s.kode_cabang || s.cabang || "Pusat";
-    if (sCab !== cab) return false;
+  try {
+    // 🌟 KUNCI UTAMA LAZY LOADING: Tarik saldo terakhir dari server murni berdasarkan kriteria spesifik
+    // Query backend langsung menyaring Cabang, Kode Bank, Group, dan Tanggal sebelum hari berjalan
+    var url = `/api/data/saldo_harian?cabang=${encodeURIComponent(cab)}&group=${activeGroup}`;
+    var response = await fetch(url);
 
-    // Flexibilitas nama kolom tanggal (tgl_awal atau tanggal)
-    var sTgl = s.tgl_awal || s.tanggal || "";
-    // Cari yang tanggalnya sebelum tglAwal
-    return sTgl < tglAwal;
-  });
+    if (response.ok) {
+      var serverSaldoList = await response.json();
+      var listSaldo = Array.isArray(serverSaldoList) ? serverServerList : [];
 
-  // Urutkan dari tanggal terbesar ke terkecil (DESC)
-  listSaldo.sort(function (a, b) {
-    var tglA = a.tgl_awal || a.tanggal || "";
-    var tglB = b.tgl_awal || b.tanggal || "";
-    return tglB.localeCompare(tglA);
-  });
+      // Saring data lokal di memori untuk tanggal sebelum tglAwal dan penanda karakter kode kas yang sama
+      var filteredSaldo = listSaldo.filter(function (s) {
+        var sChar = s.char4 || s.kode_bank || " ";
+        var sTgl = s.tanggal || s.tgl_awal || "";
+        return sChar === charPenanda && sTgl < tglAwal;
+      });
 
-  // Ambil data paling atas (paling mendekati tglAwal)
-  if (listSaldo.length > 0) {
-    var saldoTerakhir = listSaldo[0];
-    // Flexibilitas nama kolom saldo akhir (saldo akhir, saldoakhir, atau akhir)
-    return num(
-      saldoTerakhir["saldo akhir"] ||
-        saldoTerakhir.saldoakhir ||
-        saldoTerakhir.akhir ||
-        0,
+      // Urutkan dari tanggal terbesar ke terkecil (DESC) untuk mengambil snapshot saldo paling dekat
+      filteredSaldo.sort(function (a, b) {
+        var tglA = a.tanggal || a.tgl_awal || "";
+        var tglB = b.tanggal || b.tgl_awal || "";
+        return tglB.localeCompare(tglA);
+      });
+
+      if (filteredSaldo.length > 0) {
+        var saldoTerakhir = filteredSaldo[0];
+        return num(saldoTerakhir.saldo_akhir || saldoTerakhir.saldoakhir || 0);
+      }
+    }
+  } catch (err) {
+    console.error(
+      "⚠️ Gagal menarik data saldo harian dari server:",
+      err.message,
     );
   }
 
-  // 3. FALLBACK: Jika tidak ada riwayat di saldo_harian, ambil dari saldokasirawal
-  if (!DBCache.saldokasirawal) {
-    console.log("Fetching saldokasirawal...");
-    DBCache.saldokasirawal = await db.getAll("saldokasirawal");
-  }
+  // 🌟 FALLBACK JALUR 2: Jika tidak ada riwayat di saldo_harian, fetch data dari saldokasirawal di server
+  try {
+    var urlAwal = `/api/data/saldokasirawal?cabang=${encodeURIComponent(cab)}&group=${activeGroup}`;
+    var responseAwal = await fetch(urlAwal);
 
-  var listSaldoAwal = (DBCache.saldokasirawal || []).filter(function (s) {
-    var sCab = s.kode_cabang || s.cabang || "Pusat";
-    if (sCab !== cab) return false;
+    if (responseAwal.ok) {
+      var serverSaldoAwal = await responseAwal.json();
+      var listSaldoAwal = Array.isArray(serverSaldoAwal) ? serverSaldoAwal : [];
 
-    var sTgl = s.tgl_awal || s.tanggal || "";
-    return sTgl < tglAwal;
-  });
+      var filteredAwal = listSaldoAwal.filter(function (s) {
+        var sChar = s.char4 || s.kode_bank || " ";
+        var sTgl = s.tanggal || s.tgl_awal || "";
+        return sChar === charPenanda && sTgl < tglAwal;
+      });
 
-  listSaldoAwal.sort(function (a, b) {
-    var tglA = a.tgl_awal || a.tanggal || "";
-    var tglB = b.tgl_awal || b.tanggal || "";
-    return tglB.localeCompare(tglA);
-  });
+      filteredAwal.sort(function (a, b) {
+        var tglA = a.tanggal || a.tgl_awal || "";
+        var tglB = b.tanggal || b.tgl_awal || "";
+        return tglB.localeCompare(tglA);
+      });
 
-  if (listSaldoAwal.length > 0) {
-    var saldoTerakhir = listSaldoAwal[0];
-    return num(
-      saldoTerakhir["saldo akhir"] ||
-        saldoTerakhir.saldoakhir ||
-        saldoTerakhir.akhir ||
-        0,
+      if (filteredAwal.length > 0) {
+        var saldoAwalRow = filteredAwal[0];
+        return num(
+          saldoAwalRow.saldo_akhir ||
+            saldoAwalRow.saldoakhir ||
+            saldoAwalRow.awal ||
+            0,
+        );
+      }
+    }
+  } catch (errAwal) {
+    console.error(
+      "⚠️ Gagal menarik data saldo kasir awal dari server:",
+      errAwal.message,
     );
   }
 
-  // Jika dari kedua tabel tidak ada, kembalikan 0
+  // Jika dari kedua tabel di database server tidak ada riwayat sama sekali, kembalikan 0
   return 0;
 }
-// --- FUNGSI MODAL RINCIAN (UPDATE: TAMBAH KOLOM CABANG & SUPPORT SEMUA CABANG) ---
-// --- FUNGSI MODAL RINCIAN (VERSI SPESIFIK: MENGUNCI SESUAI BARIS YANG DIKLIK) ---
-function showDetailReff(noReff, rowCabang) {
-  // ✅ 1. TARGET CABANG DIAMBIL DARI BARIS YANG DIKLIK
-  // Kita mengabaikan filter global ($("fk_cabang")) dan memakai parameter input fungsi ini.
-  var targetCab = rowCabang || "Pusat";
 
-  // ✅ 2. FILTER TRANSAKSI (STRICT: NO REF + CABANG BARIS)
-  var detailData = DBCache.transaksi.filter(function (t) {
-    // Cek No Ref
-    if (t.noreff !== noReff) return false;
+// --- FUNGSI MODAL RINCIAN (VERSI SPESIFIK: FETCH DATA REAL-TIME SAAT DIKLIK) ---
+async function showDetailReff(noreffTarget, clickedCabang, clickedGroup) {
+  var targetCab = clickedCabang || "Pusat";
 
-    // Cek Cabang: Harus sama persis dengan cabang di baris tabel yang diklik
-    if (String(t.cabang || "Pusat") !== String(targetCab)) {
-      return false;
+  // Memprioritaskan data group dari baris tabel, jika kosong baru ambil dari filter/localStorage
+  var activeGroup =
+    clickedGroup ||
+    ($("fkh_group")
+      ? $("fkh_group").value
+      : localStorage.getItem("group") || "TLGA");
+
+  try {
+    if (typeof toast === "function")
+      toast("Menarik rincian jurnal dari server...", "info");
+
+    // 🌟 SEKARANG MENGIKUTI POLA FETCH ONNOREFFCLICKED SECARA PERSIS
+    var response = await fetch(
+      `/api/data/transaksi?search=${encodeURIComponent(noreffTarget)}&cabang=${targetCab}&group=${activeGroup}`,
+    );
+
+    if (!response.ok)
+      throw new Error("Gagal mengunduh rincian detail transaksi");
+
+    var detailData = await response.json();
+
+    if (!detailData || detailData.length === 0) {
+      alert(
+        `Detail transaksi jurnal tidak ditemukan untuk No Ref: ${noreffTarget} (Cabang: ${targetCab})`,
+      );
+      return;
     }
 
-    return true;
-  });
+    // 📝 3. BANGUN TABEL HTML KELAS DETAIL JURNAL MODAL
+    var subRows = detailData
+      .map(function (t) {
+        var noPerkiraan = t.noperkiraan || t.noPerkiraan || t.kode_akun || "-";
+        var description = t.desc || t.keterangan || "-";
+        var cabangLabel = lookupCabangLabel(t.cabang) || t.cabang || "Pusat";
 
-  if (detailData.length === 0) {
-    alert("Detail transaksi tidak ditemukan untuk Cabang: " + targetCab);
-    return;
-  }
+        return (
+          "<tr>" +
+          '<td style="padding:8px; border:1px solid #ddd;">' +
+          esc(t.tanggal || "-") +
+          "</td>" +
+          '<td style="padding:8px; border:1px solid #ddd;">' +
+          esc(noPerkiraan) +
+          "</td>" +
+          '<td style="padding:8px; border:1px solid #ddd;">' +
+          esc(description) +
+          "</td>" +
+          '<td style="padding:8px; border:1px solid #ddd; text-align:right;">' +
+          fmtN(num(t.db || 0)) +
+          "</td>" +
+          '<td style="padding:8px; border:1px solid #ddd; text-align:right;">' +
+          fmtN(num(t.cr || 0)) +
+          "</td>" +
+          '<td style="padding:8px; border:1px solid #ddd; font-weight:600; color:var(--accent);">' +
+          esc(cabangLabel) +
+          "</td>" +
+          "</tr>"
+        );
+      })
+      .join("");
 
-  // ✅ 3. BUILD TABEL HTML
-  var subRows = detailData
-    .map(function (t) {
-      var noPerkiraan =
-        t.noperkiraan || t.noPerkiraan || t.kodeAkun || t.akun || "-";
-      var description = t.desc || t.keterangan || t.dariKePada || "-";
+    var html =
+      '<div style="font-family:sans-serif; width: 100%; overflow-x: auto;">' +
+      '<table style="width:100%; border-collapse:collapse; margin-top:5px; font-size:14px;">' +
+      "<thead>" +
+      '<tr style="background:#f5f5f5; border-bottom:2px solid #ddd;">' +
+      '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:100px;">Tanggal</th>' +
+      '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:100px;">No Perkiraan</th>' +
+      '<th style="padding:8px; text-align:left; border:1px solid #ddd;">Desc</th>' +
+      '<th style="padding:8px; text-align:right; border:1px solid #ddd; width:110px;">Debet</th>' +
+      '<th style="padding:8px; text-align:right; border:1px solid #ddd; width:110px;">Kredit</th>' +
+      '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:120px;">Cabang</th>' +
+      "</tr>" +
+      "</thead>" +
+      "<tbody>" +
+      subRows +
+      "</tbody>" +
+      "</table>" +
+      "</div>";
 
-      // Ambil Label Cabang untuk tampilan yang lebih rapi di modal
-      var cabangLabel = lookupCabangLabel(t.cabang) || t.cabang || "Pusat";
+    var foot =
+      '<button type="button" class="btn btn-g" onclick="closeModal()">Tutup</button>';
 
-      return (
-        "<tr>" +
-        '<td style="padding:8px; border:1px solid #ddd;">' +
-        esc(t.tanggal || "-") +
-        "</td>" +
-        '<td style="padding:8px; border:1px solid #ddd;">' +
-        esc(noPerkiraan) +
-        "</td>" +
-        '<td style="padding:8px; border:1px solid #ddd;">' +
-        esc(description) +
-        "</td>" +
-        '<td style="padding:8px; border:1px solid #ddd; text-align:right;">' +
-        fmtN(num(t.db || 0)) +
-        "</td>" +
-        '<td style="padding:8px; border:1px solid #ddd; text-align:right;">' +
-        fmtN(num(t.cr || 0)) +
-        "</td>" +
-        // Kolom Cabang di dalam detail
-        '<td style="padding:8px; border:1px solid #ddd; font-weight:600; color:var(--accent);">' +
-        esc(cabangLabel) +
-        "</td>" +
-        "</tr>"
-      );
-    })
-    .join("");
+    // Buka jendela layar modal rincian akuntansi kas
+    openModal(
+      "Rincian Jurnal: " + noreffTarget + " (" + targetCab + ")",
+      html,
+      foot,
+    );
 
-  var html =
-    '<div style="font-family:sans-serif; width: 100%; overflow-x: auto;">' +
-    '<table style="width:100%; border-collapse:collapse; margin-top:5px; font-size:14px;">' +
-    "<thead>" +
-    '<tr style="background:#f5f5f5; border-bottom:2px solid #ddd;">' +
-    '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:100px;">Tanggal</th>' +
-    '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:100px;">No Perkiraan</th>' +
-    '<th style="padding:8px; text-align:left; border:1px solid #ddd;">Desc</th>' +
-    '<th style="padding:8px; text-align:right; border:1px solid #ddd; width:110px;">Debet</th>' +
-    '<th style="padding:8px; text-align:right; border:1px solid #ddd; width:110px;">Kredit</th>' +
-    '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:120px;">Cabang</th>' +
-    "</tr>" +
-    "</thead>" +
-    "<tbody>" +
-    subRows +
-    "</tbody>" +
-    "</table>" +
-    "</div>";
-
-  var foot =
-    '<button type="button" class="btn btn-g" onclick="closeModal()">Tutup</button>';
-
-  // Tampilkan Kode Cabang di Judul Modal agar jelas
-  openModal("Rincian: " + noReff + " (" + targetCab + ")", html, foot);
-
-  // Atur ukuran modal agar muat kolom cabang
-  var modalFrame =
-    document.querySelector(".modal-box") ||
-    document.querySelector(".modal-content") ||
-    document.querySelector("#modal");
-
-  if (modalFrame) {
-    modalFrame.style.width = "100%";
-    modalFrame.style.maxWidth = "1000px";
+    // Sesuaikan lebar bingkai modal agar muat berbaris horizontal
+    var modalFrame =
+      document.querySelector(".modal-box") ||
+      document.querySelector(".modal-content") ||
+      document.querySelector("#modal");
+    if (modalFrame) {
+      modalFrame.style.width = "100%";
+      modalFrame.style.maxWidth = "1000px";
+    }
+  } catch (error) {
+    console.error("🔥 Gagal memuat modal rincian:", error.message);
+    alert("Gagal memuat rincian detail: " + error.message);
   }
 }
 
@@ -754,58 +889,97 @@ function renderInputHarian() {
     APP_PAGINATION_STATE.inputHarian.current = 1;
   }
 
-  // 2. Render UI Filter & Wadah Tabel + Pagination
-  return `<div class="flt">
-      <div class="fg">
-        <label>Periode</label>
-        <select id="fi_periode" onchange="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian(false)">
+  // Ambil group aktif dari session browser untuk dilempar ke parameter getGroupOpts
+  var activeGroupSession = localStorage.getItem("group") || "";
+
+  // 2. Render UI Filter dengan dropdown Group dinamis dari fungsi getGroupOpts()
+  return `<div class="flt" style="display: flex; flex-direction: row; flex-wrap: nowrap !important; gap: .6rem; align-items: flex-end; justify-content: flex-start; height: auto !important; padding: .6rem; min-height: 45px; overflow-x: auto; width: 100%;">
+      
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Periode</label>
+        <select id="fi_periode" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
           <option value="bulan">Bulanan</option>
           <option value="tahun">Tahunan</option>
         </select>
       </div>
-      <div class="fg"><label>Bulan/Tahun</label><input type="month" id="fi_bulan" value="${today}" onchange="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian(false)"></div>
-      <div class="fg"><label>Cabang</label><select id="fi_cabang" onchange="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian(false)">${getCabangOpts("")}</select></div>
-      <div class="fg"><label>Kode Trans</label><input type="text" id="fi_ktrans" class="in" placeholder="Semua" oninput="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian(false)"></div>
-      <div class="fg"><label>Min. Nilai</label><input type="number" id="fi_nilai" class="in" value="0" oninput="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian(false)"></div>
-      <div class="fg">
-        <label>Golongan</label>
-        <select id="fi_gol" onchange="APP_PAGINATION_STATE.inputHarian.current = 1; refreshInputHarian(false)">
+      
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Bulan/Tahun</label>
+        <input type="month" id="fi_bulan" value="${today}" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+      </div>
+      
+      <!-- 🌟 ELEMEN GROUP: SEKARANG 100% DINAMIS MENGGUNAKAN FUNGSI getGroupOpts() ANDA -->
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Group</label>
+        <select id="fi_group" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+          ${getGroupOpts(activeGroupSession)}
+        </select>
+      </div>
+
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Cabang</label>
+        <select id="fi_cabang" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+          ${getCabangOpts("")}
+        </select>
+      </div>
+      
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Kode Trans</label>
+        <input type="text" id="fi_ktrans" class="in" placeholder="Semua" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+      </div>
+      
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 90px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Min. Nilai</label>
+        <input type="number" id="fi_nilai" class="in" value="0" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+      </div>
+      
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 130px; min-width: 120px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Golongan</label>
+        <select id="fi_gol" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
           <option value="">Semua</option>
         </select>
       </div>
-      <div class="fg" style="display:flex; align-items:flex-end; padding-bottom:2px;">
-        <button class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportInputHarian()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> Export XLS</button>
+      
+      <!-- TOMBOL TERAPKAN MANUAL -->
+      <div class="fg" style="flex: 0 0 auto;">
+        <button class="btn btn-b" style="background-color: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="refreshInputHarian(false)" title="Terapkan Filter">
+          <i class="fa-solid fa-filter"></i> Terapkan
+        </button>
+      </div>
+      
+      <!-- TOMBOL EXPORT -->
+      <div class="fg" style="flex: 0 0 auto;">
+        <button class="btn btn-s" style="background-color: #107c41 !important; color: #fff !important; border-color: #107c41 !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="exportInputHarian()" title="Download Excel/CSV">
+          <i class="fa-solid fa-file-excel"></i> Export XLS
+        </button>
       </div>
     </div>
     <div id="inputHarianTbl"></div>
-    
-    <!-- 🌟 WADAH ELEMEN PAGINATION HARIAN DENGAN ID YANG SESUAI TARGET STATE -->
     <div id="inputHarianPagination" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:5px;"></div>`;
 }
 
-// Pastikan variabel penampung cache global Anda sudah dideklarasikan di luar fungsi
 var CACHE_INPUT_HARIAN_FILTERED = CACHE_INPUT_HARIAN_FILTERED || [];
 var FOOTER_INPUT_HARIAN_TOTAL = FOOTER_INPUT_HARIAN_TOTAL || [];
 
 async function refreshInputHarian(isSwitchPage = false) {
+  // 🌟 FIX 1: Tambahkan validasi elemen fisik fi_group yang baru ke gerbang pengaman awal
   if (
     !$("fi_periode") ||
     !$("fi_bulan") ||
     !$("fi_cabang") ||
     !$("fi_ktrans") ||
     !$("fi_nilai") ||
-    !$("fi_gol")
+    !$("fi_gol") ||
+    !$("fi_group")
   ) {
     return;
   }
 
-  // 🌟 FIX LOGIKA OPTIMASI:
-  // Jika variabel cache sudah ada isinya DAN parameter isSwitchPage bernilai true,
-  // LANGSUNG LOMPAT KE TAHAP RENDER tanpa menyentuh IndexedDB lagi.
+  // Jika hanya pindah halaman pagination, langsung gunakan data cache memori
   if (isSwitchPage && CACHE_INPUT_HARIAN_FILTERED.length > 0) {
-    // Lewati proses pembacaan DB, langsung lanjut ke bagian bawah (Render UI)
+    // Lewati proses fetch ke server, langsung lompat ke rendering UI di bawah
   } else {
-    // 🌟 Jika isSwitchPage = false (Tombol Terapkan diklik / awal muat), lakukan filter ulang penuh
+    // Jika isSwitchPage = false (Tombol Terapkan diklik), tarik data segar dari server sesuai filter
     var periode = $("fi_periode").value,
       bln = $("fi_bulan").value,
       cab = $("fi_cabang").value,
@@ -813,139 +987,145 @@ async function refreshInputHarian(isSwitchPage = false) {
       nilai = num($("fi_nilai").value),
       gol = $("fi_gol").value;
 
-    // Ambil data langsung dari db IndexedDB
-    var rawData = await db.getAll("transaksi");
-    var data = (rawData || []).slice();
+    // 🌟 FIX 2: Ambil nilai Group secara dinamis dari dropdown HTML layar (#fi_group)
+    var activeGroup = $("fi_group").value;
 
-    // --- 1. FILTER PERIODE WAKTU ---
-    if (periode === "bulan" && bln) {
-      data = data.filter(function (t) {
-        return t.tanggal && t.tanggal.startsWith(bln);
-      });
-    } else if (periode === "tahun" && bln) {
-      var tahunSaja = bln.substring(0, 4);
-      data = data.filter(function (t) {
-        return t.tanggal && t.tanggal.startsWith(tahunSaja);
-      });
+    // Ubah filter bulan/tahun YYYY-MM menjadi parameter masa MMYY
+    var formatMasaParam = "";
+    if (bln && bln.includes("-")) {
+      var parts = bln.split("-");
+      formatMasaParam = parts[1] + parts[0].substring(2, 4);
     }
 
-    // --- 2. FILTER KODE TRANSAKSI ---
-    if (ktrans) {
-      data = data.filter(function (t) {
-        return t.kodeTrans === ktrans;
-      });
+    var tblContainer = $("inputHarianTbl");
+    if (tblContainer && !isSwitchPage) {
+      tblContainer.innerHTML =
+        '<div style="padding:2rem; text-align:center;"><span class="spinner"></span><br>Sedang menarik data dari server...</div>';
     }
 
-    // --- 3. FILTER CABANG ---
-    if (cab) {
-      data = data.filter(function (t) {
-        return (t.cabang || "Pusat") === cab;
-      });
-    }
+    try {
+      // 🌟 KUNCI UTAMA: Ambil data On-Demand dari server backend menggunakan filter group dinamis
+      var url = `/api/data/transaksi?group=${activeGroup}`;
+      if (cab) url += `&cabang=${encodeURIComponent(cab)}`;
+      if (ktrans) url += `&search=${encodeURIComponent(ktrans)}`;
 
-    // --- 4. FILTER NOMINAL NILAI ---
-    if (nilai > 0) {
-      data = data.filter(function (t) {
-        var nilaiAktif =
-          num(t.total) ||
-          num(t.db || 0) ||
-          num(t.cr || 0) ||
-          num(t.nominal || 0);
-        return nilaiAktif >= nilai;
-      });
-    }
+      var response = await fetch(url);
+      if (!response.ok) throw new Error("Gagal mengambil data dari server");
 
-    // --- 5. FILTER GOLONGAN PERKIRAAN ---
-    if (gol) {
-      var gp = DBCache.perkiraan
-        .filter(function (p) {
-          return p.gol === gol;
-        })
-        .map(function (p) {
-          return p.noPerk || p.noperkiraan || p.kode_akun;
-        });
+      var rawServerData = await response.json();
+      var data = Array.isArray(rawServerData) ? rawServerData : [];
 
-      if (gp.length) {
+      // --- 1. FILTER PERIODE WAKTU (POST-SERVER SINKRONISASI) ---
+      if (periode === "bulan" && bln) {
         data = data.filter(function (t) {
-          var akunTransaksi =
-            t.noperkiraan || t.noPerkiraan || t.kodeTrans || "";
-          return gp.indexOf(akunTransaksi) !== -1;
+          return t.tanggal && t.tanggal.startsWith(bln);
         });
-      } else {
-        data = [];
+      } else if (periode === "tahun" && bln) {
+        var tahunSaja = bln.substring(0, 4);
+        data = data.filter(function (t) {
+          return t.tanggal && t.tanggal.startsWith(tahunSaja);
+        });
       }
+
+      // --- 2. FILTER NOMINAL NILAI MINIMAL ---
+      if (nilai > 0) {
+        data = data.filter(function (t) {
+          var nilaiAktif = num(t.total) || num(t.db || 0) || num(t.cr || 0);
+          return nilaiAktif >= nilai;
+        });
+      }
+
+      // --- 3. FILTER GOLONGAN PERKIRAAN INDEPENDEN ---
+      if (gol) {
+        var gp = (DBCache.perkiraan || [])
+          .filter(function (p) {
+            return p.gol === gol;
+          })
+          .map(function (p) {
+            return p.noPerk || p.noperkiraan || p.kode_akun;
+          });
+
+        if (gp.length) {
+          data = data.filter(function (t) {
+            var akunTransaksi = t.noperkiraan || t.noPerkiraan || "";
+            return gp.indexOf(akunTransaksi) !== -1;
+          });
+        } else {
+          data = [];
+        }
+      }
+
+      // --- 4. URUTKAN DATA KRONOLOGIS ---
+      data.sort(function (a, b) {
+        var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
+        if (dateComp !== 0) return dateComp;
+        return (a.id || "").localeCompare(b.id || "");
+      });
+
+      // Simpan hasil data terfilter ke memori cache halaman
+      CACHE_INPUT_HARIAN_FILTERED = data;
+
+      // 📊 5. HITUNG AKUMULASI TOTAL DI FOOTER TABEL
+      var sumTotal = 0,
+        sumDb = 0,
+        sumCr = 0;
+      data.forEach(function (r) {
+        var keyRef = r.noreff || "";
+        var indicator = keyRef.charAt(1).toLowerCase();
+        var rawAmount = num(r.total) || num(r.db || 0) || num(r.cr || 0);
+
+        if (indicator === "p") {
+          sumCr += rawAmount;
+        } else if (indicator === "k") {
+          sumDb += rawAmount;
+        } else {
+          sumDb += num(r.db || 0);
+          sumCr += num(r.cr || 0);
+        }
+        sumTotal += rawAmount;
+      });
+
+      FOOTER_INPUT_HARIAN_TOTAL = [
+        "",
+        "",
+        "",
+        "",
+        fmtN(sumTotal),
+        fmtN(sumDb),
+        fmtN(sumCr),
+        "",
+      ];
+    } catch (err) {
+      console.error("🔥 Gagal memuat data input harian:", err.message);
+      if (tblContainer)
+        tblContainer.innerHTML = `<div style="color:var(--accent); padding:2rem; text-align:center;">⚠️ Gagal memuat data: ${err.message}</div>`;
+      CACHE_INPUT_HARIAN_FILTERED = [];
+      return;
     }
-
-    // --- 6. URUTKAN DATA KRONOLOGIS ---
-    data.sort(function (a, b) {
-      var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
-      if (dateComp !== 0) return dateComp;
-      return (a.id || "").localeCompare(b.id || "");
-    });
-
-    // Simpan hasil data terfilter ke memori agar bisa dipakai instan saat ganti halaman
-    CACHE_INPUT_HARIAN_FILTERED = data;
-
-    // Hitung akumulasi total di footer
-    var sumTotal = 0,
-      sumDb = 0,
-      sumCr = 0;
-    data.forEach(function (r) {
-      var keyRef = r.noreff || "";
-      var indicator = keyRef.charAt(1).toLowerCase();
-      var rawAmount =
-        num(r.total) || num(r.db || 0) || num(r.cr || 0) || num(r.nominal || 0);
-
-      if (indicator === "p") {
-        sumCr += rawAmount;
-      } else if (indicator === "k") {
-        sumDb += rawAmount;
-      } else {
-        sumDb += num(r.db || 0);
-        sumCr += num(r.cr || 0);
-      }
-      sumTotal += rawAmount;
-    });
-
-    FOOTER_INPUT_HARIAN_TOTAL = [
-      "",
-      "",
-      "",
-      "",
-      fmtN(sumTotal),
-      fmtN(sumDb),
-      fmtN(sumCr),
-      "",
-    ];
   }
 
   // =========================================================================
-  // 🌟 PROSES PAGINATION LAZY RENDER (SANGAT CEPAT & RINGAN)
+  // 🌟 PROSES PAGINATION LAZY RENDER (HANYA MENGGAMBAR BARIS AKTIF)
   // =========================================================================
   var tblContainer = $("inputHarianTbl");
   if (tblContainer) {
     const totalDataLength = CACHE_INPUT_HARIAN_FILTERED.length;
 
-    // Ambil penanda indeks halaman aktif berdasarkan state universal harian
     const currentPage = APP_PAGINATION_STATE.inputHarian.current || 1;
     const pageSize = APP_PAGINATION_STATE.inputHarian.size || 20;
-
     const startIndex = (currentPage - 1) * pageSize;
 
-    // Potong data objek mentah per halaman aktif
     const paginatedData = CACHE_INPUT_HARIAN_FILTERED.slice(
       startIndex,
       startIndex + pageSize,
     );
 
-    // Pemetaan data hanya berjalan sebanyak 20 baris data aktif saja
     var paginatedRows = paginatedData.map(function (r) {
       var keyRef = r.noreff || "";
       var indicator = keyRef.charAt(1).toLowerCase();
       var currentDb = 0,
         currentCr = 0;
-      var rawAmount =
-        num(r.total) || num(r.db || 0) || num(r.cr || 0) || num(r.nominal || 0);
+      var rawAmount = num(r.total) || num(r.db || 0) || num(r.cr || 0);
 
       if (indicator === "p") {
         currentCr = rawAmount;
@@ -958,6 +1138,7 @@ async function refreshInputHarian(isSwitchPage = false) {
 
       var isiDesc = r.desc || r.keterangan || "-";
       var acct = r.noperkiraan || "-";
+
       return [
         esc(r.tanggal || "-"),
         esc(keyRef || "-"),
@@ -970,7 +1151,6 @@ async function refreshInputHarian(isSwitchPage = false) {
       ];
     });
 
-    // Kirim data terpotong ke buildTable
     tblContainer.innerHTML = wrapTable(
       buildTable(
         ["Tanggal", "No Ref", "No Acct", "Desc", "Total", "DB", "CR", "Cabang"],
@@ -978,99 +1158,43 @@ async function refreshInputHarian(isSwitchPage = false) {
         {
           numCols: [4, 5, 6],
           foot: FOOTER_INPUT_HARIAN_TOTAL,
-          emptyMsg: "Tidak ada data",
+          emptyMsg:
+            "Tidak ada data. Silakan sesuaikan kriteria filter lalu klik Terapkan kembali.",
         },
       ),
     );
 
-    // Panggil fungsi render navigasi tombol halaman universal
     renderPagination("inputHarian", totalDataLength);
   }
 }
 
 // 🌟 DAFTARKAN KE GLOBAL WINDOW AGAR BISA DIAKSES OLEH gantiHalamanUniversal
 window.refreshInputHarian = refreshInputHarian;
-// 🌟 1. BUAT VARIABEL MEMORI LOKAL (Letakkan di luar fungsi / di bagian atas file)
 
 function exportInputHarian() {
-  if (
-    !$("fi_periode") ||
-    !$("fi_bulan") ||
-    !$("fi_cabang") ||
-    !$("fi_ktrans") ||
-    !$("fi_nilai") ||
-    !$("fi_gol")
-  ) {
-    return;
+  // 🌟 FIX UTAMA: Langsung ambil data yang sudah matang dan terfilter dari cache memori layar aktif
+  var data = Array.isArray(CACHE_INPUT_HARIAN_FILTERED)
+    ? CACHE_INPUT_HARIAN_FILTERED
+    : [];
+
+  if (data.length === 0) {
+    return toast(
+      "Tidak ada data aktif di tabel untuk di-export! Silakan klik Terapkan filter terlebih dahulu.",
+      "wrn",
+    );
   }
 
-  var periode = $("fi_periode").value,
-    bln = $("fi_bulan").value,
-    cab = $("fi_cabang").value,
-    ktrans = $("fi_ktrans").value,
-    nilai = num($("fi_nilai").value),
-    gol = $("fi_gol").value;
+  var bln = $("fi_bulan") ? $("fi_bulan").value : "";
+  var cab = $("fi_cabang") ? $("fi_cabang").value : "";
 
-  var data = DBCache.transaksi.slice();
+  // 🔥 PERBAIKAN: Ambil nilai Group dinamis dari dropdown HTML layar untuk penamaan file spreadsheet
+  var grp = $("fi_group")
+    ? $("fi_group").value
+    : localStorage.getItem("group") || "TLGA";
 
-  // --- 1. FILTER DATA (Sama persis dengan filter refresh tabel) ---
-  if (periode === "bulan" && bln) {
-    data = data.filter(function (t) {
-      return t.tanggal && t.tanggal.startsWith(bln);
-    });
-  } else if (periode === "tahun" && bln) {
-    var tahunSaja = bln.substring(0, 4);
-    data = data.filter(function (t) {
-      return t.tanggal && t.tanggal.startsWith(tahunSaja);
-    });
-  }
-
-  if (ktrans) {
-    data = data.filter(function (t) {
-      return t.kodeTrans === ktrans;
-    });
-  }
-  if (cab) {
-    data = data.filter(function (t) {
-      return (t.cabang || "Pusat") === cab;
-    });
-  }
-
-  if (nilai > 0) {
-    data = data.filter(function (t) {
-      var nilaiAktif =
-        num(t.total) || num(t.db || 0) || num(t.cr || 0) || num(t.nominal || 0);
-      return nilaiAktif >= nilai;
-    });
-  }
-
-  if (gol) {
-    var gp = DBCache.perkiraan
-      .filter(function (p) {
-        return p.gol === gol;
-      })
-      .map(function (p) {
-        return p.noPerk || p.noperkiraan || p.kode_akun;
-      });
-    if (gp.length) {
-      data = data.filter(function (t) {
-        var akunTransaksi = t.noperkiraan || t.noPerkiraan || t.kodeTrans || "";
-        return gp.indexOf(akunTransaksi) !== -1;
-      });
-    } else {
-      data = [];
-    }
-  }
-
-  // --- 2. SORT DATA BERDASARKAN TANGGAL KRONOLOGIS ---
-  data.sort(function (a, b) {
-    var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
-    if (dateComp !== 0) return dateComp;
-    return (a.id || "").localeCompare(b.id || "");
-  });
-
-  // --- 3. STRUKTURISASI DATA CSV EXCEL (7 KOLOM) ---
-  var csvContent = "Tanggal;No Ref;Desc;Total;DB;CR;Cabang\r\n";
+  // --- 1. STRUKTURISASI DATA CSV EXCEL (8 KOLOM SINKRON) ---
+  // Gunakan BOM UTF-8 (\uFEFF) agar Microsoft Excel langsung membaca tanda pemisah titik koma (;) secara otomatis tanpa berantakan
+  var csvContent = "\uFEFFTanggal;No Ref;No Acct;Desc;Total;DB;CR;Cabang\r\n";
 
   var sumTotal = 0,
     sumDb = 0,
@@ -1082,10 +1206,9 @@ function exportInputHarian() {
 
     var currentDb = 0;
     var currentCr = 0;
-    var rawAmount =
-      num(r.total) || num(r.db || 0) || r.cr || 0 || num(r.nominal || 0);
+    var rawAmount = num(r.total) || num(r.db || 0) || num(r.cr || 0);
 
-    // ATURAN AKUNTANSI TERBARU: p ke CR, k ke DB
+    // ATURAN AKUNTANSI SINKRON: p ke CR, k ke DB
     if (indicator === "p") {
       currentCr = rawAmount;
       currentDb = 0;
@@ -1101,16 +1224,20 @@ function exportInputHarian() {
     sumDb += currentDb;
     sumCr += currentCr;
 
+    var acct = r.noperkiraan || r.noPerkiraan || "-";
     var cleanDesc = (r.desc || r.keterangan || "-").replace(/;/g, ",");
     var labelCabang = (lookupCabangLabel(r.cabang) || "Pusat").replace(
       /;/g,
       ",",
     );
 
+    // Gabungkan baris data ke teks CSV spreadsheet
     csvContent +=
       (r.tanggal || "-") +
       ";" +
       keyRef +
+      ";" +
+      acct +
       ";" +
       cleanDesc +
       ";" +
@@ -1126,15 +1253,22 @@ function exportInputHarian() {
 
   // Baris Total / Footer Spreadsheet
   csvContent +=
-    ";;TOTAL NOMINAL;" + sumTotal + ";" + sumDb + ";" + sumCr + ";\r\n";
+    ";;;TOTAL NOMINAL;" + sumTotal + ";" + sumDb + ";" + sumCr + ";\r\n";
 
-  // --- 4. PROSES UNDUH FILE ---
+  // --- 2. PROSES UNDUH FILE BLOB SPREADSHEET ---
   var blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
   var link = document.createElement("a");
   var url = URL.createObjectURL(blob);
 
+  // 🌟 FIX: Sertakan parameter nama Group (grp) ke dalam konstruksi penamaan file spreadsheet
   var namaFile =
-    "Laporan_Input_Harian_" + (cab || "Semua") + "_" + bln + ".csv";
+    "Laporan_Input_Harian_" +
+    (grp || "ALL") +
+    "_" +
+    (cab || "Semua") +
+    "_" +
+    bln +
+    ".csv";
 
   link.setAttribute("href", url);
   link.setAttribute("download", namaFile);
@@ -1143,8 +1277,9 @@ function exportInputHarian() {
   link.click();
   document.body.removeChild(link);
 
-  if (typeof toast === "function")
-    toast("Laporan input harian berhasil diunduh.");
+  if (typeof toast === "function") {
+    toast("Laporan input harian berhasil diunduh.", "ok");
+  }
 }
 
 PANEL_MAP.saldoKasir = renderLaporanSaldoKasir;
