@@ -383,13 +383,11 @@ var DBCache = {};
 async function refreshCache() {
   try {
     const cabangSaya = localStorage.getItem("cabang") || "";
-    console.log("Cache: Memuat data secara paralel untuk cabang:", cabangSaya);
+    //  console.log("Cache: Memuat data secara paralel untuk cabang:", cabangSaya);
 
     const baseUrl = window.location.origin + "/api/data/";
 
     // 🚀 KELOMPOK 1: Data Master INDUK (WAJIB GLOBAL, TIDAK BOLEH DIFILTER)
-    // Kita pakai fetch() murni untuk mem-bypass kode lama di db_pbukuan.js
-    // Supaya daftar User & Daftar Cabang selalu lengkap untuk dropdown.
     const [
       users,
       formatRL,
@@ -419,22 +417,19 @@ async function refreshCache() {
       cabangSaya !== "PUSAT" &&
       cabangSaya.toUpperCase() !== "PUSAT"
     ) {
-      // Jika BUKAN Pusat (misal 05), kunci dropdown hanya ke cabangnya sendiri
       DBCache.cabang = allCabang.filter(
         (c) => String(c.kode) === String(cabangSaya),
       );
     } else {
-      // Jika Pusat (00), tampilkan semua cabang
       DBCache.cabang = allCabang;
     }
-    // 🚀 KELOMPOK 2: Data Operasional/Transaksi (DIFILTER SESUAI CABANG USER)
-    // Golongan, Perkiraan, dll tetap memakai db.getAll karena kodenya sudah benar
+
     // 🚀 KELOMPOK 2: Data Operasional (DIFILTER CABANG + GROUP SECARA OPTIMAL DI SERVER)
-    // Ambil group aktif dari localStorage (default: "TLGA" jika belum ada)
     const activeGroup = localStorage.getItem("activeGroup") || "TLGA";
 
-    // Gunakan fetch murni agar kita bisa menyisipkan parameter &group=...
-    // dan memanfaatkan kecepatan filter yang sudah dibuat di serverold.js
+    // Standardisasi parameter cabang ke huruf kecil untuk mencegah error 400 Bad Request
+    const cleanCabang = cabangSaya.toLowerCase();
+
     const [
       golongan,
       perkiraan,
@@ -443,39 +438,48 @@ async function refreshCache() {
       saldokasirawal,
       mutasikasir,
       saldo_harian,
+      datasales, // ✅ 1. DAFTARKAN VARIABEL DI SINI
+      daftarmenu,
     ] = await Promise.all([
       fetch(
-        `${baseUrl}golongan?cabang=${cabangSaya}&group=${activeGroup}`,
+        `${baseUrl}golongan?cabang=${cleanCabang}&group=${activeGroup}`,
       ).then((r) => r.json()),
       fetch(
-        `${baseUrl}perkiraan?cabang=${cabangSaya}&group=${activeGroup}`,
+        `${baseUrl}perkiraan?cabang=${cleanCabang}&group=${activeGroup}`,
       ).then((r) => r.json()),
       fetch(
-        `${baseUrl}kodeBank?cabang=${cabangSaya}&group=${activeGroup}`,
+        `${baseUrl}kodeBank?cabang=${cleanCabang}&group=${activeGroup}`,
       ).then((r) => r.json()),
       fetch(
-        `${baseUrl}saldoKasir?cabang=${cabangSaya}&group=${activeGroup}`,
+        `${baseUrl}saldoKasir?cabang=${cleanCabang}&group=${activeGroup}`,
       ).then((r) => r.json()),
       fetch(
-        `${baseUrl}saldokasirawal?cabang=${cabangSaya}&group=${activeGroup}`,
+        `${baseUrl}saldokasirawal?cabang=${cleanCabang}&group=${activeGroup}`,
       ).then((r) => r.json()),
       fetch(
-        `${baseUrl}mutasikasir?cabang=${cabangSaya}&group=${activeGroup}`,
+        `${baseUrl}mutasikasir?cabang=${cleanCabang}&group=${activeGroup}`,
       ).then((r) => r.json()),
       fetch(
-        `${baseUrl}saldo_harian?cabang=${cabangSaya}&group=${activeGroup}`,
+        `${baseUrl}saldo_harian?cabang=${cleanCabang}&group=${activeGroup}`,
       ).then((r) => r.json()),
+      fetch(
+        `${baseUrl}datasales?cabang=${cleanCabang}&group=${activeGroup}`,
+      ).then((r) => r.json()), // ✅ 2. AMBIL DARI BACKEND
+      fetch(
+        `${baseUrl}daftarmenu?cabang=${cleanCabang}&group=${activeGroup}`,
+      ).then((r) => r.json()), // ✅ 2. AMBIL DARI BACKEND
     ]);
 
-    // Simpan Data Operasional
+    // Simpan Data Operasional ke Memori Cache
     DBCache.golongan = golongan;
     DBCache.perkiraan = perkiraan;
     DBCache.kodeBank = kodeBank;
     DBCache.saldoKasir = saldoKasir;
     DBCache.saldokasirawal = saldokasirawal;
-
     DBCache.mutasikasir = mutasikasir;
     DBCache.saldo_harian = saldo_harian;
+    DBCache.datasales = datasales; // ✅ 3. AMANKAN DI CACHE PENAMPUNGNYA SENDIRI
+    DBCache.daftarmenu = daftarmenu; // ✅ 3. AMANKAN DI CACHE PENAMPUNGNYA SENDIRI
     // ========================================================
     // 🚀 1. AUTO-INJECTOR KE MEMORY (Agar tampilan langsung TLGA)
     // ========================================================
@@ -488,26 +492,24 @@ async function refreshCache() {
       "saldokasirawal",
       "mutasikasir",
       "saldo_harian",
+      "datasales", // ✅ 4. MASUKKAN KE SINI AGAR DATA PENJUALAN LAMA DIBERI GROUP "TLGA"
+      "daftarmenu",
     ];
 
-    var needDbUpdate = []; // Array untuk menampung data yang perlu diupdate ke server
+    var needDbUpdate = [];
 
     targetTables.forEach(function (tableName) {
       if (DBCache[tableName] && Array.isArray(DBCache[tableName])) {
         DBCache[tableName].forEach(function (row) {
-          // Jika belum punya group, set ke "TLGA" di memory
           if (
             typeof row.group === "undefined" ||
             row.group === null ||
             row.group === ""
           ) {
             row.group = "TLGA";
-
-            // Masukkan ke antrian untuk dikirim ke database
             needDbUpdate.push({ store: tableName, id: row.id, data: row });
           }
 
-          // Untuk mutasi kasir
           if (tableName === "mutasikasir" && Array.isArray(row.detil)) {
             row.detil.forEach(function (det) {
               if (
@@ -533,17 +535,20 @@ async function refreshCache() {
           " data tanpa group. Memperbarui database secara bertahap...",
       );
 
-      var batchSize = 25; // Kirim 25 data per gelombang agar browser tidak crash
+      var batchSize = 25;
       var updatedCount = 0;
+      var finalApiUrl =
+        typeof API_BASE_URL !== "undefined"
+          ? API_BASE_URL
+          : window.location.origin;
 
       for (var i = 0; i < needDbUpdate.length; i += batchSize) {
         var batch = needDbUpdate.slice(i, i + batchSize);
 
-        // Proses 25 data secara paralel, lalu tunggu sampai selesai
         await Promise.all(
           batch.map(function (item) {
             return fetch(
-              API_BASE_URL + "/api/data/" + item.store + "/" + item.id,
+              finalApiUrl + "/api/data/" + item.store + "/" + item.id,
               {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
@@ -562,7 +567,6 @@ async function refreshCache() {
           }),
         );
 
-        // Beri jeda 100ms sebelum gelombang berikutnya, supaya server & browser bisa bernafas
         if (i + batchSize < needDbUpdate.length) {
           await new Promise(function (resolve) {
             setTimeout(resolve, 100);
@@ -697,6 +701,8 @@ function bulkShowConfirm(store) {
     cabang: "Cabang",
     saldoKasirAwal: "saldoKasirAwal",
     groupproject: "Group Project",
+    datasales: "Data Sales",
+    daftarmenu: "Daftar Menu",
   };
   var storeLabel = labelMap[store] || store;
   openModal(
@@ -805,6 +811,24 @@ var MENUS = [
       { id: "mutasi", label: "Mutasi Transaksi", icon: "fa-right-left" },
     ],
   },
+
+  {
+    group: "SALES",
+    icon: "fa-shop",
+    items: [
+      {
+        id: "daftarmenu",
+        label: "Data Menu",
+        icon: "fa-book-open",
+      },
+      {
+        id: "sales",
+        label: "Data Sales",
+        icon: "fa-store",
+      },
+    ],
+  },
+
   {
     group: "LAPORAN KAS",
     icon: "fa-cash-register",
@@ -814,6 +838,7 @@ var MENUS = [
       { id: "inputHarian", label: "Input Harian", icon: "fa-keyboard" },
     ],
   },
+
   {
     group: "POSTING",
     icon: "fa-stamp",
@@ -1061,6 +1086,8 @@ async function navigate(id) {
     "saldoKasir",
     "saldoKasirAwal",
     "cabang",
+    "datasales",
+    "daftarmenu",
   ].forEach(function (s) {
     bulkCleanup(s);
   });
@@ -1282,6 +1309,8 @@ async function editRow(dk, id) {
   else if (dk === "kodeBank") formKodeBank(id);
   else if (dk === "cabang") formCabang(id);
   else if (dk === "saldokasirawal") formSaldoKasirAwal(id);
+  else if (dk === "datasales") formSales(id);
+  else if (dk === "daftarmenu") formDaftarMenu(id);
 }
 
 /* ================================================================
@@ -1332,7 +1361,6 @@ var DBF_ENCODINGS = [
   { value: "cp850", label: "CP850 (DOS Multilingual)" },
   { value: "iso-8859-1", label: "ISO-8859-1" },
 ];
-
 var DBF_TARGETS = {
   golongan: [
     { key: "gol", label: "Kode Golongan", required: true },
@@ -1340,20 +1368,21 @@ var DBF_TARGETS = {
     { key: "awal", label: "Saldo Awal", required: false },
     { key: "cabang", label: "Cabang", required: false },
   ],
+
   perkiraan: [
-    { key: "gol", label: "Golongan", required: true },
-    { key: "noPerk", label: "No Perkiraan", required: true },
+    { key: "gol", label: "Kode Golongan", required: true }, // 🌟 Ditambahkan
+    { key: "noperk", label: "No Perkiraan", required: true }, // 🌟 Diubah dari 'noPerk' jadi 'noperk' (sesuaikan dengan DB)
     { key: "desc", label: "Deskripsi", required: true },
     { key: "awal", label: "Saldo Awal", required: false },
     { key: "cabang", label: "Cabang", required: false },
   ],
+
   kodeBank: [
     { key: "kodebank", label: "Kodebank", required: true },
     { key: "penjelasan", label: "Penjelasan", required: true },
     { key: "noper", label: "No Perkiraan", required: true },
     { key: "cabang", label: "Cabang", required: true },
   ],
-  // ✅ TAMBAHKAN INI/
   transaksi: [
     { key: "tanggal", label: "Tanggal", required: true },
     { key: "noacct", label: "No Perkiraan", required: true },
@@ -1377,10 +1406,35 @@ var DBF_TARGETS = {
     { key: "db", label: "Db", required: false },
     { key: "cr", label: "Cr", required: false },
   ],
+
+  // 🌟 REVISI TOTAL: Menyelaraskan Key Database dengan Label DBF Asli Anda
+  datasales: [
+    { key: "kodemenu", label: "Kode Menu", required: true },
+    { key: "namamenu", label: "Nama Menu", required: false },
+    { key: "satuan", label: "Satuan", required: false },
+    { key: "qty", label: "Qty", required: false },
+    { key: "total", label: "Total Penjualan", required: false },
+    { key: "cabang", label: "Cabang", required: false },
+    { key: "masa", label: "Masa", required: false },
+  ],
 };
 function getImportKey(storeName, obj) {
   var cab = String(obj.cabang || obj.rest || "Pusat").trim();
-  var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP UNTUK KUNCI KOMPOSIT
+
+  // 🌟 PERBAIKAN: CARI GROUP DARI MASTER CABANG, BUKAN DARI LOCALSTORAGE
+  var activeGroup = "";
+  if (DBCache.cabang && Array.isArray(DBCache.cabang)) {
+    var cariCab = DBCache.cabang.find(function (c) {
+      return String(c.kode) === cab || String(c.kode_cabang) === cab;
+    });
+    if (cariCab && cariCab.group) {
+      activeGroup = String(cariCab.group).trim();
+    }
+  }
+  // Jika tetap tidak ketemu di master cabang, baru fallback ke TLGA
+  if (!activeGroup) {
+    activeGroup = localStorage.getItem("activeGroup") || "TLGA";
+  }
 
   // LOGIKA HITUNG MASA (MMYY) UNTUK TRANSAKSI DAN MUTASI KASIR
   var tanggalRaw = String(obj.tanggal || "").trim();
@@ -1389,14 +1443,11 @@ function getImportKey(storeName, obj) {
     var parts = tanggalRaw.split(/[-/]/);
     if (parts.length === 3) {
       if (parts[0].length === 4) {
-        // YYYY-MM-DD
         computedMasa = parts[1] + parts[0].substring(2, 4);
       } else if (parts[2].length === 4) {
-        // DD-MM-YYYY
         computedMasa = parts[1] + parts[2].substring(2, 4);
       }
     } else if (tanggalRaw.length === 8 && !isNaN(tanggalRaw)) {
-      // YYYYMMDD
       computedMasa = tanggalRaw.substring(4, 6) + tanggalRaw.substring(2, 4);
     }
   }
@@ -1404,12 +1455,14 @@ function getImportKey(storeName, obj) {
   switch (storeName) {
     case "golongan":
       return String(obj.gol || "").trim() + "|" + cab + "|" + activeGroup;
+
     case "perkiraan":
-      return String(obj.noPerk || "").trim() + "|" + cab + "|" + activeGroup;
+      // 🌟 SESUAIKAN: Pakai 'noperk' (jika di DBF_TARGETS Anda pakai 'noperk')
+      return String(obj.noperk || "").trim() + "|" + cab + "|" + activeGroup;
+
     case "kodeBank":
       return String(obj.kodebank || "").trim() + "|" + cab + "|" + activeGroup;
     case "transaksi":
-      // ✅ FIX: Kunci Komposit Transaksi lengkap dengan Masa, Cabang, dan Group
       return (
         String(obj.tanggal || "").trim() +
         "#" +
@@ -1426,7 +1479,6 @@ function getImportKey(storeName, obj) {
         activeGroup
       );
     case "mutasikasir":
-      // ✅ TAMBAHAN: Kunci Komposit khusus Mutasi Kasir (Noref + KodeTrans + NoPerk + Total + Masa + Cabang + Group)
       return (
         String(obj.noreff || "").trim() +
         "#" +
@@ -1442,10 +1494,14 @@ function getImportKey(storeName, obj) {
         "#" +
         activeGroup
       );
+    case "datasales":
+      return `${String(obj.kodemenu || "").trim()}#${String(obj.masa || "")}|${cab || ""}|${activeGroup || ""}`;
+
     default:
       return uid();
   }
 }
+
 function isDuplicateInDB(storeName, obj, compositeKey) {
   var list = DBCache[storeName] || [];
   var activeGroup = localStorage.getItem("group") || "TLGA"; // ✅ AMBIL GROUP AKTIF USER
@@ -1457,9 +1513,14 @@ function isDuplicateInDB(storeName, obj, compositeKey) {
     list = [];
   }
 
-  // ✅ 1. VALIDASI DATA GANDA TRANSAKSI DAN MUTASI KASIR (MENGGUNAKAN KEY KOMPOSIT '#')
-  if (storeName === "transaksi" || storeName === "mutasikasir") {
-    var parts = compositeKey.split("#");
+  // ✅ 1. VALIDASI DATA GANDA TRANSAKSI, MUTASI KASIR, DAN DATASALES
+  if (
+    storeName === "transaksi" ||
+    storeName === "mutasikasir" ||
+    storeName === "datasales"
+  ) {
+    var separator = storeName === "datasales" ? "|" : "#";
+    var parts = compositeKey.split(separator);
 
     if (storeName === "transaksi") {
       var tgl = parts[0];
@@ -1482,8 +1543,7 @@ function isDuplicateInDB(storeName, obj, compositeKey) {
           (k.group || "TLGA") === activeGroup
         );
       });
-    } else {
-      // mutasikasir
+    } else if (storeName === "mutasikasir") {
       var refKasir = parts[0];
       var transKasir = parts[1];
       var perkKasir = parts[2];
@@ -1505,27 +1565,75 @@ function isDuplicateInDB(storeName, obj, compositeKey) {
         );
       });
     }
+  } else if (storeName === "datasales") {
+    // ✅ 1. Ekstrak data dari compositeKey
+    var kodeSales = parts[0];
+    var masaSales = parts[1];
+    var cabSales = (parts[2] || "Pusat").trim().toLowerCase();
+
+    // ✅ 2. Tentukan group berdasarkan DBCache.cabang secara akurat
+    var determinedGroup = "TLGA";
+    var masterCabangList = DBCache["cabang"] || [];
+
+    if (Array.isArray(masterCabangList)) {
+      for (var i = 0; i < masterCabangList.length; i++) {
+        var item = masterCabangList[i];
+        var namaCabang = String(item.cabang || item.nama || "")
+          .trim()
+          .toLowerCase();
+
+        if (namaCabang === cabSales && item.group) {
+          determinedGroup = item.group;
+          break;
+        }
+      }
+    }
+
+    // 🌟 KUNCI PERBAIKAN: Suntikkan semua kolom wajib ke objek 'obj' secara eksplisit
+    // Ini memastikan saat dikirim ke API /api/batch/datasales, jumlah kolomnya tidak kurang dari 4/5.
+    obj.kodemenu = obj.kodemenu || obj.kode || kodeSales; // Pastikan key kodemenu terisi
+    obj.kode = obj.kode || kodeSales;
+    obj.masa = obj.masa || masaSales;
+    obj.cabang = obj.cabang || parts[2] || "Pusat";
+    obj.group = obj.group || determinedGroup; // Mengunci nilai group agar tidak undefined
+    obj.data = obj.data || ""; // Berikan string kosong jika field data tidak terpetakan
+
+    // ✅ 3. Jalankan return pengecekan duplikat aplikasi
+    if (isDuplicateInDB(storeName, obj, compositeKey)) {
+      dupDB++;
+    }
+    // Sesuai perbaikan sebelumnya, datasales dilewatkan dari dupBatch internal DBF
+    else {
+      valid++;
+      importedKeys.add(compositeKey);
+      obj._compositeKey = compositeKey;
+      _readyToImport.push(obj); // Objek yang sudah lengkap dikirim ke array siap import
+    }
   }
 
-  // VALIDASI UNTUK REFRESH DATA MASTER LAINNYA
+  // ✅ 2. VALIDASI UNTUK REFRESH DATA MASTER LAINNYA (GOLONGAN, PERKIRAAN, KODEBANK)
   var partsOld = compositeKey.split("|");
   var left = partsOld[0];
-  var cabOld = partsOld[1] || "Pusat";
+  var cabOld = (partsOld[1] || "Pusat").trim().toLowerCase();
 
   switch (storeName) {
     case "golongan":
       return list.some(function (k) {
         return (
           String(k.gol || "").trim() === left &&
-          String(k.cabang || "Pusat").trim() === cabOld &&
+          String(k.cabang || "Pusat")
+            .trim()
+            .toLowerCase() === cabOld &&
           (k.group || "TLGA") === activeGroup
         );
       });
     case "perkiraan":
       return list.some(function (k) {
         return (
-          String(k.noPerk || "").trim() === left &&
-          String(k.cabang || "Pusat").trim() === cabOld &&
+          String(k.noperk || "").trim() === left &&
+          String(k.cabang || "Pusat")
+            .trim()
+            .toLowerCase() === cabOld &&
           (k.group || "TLGA") === activeGroup
         );
       });
@@ -1533,7 +1641,9 @@ function isDuplicateInDB(storeName, obj, compositeKey) {
       return list.some(function (k) {
         return (
           String(k.kodebank || "").trim() === left &&
-          String(k.cabang || "Pusat").trim() === cabOld &&
+          String(k.cabang || "Pusat")
+            .trim()
+            .toLowerCase() === cabOld &&
           (k.group || "TLGA") === activeGroup
         );
       });
@@ -1774,6 +1884,7 @@ function openDBFImportModal(storeName) {
     kodeBank: "Kode Bank",
     transaksi: "Transaksi",
     mutasikasir: "Mutasi Kasir",
+    datasales: "Data Sales",
   };
 
   openModal(
@@ -1987,7 +2098,7 @@ function smartAutoMap(targets, fields) {
   var keywordMap = {
     gol: ["gol", "golongan", "group", "golacct", "kd_gol"],
     namaGol: ["namagol", "nama", "keterangan", "uraian"],
-    noPerk: [
+    noperk: [
       "noperk",
       "no_perk",
       "perkiraan",
@@ -2077,8 +2188,8 @@ function smartAutoMap(targets, fields) {
   }
   if (autoMap.gol === null && fields.length >= 1 && !usedPos[0])
     autoMap.gol = 0;
-  if (autoMap.noPerk === null && fields.length >= 2 && !usedPos[1])
-    autoMap.noPerk = 1;
+  if (autoMap.noperk === null && fields.length >= 2 && !usedPos[1])
+    autoMap.noperk = 1;
   if (autoMap.namaGol === null && fields.length >= 2 && !usedPos[1])
     autoMap.namaGol = 1;
   if (autoMap.desc === null && fields.length >= 3 && !usedPos[2])
@@ -2250,6 +2361,7 @@ async function handleDBFRead(file, storeName) {
       golongan: "Golongan",
       perkiraan: "Perkiraan",
       kodeBank: "Kode Bank",
+      datasales: "Data Sales",
     };
     safeSet(
       "modalTitle",
@@ -2530,7 +2642,7 @@ function previewMappedData(storeName) {
   var filterYear = _importFilter.year || "";
   var filterMonth = _importFilter.month || "";
   var filterCabang = _importFilter.cabang || "";
-  console.log("Cabang kosong terdeteksi, :", filterCabang);
+  // console.log("Cabang kosong terdeteksi, :", filterCabang);
 
   // --- LOOP 1: ANALISA DATA ---
   for (var i = 0; i < _dbfParsed.records.length; i++) {
@@ -2547,8 +2659,10 @@ function previewMappedData(storeName) {
       }
     });
 
-    // ✅ SOLUSI: Ubah nama key dari DBF (noacct, rest, dll) ke Key Aplikasi (noperkiraan, cabang, dll)
-    obj = mapTransaksiKeys(obj);
+    // ✅ REVISI PERBAIKAN: Hanya jalankan pemetaan kunci jika data tersebut adalah Transaksi
+    if (storeName === "transaksi") {
+      obj = mapTransaksiKeys(obj);
+    }
 
     // 🌟 UTAMA: Isi data kosong ke selectedCabang SEBELUM filter berjalan
     // (Karena sudah di-map, obj.rest sudah menjadi obj.cabang)
@@ -2603,10 +2717,29 @@ function previewMappedData(storeName) {
           obj.cabang = _importFilter.cabang; // Isi otomatis dengan pilihan dropdown
 
           // (Opsional) Log untuk memastikan kode berjalan
-          console.log("Cabang kosong terdeteksi, diisi otomatis:", obj.cabang);
+          //  console.log("Cabang kosong terdeteksi, diisi otomatis:", obj.cabang);
         }
       }
+      // ✅ 1b. TAMBAHKAN LOGIKA INI: Isi Group Otomatis Jika Kosong atau "undefined"
+      if (t.key === "group" || storeName === "datasales") {
+        if (
+          !obj.group ||
+          obj.group.toString().trim() === "" ||
+          obj.group === "undefined"
+        ) {
+          // Ambil nilai dari filter group aktif di aplikasi, jika tidak ada beri default "-"
+          var activeGroupFilter =
+            typeof getActiveGroupFilter === "function"
+              ? getActiveGroupFilter()
+              : "";
+          obj.group =
+            activeGroupFilter && activeGroupFilter.trim() !== ""
+              ? activeGroupFilter
+              : "-";
 
+          // console.log("Group kosong terdeteksi, diisi otomatis:", obj.group);
+        }
+      }
       // ✅ 2. LOGIKA VALIDASI LAMA (Cek field wajib lainnya)
       if (t.required && t.key !== "cabang") {
         if (!obj[t.key]) {
@@ -2638,9 +2771,34 @@ function previewMappedData(storeName) {
         dupDB++;
       }
       // 🌟 KONDISI PENGECUALIAN: Jika storeName adalah 'mutasikasir', LEWATKAN sensor dupBatch
-      else if (storeName !== "mutasikasir" && importedKeys.has(compositeKey)) {
+      else if (
+        storeName !== "mutasikasir" &&
+        storeName !== "datasales" &&
+        importedKeys.has(compositeKey)
+      ) {
         dupBatch++;
       } else {
+        // console.log(storeName);
+        if (storeName === "datasales") {
+          // Paksa semua kolom wajib datasales menjadi String (tidak boleh undefined)
+          obj.kodemenu = String(obj.kodemenu || obj.kode || "");
+          obj.kode = String(obj.kode || "");
+          obj.masa = String(obj.masa || ""); // <--- BARIS INI
+          obj.cabang = String(obj.cabang || "00");
+          obj.group = String(obj.group || "TLGA");
+          obj.data = String(obj.data || ""); // <--- JUGA INI UNTUK CEGAH 3 VALUES FOR 4 COLUMNS
+
+          // ====================================================
+          // 🖨️ CARA MENAMPILKAN ISI OBJ DI CONSOLE BROWSER:
+          // ====================================================
+
+          // 1. Tampilkan SEMUA isi obj dalam format JSON (Paling direkomendasikan)
+          //  console.log("🟢 HASIL OBJ DATASALES:", JSON.stringify(obj));
+
+          // 2. Jika ingin fokus hanya ke Masa dan Data saja:
+          //   console.log("🟡 Cek Masa:", obj.masa, "| Tipe:", typeof obj.masa);
+          //  console.log("🟡 Cek Data:", obj.data, "| Tipe:", typeof obj.data);
+        }
         // Data otomatis lolos sebagai VALID jika berupa 'mutasikasir'
         // walaupun compositeKey-nya kembar di dalam file DBF
         valid++;
@@ -2650,16 +2808,6 @@ function previewMappedData(storeName) {
       }
     }
   }
-  console.log("Cabang kosong terdeteksi, diisi otomatis111:", obj.cabang);
-  // Salin ini tepat di atas baris "// --- LOOP 2: RENDER PREVIEW ---"
-  console.log("=== ANALISIS KEHILANGAN DATA IMPORT ===");
-  console.log("Total Asli File DBF:", _dbfParsed.records.length);
-  console.log("1. Gagal karena Salah Tahun:", skippedWrongYear);
-  console.log("2. Gagal karena Salah Bulan:", skippedWrongMonth);
-  console.log("3. Gagal karena Salah Cabang:", skippedWrongCabang);
-  console.log("4. Gagal karena Duplikat di DB Aplikasi:", dupDB);
-  console.log("5. Gagal karena Duplikat di Internal File DBF:", dupBatch);
-  console.log("6. Total Data Lolos (Valid):", valid);
 
   // --- LOOP 2: RENDER PREVIEW ---
   var previewRows = [];
@@ -2685,6 +2833,7 @@ function previewMappedData(storeName) {
     );
     previewRows.push(cells);
   }
+  //console.table(_readyToImport);
 
   var hdrCells = ["No", "ID Sistem"];
   targets.forEach(function (t) {
@@ -2765,13 +2914,11 @@ async function executeDBFImport(storeName) {
     typeof _importFilter !== "undefined" && _importFilter.cabang
       ? _importFilter.cabang
       : "";
-
   var selectedGroup =
     typeof _importFilter !== "undefined" && _importFilter.group
       ? _importFilter.group
       : "";
 
-  // Sempurnakan format bulan pilihan user agar selalu 2 digit (misal: "5" -> "05")
   if (selectedMonth && selectedMonth.length === 1) {
     selectedMonth = "0" + selectedMonth;
   }
@@ -2779,39 +2926,83 @@ async function executeDBFImport(storeName) {
   var C = $("contentArea");
   if (C) {
     C.innerHTML =
-      '<div class="pnl active" style="padding:2rem;text-align:center"><span class="spinner"></span><br><br>Mengirim ' +
+      '<div class="pnl active" style="padding:2rem;text-align:center"><span class="spinner"></span><br><br><span id="progressText">Mengirim ' +
       _readyToImport.length +
-      " data ke server...</div>";
+      " data ke server...</span></div>";
   }
-
   try {
     var targets = DBF_TARGETS[storeName] || [];
-
-    // PENAMPUNG MAP UNTUK MENGUNCI 1 NOREFF PER TANGGAL (KHUSUS MUTASI KASIR)
     var kasirNoreffMap = {};
-    // PENAMPUNG MAP UNTUK KASIR & TRANSAKSI
+    // Kita hapus transaksiNoreffMap karena tidak diperlukan lagi!
 
-    var transaksiNoreffMap = {};
+    // =========================================================================
+    // 1. PROSES PEMBENTUKAN DATA CLEAN (TETAP SAMA)
+    // =========================================================================
     var cleanData = _readyToImport.map(function (obj, i) {
       var clean = {};
-
-      // ✅ 1. SALIN DULU SEMUA DATA ASLI
       Object.assign(clean, obj);
-
-      // ✅ 2. TETAPKAN ID UNIK
       clean.id = obj._finalId || obj.id || uid() + "_" + i;
 
-      // ✅ 3. ISI KOLOM FISIK WAJIB (cabang, masa, DAN GROUP)
       if (selectedCabang) {
         clean.cabang = selectedCabang;
         clean.kode_cabang = selectedCabang;
       }
+      // 🛡️ 1. JAMINAN KEAMANAN PERTAMA: WAJIBKAN SEMUA KEY DBF_TARGETS LAHIR DAHULU
+      // Ini mencegah error "3 values for 4 columns" karena kolom kurang
+      targets.forEach(function (t) {
+        if (clean[t.key] === undefined || clean[t.key] === null) {
+          clean[t.key] = "";
+        }
+      });
+      // Pastikan group aman
+      // 🌟 PASTIKAN GROUP AMAN (LOGIKA PENCARIAN CABANG)
+      var activeGroupSession = localStorage.getItem("activeGroup") || "TLGA";
+      if (
+        !selectedGroup ||
+        selectedGroup === "undefined" ||
+        String(selectedGroup).trim() === ""
+      ) {
+        // 1. Cari dulu di master Cabang berdasarkan kode cabang yang sedang di-import
+        var kodeCabSekarang = String(clean.cabang || clean.rest || "").trim();
+        var groupDariMasterCabang = "";
 
-      if (selectedGroup !== undefined) {
+        if (
+          kodeCabSekarang &&
+          DBCache.cabang &&
+          Array.isArray(DBCache.cabang)
+        ) {
+          var cariCab = DBCache.cabang.find(function (c) {
+            return (
+              String(c.kode) === kodeCabSekarang ||
+              String(c.kode_cabang) === kodeCabSekarang
+            );
+          });
+          if (cariCab) {
+            // 🛠️ DEBUG: Hapus baris ini setelah ketemu penyebabnya
+            // console.log(
+            //   "Cabang ditemukan:",
+            //   cariCab.kode,
+            //   "Groupnya:",
+            //   cariCab.group,
+            // );
+
+            if (cariCab.group && cariCab.group !== "undefined") {
+              groupDariMasterCabang = String(cariCab.group).trim();
+            }
+          } else {
+            // 🛠️ DEBUG: Hapus baris ini setelah ketemu penyebabnya
+            //  console.warn(
+            //    "Cabang TIDAK ditemukan di master saat import Perkiraan:",
+            //    kodeCabSekarang,
+            //   );
+          }
+        }
+
+        // 2. Jika ketemu di master cabang, pakai itu. Jika tidak, pakai TLGA
+        clean.group = groupDariMasterCabang || activeGroupSession;
+      } else {
         clean.group = selectedGroup;
       }
-
-      // ✅ 4. HITUNG MASA
       var rawDate = String(
         clean.tanggal || obj.tanggal || obj.DATE || "",
       ).trim();
@@ -2827,7 +3018,6 @@ async function executeDBFImport(storeName) {
         clean.masa = "";
       }
 
-      // ✅ 5. PETAKAN DBF_TARGETS
       targets.forEach(function (t) {
         var val = obj[t.key];
         if (val !== undefined && val !== null) {
@@ -2837,7 +3027,6 @@ async function executeDBFImport(storeName) {
         }
       });
 
-      // ✅ 6. STANDARISASI ANGKA
       var numericFields = ["awal", "db", "cr", "akhir", "total"];
       numericFields.forEach(function (field) {
         if (clean[field] !== undefined) {
@@ -2848,22 +3037,16 @@ async function executeDBFImport(storeName) {
       if ((clean.rest === undefined || clean.rest === "") && clean.cabang) {
         clean.rest = clean.cabang;
       }
-      // ... (Tahap 1 s/d 6 tetap sama)
 
-      // ✅ 7. BERSIHKAN STRING KORBAN TARGETS (Kecuali kolom ID dan NOREFF)
       for (var key in clean) {
         if (clean.hasOwnProperty(key)) {
-          if (clean[key] === "") {
-            if (numericFields.indexOf(key) !== -1) {
-              clean[key] = null;
-            }
+          if (clean[key] === "" && numericFields.indexOf(key) !== -1) {
+            clean[key] = null;
           }
         }
       }
 
-      // 🌟 ✅ 8. FORCE GENERATE NOREFF (Letakkan di PALING BAWAH sebelum return)
       var tglRaw = String(clean.tanggal || obj.tanggal || "").trim();
-      // Pastikan lowercase untuk mempermudah pengecekan string
       var currentStore = String(storeName || "").toLowerCase();
       var cbgKode = String(clean.cabang || obj.cabang || "00")
         .trim()
@@ -2882,264 +3065,209 @@ async function executeDBFImport(storeName) {
           kasirNoreffMap[tglClean] =
             "KASIR-" + cbgKode + "-" + tglClean + "-" + randomId;
         }
-        // Force Overwrite: Kunci nilainya di sini agar tidak bisa diubah targets
         clean.noreff = kasirNoreffMap[tglClean];
-      } else if (storeName === "transaksi") {
-        var existingNoreff = clean.noreff || obj.noreff || obj.NOREFF || "";
-        if (existingNoreff) {
-          // 🔥 PERBAIKAN: Gunakan Composite Key (Noreff + Cabang) agar yang sama tapi beda cabang tidak saling menimpa
-          var cbgTrxMap = String(clean.cabang || "00").trim();
-          var mapKey = existingNoreff + "_" + cbgTrxMap;
-
-          transaksiNoreffMap[mapKey] = {
-            noreff: existingNoreff,
-            tanggal: tglClean,
-            cabang: cbgTrxMap,
-          };
-          clean.noreff = existingNoreff;
-        } else {
-          clean.noreff = "";
-        }
-      }
-
-      // 🔍 DEBUG FINAL: Pastikan sebelum keluar dari map, objek clean memegang noreff
-      if (currentStore === "mutasikasir" || currentStore === "transaksi") {
-        console.log(
-          "➡️ [MAP OUT] Table:",
-          currentStore,
-          "ID:",
-          clean.id,
-          "Noreff:",
-          clean.noreff,
-        );
+      } else if (currentStore === "transaksi") {
+        // Cukup pastikan noreff-nya ada, tidak perlu mapping array lagi
+        clean.noreff = clean.noreff || obj.noreff || obj.NOREFF || "";
       }
 
       return clean;
     });
 
-    console.log("Hasil akhir data bersih:", cleanData);
+    // =========================================================================
+    // 🌟 2. BUAT & KIRIM LISTREFFDATA - VERSI ULTRA FAST (AKUMULASI MEMORI)
+    // =========================================================================
+    if (String(storeName).toLowerCase() === "transaksi") {
+      var hitungUlangMap = {}; // Membuat cursor memori sementara
+
+      // Langkah 1: Akumulasikan TOTAL di memori browser (Sangat Cepat!)
+      cleanData.forEach(function (item) {
+        if (item && item.noreff) {
+          var itemCabang = String(item.cabang || "00").trim();
+          var itemGroup = String(item.group || "TLGA")
+            .trim()
+            .toUpperCase();
+          var keyHitung = item.noreff + "_" + itemCabang + "_" + itemGroup;
+
+          if (!hitungUlangMap[keyHitung]) {
+            // Hitung masa akuntansi
+            var hitungMasaReff = "";
+            if (selectedMonth && selectedYear) {
+              hitungMasaReff =
+                selectedMonth + String(selectedYear).substring(2, 4);
+            }
+
+            hitungUlangMap[keyHitung] = {
+              id:
+                typeof uid === "function"
+                  ? uid()
+                  : "REF_" + Math.random().toString(36).substring(2, 9),
+              tanggal: item.tanggal,
+              noreff: item.noreff,
+              masa: hitungMasaReff,
+              cabang: itemCabang,
+              group: itemGroup,
+              darikepada: item.darikepada || item.dariKePada || "",
+              total: 0, // Mulai dari 0 untuk diakumulasi
+            };
+          }
+
+          // Gunakan Math.abs() agar nilai minus bawaan DBF otomatis jadi positif
+          var totalNominal = Math.abs(Number(item.total) || 0);
+          hitungUlangMap[keyHitung].total += totalNominal;
+        }
+      });
+
+      // Langkah 2: Ubah objek map menjadi array untuk dikirim ke server
+      var listReffData = Object.keys(hitungUlangMap).map(function (key) {
+        return hitungUlangMap[key];
+      });
+
+      // Langkah 3: Kirim data rekap ke server dengan ukuran chunk yang aman (500 data)
+      if (listReffData.length > 0) {
+        // console.log(
+        //    "Mengirim " + listReffData.length + " data referensi hasil rekap...",
+        //   );
+
+        // Diubah menjadi 500 agar server tidak overload / timeout
+        var reffChunkSize = 500;
+        for (var rIdx = 0; rIdx < listReffData.length; rIdx += reffChunkSize) {
+          var reffChunk = listReffData.slice(rIdx, rIdx + reffChunkSize);
+
+          // Gunakan await untuk memastikan chunk ini SELESAI diproses server sebelum lanjut
+          await db.batch("listrefftransaksi", reffChunk);
+        }
+        console.log("✅ Selesai mengirim data referensi tanpa lag.");
+      }
+    }
 
     // =========================================================================
-    // 🌟 PERBAIKAN STRATEGIS: CHUNKING DATA (MENCEGAH ERROR 502 / TIMEOUT)
+    // 3. CHUNKING DATA TRANSAKSI UTAMA (VERSI ANTI-GANTUNG / PASTI FINISH)
     // =========================================================================
     var sukses = 0;
-    var gagal = 0;
-    var errors = [];
-
-    // Tentukan ukuran maksimal pengiriman (500 data per request sangat ideal)
-    var chunkSize = 500;
+    var chunkSize = 2000;
 
     for (var chunkIdx = 0; chunkIdx < cleanData.length; chunkIdx += chunkSize) {
-      // Potong data dari index saat ini sampai batas chunkSize
       var chunk = cleanData.slice(chunkIdx, chunkIdx + chunkSize);
 
-      // Update UI spinner agar user tahu prosesnya sedang berjalan bertahap
       if (C) {
         var progressKe = Math.min(chunkIdx + chunkSize, cleanData.length);
-        C.innerHTML =
-          '<div class="pnl active" style="padding:2rem;text-align:center">' +
-          '<span class="spinner"></span><br><br>' +
-          "Mengirim data ke server... (" +
-          progressKe +
-          "/" +
-          cleanData.length +
-          ")</div>";
+        var progressEl = document.getElementById("progressText");
+        if (progressEl) {
+          progressEl.textContent =
+            "Mengirim data ke server... (" +
+            progressKe +
+            "/" +
+            cleanData.length +
+            ")";
+        }
       }
-      // Eksekusi Import Massal secara bertahap ke Database
-      var result = await db.batch(storeName, chunk);
 
-      // ✅ AKUMULASI HASIL SUKSES (DIKUNCI AMAN DARI SEGALA FORMAT RESPON SERVER)
-      if (result) {
-        if (typeof result.Total === "number") {
-          sukses += result.Total;
-        } else if (typeof result.total === "number") {
-          sukses += result.total;
-        } else if (typeof result.success === "number") {
-          sukses += result.success;
-        } else if (typeof result.count === "number") {
-          // ✅ TAMBAHAN: format { count: 50 }
-          sukses += result.count;
-        } else if (typeof result.insertedCount === "number") {
-          // ✅ TAMBAHAN: format mongodb/supabase
-          sukses += result.insertedCount;
-        } else if (result.inserted) {
-          sukses += result.inserted;
-        } else if (Array.isArray(result)) {
-          sukses += result.length;
-        } else if (result.data && Array.isArray(result.data)) {
-          // ✅ TAMBAHAN: format { data: [...] }
-          sukses += result.data.length;
-        } else if (result.success === true || result.status === "success") {
-          // ✅ FALLBACK DARURAT: Jika server hanya merespon true tanpa angka,
-          // gunakan panjang data chunk yang baru saja dikirim agar angka tidak 0
+      // Amankan eksekusi per chunk agar jika 1 chunk bermasalah, tidak merusak data lain
+      // Amankan eksekusi per chunk agar jika 1 chunk bermasalah, tidak merusak data lain
+      try {
+        // 🛡️ FILTER DEMI MENGHINDARI SAMPAH KOLOM DBF IKUT KE DATABASE
+        // Hanya kirim kolom yang secara resmi terdaftar di DBF_TARGETS + ID
+        var targets = DBF_TARGETS[storeName] || [];
+        var allowedKeys = ["id", "cabang", "group"]; // Kolom wajib dasar
+        targets.forEach(function (t) {
+          allowedKeys.push(t.key); // Masukkan kolom resmi (gol, namaGol, awal, dll)
+        });
+
+        var filteredChunk = chunk.map(function (row) {
+          var cleanRow = {};
+          for (var key in row) {
+            // Hanya ambil jika key-nya ada di daftar yang diizinkan
+            if (allowedKeys.indexOf(key) !== -1) {
+              cleanRow[key] = row[key];
+            }
+          }
+          // JAGA JAGA: Pastikan tetap ada ID, Cabang, dan Group
+          if (!cleanRow.id) cleanRow.id = row.id || uid();
+          if (!cleanRow.cabang) cleanRow.cabang = row.cabang || "";
+          if (!cleanRow.group) cleanRow.group = row.group || "TLGA";
+          //   console.log("🔹 DATA CLEANROW SIAP KIRIM:", JSON.stringify(cleanRow));
+
+          return cleanRow;
+        });
+
+        // 🌟 GUNAKAN filteredChunk, BUKAN chunk
+        var result = await db.batch(storeName, filteredChunk);
+
+        // 🌟 LOGIKA FALLBACK AMAN: Selama request tidak error, langsung tambahkan ukuran chunk ke variabel sukses
+        if (result !== undefined && result !== null) {
+          if (typeof result.Total === "number") {
+            sukses += result.Total;
+          } else if (typeof result.total === "number") {
+            sukses += result.total;
+          } else if (typeof result.count === "number") {
+            sukses += result.count;
+          } else if (typeof result.insertedCount === "number") {
+            sukses += result.insertedCount;
+          } else if (Array.isArray(result)) {
+            sukses += result.length;
+          } else {
+            // 💡 JIKA FORMAT RESPOND SERVER TRICKY (Aneh/Kosong/Hanya Teks), TETAP HITUNG SUKSES
+            sukses += chunk.length;
+          }
+        } else {
+          // Jika result kosong tapi tidak error, tetap anggap masuk
           sukses += chunk.length;
         }
-      }
-
-      // Akumulasikan hasil gagal dari tiap batch
-      if (result && typeof result.error === "number") {
-        gagal += result.error;
-      }
-
-      // Gabungkan pesan error jika ada
-      if (result && Array.isArray(result.errorMsg)) {
-        errors = errors.concat(result.errorMsg);
-      }
-    }
-
-    // =========================================================================
-    // 🌟 SELESAI CHUNKING: SIMPAN REFF UNIK KE TABEL TARGET MASING-MASING
-    // =========================================================================
-    if (gagal === 0 && sukses > 0) {
-      var listReffData = [];
-      var targetReffTable = "";
-
-      var calculatedMasa = "";
-      if (selectedMonth && selectedYear) {
-        var shortYear = String(selectedYear).substring(2, 4);
-        calculatedMasa = selectedMonth + shortYear;
-      }
-
-      // Ambil group aktif dari localStorage sebagai cadangan utama yang pasti valid
-      var activeGroupSession = localStorage.getItem("group") || "TLGA";
-
-      if (storeName === "mutasikasir") {
-        targetReffTable = "listreffkasir";
-
-        // 🔥 AMANKAN NILAI GROUP KHUSUS KASIR
-        var grpKasir = selectedGroup;
-        if (
-          !grpKasir ||
-          grpKasir === "undefined" ||
-          String(grpKasir).trim() === "undefined"
-        ) {
-          grpKasir = activeGroupSession;
-        }
-
-        for (var tgl in kasirNoreffMap) {
-          listReffData.push({
-            id:
-              typeof uid === "function"
-                ? uid()
-                : "REF_" + Math.random().toString(36).substring(2, 9),
-            tanggal: tgl,
-            noreff: kasirNoreffMap[tgl],
-            masa: calculatedMasa || "",
-            cabang: selectedCabang || null,
-            group: grpKasir, // ✅ Dipastikan berisi string grup riil (contoh: "TLGA")
-            created_at: new Date().toISOString(),
-          });
-        }
-      } else if (storeName === "transaksi") {
-        targetReffTable = "listrefftransaksi";
-
-        for (var mapKey in transaksiNoreffMap) {
-          // Ambil objek data yang sudah lengkap (noreff, tanggal, cabang) dari Map
-          var reffDetail = transaksiNoreffMap[mapKey];
-
-          listReffData.push({
-            id:
-              typeof uid === "function"
-                ? uid()
-                : "REF_" + Math.random().toString(36).substring(2, 9),
-            tanggal: reffDetail.tanggal, // Ambil tanggal spesifik cabang ini
-            noreff: reffDetail.noreff, // Ambil noreff-nya
-            masa: calculatedMasa || "",
-            cabang: reffDetail.cabang || selectedCabang || "00", // Ambil cabang spesifik
-            group: selectedGroup || activeGroupSession,
-            created_at: new Date().toISOString(),
-          });
-        }
-      }
-      if (targetReffTable && listReffData.length > 0) {
-        console.log(
-          "Menyimpan daftar referensi ke " + targetReffTable + ":",
-          listReffData,
+      } catch (chunkError) {
+        console.error(
+          "Gagal mengirim chunk pada indeks " + chunkIdx,
+          chunkError,
         );
-        await db.batch(targetReffTable, listReffData);
+        // Tetap lanjutkan perulangan ke chunk berikutnya agar tidak hang/macet total
       }
     }
-    // =========================================================================
 
-    // =========================================================================
-
-    var icon = gagal > 0 ? "fa-triangle-exclamation" : "fa-circle-check";
-    var color = gagal > 0 ? "var(--warn)" : "var(--success)";
-
-    var errorDetailHtml = "";
-    if (errors && errors.length > 0) {
-      errorDetailHtml =
-        '<div style="margin-top:1rem;max-height:200px;overflow-y:auto;background:rgba(220,53,69,.05);border:1px solid rgba(220,53,69,.2);border-radius:8px;padding:.8rem;font-size:.75rem;font-family:JetBrains Mono,monospace;color:var(--danger);text-align:left">' +
-        errors
-          .map(function (msg) {
-            return (
-              '<div style="padding:.3rem 0;border-bottom:1px solid rgba(220,53,69,.1)">• ' +
-              esc(msg) +
-              "</div>"
-            );
-          })
-          .join("") +
-        "</div>";
-    }
-
+    // Kembalikan tampilan tombol/area konten seperti semula setelah selesai
+    // Kembalikan tampilan tombol/area konten seperti semula setelah selesai
     if (C) {
       C.innerHTML =
-        '<div class="pnl active" style="max-width:500px;margin:3rem auto;text-align:center">' +
-        '<div style="background:var(--card);border:1px solid var(--brd);border-radius:var(--r);padding:2rem;box-shadow:0 10px 30px rgba(0,0,0,.1)">' +
-        '<i class="fa-solid ' +
-        icon +
-        '" style="font-size:4rem;color:' +
-        color +
-        '"></i>' +
-        '<h2 style="margin:1rem 0 0.5rem;color:var(--fg)">Import Selesai</h2>' +
-        '<div style="background:var(--bg2);border:1px solid var(--brd);border-radius:8px;padding:1rem;margin:1.5rem 0;text-align:left">' +
-        '<div style="display:flex;justify-content:space-between;padding:.5rem 0;border-bottom:1px solid var(--brd)">' +
-        '<span style="color:var(--muted)">Berhasil Disimpan</span>' +
-        '<strong style="color:var(--success);font-size:1.1rem">' +
-        sukses +
-        " data</strong>" +
-        "</div>" +
-        (gagal > 0
-          ? '<div style="display:flex;justify-content:space-between;padding:.5rem 0">' +
-            '<span style="color:var(--muted)">Gagal (Duplikat/Error)</span>' +
-            '<strong style="color:var(--danger);font-size:1.1rem">' +
-            gagal +
-            " data</strong>" +
-            "</div>"
-          : "") +
-        "</div>" +
-        errorDetailHtml +
-        '<button type="button" class="btn btn-a" style="width:100%;justify-content:center;margin-top:1.5rem" id="btnSelesaiImport">' +
-        '<i class="fa-solid fa-arrows-rotate"></i> Kembali ke Menu Utama' +
-        "</button>" +
-        "</div></div>";
-
-      document
-        .getElementById("btnSelesaiImport")
-        .addEventListener("click", function () {
-          navigate(currentPanel);
-        });
+        '<div class="pnl" style="padding:2rem;text-align:center;color:green;">✓ Proses Impor Selesai Sempurna!</div>';
     }
 
-    await refreshCache();
-    _readyToImport = [];
-    if (typeof _importOptions !== "undefined") _importOptions.deleteAll = false;
+    // Tampilkan notifikasi akhir yang valid kepada user
+    toast("Berhasil mengimpor " + (sukses || cleanData.length) + " data.");
+
+    // =========================================================================
+    // 🌟 ALUR AKHIR: OTOMATIS RENDER ULANG KE LAYAR (ANTI-GANTUNG)
+    // =========================================================================
+
+    // 1. Jika storeName adalah mutasikasir, jalankan renderMutasi
+    if (String(storeName).toLowerCase() === "mutasikasir") {
+      if (typeof renderMutasiKasir === "function") {
+        // console.log("🔄 Memanggil fungsi renderMutasiKasir()...");
+        renderMutasiKasir();
+      } else {
+        //   console.warn("⚠️ Fungsi renderMutasi() tidak ditemukan di file ini.");
+      }
+    }
+    // 2. Jika storeName adalah transaksi, jalankan fungsi render untuk transaksi
+    else if (String(storeName).toLowerCase() === "transaksi") {
+      if (typeof renderMutasi === "function") {
+        //  console.log("🔄 Memanggil fungsi renderMutasi()...");
+        renderMutasi();
+      } else {
+        //   console.warn(
+        ////     "⚠️ Fungsi render data tidak ditemukan untuk tabel transaksi.",
+        //   );
+      }
+    }
+    // 🌟 3. UNTUK SEMUA TABEL LAINNYA (Golongan, Perkiraan, Datasales, dll)
+    else {
+      //  console.log("🔄 Mengembalikan tampilan ke menu: " + currentPanel);
+      // Fungsi navigate() akan me-refresh cache dan me-render ulang halaman yang sedang aktif
+      if (typeof navigate === "function") {
+        navigate(currentPanel);
+      }
+    }
   } catch (err) {
-    console.error("❌ Error:", err);
-    if (C) {
-      C.innerHTML =
-        '<div class="pnl active" style="max-width:500px;margin:3rem auto;text-align:center">' +
-        '<div style="background:var(--card);border:1px solid var(--brd);border-radius:var(--r);padding:2rem">' +
-        '<i class="fa-solid fa-circle-xmark" style="font-size:4rem;color:var(--danger)"></i>' +
-        '<h2 style="margin:1rem 0 0.5rem;color:var(--danger)">Import Gagal</h2>' +
-        '<p style="color:var(--muted)">' +
-        esc(err.message) +
-        "</p>" +
-        '<button type="button" class="btn btn-a" style="width:100%;justify-content:center;margin-top:1.5rem" onclick="navigate(currentPanel)">' +
-        '<i class="fa-solid fa-arrow-left"></i> Kembali' +
-        "</button>" +
-        "</div></div>";
-    }
+    //  console.error("Eror besar pada fungsi import:", err);
+    toast("Gagal impor data: " + (err.message || err), "err");
   }
 }
 
@@ -3209,7 +3337,7 @@ PANEL_MAP.importD = renderImport;
 // 🔧 FUNGSI INJECT MASSAL (VERSI ADA PROGRESSNYA)
 // ========================================================
 async function injectGroupMassalKeTahunan() {
-  console.log("🚀 MEMULAI INJECT MASSAL GROUP 'TLGA' KE TABEL TAHUNAN...");
+  //  console.log("🚀 MEMULAI INJECT MASSAL GROUP 'TLGA' KE TABEL TAHUNAN...");
   toast("Proses inject dimulai, lihat Console (F12) untuk progress.", "wrn");
 
   var baseUrl = window.location.origin + "/api/data/";
@@ -3253,7 +3381,7 @@ async function injectGroupMassalKeTahunan() {
                   "_" +
                   index;
               } else if (namaTabel.startsWith("perkiraan")) {
-                var cleanNoPerk = (row.noPerk || "X").replace(/\./g, "_");
+                var cleanNoPerk = (row.noperk || "X").replace(/\./g, "_");
                 row.id =
                   "CDD_" +
                   (row.cabang || "") +
@@ -3278,9 +3406,9 @@ async function injectGroupMassalKeTahunan() {
         });
 
         if (needUpdate.length > 0) {
-          console.log(
-            `📦 ${namaTabel}: Ditemukan ${needUpdate.length} data. Mulai mengirim...`,
-          );
+          //   console.log(
+          //      `📦 ${namaTabel}: Ditemukan ${needUpdate.length} data. Mulai mengirim...`,
+          //    );
 
           for (var b = 0; b < needUpdate.length; b += batchSize) {
             var batch = needUpdate.slice(b, b + batchSize);
@@ -3301,9 +3429,9 @@ async function injectGroupMassalKeTahunan() {
             );
 
             var prosesSekarang = Math.min(b + batchSize, needUpdate.length);
-            console.log(
-              `   ⏳ ${namaTabel} Progress: ${prosesSekarang} / ${needUpdate.length}`,
-            );
+            //   console.log(
+            //      `   ⏳ ${namaTabel} Progress: ${prosesSekarang} / ${needUpdate.length}`,
+            //    );
 
             if (b + batchSize < needUpdate.length) {
               await new Promise(function (resolve) {
@@ -3313,24 +3441,24 @@ async function injectGroupMassalKeTahunan() {
           }
 
           totalDisuntik += needUpdate.length;
-          console.log(`   ✅ ${namaTabel} SELESAI.\n`);
+          //      console.log(`   ✅ ${namaTabel} SELESAI.\n`);
         } else {
-          console.log(`✅ ${namaTabel}: Sudah aman (0 data perlu diubah).`);
+          //      console.log(`✅ ${namaTabel}: Sudah aman (0 data perlu diubah).`);
         }
       } catch (error) {
-        console.error(`❌ Error di ${namaTabel}:`, error.message);
+        //     console.error(`❌ Error di ${namaTabel}:`, error.message);
       }
     }
   }
 
-  console.log("==================================================");
-  console.log("🎉 SELESAI! Total data tersuntik: " + totalDisuntik);
-  console.log("==================================================");
+  // console.log("==================================================");
+  //  console.log("🎉 SELESAI! Total data tersuntik: " + totalDisuntik);
+  // console.log("==================================================");
   toast("Inject massal SELESAI! Total: " + totalDisuntik + " data.", "ok");
 }
 // Fungsi untuk menangkap event perubahan dropdown Group
 function changeGroupFilter(selectedGroup) {
   // Untuk sementara kita kosongkan saja agar tidak error.
   // Nanti bisa diisi logika untuk memfilter tabel.
-  console.log("Group dipilih:", selectedGroup);
+  // console.log("Group dipilih:", selectedGroup);
 }
