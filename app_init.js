@@ -211,6 +211,22 @@ function buildSidebar() {
       ],
     },
     {
+      group: "SALES",
+      icon: "fa-shop",
+      items: [
+        {
+          id: "daftarmenu",
+          label: "Data Menu",
+          icon: "fa-book-open",
+        },
+        {
+          id: "sales",
+          label: "Data Sales",
+          icon: "fa-store",
+        },
+      ],
+    },
+    {
       group: "POSTING",
       icon: "fa-stamp",
       items: [
@@ -266,7 +282,7 @@ function buildSidebar() {
           label: "Import FoxPro Online",
           icon: "fa-cloud-arrow-up",
         },
-         {
+        {
           id: "migrasiFisik",
           label: "Migrasi Kolom Fisik",
           icon: "fa-arrows-spin",
@@ -278,7 +294,6 @@ function buildSidebar() {
       icon: "fa-users",
       items: [
         { id: "userMgmt", label: "Manajemen User", icon: "fa-user-gear" },
-       
       ],
     },
   ];
