@@ -1,5 +1,7 @@
 /* globals getCabangOpts, lookupCabangLabel, uid, esc, fmtN, num, openModal, closeModal, showConfirm, toast, bulkInit, bulkBarHTML, bulkBarHTMLCustom, bulkGetIds, bulkGetKey, crudActions, wrapTable, buildTable, refreshCache, currentPanel, DBCache, db */
-
+// Letakkan di paling atas file JS
+var _activeGroupFilter = "";
+var _activeCabangFilter = "";
 /* ---------- GLOBAL VIEW LIMIT ---------- */
 var _viewLimit = 20;
 
@@ -317,50 +319,127 @@ async function exportTableToExcel(storeName, fileNamePrefix) {
 }
 /* ---------- Golongan Perkiraan ---------- */
 PANEL_MAP.gol = renderGol;
-async function renderGol() {
+var _golSort = { col: -1, dir: "asc" };
+var _golPage = 1;
+
+function sortGol(colIndex) {
+  if (_golSort.col === colIndex) {
+    _golSort.dir = _golSort.dir === "asc" ? "desc" : "asc";
+  } else {
+    _golSort.col = colIndex;
+    _golSort.dir = "asc";
+  }
+  _golPage = 1;
+  var html = renderGol();
+  $("contentArea").innerHTML = '<div class="pnl active">' + html + "</div>";
+}
+
+function goToGolPage(page) {
+  _golPage = page;
+
+  // Cek apakah aplikasi Anda punya fungsi render panel aktif secara global, contoh:
+  if (typeof safeRenderCurrentPanel === "function") {
+    safeRenderCurrentPanel();
+  } else {
+    // Jika manual, pastikan struktur elemen pembungkusnya konsisten
+    var html = renderGol();
+    var area = $("contentArea");
+    if (area) {
+      area.innerHTML = '<div class="pnl active">' + html + "</div>";
+    }
+  }
+}
+
+function renderGol() {
   var rawData = DBCache.golongan || [];
   var data = filterByCabang(rawData);
 
-  // --- 1. FILTER GROUP ---
-  var activeGroup = getActiveGroupFilter();
+  var activeGroup =
+    typeof getActiveGroupFilter === "function" ? getActiveGroupFilter() : "";
   if (activeGroup) {
     data = data.filter(function (r) {
       return (r.group || "") === activeGroup;
     });
   }
 
-  // --- 2. SORTING BERTINGKAT (Cabang -> Group -> Golongan) ---
-  data.sort(function (a, b) {
-    var cabangA = String(a.cabang || "");
-    var cabangB = String(b.cabang || "");
-    var compareCabang = cabangA.localeCompare(cabangB, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-    if (compareCabang !== 0) return compareCabang;
+  // ==========================================
+  // 🔥 SORTING DINAMIS
+  // ==========================================
+  if (_golSort.col >= 0) {
+    var sortCol = _golSort.col;
+    var sortDir = _golSort.dir;
 
-    var groupA = String(a.group || "");
-    var groupB = String(b.group || "");
-    var compareGroup = groupA.localeCompare(groupB, undefined, {
-      numeric: true,
-      sensitivity: "base",
+    data.sort(function (a, b) {
+      var valA, valB;
+      switch (sortCol) {
+        case 0:
+          valA = String(a.gol || "").toLowerCase();
+          valB = String(b.gol || "").toLowerCase();
+          break;
+        case 1:
+          valA = String(a.namagol || "").toLowerCase();
+          valB = String(b.namagol || "").toLowerCase();
+          break;
+        case 2:
+          valA = +(a.awal || 0);
+          valB = +(b.awal || 0);
+          break;
+        case 3:
+          valA = +(a.db || 0);
+          valB = +(b.db || 0);
+          break;
+        case 4:
+          valA = +(a.cr || 0);
+          valB = +(b.cr || 0);
+          break;
+        case 5:
+          valA = +(a.awal || 0) + +(a.db || 0) - +(a.cr || 0);
+          valB = +(b.awal || 0) + +(b.db || 0) - +(b.cr || 0);
+          break;
+        case 6:
+          valA = String(a.group || "").toLowerCase();
+          valB = String(b.group || "").toLowerCase();
+          break;
+        case 7:
+          valA = String(a.cabang || "").toLowerCase();
+          valB = String(b.cabang || "").toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+      var result;
+      if (typeof valA === "number") {
+        result = valA - valB;
+      } else {
+        result = valA.localeCompare(valB, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+      }
+      return sortDir === "desc" ? -result : result;
     });
-    if (compareGroup !== 0) return compareGroup;
+  }
 
-    var golA = String(a.gol || "");
-    var golB = String(b.gol || "");
-    return golA.localeCompare(golB, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-  });
+  // ==========================================
+  // 🚀 PAGINATION
+  // ==========================================
+  var totalData = data.length;
+  var totalPages = Math.ceil(totalData / _viewLimit) || 1;
+  if (_golPage > totalPages) _golPage = totalPages;
+  if (_golPage < 1) _golPage = 1;
+
+  var startIndex = (_golPage - 1) * _viewLimit;
+  var endIndex = startIndex + _viewLimit;
+  var dataLimit = data.slice(startIndex, endIndex);
+
+  var showStart = totalData === 0 ? 0 : startIndex + 1;
+  var showEnd = Math.min(endIndex, totalData);
 
   var ids = data.map(function (r) {
     return r.id;
   });
   bulkInit("golongan", ids);
 
-  var dataLimit = data.slice(0, _viewLimit);
   var idsLimit = dataLimit.map(function (r) {
     return r.id;
   });
@@ -369,21 +448,24 @@ async function renderGol() {
     var ak = num(r.awal) + num(r.db) - num(r.cr);
     return [
       r.gol,
-      r.namaGol,
+      r.namagol,
       fmtN(r.awal),
       fmtN(r.db),
       fmtN(r.cr),
       '<span class="tag tag-akhir">' + fmtN(ak) + "</span>",
-      r.group || "-", // <-- KOLOM GROUP DITAMBAHKAN
+      r.group || "-",
       lookupCabangLabel(r.cabang),
     ];
   });
 
-  // Sesuaikan jumlah footer (sekarang ada 8 kolom)
   var foot = [
     "",
     "",
-    "",
+    fmtN(
+      data.reduce(function (s, r) {
+        return s + num(r.awal);
+      }, 0),
+    ),
     fmtN(
       data.reduce(function (s, r) {
         return s + num(r.db);
@@ -395,19 +477,210 @@ async function renderGol() {
       }, 0),
     ),
     "",
-    "", // Footer Group
-    "", // Footer Cabang
+    "",
+    "",
   ];
 
+  // ==========================================
+  // PAGINATION HTML
+  // ==========================================
+  var paginationHTML = "";
+  if (totalData > 0) {
+    paginationHTML =
+      '<div style="display:flex;align-items:center;gap:.7rem;margin-top:.7rem;justify-content:space-between;flex-wrap:wrap">' +
+      '<div style="font-size:.8rem;color:var(--muted)">Menampilkan <b>' +
+      showStart +
+      " - " +
+      showEnd +
+      "</b> dari <b>" +
+      totalData +
+      "</b> record (Hal. " +
+      _golPage +
+      "/" +
+      totalPages +
+      ")</div>" +
+      '<div style="display:flex;gap:.4rem;align-items:center">' +
+      '<button type="button" class="btn btn-inf" onclick="goToGolPage(' +
+      (_golPage - 1) +
+      ')" ' +
+      (_golPage <= 1 ? 'disabled style="opacity:.5;cursor:not-allowed"' : "") +
+      '><i class="fa-solid fa-arrow-left"></i> Prev</button>' +
+      '<button type="button" class="btn btn-inf" onclick="goToGolPage(' +
+      (_golPage + 1) +
+      ')" ' +
+      (_golPage >= totalPages
+        ? 'disabled style="opacity:.5;cursor:not-allowed"'
+        : "") +
+      '>Next <i class="fa-solid fa-arrow-right"></i></button>' +
+      "</div></div>";
+  }
+
+  // ==========================================
+  // FILTER INLINE
+  // ==========================================
+  var listGroup = DBCache.groupproject || [];
+  var htmlSelectGroup =
+    '<select id="inlineGroupSelect" style="font-size:.72rem;padding:2px 4px;border-radius:4px;border:1px solid var(--brd);background:var(--bg);color:var(--fg);cursor:pointer" onchange="inlineChangeGroup(this.value)">';
+  htmlSelectGroup +=
+    '<option value=""' +
+    (activeGroup === "" ? " selected" : "") +
+    ">SEMUA GROUP</option>";
+  for (var i = 0; i < listGroup.length; i++) {
+    var g = listGroup[i];
+    var valG = typeof g === "object" ? g.kode || g.id : g;
+    var txtG =
+      typeof g === "object"
+        ? g.kode && g.nama
+          ? g.kode + " - " + g.nama
+          : g.nama || g.kode
+        : g;
+    htmlSelectGroup +=
+      '<option value="' +
+      valG +
+      '"' +
+      (activeGroup === valG ? " selected" : "") +
+      ">" +
+      txtG +
+      "</option>";
+  }
+  htmlSelectGroup += "</select>";
+
+  var activeCabang =
+    typeof getActiveCabangFilter === "function" ? getActiveCabangFilter() : "";
+  var listCabang = DBCache.cabang || [];
+  var htmlSelectCabang =
+    '<select id="inlineCabangSelect" class="in" onchange="inlineChangeCabang(this.value)">';
+  htmlSelectCabang += '<option value="">-- Pilih Cabang --</option>';
+  for (var j = 0; j < listCabang.length; j++) {
+    var c = listCabang[j];
+    var kodeC = String(c.kode || c.KODE || c.kode_cabang || "").trim();
+    var namaC = String(c.nama || c.NAMA || c.nama_cabang || "-").trim();
+    var groupC = String(c.group || c.GROUP || c.kode_group || "").trim();
+    if (!kodeC) continue;
+    if (activeGroup && activeGroup !== groupC) continue;
+    htmlSelectCabang +=
+      '<option value="' +
+      esc(kodeC) +
+      '"' +
+      (String(activeCabang) === String(kodeC) ? " selected" : "") +
+      ">" +
+      esc(kodeC + " - " + namaC) +
+      "</option>";
+  }
+  htmlSelectCabang += "</select>";
+
+  // ==========================================
+  // 🔥 HEADER SORT + TABLE + CHECKBOX
+  // ==========================================
+  var headerLabels = [
+    "Gol",
+    "Nama Golongan",
+    "Awal",
+    "Debit",
+    "Kredit",
+    "Akhir",
+    "Group",
+    "Cabang",
+  ];
+  var numCols = [2, 3, 4, 5];
+
+  var tableHtml =
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
+
+  // ✅ CHECKBOX HEADER
+  tableHtml +=
+    '<th style="padding:8px;border:1px solid var(--brd);width:35px;text-align:center;">' +
+    '<input type="checkbox" onchange="toggleBulkAll(\'golongan\', this.checked)" title="Pilih Semua">' +
+    "</th>";
+
+  headerLabels.forEach(function (label, idx) {
+    var isActive = _golSort.col === idx;
+    var icon = "";
+    if (isActive) {
+      icon =
+        _golSort.dir === "asc"
+          ? ' <i class="fa-solid fa-sort-up" style="color:var(--accent);"></i>'
+          : ' <i class="fa-solid fa-sort-down" style="color:var(--accent);"></i>';
+    } else {
+      icon =
+        ' <i class="fa-solid fa-sort" style="color:var(--muted);opacity:.4;"></i>';
+    }
+    var bgStyle = isActive
+      ? "background:var(--bg2);color:var(--accent);font-weight:bold;"
+      : "";
+    tableHtml +=
+      '<th style="' +
+      bgStyle +
+      'padding:8px;border:1px solid var(--brd);white-space:nowrap;cursor:pointer;user-select:none;" onclick="sortGol(' +
+      idx +
+      ')">' +
+      label +
+      icon +
+      "</th>";
+  });
+  tableHtml +=
+    '<th style="padding:8px;border:1px solid var(--brd);">Aksi</th></tr></thead><tbody>';
+
+  if (rows.length === 0) {
+    tableHtml +=
+      '<tr><td colspan="' +
+      (headerLabels.length + 2) +
+      '" style="padding:2rem;text-align:center;color:var(--muted);">Belum ada golongan</td></tr>';
+  } else {
+    rows.forEach(function (row, i) {
+      tableHtml += "<tr>";
+
+      // ✅ CHECKBOX PER BARIS
+      tableHtml +=
+        '<td style="padding:6px 8px;border:1px solid var(--brd);text-align:center;">' +
+        '<input type="checkbox" class="bulk-check" data-store="golongan" data-id="' +
+        dataLimit[i].id +
+        '">' +
+        "</td>";
+
+      row.forEach(function (cell, ci) {
+        var align = numCols.includes(ci) ? "text-align:right;" : "";
+        tableHtml +=
+          '<td style="padding:6px 8px;border:1px solid var(--brd);font-size:.85rem;' +
+          align +
+          '">' +
+          cell +
+          "</td>";
+      });
+      tableHtml +=
+        '<td style="padding:6px 8px;border:1px solid var(--brd);">' +
+        crudActions(dataLimit[i].id, "golongan") +
+        "</td>";
+      tableHtml += "</tr>";
+    });
+  }
+
+  // FOOTER
+  tableHtml += '<tr style="background:var(--bg2);font-weight:bold;">';
+  tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+  foot.forEach(function (cell, ci) {
+    var align = numCols.includes(ci) ? "text-align:right;" : "";
+    tableHtml +=
+      '<td style="padding:8px;border:1px solid var(--brd);' +
+      align +
+      '">' +
+      cell +
+      "</td>";
+  });
+  tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+  tableHtml += "</tr>";
+
+  tableHtml += "</tbody></table>";
+
   return (
-    bulkBarHTML("golongan", "Golongan") + // Typo "GOlongan" saya perbaiki jadi "Golongan"
+    bulkBarHTML("golongan", "Golongan") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
     '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
-    "Filter Cabang: " +
-    getCabangFilterHTML() +
-    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Filter Group: " +
-    getGroupFilterHTML() + // <-- FILTER GROUP DITAMBAHKAN
+    htmlSelectGroup +
+    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+    "Filter Cabang: " +
+    htmlSelectCabang +
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
     getLimitOptsHTML() +
@@ -416,86 +689,109 @@ async function renderGol() {
     " record" +
     "</div>" +
     '<div style="display:flex;gap:.4rem">' +
-    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'golongan\', \'Data_Golongan\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
+    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'golongan\', \'Data_Golongan\')"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'golongan\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'golongan\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
     '<button type="button" class="btn btn-a" onclick="formGol()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
-    wrapTable(
-      buildTable(
-        [
-          "Gol",
-          "Nama Golongan",
-          "Awal",
-          "Debit",
-          "Kredit",
-          "Akhir",
-          "Group",
-          "Cabang",
-        ], // Header Group ditambahkan
-        rows,
-        {
-          numCols: [2, 3, 4, 5],
-          foot: foot,
-          bulkStore: "golongan",
-          bulkIds: idsLimit,
-          actions: function (r, i) {
-            return crudActions(dataLimit[i].id, "golongan");
-          },
-          emptyMsg: "Belum ada golongan",
-        },
-      ),
-    )
+    wrapTable(tableHtml) +
+    paginationHTML
   );
+}
+
+// --- TAMBAHKAN 2 FUNGSI GLOBAL INI DI BAWAHNYA ---
+
+function inlineChangeGroup(val) {
+  if (typeof setActiveGroupFilter === "function") setActiveGroupFilter(val);
+  if (typeof setActiveCabangFilter === "function") setActiveCabangFilter(""); // Reset cabang saat group ganti
+
+  // Refresh dropdown cabang langsung tanpa render ulang seluruh halaman (lebih cepat)
+  var cabSelect = document.getElementById("inlineCabangSelect");
+  if (cabSelect) {
+    var listCabang = DBCache.cabang || [];
+    var html = '<option value="">-- Pilih Cabang --</option>';
+    for (var j = 0; j < listCabang.length; j++) {
+      var c = listCabang[j];
+      var kodeC = String(c.kode || c.KODE || c.kode_cabang || "").trim();
+      var namaC = String(c.nama || c.NAMA || c.nama_cabang || "-").trim();
+      var groupC = String(c.group || c.GROUP || c.kode_group || "").trim();
+      if (!kodeC) continue;
+      if (val && val !== groupC) continue;
+      html +=
+        '<option value="' +
+        esc(kodeC) +
+        '">' +
+        esc(kodeC + " - " + namaC) +
+        "</option>";
+    }
+    cabSelect.innerHTML = html;
+  }
+
+  safeRenderCurrentPanel(); // Render tabelnya
+}
+
+function inlineChangeCabang(val) {
+  if (typeof setActiveCabangFilter === "function") setActiveCabangFilter(val);
+  safeRenderCurrentPanel(); // Render tabelnya
 }
 
 function formGol(id) {
   var isEdit = !!id;
   var data = isEdit
     ? (DBCache.golongan || []).find(function (d) {
-        return d.id === id;
+        return String(d.id) === String(id);
       }) || {}
     : {};
+
+  var cabangVal = data.cabang || data.CABANG || data.kode_cabang || "";
+  var groupVal = data.group || data.GROUP || "";
+  var golVal = data.gol || data.GOL || "";
+  var namaGolVal = data.namagol || data.NAMAGOL || data.nama_gol || "";
+  var awalVal = data.awal !== undefined ? data.awal : data.AWAL || 0;
 
   var html =
     '<div class="fg"><label>Cabang</label><select id="fGolCab" class="in"' +
     (isEdit ? " disabled" : "") +
     ">" +
-    getCabangOpts(data.cabang) +
+    getCabangOpts(cabangVal) +
     "</select></div>" +
-    '<div class="fg"><label>Group</label><select id="fGolGroup" class="in"' + // <-- INPUT GROUP DITAMBAHKAN
+    '<div class="fg"><label>Group</label><select id="fGolGroup" class="in"' +
     (isEdit ? " disabled" : "") +
     ">" +
-    getGroupOpts(data.group) +
+    getGroupOpts(groupVal || "") +
     "</select></div>" +
     '<div class="fg"><label>Kode Golongan</label><input id="fGolKode" class="in" value="' +
-    esc(data.gol || "") +
+    esc(golVal) +
     '"></div>' +
     '<div class="fg"><label>Nama Golongan</label><input id="fGolNama" class="in" value="' +
-    esc(data.namaGol || "") +
+    esc(namaGolVal) +
     '"></div>' +
+    // PERBAIKAN: esc() dihilangkan dari type="number" agar tidak error di browser
     '<div class="fg"><label>Saldo Awal</label><input id="fGolAwal" type="number" class="in" value="' +
-    esc(data.awal || 0) +
+    awalVal +
     '"></div>';
 
+  // PERBAIKAN: Tambahkan tag <form> agar e.preventDefault() di saveGol bekerja sempurna
   var foot =
-    '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
-    '<button type="button" class="btn btn-a" onclick="saveGol(event, \'' +
+    "<form onsubmit=\"saveGol(event, '" +
     (id || "") +
     "')\">" +
+    '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
+    '<button type="submit" class="btn btn-a">' + // Diubah jadi type="submit"
     (isEdit ? "Update" : "Simpan") +
-    "</button>";
+    "</button>" +
+    "</form>";
 
   openModal(isEdit ? "Edit Golongan" : "Tambah Golongan", html, foot);
 }
 
-// ✅ PERBAIKAN: Ditambahkan "e" di parameter untuk cegah Error 500
 async function saveGol(e, id) {
+  // Ini sekarang berguna karena ada <form onsubmit> di atas
   if (e && e.preventDefault) e.preventDefault();
 
   try {
     var cabang = $("fGolCab").value;
-    var group = $("fGolGroup").value; // <-- AMBIL NILAI GROUP
+    var group = $("fGolGroup").value;
     var gol = $("fGolKode").value.trim();
     var namaGol = $("fGolNama").value.trim();
     var awal = num($("fGolAwal").value);
@@ -510,17 +806,17 @@ async function saveGol(e, id) {
           namaGol: namaGol,
           awal: awal,
           cabang: cabang,
-          group: group, // <-- GROUP DIMASUKKAN KE UPDATE
+          group: group,
         });
         await db.put("golongan", updated);
 
-        // MANUAL CACHE UPDATE
         var idx = DBCache.golongan.findIndex((x) => x.id === id);
         if (idx !== -1) DBCache.golongan[idx] = updated;
       }
     } else {
-      var newId = uid();
-      var newObj = {
+      let newId = uid(); // PERBAIKAN: pakai let agar tidak keluar scope else
+      let newObj = {
+        // PERBAIKAN: pakai let
         id: newId,
         gol: gol,
         namaGol: namaGol,
@@ -528,11 +824,9 @@ async function saveGol(e, id) {
         db: 0,
         cr: 0,
         cabang: cabang,
-        group: group, // <-- GROUP DIMASUKKAN KE OBJEK BARU
+        group: group,
       };
       await db.add("golongan", newObj);
-
-      // MANUAL CACHE UPDATE
       DBCache.golongan.push(newObj);
     }
 
@@ -544,85 +838,267 @@ async function saveGol(e, id) {
   }
 }
 
+function getCabangFilterHTML() {
+  var list = DBCache.cabang || [];
+  var html =
+    '<select style="font-size:.72rem;padding:2px 4px;border-radius:4px;border:1px solid var(--brd);background:var(--bg);color:var(--fg);cursor:pointer" onchange="changeCabangFilter(this.value)">';
+  var selectedAll = currentCabang === "SEMUA" ? " selected" : "";
+  html += '<option value="SEMUA"' + selectedAll + ">SEMUA CABANG</option>";
+  for (var i = 0; i < list.length; i++) {
+    var c = list[i];
+    var val = typeof c === "object" ? c.kode || c.id : c;
+    var txt = typeof c === "object" ? c.nama || c.label : c;
+    var selected = currentCabang === val ? " selected" : "";
+    html += '<option value="' + val + '"' + selected + ">" + txt + "</option>";
+  }
+  html += "</select>";
+  return html;
+}
+function getGroupFilterHTML() {
+  var list = DBCache.groupproject || [];
+  var active = getActiveGroupFilter();
+  var html =
+    '<select style="font-size:.72rem;padding:2px 4px;border-radius:4px;border:1px solid var(--brd);background:var(--bg);color:var(--fg);cursor:pointer" onchange="changeGroupFilter(this.value)">';
+
+  var selectedAll = active === "" ? " selected" : "";
+  html += '<option value=""' + selectedAll + ">SEMUA GROUP</option>";
+
+  for (var i = 0; i < list.length; i++) {
+    var g = list[i];
+
+    // Nilai yang dikirim/disimpan (Gunakan kode, jika tidak ada baru gunakan id)
+    var val = typeof g === "object" ? g.kode || g.id : g;
+
+    // Tampilan teks: KODE - NAMA (Contoh: TLGA - TELAGA)
+    var txt =
+      typeof g === "object"
+        ? g.kode && g.nama
+          ? g.kode + " - " + g.nama
+          : g.nama || g.kode
+        : g;
+
+    var selected = active === val ? " selected" : "";
+    html += '<option value="' + val + '"' + selected + ">" + txt + "</option>";
+  }
+  html += "</select>";
+  return html;
+}
+
+function getCabangOpts2(selectedId, filterGroup) {
+  var cabangs = DBCache.cabang || [];
+
+  // PELACAK 2: Pastikan DBCache.cabang isinya apa
+  console.log(">>> getCabangOpts2 jalan. Jumlah data cabang:", cabangs.length);
+
+  var html = '<option value="">-- Pilih Cabang --</option>';
+
+  cabangs.forEach(function (c) {
+    var kode = String(c.kode || c.KODE || c.kode_cabang || "").trim();
+    var nama = String(c.nama || c.NAMA || c.nama_cabang || "-").trim();
+    var groupCabang = String(c.group || c.GROUP || c.kode_group || "").trim();
+
+    // PELACAK 3: Cek isi per cabang
+    console.log(
+      "Cabang:",
+      nama,
+      "| Group di DB:",
+      groupCabang,
+      "| Filter:",
+      filterGroup,
+    );
+
+    if (!kode) return;
+
+    if (filterGroup && String(filterGroup).trim() !== groupCabang) {
+      return;
+    }
+
+    var label = kode + " - " + nama;
+    var isSelected =
+      String(selectedId || "") === String(kode) ? " selected" : "";
+
+    html +=
+      '<option value="' +
+      esc(kode) +
+      '"' +
+      isSelected +
+      ">" +
+      esc(label) +
+      "</option>";
+  });
+
+  return html;
+}
+
 /* ---------- No Perkiraan ---------- */
 PANEL_MAP.perk = renderPerk;
-async function renderPerk() {
+var _perkSort = { col: -1, dir: "asc" };
+var _perkPage = 1;
+
+function sortPerk(colIndex) {
+  if (_perkSort.col === colIndex) {
+    _perkSort.dir = _perkSort.dir === "asc" ? "desc" : "asc";
+  } else {
+    _perkSort.col = colIndex;
+    _perkSort.dir = "asc";
+  }
+  _perkPage = 1;
+  var html = renderPerk();
+  $("contentArea").innerHTML = '<div class="pnl active">' + html + "</div>";
+}
+
+function goToPerkPage(page) {
+  _perkPage = page;
+
+  // Cek apakah aplikasi Anda punya fungsi render panel aktif secara global, contoh:
+  if (typeof safeRenderCurrentPanel === "function") {
+    safeRenderCurrentPanel();
+  } else {
+    // Jika manual, pastikan struktur elemen pembungkusnya konsisten
+    var html = renderPerk();
+    var area = $("contentArea");
+    if (area) {
+      area.innerHTML = '<div class="pnl active">' + html + "</div>";
+    }
+  }
+}
+
+function renderPerk() {
   var rawData = DBCache.perkiraan || [];
 
-  // --- 1. FILTER (CABANG & GROUP) ---
-  var data = filterByCabang(rawData); // Fungsi filterByCabang diasumsikan sudah ada
-  var activeGroup = getActiveGroupFilter(); // Fungsi helper untuk ambil nilai filter group (bisa diganti sesuai sistem Anda)
+  // Bungkus data dengan original index agar pemetaan aman
+  var rawDataWithIndex = rawData.map(function (r, idx) {
+    return { item: r, originalIndex: idx + 1 };
+  });
 
+  // Filter Cabang
+  var dataFiltered = rawDataWithIndex.filter(function (obj) {
+    return filterByCabang([obj.item]).length > 0;
+  });
+
+  // Filter Group
+  var activeGroup = getActiveGroupFilter();
   if (activeGroup) {
-    data = data.filter(function (r) {
-      return (r.group || "") === activeGroup;
+    dataFiltered = dataFiltered.filter(function (obj) {
+      return (obj.item.group || "") === activeGroup;
     });
   }
 
-  // ✅ DEBUG: Cek Filter
-  console.log("🔍 DEBUG (Raw):", rawData.length);
-  console.log("🔍 DEBUG (Filter Cabang & Group):", data.length);
+  // ==========================================
+  // 🔥 SORTING DINAMIS
+  // ==========================================
+  if (_perkSort.col >= 0) {
+    var sortCol = _perkSort.col;
+    var sortDir = _perkSort.dir;
 
-  // --- 2. SORTING ---
-  data.sort(function (a, b) {
-    var cabangA = String(a.cabang || "");
-    var cabangB = String(b.cabang || "");
-    var compareCabang = cabangA.localeCompare(cabangB, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-    if (compareCabang !== 0) return compareCabang;
+    dataFiltered.sort(function (aObj, bObj) {
+      var a = aObj.item,
+        b = bObj.item;
+      var valA, valB;
 
-    // Urutkan berdasarkan Group jika ada
-    var groupA = String(a.group || "");
-    var groupB = String(b.group || "");
-    var compareGroup = groupA.localeCompare(groupB, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-    if (compareGroup !== 0) return compareGroup;
+      switch (sortCol) {
+        case 0:
+          valA = String(a.gol || "").toLowerCase();
+          valB = String(b.gol || "").toLowerCase();
+          break;
+        case 1:
+          valA = String(a.noper || "").toLowerCase();
+          valB = String(b.noper || "").toLowerCase();
+          break;
+        case 2:
+          valA = String(a.penjelasan || "").toLowerCase();
+          valB = String(b.penjelasan || "").toLowerCase();
+          break;
+        case 3:
+          valA = +(a.awal || 0);
+          valB = +(b.awal || 0);
+          break;
+        case 4:
+          valA = +(a.db || 0);
+          valB = +(b.db || 0);
+          break;
+        case 5:
+          valA = +(a.cr || 0);
+          valB = +(b.cr || 0);
+          break;
+        case 6:
+          valA = +(a.awal || 0) + +(a.db || 0) - +(a.cr || 0);
+          valB = +(b.awal || 0) + +(b.db || 0) - +(b.cr || 0);
+          break;
+        case 7:
+          valA = String(a.group || "").toLowerCase();
+          valB = String(b.group || "").toLowerCase();
+          break;
+        case 8:
+          valA = String(a.cabang || "").toLowerCase();
+          valB = String(b.cabang || "").toLowerCase();
+          break;
+        default:
+          return 0;
+      }
 
-    var noPerkA = String(a.noPerk || "");
-    var noPerkB = String(b.noPerk || "");
-    return noPerkA.localeCompare(noPerkB, undefined, {
-      numeric: true,
-      sensitivity: "base",
+      var result;
+      if (typeof valA === "number") {
+        result = valA - valB;
+      } else {
+        result = valA.localeCompare(valB, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+      }
+      return sortDir === "desc" ? -result : result;
     });
+  }
+
+  var data = dataFiltered.map(function (obj) {
+    return obj.item;
   });
+
+  // ==========================================
+  // 🚀 PAGINATION
+  // ==========================================
+  var totalData = data.length;
+  var totalPages = Math.ceil(totalData / _viewLimit) || 1;
+
+  if (_perkPage > totalPages) {
+    _perkPage = totalPages;
+  }
+  if (_perkPage < 1) {
+    _perkPage = 1;
+  }
+
+  var startIndex = (_perkPage - 1) * _viewLimit;
+  var endIndex = startIndex + _viewLimit;
+  var dataLimitMapped = dataFiltered.slice(startIndex, endIndex);
+
+  var showStart = totalData === 0 ? 0 : startIndex + 1;
+  var showEnd = Math.min(endIndex, totalData);
 
   var ids = data.map(function (r) {
     return r.id;
   });
   bulkInit("perkiraan", ids);
 
-  // --- 3. LIMIT (BATAS TAMPILAN) ---
-  var dataLimit = data.slice(0, _viewLimit);
-  var idsLimit = dataLimit.map(function (r) {
-    return r.id;
+  var idsLimit = dataLimitMapped.map(function (obj) {
+    return obj.item.id;
   });
 
-  // --- 4. RENDER BARIS ---
-  var rows = dataLimit.map(function (r, index) {
-    try {
-      var ak = num(r.awal) + num(r.db) - num(r.cr);
-      return [
-        r.gol,
-        r.noperk,
-        r.desc,
-        fmtN(r.awal),
-        fmtN(r.db),
-        fmtN(r.cr),
-        '<span class="tag tag-akhir">' + fmtN(ak) + "</span>",
-        r.group || "-", // Kolom Group ditambahkan
-        lookupCabangLabel(r.cabang),
-      ];
-    } catch (err) {
-      console.error("❌ ERROR DI BARIS " + index + " (ID: " + r.id + "):", err);
-      return ["Error", "Error", "Error", 0, 0, 0, 0, "-", "-"];
-    }
+  var rows = dataLimitMapped.map(function (obj) {
+    var r = obj.item;
+    var ak = num(r.awal) + num(r.db) - num(r.cr);
+    return [
+      r.gol,
+      r.noper,
+      r.penjelasan,
+      fmtN(r.awal),
+      fmtN(r.db),
+      fmtN(r.cr),
+      '<span class="tag tag-akhir">' + fmtN(ak) + "</span>",
+      r.group || "-",
+      lookupCabangLabel(r.cabang),
+    ];
   });
 
-  // --- 5. FOOTER (TOTAL) ---
   var foot = [
     "",
     "",
@@ -644,10 +1120,144 @@ async function renderPerk() {
     ),
     "",
     "",
-    "", // Disesuaikan dengan jumlah kolom (9 kolom)
+    "",
   ];
 
-  // --- 6. RETURN HTML ---
+  var paginationHTML = "";
+  if (totalData > 0) {
+    paginationHTML =
+      '<div style="display:flex;align-items:center;gap:.7rem;margin-top:.7rem;justify-content:space-between;flex-wrap:wrap">' +
+      '<div style="font-size:.8rem;color:var(--muted)">Menampilkan <b>' +
+      showStart +
+      " - " +
+      showEnd +
+      "</b> dari <b>" +
+      totalData +
+      "</b> record (Hal. " +
+      _perkPage +
+      "/" +
+      totalPages +
+      ")</div>" +
+      '<div style="display:flex;gap:.4rem;align-items:center">' +
+      '<button type="button" class="btn btn-inf" onclick="goToPerkPage(' +
+      (_perkPage - 1) +
+      ')" ' +
+      (_perkPage <= 1 ? 'disabled style="opacity:.5;cursor:not-allowed"' : "") +
+      '><i class="fa-solid fa-arrow-left"></i> Prev</button>' +
+      '<button type="button" class="btn btn-inf" onclick="goToPerkPage(' +
+      (_perkPage + 1) +
+      ')" ' +
+      (_perkPage >= totalPages
+        ? 'disabled style="opacity:.5;cursor:not-allowed"'
+        : "") +
+      '>Next <i class="fa-solid fa-arrow-right"></i></button>' +
+      "</div></div>";
+  }
+
+  // ==========================================
+  // 🔥 HEADER SORT + TABLE + CHECKBOX
+  // ==========================================
+  var headerLabels = [
+    "Gol",
+    "No Perkiraan",
+    "Deskripsi",
+    "Awal",
+    "Debit",
+    "Kredit",
+    "Akhir",
+    "Group",
+    "Cabang",
+  ];
+  var numCols = [3, 4, 5, 6];
+
+  var tableHtml =
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
+
+  // ✅ Checkbox Header (Select All)
+  tableHtml +=
+    '<th style="padding:8px;border:1px solid var(--brd);width:35px;text-align:center;">' +
+    '<input type="checkbox" onchange="toggleBulkAll(\'perkiraan\', this.checked)" title="Pilih Semua">' +
+    "</th>";
+
+  headerLabels.forEach(function (label, idx) {
+    var isActive = _perkSort.col === idx;
+    var icon = "";
+    if (isActive) {
+      icon =
+        _perkSort.dir === "asc"
+          ? ' <i class="fa-solid fa-sort-up" style="color:var(--accent);"></i>'
+          : ' <i class="fa-solid fa-sort-down" style="color:var(--accent);"></i>';
+    } else {
+      icon =
+        ' <i class="fa-solid fa-sort" style="color:var(--muted);opacity:.4;"></i>';
+    }
+    var bgStyle = isActive
+      ? "background:var(--bg2);color:var(--accent);font-weight:bold;"
+      : "";
+    tableHtml +=
+      '<th style="' +
+      bgStyle +
+      'padding:8px;border:1px solid var(--brd);white-space:nowrap;cursor:pointer;user-select:none;" onclick="sortPerk(' +
+      idx +
+      ')">' +
+      label +
+      icon +
+      "</th>";
+  });
+  tableHtml +=
+    '<th style="padding:8px;border:1px solid var(--brd);">Aksi</th></tr></thead><tbody>';
+
+  if (rows.length === 0) {
+    tableHtml +=
+      '<tr><td colspan="' +
+      (headerLabels.length + 2) +
+      '" style="padding:2rem;text-align:center;color:var(--muted);">Belum ada perkiraan</td></tr>';
+  } else {
+    rows.forEach(function (row, i) {
+      tableHtml += "<tr>";
+
+      // ✅ Checkbox per baris
+      tableHtml +=
+        '<td style="padding:6px 8px;border:1px solid var(--brd);text-align:center;">' +
+        '<input type="checkbox" class="bulk-check" data-store="perkiraan" data-id="' +
+        dataLimitMapped[i].item.id +
+        '">' +
+        "</td>";
+
+      row.forEach(function (cell, ci) {
+        var align = numCols.includes(ci) ? "text-align:right;" : "";
+        tableHtml +=
+          '<td style="padding:6px 8px;border:1px solid var(--brd);font-size:.85rem;' +
+          align +
+          '">' +
+          cell +
+          "</td>";
+      });
+      tableHtml +=
+        '<td style="padding:6px 8px;border:1px solid var(--brd);">' +
+        crudActions(dataLimitMapped[i].item.id, "perkiraan") +
+        "</td>";
+      tableHtml += "</tr>";
+    });
+  }
+
+  // Footer Row
+  tableHtml += '<tr style="background:var(--bg2);font-weight:bold;">';
+  tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>'; // Kosong untuk checkbox footer
+  foot.forEach(function (cell, ci) {
+    var align = numCols.includes(ci) ? "text-align:right;" : "";
+    tableHtml +=
+      '<td style="padding:8px;border:1px solid var(--brd);' +
+      align +
+      '">' +
+      cell +
+      "</td>";
+  });
+  tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+  tableHtml += "</tr>";
+
+  tableHtml += "</tbody></table>";
+
   return (
     bulkBarHTML("perkiraan", "Perkiraan") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
@@ -656,7 +1266,7 @@ async function renderPerk() {
     getCabangFilterHTML() +
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Filter Group: " +
-    getGroupFilterHTML() + // <-- TAMBAHKAN INI
+    getGroupFilterHTML() +
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
     getLimitOptsHTML() +
@@ -665,37 +1275,13 @@ async function renderPerk() {
     " record" +
     "</div>" +
     '<div style="display:flex;gap:.4rem">' +
-    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'perkiraan\', \'Data_Perkiraan\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
+    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'perkiraan\', \'Data_Perkiraan\')"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'perkiraan\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'perkiraan\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
     '<button type="button" class="btn btn-a" onclick="formPerk()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     "</div></div>" +
-    wrapTable(
-      buildTable(
-        [
-          "Gol",
-          "No Perkiraan",
-          "Deskripsi",
-          "Awal",
-          "Debit",
-          "Kredit",
-          "Akhir",
-          "Group",
-          "Cabang",
-        ], // Header kolom ditambah
-        rows,
-        {
-          numCols: [3, 4, 5, 6],
-          foot: foot,
-          bulkStore: "perkiraan",
-          bulkIds: idsLimit,
-          actions: function (r, i) {
-            return crudActions(dataLimit[i].id, "perkiraan");
-          },
-          emptyMsg: "Belum ada perkiraan",
-        },
-      ),
-    )
+    wrapTable(tableHtml) +
+    paginationHTML
   );
 }
 
@@ -722,10 +1308,10 @@ function formPerk(id) {
     esc(data.gol || "") +
     '"></div>' +
     '<div class="fg"><label>No Perkiraan</label><input id="fPerkNo" class="in" value="' +
-    esc(data.noPerk || "") +
+    esc(data.noper || "") +
     '"></div>' +
     '<div class="fg"><label>Deskripsi</label><input id="fPerkDesc" class="in" value="' +
-    esc(data.desc || "") +
+    esc(data.penjelasan || "") +
     '"></div>' +
     '<div class="fg"><label>Saldo Awal</label><input id="fPerkAwal" type="number" class="in" value="' +
     esc(data.awal || 0) +
@@ -780,8 +1366,8 @@ async function savePerk(e, id) {
       if (r) {
         var updated = Object.assign({}, r, {
           gol: gol,
-          noPerk: noPerk,
-          desc: desc,
+          noper: noPerk,
+          penjelasan: desc,
           awal: awal,
           cabang: cabang,
           group: group, // <-- SIMPAN GROUP
@@ -796,8 +1382,8 @@ async function savePerk(e, id) {
       var newObj = {
         id: newId,
         gol: gol,
-        noPerk: noPerk,
-        desc: desc,
+        noper: noPerk,
+        penjelasan: desc,
         awal: awal,
         db: 0,
         cr: 0,
@@ -819,145 +1405,407 @@ async function savePerk(e, id) {
 
 /* ---------- Kode Bank/Kas ---------- */
 PANEL_MAP.kode = renderKodeBank;
+if (typeof _currentPageKodeBank === "undefined") var _currentPageKodeBank = 1;
+var _kodeBankSort = { col: -1, dir: "asc" };
+
+// --- 1. FUNGSI SORTING HEADER TABEL KODE BANK ---
+function sortKodeBank(colIndex) {
+  if (_kodeBankSort.col === colIndex) {
+    _kodeBankSort.dir = _kodeBankSort.dir === "asc" ? "desc" : "asc";
+  } else {
+    _kodeBankSort.col = colIndex;
+    _kodeBankSort.dir = "asc";
+  }
+  _currentPageKodeBank = 1;
+
+  if (typeof safeRenderCurrentPanel === "function") {
+    safeRenderCurrentPanel();
+  } else {
+    renderKodeBank().then(function (html) {
+      var area =
+        document.getElementById("contentArea") ||
+        document.querySelector(".pnl.active");
+      if (area) area.innerHTML = '<div class="pnl active">' + html + "</div>";
+    });
+  }
+}
+
+// --- 2. FUNGSI UTAMA RENDER KODE BANK ---
 async function renderKodeBank() {
-  var rawData = DBCache.kodeBank || [];
+  try {
+    var rawData = DBCache.kodeBank || [];
 
-  // --- 1. FILTER (CABANG & GROUP) ---
-  var data = filterByCabang(rawData);
-  var activeGroup = getActiveGroupFilter();
+    // --- FILTER (CABANG & GROUP) ---
+    var data = filterByCabang(rawData);
+    var activeGroup = getActiveGroupFilter();
 
-  if (activeGroup) {
-    data = data.filter(function (r) {
-      return (r.group || "") === activeGroup;
+    if (activeGroup) {
+      data = data.filter(function (r) {
+        return (r.group || "") === activeGroup;
+      });
+    }
+
+    // Bungkus dengan index asli agar pemetaan aman saat di-sort
+    var dataWithIndex = data.map(function (r, idx) {
+      return { item: r, originalIndex: idx + 1 };
     });
-  }
 
-  // --- 2. SORTING ---
-  data.sort(function (a, b) {
-    var cabangA = String(a.cabang || "");
-    var cabangB = String(b.cabang || "");
-    var compareCabang = cabangA.localeCompare(cabangB, undefined, {
-      numeric: true,
-      sensitivity: "base",
+    // --- SORTING DINAMIS ---
+    if (_kodeBankSort.col >= 0) {
+      var sortCol = _kodeBankSort.col;
+      var sortDir = _kodeBankSort.dir;
+
+      dataWithIndex.sort(function (aObj, bObj) {
+        var a = aObj.item,
+          b = bObj.item;
+        var valA, valB;
+
+        function countRefSort(kode) {
+          var tc = 0;
+          (DBCache.transaksi || []).forEach(function (t) {
+            if (t.kodeBank === kode) tc++;
+          });
+          return tc;
+        }
+
+        switch (sortCol) {
+          case 0:
+            valA = String(a.kode || "").toLowerCase();
+            valB = String(b.kode || "").toLowerCase();
+            break;
+          case 1:
+            valA = String(a.desc || "").toLowerCase();
+            valB = String(b.desc || "").toLowerCase();
+            break;
+          case 2:
+            valA = String(a.noper || "").toLowerCase();
+            valB = String(b.noper || "").toLowerCase();
+            break;
+          case 3:
+            valA = countRefSort(a.kode || a.kodebank);
+            valB = countRefSort(b.kode || b.kodebank);
+            break;
+          case 4:
+            valA = String(a.group || "").toLowerCase();
+            valB = String(b.group || "").toLowerCase();
+            break;
+          case 5:
+            valA = String(lookupCabangLabel(a.cabang) || "").toLowerCase();
+            valB = String(lookupCabangLabel(b.cabang) || "").toLowerCase();
+            break;
+          default:
+            return 0;
+        }
+
+        var result;
+        if (typeof valA === "number") {
+          result = valA - valB;
+        } else {
+          result = valA.localeCompare(valB, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
+        }
+        return sortDir === "desc" ? -result : result;
+      });
+    }
+
+    var sortedData = dataWithIndex.map(function (obj) {
+      return obj.item;
     });
-    if (compareCabang !== 0) return compareCabang;
 
-    // Urutkan berdasarkan Group
-    var groupA = String(a.group || "");
-    var groupB = String(b.group || "");
-    var compareGroup = groupA.localeCompare(groupB, undefined, {
-      numeric: true,
-      sensitivity: "base",
+    var allIds = sortedData.map(function (r) {
+      return r.id;
     });
-    if (compareGroup !== 0) return compareGroup;
+    bulkInit("kodeBank", allIds);
 
-    var kodeA = String(a.kodebank || "");
-    var kodeB = String(b.kodebank || "");
-    return kodeA.localeCompare(kodeB, undefined, {
-      numeric: true,
-      sensitivity: "base",
+    // --- LOGIKA PAGINATION ---
+    var limit =
+      typeof _viewLimit !== "undefined" && _viewLimit ? num(_viewLimit) : 50;
+    var totalRecords = sortedData.length;
+    var totalPages = Math.ceil(totalRecords / limit) || 1;
+
+    if (_currentPageKodeBank > totalPages) _currentPageKodeBank = totalPages;
+    if (_currentPageKodeBank < 1) _currentPageKodeBank = 1;
+
+    var startIndex = (_currentPageKodeBank - 1) * limit;
+    var endIndex = startIndex + limit;
+
+    var dataLimitMapped = dataWithIndex.slice(startIndex, endIndex);
+    var dataLimit = dataLimitMapped.map(function (obj) {
+      return obj.item;
     });
-  });
-
-  var ids = data.map(function (r) {
-    return r.id;
-  });
-  bulkInit("kodeBank", ids);
-
-  var dataLimit = data.slice(0, _viewLimit);
-  var idsLimit = dataLimit.map(function (r) {
-    return r.id;
-  });
-
-  function countRef(kode) {
-    var tc = 0;
-    (DBCache.transaksi || []).forEach(function (t) {
-      if (t.kodeBank === kode) tc++;
+    var idsLimit = dataLimit.map(function (r) {
+      return r.id;
     });
-    return tc;
-  }
 
-  function lookupPerk(noper) {
-    if (!noper) return "-";
-    var p = (DBCache.perkiraan || []).find(function (x) {
-      return x.noPerk === noper;
+    var showStart = totalRecords === 0 ? 0 : startIndex + 1;
+    var showEnd = Math.min(endIndex, totalRecords);
+
+    function countRef(kode) {
+      var tc = 0;
+      (DBCache.transaksi || []).forEach(function (t) {
+        if (t.kodeBank === kode) tc++;
+      });
+      return tc;
+    }
+
+    function lookupPerk(noper) {
+      if (!noper) return "-";
+      var p = (DBCache.perkiraan || []).find(function (x) {
+        return x.noPerk === noper;
+      });
+      return p
+        ? esc(p.noPerk + " — " + p.desc)
+        : '<span style="color:var(--accent)">⚠ ' + esc(noper) + "</span>";
+    }
+
+    // --- RENDER BARIS ---
+    var rows = dataLimit.map(function (r) {
+      return [
+        r.kode,
+        r.desc || "-",
+        lookupPerk(r.noper),
+        '<span style="color:var(--success)">' +
+          countRef(r.kode || r.kodebank) +
+          "</span>",
+        r.group || "-",
+        lookupCabangLabel(r.cabang),
+      ];
     });
-    return p
-      ? esc(p.noPerk + " — " + p.desc)
-      : '<span style="color:var(--accent)">⚠ ' + esc(noper) + "</span>";
-  }
 
-  // --- 3. RENDER BARIS ---
-  var rows = dataLimit.map(function (r) {
-    return [
-      r.kodebank,
-      r.penjelasan || "-",
-      lookupPerk(r.noper),
-      '<span style="color:var(--success)">' + countRef(r.kodebank) + "</span>",
-      r.group || "-", // <-- KOLOM GROUP DITAMBAHKAN
-      lookupCabangLabel(r.cabang),
+    // --- FOOTER (TOTAL) ---
+    var totalTrans = sortedData.reduce(function (s, r) {
+      return s + countRef(r.kode || r.kodebank);
+    }, 0);
+
+    var foot = [
+      sortedData.length + " kode",
+      "-",
+      "-",
+      '<span style="color:var(--success)">' + totalTrans + "</span>",
+      "-",
+      "-",
     ];
-  });
 
-  // --- 4. FOOTER (TOTAL) ---
-  var totalTrans = data.reduce(function (s, r) {
-    return s + countRef(r.kodebank);
-  }, 0);
-  var foot = [
-    data.length + " kode",
-    "-",
-    "-",
-    '<span style="color:var(--success)">' + totalTrans + "</span>",
-    "-", // Footer Kolom Group
-    "-", // Footer Kolom Cabang
+    // --- PEMBUATAN HEADER TABEL MANUAL DENGAN SORT & CHECKBOX ---
+    var headerLabels = [
+      "Kode Bank/Kas",
+      "Penjelasan",
+      "No Perkiraan",
+      "Jml Transaksi",
+      "Group",
+      "Cabang",
+    ];
+    var numCols = [3]; // Kolom jumlah transaksi rata kanan
+
+    var tableHtml =
+      '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
+
+    // Checkbox Header (Select All)
+    tableHtml +=
+      '<th style="padding:8px;border:1px solid var(--brd);width:35px;text-align:center;">' +
+      '<input type="checkbox" onchange="toggleBulkAll(\'kodeBank\', this.checked)" title="Pilih Semua">' +
+      "</th>";
+
+    headerLabels.forEach(function (label, idx) {
+      var isActive = _kodeBankSort.col === idx;
+      var icon = "";
+      if (isActive) {
+        icon =
+          _kodeBankSort.dir === "asc"
+            ? ' <i class="fa-solid fa-sort-up" style="color:var(--accent);"></i>'
+            : ' <i class="fa-solid fa-sort-down" style="color:var(--accent);"></i>';
+      } else {
+        icon =
+          ' <i class="fa-solid fa-sort" style="color:var(--muted);opacity:.4;"></i>';
+      }
+      var bgStyle = isActive
+        ? "background:var(--bg2);color:var(--accent);font-weight:bold;"
+        : "";
+
+      tableHtml +=
+        '<th style="' +
+        bgStyle +
+        'padding:8px;border:1px solid var(--brd);white-space:nowrap;cursor:pointer;user-select:none;" onclick="sortKodeBank(' +
+        idx +
+        ')">' +
+        label +
+        icon +
+        "</th>";
+    });
+    tableHtml +=
+      '<th style="padding:8px;border:1px solid var(--brd);">Aksi</th></tr></thead><tbody>';
+
+    if (rows.length === 0) {
+      tableHtml +=
+        '<tr><td colspan="' +
+        (headerLabels.length + 2) +
+        '" style="padding:2rem;text-align:center;color:var(--muted);">Belum ada kode bank/kas</td></tr>';
+    } else {
+      rows.forEach(function (row, i) {
+        tableHtml += "<tr>";
+
+        // Checkbox per baris
+        tableHtml +=
+          '<td style="padding:6px 8px;border:1px solid var(--brd);text-align:center;">' +
+          '<input type="checkbox" class="bulk-check" data-store="kodeBank" data-id="' +
+          dataLimit[i].id +
+          '">' +
+          "</td>";
+
+        row.forEach(function (cell, ci) {
+          var align = numCols.includes(ci) ? "text-align:right;" : "";
+          tableHtml +=
+            '<td style="padding:6px 8px;border:1px solid var(--brd);font-size:.85rem;' +
+            align +
+            '">' +
+            cell +
+            "</td>";
+        });
+
+        tableHtml +=
+          '<td style="padding:6px 8px;border:1px solid var(--brd);">' +
+          crudActions(dataLimit[i].id, "kodeBank") +
+          "</td>";
+        tableHtml += "</tr>";
+      });
+    }
+
+    // Baris Footer Total
+    tableHtml += '<tr style="background:var(--bg2);font-weight:bold;">';
+    tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+    foot.forEach(function (cell, ci) {
+      var align = numCols.includes(ci) ? "text-align:right;" : "";
+      tableHtml +=
+        '<td style="padding:8px;border:1px solid var(--brd);' +
+        align +
+        '">' +
+        cell +
+        "</td>";
+    });
+    tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+    tableHtml += "</tr></tbody></table>";
+
+    // --- PAGINATION HTML ---
+    var paginationHTML = "";
+    if (totalRecords > 0) {
+      paginationHTML =
+        '<div style="display:flex;align-items:center;gap:.7rem;margin-top:.7rem;justify-content:space-between;flex-wrap:wrap">' +
+        '<div style="font-size:.8rem;color:var(--muted)">Menampilkan <b>' +
+        showStart +
+        " - " +
+        showEnd +
+        "</b> dari <b>" +
+        totalRecords +
+        "</b> record (Hal. " +
+        _currentPageKodeBank +
+        "/" +
+        totalPages +
+        ")</div>" +
+        '<div style="display:flex;gap:.4rem;align-items:center">' +
+        '<button type="button" class="btn btn-inf" onclick="changePageKodeBank(' +
+        (_currentPageKodeBank - 1) +
+        ')" ' +
+        (_currentPageKodeBank <= 1
+          ? 'disabled style="opacity:.5;cursor:not-allowed"'
+          : "") +
+        '><i class="fa-solid fa-arrow-left"></i> Prev</button>' +
+        '<button type="button" class="btn btn-inf" onclick="changePageKodeBank(' +
+        (_currentPageKodeBank + 1) +
+        ')" ' +
+        (_currentPageKodeBank >= totalPages
+          ? 'disabled style="opacity:.5;cursor:not-allowed"'
+          : "") +
+        '>Next <i class="fa-solid fa-arrow-right"></i></button>' +
+        "</div></div>";
+    }
+
+    // --- 5. RETURN HTML ---
+    return (
+      bulkBarHTML("kodeBank", "kodeBank") +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
+      '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
+      "Filter Cabang: " +
+      getCabangFilterHTML() +
+      '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+      "Filter Group: " +
+      getGroupFilterHTML() +
+      '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+      "Tampilkan " +
+      getLimitOptsHTML() +
+      " dari " +
+      totalRecords +
+      " record" +
+      "</div>" +
+      '<div style="display:flex;gap:.4rem">' +
+      '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'kodeBank\', \'Data_KodeBank\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
+      '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'kodeBank\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
+      '<button type="button" class="btn btn-r" onclick="clearAllData(\'kodeBank\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
+      '<button type="button" class="btn btn-a" onclick="formKodeBank()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
+      "</div></div>" +
+      wrapTable(tableHtml) +
+      paginationHTML
+    );
+  } catch (error) {
+    console.error("CRASH PADA RENDER KODE BANK:", error);
+    return (
+      '<div style="color:red;padding:1rem;">Gagal memuat tabel: ' +
+      error.message +
+      "</div>"
+    );
+  }
+}
+
+// --- 3. FUNGSI UNTUK PINDAH HALAMAN KODE BANK ---
+function changePageKodeBank(targetPage) {
+  _currentPageKodeBank = targetPage;
+
+  if (typeof safeRenderCurrentPanel === "function") {
+    safeRenderCurrentPanel();
+    return;
+  }
+
+  var appContainer = null;
+  var possibleIds = [
+    "main-content",
+    "app-content",
+    "content-area",
+    "page-content",
+    "view-content",
+    "contentArea",
   ];
 
-  // --- 5. RETURN HTML ---
-  return (
-    bulkBarHTML("kodeBank", "kodeBank") +
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
-    '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
-    "Filter Cabang: " +
-    getCabangFilterHTML() +
-    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
-    "Filter Group: " +
-    getGroupFilterHTML() + // <-- DROPDOWN FILTER GROUP DITAMBAHKAN
-    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
-    "Tampilkan " +
-    getLimitOptsHTML() +
-    " dari " +
-    data.length +
-    " record" +
-    "</div>" +
-    '<div style="display:flex;gap:.4rem">' +
-    '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'kodeBank\', \'Data_KodeBank\')" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
-    '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'kodeBank\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
-    '<button type="button" class="btn btn-r" onclick="clearAllData(\'kodeBank\')"><i class="fa-solid fa-trash-can"></i> Kosongkan Semua</button>' +
-    '<button type="button" class="btn btn-a" onclick="formKodeBank()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
-    "</div></div>" +
-    wrapTable(
-      buildTable(
-        [
-          "Kode Bank/Kas",
-          "Penjelasan",
-          "No Perkiraan",
-          "Jml Transaksi",
-          "Group", // <-- HEADER KOLOM GROUP DITAMBAHKAN
-          "Cabang",
-        ],
-        rows,
-        {
-          foot: foot,
-          bulkStore: "kodeBank",
-          bulkIds: idsLimit,
-          actions: function (r, i) {
-            return crudActions(dataLimit[i].id, "kodeBank");
-          },
-          emptyMsg: "Belum ada kode bank/kas",
-        },
-      ),
-    )
-  );
+  for (var i = 0; i < possibleIds.length; i++) {
+    var el = document.getElementById(possibleIds[i]);
+    if (el && el.innerHTML.indexOf("kodeBank") !== -1) {
+      appContainer = el;
+      break;
+    }
+  }
+
+  if (!appContainer) {
+    var allDivs = document.getElementsByTagName("div");
+    for (var j = 0; j < allDivs.length; j++) {
+      if (
+        allDivs[j].innerHTML.indexOf("kodeBank") !== -1 &&
+        allDivs[j].children.length > 3
+      ) {
+        appContainer = allDivs[j];
+        break;
+      }
+    }
+  }
+
+  if (appContainer) {
+    renderKodeBank().then(function (html) {
+      appContainer.innerHTML = '<div class="pnl active">' + html + "</div>";
+    });
+  } else {
+    console.error(
+      "Tidak bisa menemukan container untuk merender halaman kode bank.",
+    );
+  }
 }
 
 function formKodeBank(id) {
@@ -980,10 +1828,10 @@ function formKodeBank(id) {
     getGroupOpts(data.group) +
     "</select></div>" +
     '<div class="fg"><label>Kode Bank</label><input id="fKbKode" class="in" value="' +
-    esc(data.kodebank || "") +
+    esc(data.kode || "") +
     '"></div>' +
     '<div class="fg"><label>Penjelasan</label><input id="fKbPenjelasan" class="in" value="' +
-    esc(data.penjelasan || "") +
+    esc(data.desc || "") +
     '"></div>' +
     '<div class="fg"><label>No Perkiraan</label><input id="fKbNoper" class="in" value="' +
     esc(data.noper || "") +
@@ -1029,8 +1877,8 @@ async function saveKodeBank(e, editId) {
       var r = await db.get("kodeBank", editId);
       if (r) {
         var updated = Object.assign({}, r, {
-          kodebank: kodebank,
-          penjelasan: penjelasan,
+          kode: kodebank,
+          desc: penjelasan,
           noper: noper,
           cabang: cabang,
           group: group, // <-- GROUP DIMASUKKAN KE UPDATE
@@ -1068,8 +1916,8 @@ async function saveKodeBank(e, editId) {
       var newId = uid();
       var newObj = {
         id: newId,
-        kodebank: kodebank,
-        penjelasan: penjelasan,
+        kode: kodebank,
+        desc: penjelasan,
         noper: noper,
         cabang: cabang,
         group: group, // <-- GROUP DIMASUKKAN KE OBJEK BARU
@@ -1114,58 +1962,6 @@ async function saveKodeBank(e, editId) {
     toast("Gagal simpan: " + err.message, "err");
   }
 }
-function getGroupFilterHTML() {
-  var list = DBCache.groupproject || [];
-  var active = getActiveGroupFilter();
-  var html =
-    '<select style="font-size:.72rem;padding:2px 4px;border-radius:4px;border:1px solid var(--brd);background:var(--bg);color:var(--fg);cursor:pointer" onchange="changeGroupFilter(this.value)">';
-
-  var selectedAll = active === "" ? " selected" : "";
-  html += '<option value=""' + selectedAll + ">SEMUA GROUP</option>";
-
-  for (var i = 0; i < list.length; i++) {
-    var g = list[i];
-
-    // Nilai yang dikirim/disimpan (Gunakan kode, jika tidak ada baru gunakan id)
-    var val = typeof g === "object" ? g.kode || g.id : g;
-
-    // Tampilan teks: KODE - NAMA (Contoh: TLGA - TELAGA)
-    var txt =
-      typeof g === "object"
-        ? g.kode && g.nama
-          ? g.kode + " - " + g.nama
-          : g.nama || g.kode
-        : g;
-
-    var selected = active === val ? " selected" : "";
-    html += '<option value="' + val + '"' + selected + ">" + txt + "</option>";
-  }
-  html += "</select>";
-  return html;
-}
-
-function getGroupOpts(selectedId) {
-  var groups = DBCache.groupproject || [];
-  var html = '<option value="">-- Pilih Group --</option>';
-  groups.forEach(function (g) {
-    // Ambil data kode dan nama
-    var groupKode = g.kode || "";
-    var groupNama = g.nama || "-";
-
-    // Gabungkan teks untuk tampilan (Contoh: TLGA - TELAGA)
-    var labelTeks = groupKode ? groupKode + " - " + groupNama : groupNama;
-
-    html +=
-      '<option value="' +
-      esc(groupKode) + // Menggunakan KODE sebagai value yang disimpan
-      '"' +
-      ((selectedId || "") === groupKode ? " selected" : "") + // Pengecekan aktif berdasarkan kode
-      ">" +
-      esc(labelTeks) + // Menampilkan KODE dan NAMA
-      "</option>";
-  });
-  return html;
-}
 
 function getActiveGroupFilter() {
   // Sesuaikan selector ini jika struktur HTML filter Anda berbeda
@@ -1183,6 +1979,9 @@ async function clearAllData(storeName) {
     perkiraan: "No Perkiraan",
     bank: "Kode Bank",
     kodeBank: "Kode Bank",
+    datasales: "Data Sales",
+    daftarmenu: "Daftar Menu",
+    saldopembukuan: "Saldo Pembukuan",
   };
 
   var kataDasar = storeName.replace(/[0-9]/g, "");
@@ -1282,9 +2081,9 @@ async function renderCabang() {
 
   var rows = dataLimit.map(function (r) {
     return [
-      r.kode || "-",
-      r.nama || "-",
-      r.group || "-", // <-- KOLOM GROUP DITAMBAHKAN
+      r.kode || r.KODE || "-", // Mengambil properti 'kode'
+      r.nama || r.NAMA || "-", // Mengambil properti 'nama'
+      r.group || r.GROUP || "-", // Mengambil properti 'group'
     ];
   });
 
@@ -1325,17 +2124,30 @@ async function renderCabang() {
 
 function formCabang(id) {
   var isEdit = !!id;
+
+  // Cari data berdasarkan ID (dipaksa String agar aman)
   var data = isEdit
     ? (DBCache.cabang || []).find(function (d) {
-        return d.id === id;
+        return String(d.id) === String(id);
       }) || {}
     : {};
 
+  // ✅ PERBAIKAN SUPER PENTING: Jika kode/nama kosong di level luar, ambil dari dalam kolom 'data'
+  if ((!data.kode || !data.nama) && data.data) {
+    try {
+      var parsedData = JSON.parse(data.data);
+      // Gabungkan hasil pecahan ke dalam variabel data
+      data = Object.assign({}, data, parsedData);
+    } catch (e) {
+      console.error("Gagal parse data cabang:", e);
+    }
+  }
+
   var html =
-    '<div class="fg"><label>Group</label><select id="fCabGroup" class="in"' + // <-- INPUT GROUP DITAMBAHKAN
+    '<div class="fg"><label>Group</label><select id="fCabGroup" class="in"' +
     (isEdit ? " disabled" : "") +
     ">" +
-    getGroupOpts(data.group) +
+    getGroupOpts(data.group || "") +
     "</select></div>" +
     '<div class="fg"><label>Kode Cabang</label><input id="fCabKode" class="in" value="' +
     esc(data.kode || "") +
@@ -1414,23 +2226,6 @@ async function saveCabang(e, id) {
 function changeCabangFilter(val) {
   currentCabang = val;
   safeRenderCurrentPanel();
-}
-
-function getCabangFilterHTML() {
-  var list = DBCache.cabang || [];
-  var html =
-    '<select style="font-size:.72rem;padding:2px 4px;border-radius:4px;border:1px solid var(--brd);background:var(--bg);color:var(--fg);cursor:pointer" onchange="changeCabangFilter(this.value)">';
-  var selectedAll = currentCabang === "SEMUA" ? " selected" : "";
-  html += '<option value="SEMUA"' + selectedAll + ">SEMUA CABANG</option>";
-  for (var i = 0; i < list.length; i++) {
-    var c = list[i];
-    var val = typeof c === "object" ? c.kode || c.id : c;
-    var txt = typeof c === "object" ? c.nama || c.label : c;
-    var selected = currentCabang === val ? " selected" : "";
-    html += '<option value="' + val + '"' + selected + ">" + txt + "</option>";
-  }
-  html += "</select>";
-  return html;
 }
 
 PANEL_MAP.saldoKasirAwal = renderSaldoKasirAwal;
@@ -1818,95 +2613,185 @@ async function saveGroup(e, id) {
   }
 }
 PANEL_MAP.sales = renderSales;
-var _currentPage = 1; // <--- TAMBAHKAN INI
-// ========================================================
-// 🌟 FUNGSI BARU: REFRESH SALES (Opsional, jika ingin force fetch dari Server)
-// ========================================================
-// Gunakan ini jika Anda ingin memaksa ambil data terbaru dari database server,
-// melewati cache yang ada di memori (DBCache).
+// Pastikan variabel global untuk penampung sort sales sudah ada
+if (typeof _salesSort === "undefined") var _salesSort = { col: -1, dir: "asc" };
 
+// --- 1. FUNGSI SORTING HEADER SALES ---
+function sortSales(colIndex) {
+  if (_salesSort.col === colIndex) {
+    _salesSort.dir = _salesSort.dir === "asc" ? "desc" : "asc";
+  } else {
+    _salesSort.col = colIndex;
+    _salesSort.dir = "asc";
+  }
+  _currentPage = 1;
+
+  if (typeof safeRenderCurrentPanel === "function") {
+    safeRenderCurrentPanel();
+  } else {
+    renderSales().then(function (html) {
+      var area =
+        document.getElementById("contentArea") ||
+        document.querySelector(".pnl.active");
+      if (area) area.innerHTML = '<div class="pnl active">' + html + "</div>";
+    });
+  }
+}
+
+// --- 2. FUNGSI UTAMA RENDER SALES ---
 async function renderSales() {
   var rawData = DBCache.datasales || [];
-  var data = filterByCabang(rawData);
 
-  // --- 1. FILTER GROUP ---
+  // Bungkus data dengan original index dan pastikan properti fisik 'kodebersama' ada
+  var rawDataWithIndex = rawData.map(function (r, idx) {
+    // 🔥 Inisialisasi fisik properti jika belum ada di objek data asli
+    if (typeof r.kodebersama === "undefined") {
+      r.kodebersama = r.kode_bersama || r.KODEBERSAMA || "";
+    }
+    return { item: r, originalIndex: idx + 1 };
+  });
+
+  // Filter Cabang
+  var dataFiltered = rawDataWithIndex.filter(function (obj) {
+    return filterByCabang([obj.item]).length > 0;
+  });
+
+  // Filter Group
   var activeGroup = getActiveGroupFilter();
   if (activeGroup) {
-    data = data.filter(function (r) {
-      return (r.group || "") === activeGroup;
+    dataFiltered = dataFiltered.filter(function (obj) {
+      return (obj.item.group || "") === activeGroup;
     });
   }
 
-  // --- 2. SORTING BERTINGKAT ---
-  // --- 2. SORTING BERTINGKAT (Cabang -> Group -> Masa -> Kode Menu) ---
-  data.sort(function (a, b) {
-    var cabangA = String(a.cabang || ""),
-      cabangB = String(b.cabang || "");
-    var cCabang = cabangA.localeCompare(cabangB, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-    if (cCabang !== 0) return cCabang;
+  // Filter Noper
+  var noperSelect = document.getElementById("filterNoper");
+  var activeNoper = noperSelect ? noperSelect.value : "";
 
-    var groupA = String(a.group || ""),
-      groupB = String(b.group || "");
-    var cGroup = groupA.localeCompare(groupB, undefined, {
-      numeric: true,
-      sensitivity: "base",
+  if (activeNoper === "blank") {
+    dataFiltered = dataFiltered.filter(function (obj) {
+      var noper = String(
+        obj.item.noper || obj.item.no_per || obj.item.NOPER || "",
+      ).trim();
+      return noper === "" || noper === "-";
     });
-    if (cGroup !== 0) return cGroup;
+  } else if (activeNoper !== "") {
+    dataFiltered = dataFiltered.filter(function (obj) {
+      var noper = String(
+        obj.item.noper || obj.item.no_per || obj.item.NOPER || "",
+      ).trim();
+      return noper.toUpperCase() === activeNoper.toUpperCase();
+    });
+  }
 
-    // 🔥 1. LOGIKA BARU: SORT BY MASA (Urutkan dari masa terlama ke terbaru)
-    var masaA = String(a.masa || a.ma || a.MA || "");
-    var masaB = String(b.masa || b.ma || b.MA || "");
-    var cMasa = masaA.localeCompare(masaB, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-    if (cMasa !== 0) return cMasa; // Jika masa berbeda, langsung urutkan berdasarkan masa
+  // ==========================================
+  // 🔥 SORTING DINAMIS
+  // ==========================================
+  if (_salesSort.col >= 0) {
+    var sortCol = _salesSort.col;
+    var sortDir = _salesSort.dir;
 
-    // 2. Fallback terakhir jika Cabang, Group, dan Masa sama, urutkan berdasarkan Kode Menu
-    var kodeA = String(a.kode || a.KODE || a.kodemenu || ""),
-      kodeB = String(b.kode || b.KODE || b.kodemenu || "");
-    return kodeA.localeCompare(kodeB, undefined, {
-      numeric: true,
-      sensitivity: "base",
+    dataFiltered.sort(function (aObj, bObj) {
+      var a = aObj.item,
+        b = bObj.item;
+      var valA, valB;
+
+      switch (sortCol) {
+        case 0: // No. Per
+          valA = String(a.noper || a.no_per || a.NOPER || "").toLowerCase();
+          valB = String(b.noper || b.no_per || b.NOPER || "").toLowerCase();
+          break;
+        case 1: // Kode Menu
+          valA = String(a.kodemenu || a.kode || a.KODE || "").toLowerCase();
+          valB = String(b.kodemenu || b.kode || b.KODE || "").toLowerCase();
+          break;
+        case 2: // Nama Menu
+          valA = String(
+            a.namamenu || a.namaMenu || a.nama_menu || a.NAMAMENU || "",
+          ).toLowerCase();
+          valB = String(
+            b.namamenu || b.namaMenu || b.nama_menu || b.NAMAMENU || "",
+          ).toLowerCase();
+          break;
+        case 3: // Kode Bersama (Fisik)
+          valA = String(a.kodebersama || "").toLowerCase();
+          valB = String(b.kodebersama || "").toLowerCase();
+          break;
+        case 4: // Satuan
+          valA = String(a.satuan || a.SATUAN || "").toLowerCase();
+          valB = String(b.satuan || b.SATUAN || "").toLowerCase();
+          break;
+        case 5: // QTY
+          valA = +(a.qty || a.QTY || 0);
+          valB = +(b.qty || b.QTY || 0);
+          break;
+        case 6: // Amount
+          valA = +(a.amount || a.AMOUNT || a.total || 0);
+          valB = +(b.amount || b.AMOUNT || b.total || 0);
+          break;
+        case 7: // MA (Masa)
+          valA = String(a.masa || a.ma || a.MA || "").toLowerCase();
+          valB = String(b.masa || b.ma || b.MA || "").toLowerCase();
+          break;
+        case 8: // Group
+          valA = String(a.group || "").toLowerCase();
+          valB = String(b.group || "").toLowerCase();
+          break;
+        case 9: // Cabang
+          valA = String(a.cabang || "").toLowerCase();
+          valB = String(b.cabang || "").toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+
+      var result;
+      if (typeof valA === "number") {
+        result = valA - valB;
+      } else {
+        result = valA.localeCompare(valB, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+      }
+      return sortDir === "desc" ? -result : result;
     });
+  }
+
+  var data = dataFiltered.map(function (obj) {
+    return obj.item;
   });
 
   // ==========================================
-  // 🚀 LOGIKA PAGINATION SEJATI (PANAH KIRI/KANAN)
+  // 🚀 PAGINATION
   // ==========================================
   var totalData = data.length;
-  var totalPages = Math.ceil(totalData / _viewLimit) || 1; // Hitung total halaman
+  var limit =
+    typeof _viewLimit !== "undefined" && _viewLimit ? num(_viewLimit) : 50;
+  var totalPages = Math.ceil(totalData / limit) || 1;
 
-  // Pastikan halaman saat ini tidak melampaui total halaman (misal saat data di-filter berkurang)
   if (_currentPage > totalPages) _currentPage = totalPages;
   if (_currentPage < 1) _currentPage = 1;
 
-  var startIndex = (_currentPage - 1) * _viewLimit;
-  var endIndex = startIndex + _viewLimit;
+  var startIndex = (_currentPage - 1) * limit;
+  var endIndex = startIndex + limit;
+  var dataLimitMapped = dataFiltered.slice(startIndex, endIndex);
 
-  // Potong data SESUAI HALAMAN SAAT INI
-  var dataLimit = data.slice(startIndex, endIndex);
-
-  // Info untuk ditampilkan di UI (Contoh: "Menampilkan 51 - 100 dari 250")
   var showStart = totalData === 0 ? 0 : startIndex + 1;
   var showEnd = Math.min(endIndex, totalData);
 
-  var ids = data.map(function (r) {
+  var allIds = data.map(function (r) {
     return r.id;
   });
-  bulkInit("datasales", ids);
+  bulkInit("datasales", allIds);
 
-  var idsLimit = dataLimit.map(function (r) {
-    return r.id;
-  });
-
-  var rows = dataLimit.map(function (r) {
+  var rows = dataLimitMapped.map(function (obj) {
+    var r = obj.item;
     return [
+      r.noper || r.no_per || r.NOPER || "-",
       r.kodemenu || r.kode || r.KODE || "-",
       r.namamenu || r.namaMenu || r.nama_menu || r.NAMAMENU || "-",
+      r.kodebersama || "-", // ⬅️ Menampilkan data fisik kodebersama
       r.satuan || r.SATUAN || "-",
       fmtN(r.qty || r.QTY || 0),
       fmtN(r.amount || r.AMOUNT || r.total || 0),
@@ -1916,10 +2801,11 @@ async function renderSales() {
     ];
   });
 
-  // Footer Total (Tetap menghitung dari SELURUH data, bukan hanya yang terlihat)
   var foot = [
     "",
+    "",
     "TOTAL:",
+    "",
     "",
     fmtN(
       data.reduce(function (s, r) {
@@ -1936,15 +2822,11 @@ async function renderSales() {
     "",
   ];
 
-  // ==========================================
-  // 🚀 MEMBUAT TOMBOL PANAH KIRI & KANAN
-  // ==========================================
   var paginationHTML = "";
   if (totalData > 0) {
     paginationHTML =
       '<div style="display:flex;align-items:center;gap:.7rem;margin-top:.7rem;justify-content:space-between;flex-wrap:wrap">' +
-      '<div style="font-size:.8rem;color:var(--muted)">' +
-      "Menampilkan <b>" +
+      '<div style="font-size:.8rem;color:var(--muted)">Menampilkan <b>' +
       showStart +
       " - " +
       showEnd +
@@ -1954,8 +2836,7 @@ async function renderSales() {
       _currentPage +
       "/" +
       totalPages +
-      ")" +
-      "</div>" +
+      ")</div>" +
       '<div style="display:flex;gap:.4rem;align-items:center">' +
       '<button type="button" class="btn btn-inf" onclick="goToSalesPage(' +
       (_currentPage - 1) +
@@ -1971,9 +2852,150 @@ async function renderSales() {
         ? 'disabled style="opacity:.5;cursor:not-allowed"'
         : "") +
       '>Next <i class="fa-solid fa-arrow-right"></i></button>' +
-      "</div>" +
-      "</div>";
+      "</div></div>";
   }
+
+  // Filter Noper Options
+  var listNoperKhusus = [
+    { NOPER: "COFFEBREAK", PENJELASAN: "COFFEBREAK" },
+    { NOPER: "KBGGULING", PENJELASAN: "KBGGULING" },
+    { NOPER: "NASIKOTAK", PENJELASAN: "NASIKOTAK" },
+    { NOPER: "NASIKUNING", PENJELASAN: "NASIKUNING" },
+    { NOPER: "TUMPENG", PENJELASAN: "TUMPENG" },
+    { NOPER: "PAKET4", PENJELASAN: "PAKET4" },
+    { NOPER: "PAKET8", PENJELASAN: "PAKET8" },
+    { NOPER: "PAMER", PENJELASAN: "PAKET MEETING" },
+    { NOPER: "PRAS", PENJELASAN: "PRASMANAN" },
+    { NOPER: "LAIN", PENJELASAN: "LAIN" },
+    { NOPER: "SNACK", PENJELASAN: "SNACK" },
+    { NOPER: "SNACKB", PENJELASAN: "SNACKB" },
+  ];
+
+  var noperOptionsHTML =
+    '<option value="" ' +
+    (activeNoper === "" ? "selected" : "") +
+    ">ALL (Semua Noper)</option>" +
+    '<option value="blank" ' +
+    (activeNoper === "blank" ? "selected" : "") +
+    ">Tanpa Noper (Blank)</option>";
+
+  listNoperKhusus.forEach(function (item) {
+    var isSel =
+      activeNoper.toUpperCase() === item.NOPER.toUpperCase() ? "selected" : "";
+    noperOptionsHTML +=
+      '<option value="' +
+      item.NOPER +
+      '" ' +
+      isSel +
+      ">" +
+      item.NOPER +
+      " (" +
+      item.PENJELASAN +
+      ")</option>";
+  });
+
+  var noperFilterHTML =
+    '<select id="filterNoper" class="form-control" style="display:inline-block;width:auto;padding:2px 6px;font-size:0.8rem;" onchange="renderSales()">' +
+    noperOptionsHTML +
+    "</select>";
+
+  var headerLabels = [
+    "No. Per",
+    "Kode",
+    "Nama Menu",
+    "Kode Bersama",
+    "Satuan",
+    "QTY",
+    "Amount",
+    "MA",
+    "Group",
+    "Cabang",
+  ];
+  var numCols = [5, 6]; // Index QTY & Amount
+
+  var tableHtml =
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
+
+  // Checkbox Header
+  tableHtml +=
+    '<th style="padding:8px;border:1px solid var(--brd);width:35px;text-align:center;">' +
+    '<input type="checkbox" onchange="toggleBulkAll(\'datasales\', this.checked)" title="Pilih Semua">' +
+    "</th>";
+
+  headerLabels.forEach(function (label, idx) {
+    var isActive = _salesSort.col === idx;
+    var icon = "";
+    if (isActive) {
+      icon =
+        _salesSort.dir === "asc"
+          ? ' <i class="fa-solid fa-sort-up" style="color:var(--accent);"></i>'
+          : ' <i class="fa-solid fa-sort-down" style="color:var(--accent);"></i>';
+    } else {
+      icon =
+        ' <i class="fa-solid fa-sort" style="color:var(--muted);opacity:.4;"></i>';
+    }
+    var bgStyle = isActive
+      ? "background:var(--bg2);color:var(--accent);font-weight:bold;"
+      : "";
+    tableHtml +=
+      '<th style="' +
+      bgStyle +
+      'padding:8px;border:1px solid var(--brd);white-space:nowrap;cursor:pointer;user-select:none;" onclick="sortSales(' +
+      idx +
+      ')">' +
+      label +
+      icon +
+      "</th>";
+  });
+  tableHtml +=
+    '<th style="padding:8px;border:1px solid var(--brd);">Aksi</th></tr></thead><tbody>';
+
+  if (rows.length === 0) {
+    tableHtml +=
+      '<tr><td colspan="' +
+      (headerLabels.length + 2) +
+      '" style="padding:2rem;text-align:center;color:var(--muted);">Belum ada data sales</td></tr>';
+  } else {
+    rows.forEach(function (row, i) {
+      tableHtml += "<tr>";
+      tableHtml +=
+        '<td style="padding:6px 8px;border:1px solid var(--brd);text-align:center;">' +
+        '<input type="checkbox" class="bulk-check" data-store="datasales" data-id="' +
+        dataLimitMapped[i].item.id +
+        '">' +
+        "</td>";
+
+      row.forEach(function (cell, ci) {
+        var align = numCols.includes(ci) ? "text-align:right;" : "";
+        tableHtml +=
+          '<td style="padding:6px 8px;border:1px solid var(--brd);font-size:.85rem;' +
+          align +
+          '">' +
+          cell +
+          "</td>";
+      });
+      tableHtml +=
+        '<td style="padding:6px 8px;border:1px solid var(--brd);">' +
+        crudActions(dataLimitMapped[i].item.id, "datasales") +
+        "</td>";
+      tableHtml += "</tr>";
+    });
+  }
+
+  // Footer Total
+  tableHtml += '<tr style="background:var(--bg2);font-weight:bold;">';
+  tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+  foot.forEach(function (cell, ci) {
+    var align = numCols.includes(ci) ? "text-align:right;" : "";
+    tableHtml +=
+      '<td style="padding:8px;border:1px solid var(--brd);' +
+      align +
+      '">' +
+      cell +
+      "</td>";
+  });
+  tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+  tableHtml += "</tr></tbody></table>";
 
   return (
     bulkBarHTML("datasales", "Sales") +
@@ -1985,46 +3007,301 @@ async function renderSales() {
     "Filter Group: " +
     getGroupFilterHTML() +
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+    "Noper: " +
+    noperFilterHTML +
+    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
-    getLimitOptsHTML() + // Jika user ganti limit (misal 50 ke 100), akan otomatis reset ke halaman 1
+    getLimitOptsHTML() +
     "</div>" +
-    '<div style="display:flex;gap:.4rem">' +
+    '<div style="display:flex;gap:.4rem;flex-wrap:wrap;">' +
     '<button type="button" class="btn btn-inf" onclick="refreshSales()" title="Refresh data dari server"><i class="fa-solid fa-rotate"></i> Refresh</button>' +
-    // <-- KODE BARU -->
+    '<button type="button" class="btn btn-inf" style="background-color:#595959;color:#fff;border-color:#595959" onclick="cekNoperSalesDariDaftarMenu()" title="Cek dan ambil noper dari daftar menu untuk sales yang kosong"><i class="fa-solid fa-magnifying-glass"></i> Cek Noper Kosong</button>' +
     '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportSalesToXLS()" title="Download Excel/CSV"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
     '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'datasales\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'datasales\')"><i class="fa-solid fa-trash-can"></i> Kosongkan</button>' +
     '<button type="button" class="btn btn-a" onclick="formSales()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
+    '<button type="button" class="btn btn-inf" style="background-color:#d97706;color:#fff;border-color:#d97706" onclick="openUpdateKodeBersamaModal()" title="Update Kode Bersama untuk baris yang dipilih"><i class="fa-solid fa-pen-to-square"></i> Update Kode Bersama</button>' +
     "</div>" +
     "</div>" +
-    wrapTable(
-      buildTable(
-        [
-          "Kode",
-          "Nama Menu",
-          "Satuan",
-          "QTY",
-          "Amount",
-          "MA",
-          "Group",
-          "Cabang",
-        ],
-        rows,
-        {
-          numCols: [3, 4],
-          foot: foot,
-          bulkStore: "datasales",
-          bulkIds: idsLimit,
-          actions: function (r, i) {
-            return crudActions(dataLimit[i].id, "datasales");
-          },
-          emptyMsg: "Belum ada data sales",
-        },
-      ),
-    ) +
-    // 🌟 TARUH TOMBOL PAGINATION DI BAWAH TABLE
+    wrapTable(tableHtml) +
     paginationHTML
   );
+}
+
+// --- 3. FUNGSI UNTUK PINDAH HALAMAN SALES ---
+function goToSalesPage(targetPage) {
+  _currentPage = targetPage;
+
+  if (typeof safeRenderCurrentPanel === "function") {
+    safeRenderCurrentPanel();
+    return;
+  }
+
+  var appContainer = null;
+  var possibleIds = [
+    "main-content",
+    "app-content",
+    "content-area",
+    "page-content",
+    "view-content",
+    "contentArea",
+  ];
+
+  for (var i = 0; i < possibleIds.length; i++) {
+    var el = document.getElementById(possibleIds[i]);
+    if (
+      el &&
+      (el.innerHTML.indexOf("datasales") !== -1 ||
+        el.innerHTML.indexOf("Sales") !== -1)
+    ) {
+      appContainer = el;
+      break;
+    }
+  }
+
+  if (!appContainer) {
+    var allDivs = document.getElementsByTagName("div");
+    for (var j = 0; j < allDivs.length; j++) {
+      if (
+        allDivs[j].innerHTML.indexOf("Sales") !== -1 &&
+        allDivs[j].children.length > 3
+      ) {
+        appContainer = allDivs[j];
+        break;
+      }
+    }
+  }
+
+  if (appContainer) {
+    renderSales().then(function (html) {
+      appContainer.innerHTML = '<div class="pnl active">' + html + "</div>";
+    });
+  } else {
+    console.error(
+      "Tidak bisa menemukan container untuk merender halaman sales.",
+    );
+  }
+}
+// --- BUKA MODAL UPDATE KODE BERSAMA ---
+function openUpdateKodeBersamaModal() {
+  // Ambil ID data sales yang dicentang via sistem bulk
+  var selectedIds = [];
+  if (typeof _bulkStoreSelection !== "undefined" && _bulkStoreSelection["datasales"]) {
+    selectedIds = Array.from(_bulkStoreSelection["datasales"]);
+  } else {
+    // Fallback manual ceklis DOM
+    var checkboxes = document.querySelectorAll('.bulk-check[data-store="datasales"]:checked');
+    checkboxes.forEach(function (cb) {
+      selectedIds.push(cb.getAttribute("data-id"));
+    });
+  }
+
+  if (selectedIds.length === 0) {
+    alert("Silakan centang/pilih minimal satu baris sales terlebih dahulu!");
+    return;
+  }
+
+  var rawData = DBCache.datasales || [];
+  
+  // Kumpulkan unique kodemenu dari baris yang dipilih
+  var uniqueKodeMenu = [];
+  rawData.forEach(function (r) {
+    if (selectedIds.includes(String(r.id))) {
+      var kMenu = String(r.kodemenu || r.kode || r.KODE || "").trim();
+      if (kMenu && !uniqueKodeMenu.includes(kMenu)) {
+        uniqueKodeMenu.push(kMenu);
+      }
+    }
+  });
+
+  // Buat HTML untuk daftar kode menu unik yang terpilih
+  var kodeMenuHtml = uniqueKodeMenu.length > 0 
+    ? uniqueKodeMenu.map(function(k) { return '<span class="badge" style="background:var(--bg2);color:var(--accent);padding:3px 8px;margin:2px;border:1px solid var(--brd);border-radius:4px;display:inline-block;">' + esc(k) + '</span>'; }).join(" ")
+    : '<i style="color:var(--muted)">Tidak ada kode menu terdeteksi</i>';
+
+  // Buat elemen kontainer modal pop-up secara dinamis jika belum ada
+  var modalId = "modalUpdateKodeBersama";
+  var existingModal = document.getElementById(modalId);
+  if (existingModal) existingModal.remove();
+
+  var modalHtml = 
+    '<div id="' + modalId + '" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:9999;">' +
+      '<div style="background:var(--card);padding:1.5rem;border-radius:var(--r);border:1px solid var(--brd);width:90%;max-width:450px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">' +
+        '<h3 style="margin-top:0;margin-bottom:1rem;color:var(--fg);font-size:1.1rem;"><i class="fa-solid fa-pen-to-square"></i> Update Kode Bersama</h3>' +
+        '<div style="margin-bottom:.8rem;font-size:.85rem;color:var(--muted);">Baris terpilih: <b>' + selectedIds.length + ' item</b></div>' +
+        '<div style="margin-bottom:1rem;font-size:.85rem;">' +
+          '<label style="display:block;margin-bottom:.3rem;font-weight:bold;color:var(--fg);">Kode Menu Unik Terdeteksi:</label>' +
+          '<div style="max-height:100px;overflow-y:auto;padding:6px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);">' + kodeMenuHtml + '</div>' +
+        '</div>' +
+        '<div style="margin-bottom:1.2rem;">' +
+          '<label style="display:block;margin-bottom:.3rem;font-weight:bold;color:var(--fg);">Nilai Kode Bersama Baru:</label>' +
+          '<input type="text" id="input_new_kodebersama" class="form-control" placeholder="Masukkan nilai kode bersama..." style="width:100%;padding:6px 10px;box-sizing:border-box;">' +
+        '</div>' +
+        '<div style="display:flex;justify-content:flex-end;gap:.5rem;">' +
+          '<button type="button" class="btn btn-inf" style="background:#6c757d;border-color:#6c757d;color:#fff;" onclick="document.getElementById(\'' + modalId + '\').remove()">Batal</button>' +
+          '<button type="button" class="btn btn-a" onclick="executeSaveKodeBersama()">Simpan Perubahan</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  
+  // Simpan selectedIds ke window sementara agar bisa diakses fungsi simpan
+  window._tempSelectedSalesIds = selectedIds;
+}
+
+// --- EKsekusi PENYIMPANAN KODE BERSAMA ---
+function executeSaveKodeBersama() {
+  var newVal = document.getElementById("input_new_kodebersama").value.trim();
+  var selectedIds = window._tempSelectedSalesIds || [];
+
+  if (selectedIds.length === 0) {
+    alert("Tidak ada data yang dipilih.");
+    return;
+  }
+
+  var rawData = DBCache.datasales || [];
+  var updatedCount = 0;
+
+  // Update data secara lokal di cache
+  rawData.forEach(function (r) {
+    if (selectedIds.includes(String(r.id))) {
+      r.kodebersama = newVal;
+      updatedCount++;
+    }
+  });
+
+  // Tutup modal
+  var modal = document.getElementById("modalUpdateKodeBersama");
+  if (modal) modal.remove();
+
+  // Trigger simpan database / sinkronisasi jika aplikasi Anda menyediakannya (misal sync/save function)
+  if (typeof saveDBStore === "function") {
+    saveDBStore("datasales");
+  } else if (typeof syncDataToServer === "function") {
+    syncDataToServer("datasales");
+  }
+
+  // Refresh tampilan tabel sales
+  if (typeof safeRenderCurrentPanel === "function") {
+    safeRenderCurrentPanel();
+  } else if (typeof renderSales === "function") {
+    renderSales().then(function (html) {
+      var area = document.getElementById("contentArea") || document.querySelector(".pnl.active");
+      if (area) area.innerHTML = '<div class="pnl active">' + html + '</div>';
+    });
+  }
+
+  alert("Berhasil memperbarui " + updatedCount + " data sales dengan Kode Bersama: " + (newVal || "(Kosong)"));
+}
+// 🌟 FUNGSI PENDUKUNG UNTUK MENGECEK DAN MENGISI NOPER SALES DARI DAFTAR MENU
+function cekNoperSalesDariDaftarMenu() {
+  var salesData = DBCache.datasales || DBCache.sales || [];
+  var menuData = DBCache.daftarmenu || [];
+
+  if (salesData.length === 0) {
+    return toast("Tidak ada data sales untuk diperiksa.", "err");
+  }
+
+  var updatedCount = 0;
+
+  salesData.forEach(function (sale) {
+    var currentNoper = String(
+      sale.noper || sale.no_per || sale.NOPER || "",
+    ).trim();
+
+    // Hanya periksa baris sales yang noper-nya kosong, strip (-), atau belum ada
+    if (
+      currentNoper === "" ||
+      currentNoper === "-" ||
+      currentNoper === "undefined"
+    ) {
+      var saleKode = String(sale.kodemenu || sale.kode || sale.KODE || "")
+        .trim()
+        .toUpperCase();
+      var saleCabang = String(sale.cabang || "").trim();
+      var saleGroup = String(sale.group || "")
+        .trim()
+        .toUpperCase();
+
+      if (!saleKode) return; // Lewati jika kode menu sales kosong
+
+      var matchedMenu = null;
+
+      // 1. Prioritas Utama: Cari yang cocok Cabang + Group + Kode Menu
+      matchedMenu = menuData.find(function (menu) {
+        var menuKode = String(menu.kodemenu || menu.kode || menu.KODE || "")
+          .trim()
+          .toUpperCase();
+        var menuCabang = String(menu.cabang || "").trim();
+        var menuGroup = String(menu.group || "")
+          .trim()
+          .toUpperCase();
+        return (
+          menuKode === saleKode &&
+          menuCabang === saleCabang &&
+          menuGroup === saleGroup
+        );
+      });
+
+      // 2. Fallback Pertama: Jika tidak ketemu, coba cocokkan Cabang + Kode Menu saja (mengabaikan group)
+      if (!matchedMenu) {
+        matchedMenu = menuData.find(function (menu) {
+          var menuKode = String(menu.kodemenu || menu.kode || menu.KODE || "")
+            .trim()
+            .toUpperCase();
+          var menuCabang = String(menu.cabang || "").trim();
+          return menuKode === saleKode && menuCabang === saleCabang;
+        });
+      }
+
+      // 3. Fallback Terakhir: Jika masih tidak ketemu, coba cocokkan berdasarkan Kode Menu saja
+      if (!matchedMenu) {
+        matchedMenu = menuData.find(function (menu) {
+          var menuKode = String(menu.kodemenu || menu.kode || menu.KODE || "")
+            .trim()
+            .toUpperCase();
+          return menuKode === saleKode;
+        });
+      }
+
+      // Jika ditemukan padanannya di daftar menu dan memiliki noper
+      if (matchedMenu) {
+        var foundNoper = String(
+          matchedMenu.noper || matchedMenu.NOPER || matchedMenu.no_per || "",
+        ).trim();
+        if (foundNoper && foundNoper !== "-" && foundNoper !== "undefined") {
+          sale.noper = foundNoper;
+          updatedCount++;
+        }
+      }
+    }
+  });
+
+  if (updatedCount > 0) {
+    if (typeof saveDataCache === "function") {
+      // Tunggu sampai proses simpan ke server benar-benar selesai
+      saveDataCache("datasales").then(async () => {
+        // 🔄 TARIK ULANG DATA TERBARU DARI SERVER KE DBCACHE
+        await refreshSalesDataSilent(); // Atau panggil fungsi fetch ulang khusus sales
+
+        toast(
+          "Berhasil memperbarui " +
+            updatedCount +
+            " data sales yang kosong noper-nya!",
+          "ok",
+        );
+
+        // Render ulang tabel sales supaya layar sinkron dengan database
+        if (typeof renderSales === "function") {
+          document.getElementById("container-utama").innerHTML =
+            await renderSales(); // Sesuaikan wadah render Anda
+        }
+      });
+    }
+  } else {
+    toast("Tidak ada data sales kosong yang cocok dengan daftar menu.", "info");
+  }
 }
 
 async function refreshSales() {
@@ -2062,6 +3339,54 @@ async function refreshSales() {
   }
 }
 
+async function saveDataCache(tableName) {
+  try {
+    // Pastikan tabel yang dikirim sesuai
+    if (!tableName) {
+      console.warn("Nama tabel tidak ditentukan untuk disimpan.");
+      return;
+    }
+
+    // Ubah URL mengarah ke endpoint batch server Anda: /api/batch/:storeName
+    var baseUrl = window.location.origin + "/api/batch/";
+    var payload = DBCache[tableName]; // Mengambil array data dari DBCache (misal: DBCache.datasales)
+
+    if (!Array.isArray(payload)) {
+      throw new Error("Data yang akan disimpan bukan berupa array.");
+    }
+
+    if (typeof toast === "function") {
+      toast("Menyimpan perubahan ke server...", "inf");
+    }
+
+    var response = await fetch(baseUrl + tableName, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+
+    if (!response.ok) {
+      throw new Error(
+        "Gagal menyimpan data ke server (Status: " + response.status + ")",
+      );
+    }
+
+    var result = await response.json();
+    console.log("✅ Berhasil menyimpan batch data ke server:", result);
+
+    if (typeof toast === "function") {
+      toast("Data berhasil disimpan secara permanen!", "ok");
+    }
+  } catch (err) {
+    console.error("❌ Gagal menyimpan cache:", err);
+    if (typeof toast === "function") {
+      toast("Error menyimpan data: " + err.message, "err");
+    }
+  }
+}
+
 // ==========================================
 // 🚀 FUNGSI NAVIGASI PAGINATION
 // ==========================================
@@ -2077,7 +3402,6 @@ function changeSalesLimit(newLimit) {
   _currentPage = 1; // Reset ke halaman 1 saat limit berubah
   safeRenderCurrentPanel();
 }
-
 function formSales(id) {
   var isEdit = !!id;
   var data = isEdit
@@ -2099,10 +3423,10 @@ function formSales(id) {
     "</select></div>" +
     '<div class="fg"><label>Kode</label><input id="fSalesKode" class="in" value="' +
     esc(data.kode || data.KODE || data.kodemenu || "") +
-    '"></div>' + // 🟢 fallback kodemenu
+    '"></div>' +
     '<div class="fg"><label>Nama Menu</label><input id="fSalesNama" class="in" value="' +
     esc(data.namaMenu || data.nama_menu || data.namamenu || data.nama || "") +
-    '"></div>' + // 🟢 fallback namamenu
+    '"></div>' +
     '<div class="fg"><label>Satuan</label><input id="fSalesSatuan" class="in" value="' +
     esc(data.satuan || data.SATUAN || "") +
     '"></div>' +
@@ -2114,6 +3438,10 @@ function formSales(id) {
     '"></div>' +
     '<div class="fg"><label>MA (Masa)</label><input id="fSalesMa" class="in" maxlength="4" placeholder="Contoh: 0825" value="' +
     esc(data.ma || data.MA || data.masa || "") +
+    '"></div>' +
+    // 🌟 TAMBAHKAN INPUT NO PERKIRAAN DI SINI
+    '<div class="fg"><label>No.Perkiraan</label><input id="fSalesNoper" class="in" placeholder="Contoh: 402.0001" value="' +
+    esc(data.noper || "") +
     '"></div>';
 
   var foot =
@@ -2140,6 +3468,9 @@ async function saveSales(e, id) {
     var amount = num($("fSalesAmount").value);
     var ma = $("fSalesMa").value.trim();
 
+    // 🌟 1. TAMBAHKAN BARIS INI UNTUK MENANGKAP NO PER
+    var noper = $("fSalesNoper").value.trim();
+
     if (!kode || !namaMenu)
       return toast("Kode dan Nama Menu wajib diisi", "err");
 
@@ -2148,13 +3479,18 @@ async function saveSales(e, id) {
       if (r) {
         var updated = Object.assign({}, r, {
           kode: kode,
+          kodemenu: kode, // 🟢 Biar kolom fisik 'kodemenu' di DB juga keisi
           namaMenu: namaMenu,
+          namamenu: namaMenu, // 🟢 Biar kolom fisik 'namamenu' di DB juga keisi
           satuan: satuan,
           qty: qty,
+          total: amount, // 🟢 Map ke 'total' karena di DB fisiknya memakai 'total'
           amount: amount,
           ma: ma,
+          masa: ma, // 🟢 Map ke 'masa' biar kolom fisik keisi
           cabang: cabang,
           group: group,
+          noper: noper, // 🌟 2. MASUKKAN NOPER KE SINI
         });
         await db.put("datasales", updated);
         var idx = DBCache.datasales.findIndex((x) => x.id === id);
@@ -2165,13 +3501,18 @@ async function saveSales(e, id) {
       var newObj = {
         id: newId,
         kode: kode,
+        kodemenu: kode, // 🟢 Sinkronisasi ke kolom fisik DB
         namaMenu: namaMenu,
+        namamenu: namaMenu, // 🟢 Sinkronisasi ke kolom fisik DB
         satuan: satuan,
         qty: qty,
+        total: amount, // 🟢 Sinkronisasi ke kolom fisik DB
         amount: amount,
         ma: ma,
+        masa: ma, // 🟢 Sinkronisasi ke kolom fisik DB
         cabang: cabang,
         group: group,
+        noper: noper, // 🌟 3. MASUKKAN NOPER KE SINI
       };
       await db.add("datasales", newObj);
       DBCache.datasales.push(newObj);
@@ -2179,14 +3520,11 @@ async function saveSales(e, id) {
 
     closeModal();
     toast("Tersimpan!", "ok");
-    safeRenderCurrentPanel(); // Ini sudah bertindak sebagai "Refresh Tampilan"
+    safeRenderCurrentPanel();
   } catch (err) {
     toast("Gagal simpan: " + err.message, "err");
   }
 }
-// ==========================================
-// 🚀 FUNGSI EXPORT KHUSUS DATA SALES KE XLS
-// ==========================================
 
 // ==========================================
 // 🚀 EXPORT SALES KE XLS (FORMAT TABEL ASLI)
@@ -2272,7 +3610,7 @@ function exportDaftarMenuToXLS() {
     <table border="1" style="border-collapse:collapse;">
       <thead>
         <tr style="background-color:#2f5496;color:#ffffff;font-weight:bold;">
-         <td>Cabang</td><td>Group</td><td>Kode Menu</td><td>Nama Menu</td><td>Satuan/td><td>S.Awal</td><td>Masuk</td><td>Keluar</td><td>S.Akhir</td>
+         <td>Cabang</td><td>Group</td><td>Kode Menu</td><td>Nama Menu</td><td>Satuan</td><td>Noper</td><td>KodeHppMenu</td><td>S.Awal</td><td>Masuk</td><td>Keluar</td><td>S.Akhir</td>
         </tr>
       </thead>
       <tbody>`;
@@ -2280,12 +3618,13 @@ function exportDaftarMenuToXLS() {
   // 2. Masukkan Data Baris per Baris
   data.forEach(function (r) {
     html += `<tr>
-    
       <td>${lookupCabangLabel(r.cabang)}</td>
       <td>${r.group || ""}</td>
       <td style="mso-number-format:'\\@';">${r.kodemenu || ""}</td>
       <td>${r.namamenu || r.namaMenu || ""}</td>
       <td>${r.satuan || r.SATUAN || ""}</td>
+      <td style="mso-number-format:'\\@';">${r.noper || r.NOPER || ""}</td>
+      <td style="mso-number-format:'\\@';">${r.kodehppmenu || ""}</td>
       <td style="mso-number-format:'#,##0';">${r.sawal || 0}</td>
       <td style="mso-number-format:'#,##0';">${r.masuk || 0}</td>
       <td style="mso-number-format:'#,##0';">${r.keluar || 0}</td>
@@ -2295,9 +3634,7 @@ function exportDaftarMenuToXLS() {
 
   // 3. Tambahkan Baris TOTAL
   html += `<tr style="background-color:#d9e2f3;font-weight:bold;">
-  <td></td><td></td><td></td><td>TOTAL</td><td></td>
-
-
+    <td></td><td></td><td></td><td></td><td></td><td>TOTAL</td><td></td>
     <td style="mso-number-format:'#,##0';">${data.reduce((s, r) => s + num(r.sawal || 0), 0)}</td>
     <td style="mso-number-format:'#,##0';">${data.reduce((s, r) => s + num(r.masuk || 0), 0)}</td>
     <td style="mso-number-format:'#,##0';">${data.reduce((s, r) => s + num(r.keluar || 0), 0)}</td>
@@ -2356,57 +3693,148 @@ async function refreshDaftarMenu() {
     toast("Error refresh daftar menu: " + err.message, "err");
   }
 }
+// ✅ BARU
+var _daftarMenuSort = { col: -1, dir: "asc" };
 
-async function renderDaftarMenu() {
+function sortDaftarMenu(colIndex) {
+  if (_daftarMenuSort.col === colIndex) {
+    _daftarMenuSort.dir = _daftarMenuSort.dir === "asc" ? "desc" : "asc";
+  } else {
+    _daftarMenuSort.col = colIndex;
+    _daftarMenuSort.dir = "asc";
+  }
+  _currentPage = 1;
+  var html = renderDaftarMenu(); // ✅
+  $("contentArea").innerHTML = '<div class="pnl active">' + html + "</div>"; // ✅
+}
+
+function renderDaftarMenu() {
   var rawData = DBCache.daftarmenu || [];
-  var data = filterByCabang(rawData);
 
-  // --- 1. FILTER GROUP ---
+  var rawDataWithIndex = rawData.map(function (r, idx) {
+    return { item: r, originalIndex: idx + 1 };
+  });
+
+  var dataFiltered = rawDataWithIndex.filter(function (obj) {
+    return filterByCabang([obj.item]).length > 0;
+  });
+
   var activeGroup = getActiveGroupFilter();
   if (activeGroup) {
-    data = data.filter(function (r) {
-      return (r.group || "") === activeGroup;
+    dataFiltered = dataFiltered.filter(function (obj) {
+      return (obj.item.group || "") === activeGroup;
     });
   }
 
-  // --- 2. SORTING BERTINGKAT (Cabang -> Group -> Kode Menu) ---
-  data.sort(function (a, b) {
-    var cabangA = String(a.cabang || ""),
-      cabangB = String(b.cabang || "");
-    var cCabang = cabangA.localeCompare(cabangB, undefined, {
-      numeric: true,
-      sensitivity: "base",
-    });
-    if (cCabang !== 0) return cCabang;
+  var noperSelect = document.getElementById("filterNoperDaftarMenu");
+  var activeNoper = noperSelect ? noperSelect.value : "";
 
-    var groupA = String(a.group || ""),
-      groupB = String(b.group || "");
-    var cGroup = groupA.localeCompare(groupB, undefined, {
-      numeric: true,
-      sensitivity: "base",
+  if (activeNoper === "blank") {
+    dataFiltered = dataFiltered.filter(function (obj) {
+      var noper = String(
+        obj.item.noper || obj.item.no_per || obj.item.NOPER || "",
+      ).trim();
+      return noper === "" || noper === "-";
     });
-    if (cGroup !== 0) return cGroup;
+  } else if (activeNoper !== "") {
+    dataFiltered = dataFiltered.filter(function (obj) {
+      var noper = String(
+        obj.item.noper || obj.item.no_per || obj.item.NOPER || "",
+      ).trim();
+      return noper.toUpperCase() === activeNoper.toUpperCase();
+    });
+  }
 
-    var kodeA = String(a.kodemenu || a.kode || a.KODE || "");
-    var kodeB = String(b.kodemenu || b.kode || b.KODE || "");
-    return kodeA.localeCompare(kodeB, undefined, {
-      numeric: true,
-      sensitivity: "base",
+  // ==========================================
+  // 🔥 SORTING DINAMIS
+  // ==========================================
+  if (_daftarMenuSort.col >= 0) {
+    var sortCol = _daftarMenuSort.col;
+    var sortDir = _daftarMenuSort.dir;
+
+    dataFiltered.sort(function (aObj, bObj) {
+      var a = aObj.item,
+        b = bObj.item;
+      var valA, valB;
+
+      switch (sortCol) {
+        case 0:
+          valA = String(a.cabang || "").toLowerCase();
+          valB = String(b.cabang || "").toLowerCase();
+          break;
+        case 1:
+          valA = String(a.group || "").toLowerCase();
+          valB = String(b.group || "").toLowerCase();
+          break;
+        case 2:
+          valA = String(a.kodemenu || a.kode || a.KODE || "").toLowerCase();
+          valB = String(b.kodemenu || b.kode || b.KODE || "").toLowerCase();
+          break;
+        case 3:
+          valA = String(
+            a.namamenu || a.namaMenu || a.nama_menu || "",
+          ).toLowerCase();
+          valB = String(
+            b.namamenu || b.namaMenu || b.nama_menu || "",
+          ).toLowerCase();
+          break;
+        case 4:
+          valA = String(a.satuan || a.Satuan || "").toLowerCase();
+          valB = String(b.satuan || b.Satuan || "").toLowerCase();
+          break;
+        case 5:
+          valA = String(a.noper || "").toLowerCase();
+          valB = String(b.noper || "").toLowerCase();
+          break;
+        case 6:
+          valA = String(a.kodehppmenu || "").toLowerCase();
+          valB = String(b.kodehppmenu || "").toLowerCase();
+          break;
+        case 7:
+          valA = +(a.sawal || a.stok_awal || 0);
+          valB = +(b.sawal || b.stok_awal || 0);
+          break;
+        case 8:
+          valA = +(a.masuk || 0);
+          valB = +(b.masuk || 0);
+          break;
+        case 9:
+          valA = +(a.keluar || 0);
+          valB = +(b.keluar || 0);
+          break;
+        case 10:
+          valA = +(a.sakhir || a.stok_akhir || 0);
+          valB = +(b.sakhir || b.stok_akhir || 0);
+          break;
+        default:
+          return 0;
+      }
+
+      var result;
+      if (typeof valA === "number") {
+        result = valA - valB;
+      } else {
+        result = valA.localeCompare(valB, undefined, {
+          numeric: true,
+          sensitivity: "base",
+        });
+      }
+      return sortDir === "desc" ? -result : result;
     });
+  }
+
+  var data = dataFiltered.map(function (obj) {
+    return obj.item;
   });
 
-  // ==========================================
-  // 🚀 LOGIKA PAGINATION SEJATI
-  // ==========================================
   var totalData = data.length;
   var totalPages = Math.ceil(totalData / _viewLimit) || 1;
-
   if (_currentPage > totalPages) _currentPage = totalPages;
   if (_currentPage < 1) _currentPage = 1;
 
   var startIndex = (_currentPage - 1) * _viewLimit;
   var endIndex = startIndex + _viewLimit;
-  var dataLimit = data.slice(startIndex, endIndex);
+  var dataLimitMapped = dataFiltered.slice(startIndex, endIndex);
 
   var showStart = totalData === 0 ? 0 : startIndex + 1;
   var showEnd = Math.min(endIndex, totalData);
@@ -2416,67 +3844,62 @@ async function renderDaftarMenu() {
   });
   bulkInit("daftarmenu", ids);
 
-  var idsLimit = dataLimit.map(function (r) {
-    return r.id;
+  var idsLimit = dataLimitMapped.map(function (obj) {
+    return obj.item.id;
   });
 
-  // ==========================================
-  // 🚀 PEMBUATAN BARIS TABEL (SUDAH DISESUAIKAN: ID & DATA DIHAPUS)
-  // ==========================================
-  var rows = dataLimit.map(function (r) {
+  var rows = dataLimitMapped.map(function (obj) {
+    var r = obj.item;
     return [
-      lookupCabangLabel(r.cabang), // 0. Cabang
-      r.group === "undefined" || !r.group ? "-" : r.group, // 1. Group
-      r.kodemenu || r.kode || r.KODE || "-", // 2. Kode Menu
-      r.namamenu || r.namaMenu || r.nama_menu || "-", // 3. Nama Menu
+      lookupCabangLabel(r.cabang),
+      r.group === "undefined" || !r.group ? "-" : r.group,
+      r.kodemenu || r.kode || r.KODE || "-",
+      r.namamenu || r.namaMenu || r.nama_menu || "-",
       r.satuan || r.Satuan || "-",
-      fmtN(r.sawal || r.stok_awal || 0), // 4. Stok Awal
-      fmtN(r.masuk || 0), // 5. Masuk
-      fmtN(r.keluar || 0), // 6. Keluar
-      fmtN(r.sakhir || r.stok_akhir || 0), // 7. Stok Akhir
+      r.noper || "-",
+      r.kodehppmenu || "-",
+      fmtN(r.sawal || r.stok_awal || 0),
+      fmtN(r.masuk || 0),
+      fmtN(r.keluar || 0),
+      fmtN(r.sakhir || r.stok_akhir || 0),
     ];
   });
 
-  // ==========================================
-  // FOOTER TOTAL (SUDAH DISESUAIKAN JUMLAHNYA MENJADI 8 ELEMEN)
-  // ==========================================
   var foot = [
-    "", // Cabang
-    "", // Group
-    "TOTAL:", // Kode Menu
-    "", // Nama Menu
-    "", //Satuan
+    "",
+    "",
+    "TOTAL:",
+    "",
+    "",
+    "",
+    "",
     fmtN(
       data.reduce(function (s, r) {
         return s + num(r.sawal || r.stok_awal);
       }, 0),
-    ), // S.Awal
+    ),
     fmtN(
       data.reduce(function (s, r) {
         return s + num(r.masuk);
       }, 0),
-    ), // Masuk
+    ),
     fmtN(
       data.reduce(function (s, r) {
         return s + num(r.keluar);
       }, 0),
-    ), // Keluar
+    ),
     fmtN(
       data.reduce(function (s, r) {
         return s + num(r.sakhir || r.stok_akhir);
       }, 0),
-    ), // S.Akhir
+    ),
   ];
 
-  // ==========================================
-  // HTML PAGINATION
-  // ==========================================
   var paginationHTML = "";
   if (totalData > 0) {
     paginationHTML =
       '<div style="display:flex;align-items:center;gap:.7rem;margin-top:.7rem;justify-content:space-between;flex-wrap:wrap">' +
-      '<div style="font-size:.8rem;color:var(--muted)">' +
-      "Menampilkan <b>" +
+      '<div style="font-size:.8rem;color:var(--muted)">Menampilkan <b>' +
       showStart +
       " - " +
       showEnd +
@@ -2486,8 +3909,7 @@ async function renderDaftarMenu() {
       _currentPage +
       "/" +
       totalPages +
-      ")" +
-      "</div>" +
+      ")</div>" +
       '<div style="display:flex;gap:.4rem;align-items:center">' +
       '<button type="button" class="btn btn-inf" onclick="goToDaftarMenuPage(' +
       (_currentPage - 1) +
@@ -2503,9 +3925,153 @@ async function renderDaftarMenu() {
         ? 'disabled style="opacity:.5;cursor:not-allowed"'
         : "") +
       '>Next <i class="fa-solid fa-arrow-right"></i></button>' +
-      "</div>" +
-      "</div>";
+      "</div></div>";
   }
+
+  var listNoperKhusus = [
+    { NOPER: "COFFEBREAK", PENJELASAN: "COFFEBREAK" },
+    { NOPER: "KBGGULING", PENJELASAN: "KBGGULING" },
+    { NOPER: "NASIKOTAK", PENJELASAN: "NASIKOTAK" },
+    { NOPER: "NASIKUNING", PENJELASAN: "NASIKUNING" },
+    { NOPER: "TUMPENG", PENJELASAN: "TUMPENG" },
+    { NOPER: "PAKET4", PENJELASAN: "PAKET4" },
+    { NOPER: "PAKET8", PENJELASAN: "PAKET8" },
+    { NOPER: "PAMER", PENJELASAN: "PAKET MEETING" },
+    { NOPER: "PRAS", PENJELASAN: "PRASMANAN" },
+    { NOPER: "LAIN", PENJELASAN: "LAIN" },
+    { NOPER: "SNACK", PENJELASAN: "SNACK" },
+    { NOPER: "SNACKB", PENJELASAN: "SNACKB" },
+  ];
+
+  var noperOptionsHTML =
+    '<option value="" ' +
+    (activeNoper === "" ? "selected" : "") +
+    ">Semua Noper (All)</option>" +
+    '<option value="blank" ' +
+    (activeNoper === "blank" ? "selected" : "") +
+    ">Tanpa Noper (Blank)</option>";
+
+  listNoperKhusus.forEach(function (item) {
+    var isSel =
+      activeNoper.toUpperCase() === item.NOPER.toUpperCase() ? "selected" : "";
+    noperOptionsHTML +=
+      '<option value="' +
+      item.NOPER +
+      '" ' +
+      isSel +
+      ">" +
+      item.NOPER +
+      " (" +
+      item.PENJELASAN +
+      ")</option>";
+  });
+
+  var noperFilterHTML =
+    '<select id="filterNoperDaftarMenu" class="form-control" style="display:inline-block;width:auto;padding:2px 6px;font-size:0.8rem;" onchange="renderDaftarMenu()">' +
+    noperOptionsHTML +
+    "</select>";
+
+  // ==========================================
+  // 🔥 HEADER SORT + TABLE SENDIRI
+  // ==========================================
+  var headerLabels = [
+    "Cabang",
+    "Group",
+    "Kode Menu",
+    "Nama Menu",
+    "Satuan",
+    "Noper",
+    "KodeHppMenu",
+    "Rp.Awal",
+    "Masuk",
+    "Keluar",
+    "Rp.Akhir",
+  ];
+  var numCols = [7, 8, 9, 10];
+
+  var tableHtml =
+    '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
+
+  // ✅ Pastikan ada checkbox header
+  tableHtml +=
+    '<th style="padding:8px;border:1px solid var(--brd);width:35px;text-align:center;">' +
+    '<input type="checkbox" onchange="toggleBulkAll(\'daftarmenu\', this.checked)" title="Pilih Semua">' +
+    "</th>";
+
+  headerLabels.forEach(function (label, idx) {
+    var isActive = _daftarMenuSort.col === idx;
+    var icon = "";
+    if (isActive) {
+      icon =
+        _daftarMenuSort.dir === "asc"
+          ? ' <i class="fa-solid fa-sort-up" style="color:var(--accent);"></i>'
+          : ' <i class="fa-solid fa-sort-down" style="color:var(--accent);"></i>';
+    } else {
+      icon =
+        ' <i class="fa-solid fa-sort" style="color:var(--muted);opacity:.4;"></i>';
+    }
+    var bgStyle = isActive
+      ? "background:var(--bg2);color:var(--accent);font-weight:bold;"
+      : "";
+    tableHtml +=
+      '<th style="' +
+      bgStyle +
+      'padding:8px;border:1px solid var(--brd);white-space:nowrap;cursor:pointer;user-select:none;" onclick="sortDaftarMenu(' +
+      idx +
+      ')">' +
+      label +
+      icon +
+      "</th>";
+  });
+  tableHtml +=
+    '<th style="padding:8px;border:1px solid var(--brd);">Aksi</th></tr></thead><tbody>';
+
+  if (rows.length === 0) {
+    tableHtml +=
+      '<tr><td colspan="' +
+      (headerLabels.length + 1) +
+      '" style="padding:2rem;text-align:center;color:var(--muted);">Belum ada data daftar menu</td></tr>';
+  } else {
+    rows.forEach(function (row, i) {
+      tableHtml += "<tr>";
+      tableHtml +=
+        '<td style="padding:6px 8px;border:1px solid var(--brd);text-align:center;">' +
+        '<input type="checkbox" class="bulk-check" data-store="daftarmenu" data-id="' +
+        dataLimitMapped[i].item.id +
+        '">' +
+        "</td>";
+
+      row.forEach(function (cell, ci) {
+        var align = numCols.includes(ci) ? "text-align:right;" : "";
+        tableHtml +=
+          '<td style="padding:6px 8px;border:1px solid var(--brd);font-size:.85rem;' +
+          align +
+          '">' +
+          cell +
+          "</td>";
+      });
+      tableHtml +=
+        '<td style="padding:6px 8px;border:1px solid var(--brd);">' +
+        crudActions(dataLimitMapped[i].item.id, "daftarmenu") +
+        "</td>";
+      tableHtml += "</tr>";
+    });
+  }
+
+  tableHtml += '<tr style="background:var(--bg2);font-weight:bold;">';
+  foot.forEach(function (cell, ci) {
+    var align = numCols.includes(ci) ? "text-align:right;" : "";
+    tableHtml +=
+      '<td style="padding:8px;border:1px solid var(--brd);' +
+      align +
+      '">' +
+      cell +
+      "</td>";
+  });
+  tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+  tableHtml += "</tr>";
+
+  tableHtml += "</tbody></table>";
 
   return (
     bulkBarHTML("daftarmenu", "Daftar Menu") +
@@ -2517,6 +4083,9 @@ async function renderDaftarMenu() {
     "Filter Group: " +
     getGroupFilterHTML() +
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+    "Noper: " +
+    noperFilterHTML +
+    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
     getLimitOptsHTML() +
     "</div>" +
@@ -2527,34 +4096,8 @@ async function renderDaftarMenu() {
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'daftarmenu\')"><i class="fa-solid fa-trash-can"></i> Kosongkan</button>' +
     '<button type="button" class="btn btn-a" onclick="formDaftarMenu()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     '<button type="button" class="btn btn-w" style="background-color:#ed7d31;color:#fff;border-color:#ed7d31" onclick="importDaftarMenuFromSales()" title="Ambil data dari tabel Sales"><i class="fa-solid fa-file-import"></i> Import dari Sales</button>' +
-    "</div>" +
-    "</div>" +
-    wrapTable(
-      buildTable(
-        [
-          "Cabang",
-          "Group",
-          "Kode Menu",
-          "Nama Menu",
-          "Satuan",
-          "S.Awal",
-          "Masuk",
-          "Keluar",
-          "S.Akhir",
-        ],
-        rows,
-        {
-          numCols: [5, 6, 7, 8], // 🚀 PERBAIKAN: Index kolom angka disesuaikan karena ID & Data dihapus
-          foot: foot,
-          bulkStore: "daftarmenu",
-          bulkIds: idsLimit,
-          actions: function (r, i) {
-            return crudActions(dataLimit[i].id, "daftarmenu");
-          },
-          emptyMsg: "Belum ada data daftar menu",
-        },
-      ),
-    ) +
+    "</div></div>" +
+    wrapTable(tableHtml) +
     paginationHTML
   );
 }
@@ -2576,6 +4119,10 @@ function changeDaftarMenuLimit(newLimit) {
 // ==========================================
 // 🚀 FORM INPUT UNTUK DAFTAR MENU
 // ==========================================
+
+// ==========================================
+// 2. KEMUDIAN GUNAKAN DI DALAM FUNGSI formDaftarMenu
+// ==========================================
 function formDaftarMenu(id) {
   var isEdit = !!id;
   var data = isEdit
@@ -2584,18 +4131,82 @@ function formDaftarMenu(id) {
       }) || {}
     : {};
 
+  var currentCabang =
+    data.cabang ||
+    (document.getElementById("fDmCab")
+      ? document.getElementById("fDmCab").value
+      : "");
+  var currentGroup =
+    data.group ||
+    (document.getElementById("fDmGroup")
+      ? document.getElementById("fDmGroup").value
+      : "");
+
+  var currentNoper = data.noper || "";
+
+  // 1. Ambil opsi noper bawaan yang sudah ada
+  var noperOptionsHTML = generatePerkOpts(
+    currentCabang,
+    currentGroup,
+    currentNoper,
+  );
+
+  // 2. Daftar Noper Khusus (sesuai struktur NOPER dan PENJELASAN)
+  var listNoperKhusus = [
+    { NOPER: "COFFEBREAK", PENJELASAN: "COFFEBREAK" },
+    { NOPER: "KBGGULING", PENJELASAN: "KBGGULING" },
+    { NOPER: "NASIKOTAK", PENJELASAN: "NASIKOTAK" },
+    { NOPER: "NASIKUNING", PENJELASAN: "NASIKUNING" },
+    { NOPER: "TUMPENG", PENJELASAN: "TUMPENG" },
+    { NOPER: "PAKET4", PENJELASAN: "PAKET4" },
+    { NOPER: "PAKET8", PENJELASAN: "PAKET8" },
+    { NOPER: "PAMER", PENJELASAN: "PAKET MEETING" },
+    { NOPER: "PRAS", PENJELASAN: "PRASMANAN" },
+    { NOPER: "LAIN", PENJELASAN: "LAIN" },
+    { NOPER: "SNACK", PENJELASAN: "SNACK" },
+    { NOPER: "SNACKB", PENJELASAN: "SNACKB" },
+  ];
+
+  // 3. Tambahkan ke dalam grup pilihan select
+  var tambahanHTML = '<optgroup label="--- Noper Khusus ---">';
+  listNoperKhusus.forEach(function (item) {
+    var isSel =
+      currentNoper.toUpperCase() === item.NOPER.toUpperCase() ? "selected" : "";
+    tambahanHTML +=
+      '<option value="' +
+      item.NOPER +
+      '" ' +
+      isSel +
+      ">" +
+      item.NOPER +
+      " (" +
+      item.PENJELASAN +
+      ")</option>";
+  });
+  tambahanHTML += "</optgroup>";
+
+  // Sisipkan ke tag select noper
+  if (noperOptionsHTML.indexOf("</select>") !== -1) {
+    noperOptionsHTML = noperOptionsHTML.replace(
+      "</select>",
+      tambahanHTML + "</select>",
+    );
+  } else {
+    noperOptionsHTML += tambahanHTML;
+  }
+
   var html =
     '<div class="fg"><label>Cabang</label><select id="fDmCab" class="in"' +
     (isEdit ? " disabled" : "") +
-    ">" +
+    ' onchange="updatePerkiraanOptions()">' +
     getCabangOpts(data.cabang) +
     "</select></div>" +
     '<div class="fg"><label>Group</label><select id="fDmGroup" class="in"' +
     (isEdit ? " disabled" : "") +
-    ">" +
+    ' onchange="updatePerkiraanOptions()">' +
     getGroupOpts(data.group) +
     "</select></div>" +
-    '<div class="fg"><label>Data (Tanggal)</label><input id="fDmData" type="date" class="in" value="' +
+    '<div class="fg"><label>Data (Tanggal/JSON)</label><input id="fDmData" type="date" class="in" value="' +
     esc(data.data || data.tanggal || "") +
     '"></div>' +
     '<div class="fg"><label>Kode Menu</label><input id="fDmKode" class="in" value="' +
@@ -2604,18 +4215,47 @@ function formDaftarMenu(id) {
     '<div class="fg"><label>Nama Menu</label><input id="fDmNama" class="in" value="' +
     esc(data.namamenu || data.namaMenu || "") +
     '"></div>' +
-    '<div class="fg"><label>Stok Awal</label><input id="fDmSawal" type="number" class="in" value="' +
-    esc(data.sawal || data.stok_awal || 0) +
+    '<div class="fg"><label>Satuan</label><input id="fDmSatuan" class="in" value="' +
+    esc(data.satuan || "") +
     '"></div>' +
-    '<div class="fg"><label>Masuk</label><input id="fDmMasuk" type="number" class="in" value="' +
+    '<div class="fg"><label>No Perkiraan (Noper)</label><select id="fDmNoper" class="in">' +
+    noperOptionsHTML +
+    "</select></div>" +
+    '<div class="fg"><label>Kode HPP Menu</label><input id="fDmKodeHpp" class="in" value="' +
+    esc(data.kodehppmenu || "") +
+    '"></div>' +
+    '<div style="display:flex; gap:.5rem;">' +
+    '<div class="fg" style="flex:1;"><label>Stok Awal</label><input id="fDmSawal" type="number" class="in" value="' +
+    esc(data.sawal || 0) +
+    '"></div>' +
+    '<div class="fg" style="flex:1;"><label>Qty Awal</label><input id="fDmQtyAwal" type="number" class="in" value="' +
+    esc(data.qtyawal || 0) +
+    '"></div>' +
+    "</div>" +
+    '<div style="display:flex; gap:.5rem;">' +
+    '<div class="fg" style="flex:1;"><label>Masuk</label><input id="fDmMasuk" type="number" class="in" value="' +
     esc(data.masuk || 0) +
     '"></div>' +
-    '<div class="fg"><label>Keluar</label><input id="fDmKeluar" type="number" class="in" value="' +
+    '<div class="fg" style="flex:1;"><label>Qty Masuk</label><input id="fDmQtyMasuk" type="number" class="in" value="' +
+    esc(data.qtymasuk || 0) +
+    '"></div>' +
+    "</div>" +
+    '<div style="display:flex; gap:.5rem;">' +
+    '<div class="fg" style="flex:1;"><label>Keluar</label><input id="fDmKeluar" type="number" class="in" value="' +
     esc(data.keluar || 0) +
     '"></div>' +
-    '<div class="fg"><label>Stok Akhir</label><input id="fDmSakhir" type="number" class="in" value="' +
-    esc(data.sakhir || data.stok_akhir || 0) +
-    '"></div>';
+    '<div class="fg" style="flex:1;"><label>Qty Keluar</label><input id="fDmQtyKeluar" type="number" class="in" value="' +
+    esc(data.qtykeluar || 0) +
+    '"></div>' +
+    "</div>" +
+    '<div style="display:flex; gap:.5rem;">' +
+    '<div class="fg" style="flex:1;"><label>Stok Akhir</label><input id="fDmSakhir" type="number" class="in" value="' +
+    esc(data.sakhir || 0) +
+    '"></div>' +
+    '<div class="fg" style="flex:1;"><label>Qty Akhir</label><input id="fDmQtyAkhir" type="number" class="in" value="' +
+    esc(data.qtyakhir || 0) +
+    '"></div>' +
+    "</div>";
 
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
@@ -2628,6 +4268,17 @@ function formDaftarMenu(id) {
   openModal(isEdit ? "Edit Daftar Menu" : "Tambah Daftar Menu", html, foot);
 }
 
+// 🌟 FUNGSI TAMBAHAN: Otomatis memperbarui isi dropdown No Perkiraan saat Cabang/Group diubah (Mode Tambah Baru)
+function updatePerkiraanOptions() {
+  var cabEl = document.getElementById("fDmCab");
+  var grpEl = document.getElementById("fDmGroup");
+  var nopEl = document.getElementById("fDmNoper");
+
+  if (cabEl && grpEl && nopEl) {
+    nopEl.innerHTML = generatePerkOpts(cabEl.value, grpEl.value, "");
+  }
+}
+
 async function saveDaftarMenu(e, id) {
   if (e && e.preventDefault) e.preventDefault();
 
@@ -2637,6 +4288,9 @@ async function saveDaftarMenu(e, id) {
     var dataField = $("fDmData").value;
     var kodemenu = $("fDmKode").value.trim();
     var namamenu = $("fDmNama").value.trim();
+    var satuan = $("fDmSatuan") ? $("fDmSatuan").value.trim() : "";
+    var noper = $("fDmNoper") ? $("fDmNoper").value.trim() : "";
+    var kodehppmenu = $("fDmKodeHpp") ? $("fDmKodeHpp").value.trim() : "";
     var sawal = num($("fDmSawal").value);
     var masuk = num($("fDmMasuk").value);
     var keluar = num($("fDmKeluar").value);
@@ -2644,24 +4298,47 @@ async function saveDaftarMenu(e, id) {
 
     if (!kodemenu || !namamenu)
       return toast("Kode Menu dan Nama Menu wajib diisi", "err");
+    // Sebelum dikirim ke API/db, cetak dulu data yang akan dikirim
+    console.log("Data yang dikirim ke server:", {
+      id: id,
+      cabang: cabang,
+      group: group,
+      satuan: satuan,
+      noper: noper,
+      kodehppmenu: kodehppmenu,
+    });
 
     if (id) {
+      // 1. Ambil data lama dari database
       var r = await db.get("daftarmenu", id);
       if (r) {
+        // 2. Gabungkan data lama dengan inputan baru yang diperbarui
         var updated = Object.assign({}, r, {
           cabang: cabang,
           group: group,
           data: dataField,
           kodemenu: kodemenu,
           namamenu: namamenu,
+          satuan: satuan,
+          noper: noper,
+          kodehppmenu: kodehppmenu,
           sawal: sawal,
           masuk: masuk,
           keluar: keluar,
           sakhir: sakhir,
         });
+
+        // 3. Simpan ke database IndexedDB
         await db.put("daftarmenu", updated);
+
+        // 4. 🔥 PERBARUI CACHE LOKAL SECARA LANGSUNG
+        if (!DBCache.daftarmenu) DBCache.daftarmenu = [];
         var idx = DBCache.daftarmenu.findIndex((x) => x.id === id);
-        if (idx !== -1) DBCache.daftarmenu[idx] = updated;
+        if (idx !== -1) {
+          DBCache.daftarmenu[idx] = updated;
+        } else {
+          DBCache.daftarmenu.push(updated);
+        }
       }
     } else {
       var newId = uid();
@@ -2672,18 +4349,35 @@ async function saveDaftarMenu(e, id) {
         data: dataField,
         kodemenu: kodemenu,
         namamenu: namamenu,
+        satuan: satuan,
+        noper: noper,
+        kodehppmenu: kodehppmenu,
         sawal: sawal,
         masuk: masuk,
         keluar: keluar,
         sakhir: sakhir,
       };
+
+      // Simpan data baru ke IndexedDB
       await db.add("daftarmenu", newObj);
+
+      // Masukkan ke cache lokal
+      if (!DBCache.daftarmenu) DBCache.daftarmenu = [];
       DBCache.daftarmenu.push(newObj);
     }
 
-    closeModal();
-    toast("Tersimpan!", "ok");
-    safeRenderCurrentPanel();
+    // Tutup modal form
+    if (typeof closeModal === "function") closeModal();
+
+    toast("Data berhasil disimpan!", "ok");
+
+    // 🔥 5. PAKSA RENDER ULANG PANEL AKTIF AGAR DATA TERBARU LANGSUNG MUNCUL
+    if (typeof safeRenderCurrentPanel === "function") {
+      safeRenderCurrentPanel();
+    } else if (typeof renderDaftarMenu === "function") {
+      document.getElementById("main-content").innerHTML =
+        await renderDaftarMenu();
+    }
   } catch (err) {
     toast("Gagal simpan: " + err.message, "err");
   }
@@ -2752,16 +4446,23 @@ async function importDaftarMenuFromSales() {
 
       // Buat objek Daftar Menu baru
       var newMenuObj = {
-        // id: uid(),
-        //  data: "", // Dikosongkan, bisa diisi manual nanti
+        id: uid(), // 🔥 WAJIB AKTIF: SQLite butuh PRIMARY KEY
+        data: "{}", // 🔥 WAJIB AKTIF: Skema Anda meminta TEXT NOT NULL
         cabang: cabang,
         group: group,
         kodemenu: kodemenu,
         namamenu: namamenu,
-        sawal: 0, // Diisi 0
-        masuk: 0, // Diisi 0
-        keluar: 0, // Diisi 0
-        sakhir: 0, // Diisi 0
+        satuan: "", // 🌟 Tambah kolom baru sesuai skema
+        noper: "", // 🌟 Tambah kolom baru sesuai skema
+        kodehppmenu: "", // 🌟 Tambah kolom baru sesuai skema
+        sawal: 0,
+        masuk: 0,
+        keluar: 0,
+        sakhir: 0,
+        qtyawal: 0, // 🌟 Tambah kolom baru sesuai skema
+        qtymasuk: 0, // 🌟 Tambah kolom baru sesuai skema
+        qtykeluar: 0, // 🌟 Tambah kolom baru sesuai skema
+        qtyakhir: 0, // 🌟 Tambah kolom baru sesuai skema
       };
 
       // Simpan ke IndexedDB
@@ -3089,4 +4790,519 @@ function buildMenuTableUI(data) {
       ),
     ) + pagHTML
   );
+}
+PANEL_MAP.saldoPbk = renderSaldoPembukuan;
+// Pastikan variabel halaman aktif ini didefinisikan secara global di luar fungsi jika belum ada
+if (typeof _currentPage === "undefined") var _currentPage = 1;
+var _saldoSort = { col: -1, dir: "asc" };
+
+// --- 1. FUNGSI SORTING HEADER TABEL ---
+function sortSaldoPembukuan(colIndex) {
+  if (_saldoSort.col === colIndex) {
+    _saldoSort.dir = _saldoSort.dir === "asc" ? "desc" : "asc";
+  } else {
+    _saldoSort.col = colIndex;
+    _saldoSort.dir = "asc";
+  }
+  _currentPage = 1;
+
+  if (typeof safeRenderCurrentPanel === "function") {
+    safeRenderCurrentPanel();
+  } else {
+    renderSaldoPembukuan().then(function (html) {
+      var area =
+        document.getElementById("contentArea") ||
+        document.querySelector(".pnl.active");
+      if (area) area.innerHTML = '<div class="pnl active">' + html + "</div>";
+    });
+  }
+}
+
+// --- 2. FUNGSI UTAMA RENDER SALDO PEMBUKUAN ---
+async function renderSaldoPembukuan() {
+  try {
+    var rawData = DBCache.saldopembukuan || [];
+    if (rawData.length === 0 && typeof db !== "undefined" && db.getAll) {
+      rawData = await db.getAll("saldopembukuan");
+      DBCache.saldopembukuan = rawData;
+    }
+
+    var data = filterByCabang(rawData);
+
+    // Filter Group
+    var activeGroup = getActiveGroupFilter();
+    if (activeGroup) {
+      data = data.filter(function (r) {
+        return (r.group || "") === activeGroup;
+      });
+    }
+
+    // Bungkus dengan index asli agar pemetaan aman
+    var dataWithIndex = data.map(function (r, idx) {
+      return { item: r, originalIndex: idx + 1 };
+    });
+
+    // Sorting Dinamis
+    if (_saldoSort.col >= 0) {
+      var sortCol = _saldoSort.col;
+      var sortDir = _saldoSort.dir;
+
+      dataWithIndex.sort(function (aObj, bObj) {
+        var a = aObj.item,
+          b = bObj.item;
+        var valA, valB;
+
+        switch (sortCol) {
+          case 0:
+            valA = String(a.tanggal || "").toLowerCase();
+            valB = String(b.tanggal || "").toLowerCase();
+            break;
+          case 1:
+            valA = String(a.kodetrans || "").toLowerCase();
+            valB = String(b.kodetrans || "").toLowerCase();
+            break;
+          case 2:
+            valA = +(a.saldo || 0);
+            valB = +(b.saldo || 0);
+            break;
+          case 3:
+            valA =
+              +(a.akhir !== undefined && a.akhir !== ""
+                ? a.akhir
+                : num(a.awal) + num(a.db) - num(a.cr)) || 0;
+            valB =
+              +(b.akhir !== undefined && b.akhir !== ""
+                ? b.akhir
+                : num(b.awal) + num(b.db) - num(b.cr)) || 0;
+            break;
+          case 4:
+            valA = String(a.masa || "").toLowerCase();
+            valB = String(b.masa || "").toLowerCase();
+            break;
+          case 5:
+            valA = String(lookupCabangLabel(a.cabang) || "").toLowerCase();
+            valB = String(lookupCabangLabel(b.cabang) || "").toLowerCase();
+            break;
+          case 6:
+            valA = String(a.group || "").toLowerCase();
+            valB = String(b.group || "").toLowerCase();
+            break;
+          default:
+            return 0;
+        }
+
+        var result;
+        if (typeof valA === "number") {
+          result = valA - valB;
+        } else {
+          result = valA.localeCompare(valB, undefined, {
+            numeric: true,
+            sensitivity: "base",
+          });
+        }
+        return sortDir === "desc" ? -result : result;
+      });
+    }
+
+    var sortedData = dataWithIndex.map(function (obj) {
+      return obj.item;
+    });
+
+    var allIds = sortedData.map(function (r) {
+      return r.id;
+    });
+    bulkInit("saldopembukuan", allIds);
+
+    // Logika Pagination
+    var limit =
+      typeof _viewLimit !== "undefined" && _viewLimit ? num(_viewLimit) : 50;
+    var totalRecords = sortedData.length;
+    var totalPages = Math.ceil(totalRecords / limit) || 1;
+
+    if (_currentPage > totalPages) _currentPage = totalPages;
+    if (_currentPage < 1) _currentPage = 1;
+
+    var startIndex = (_currentPage - 1) * limit;
+    var endIndex = startIndex + limit;
+
+    var dataLimitMapped = dataWithIndex.slice(startIndex, endIndex);
+    var dataLimit = dataLimitMapped.map(function (obj) {
+      return obj.item;
+    });
+
+    var showStart = totalRecords === 0 ? 0 : startIndex + 1;
+    var showEnd = Math.min(endIndex, totalRecords);
+
+    var rows = dataLimit.map(function (r) {
+      var ak =
+        r.akhir !== undefined && r.akhir !== ""
+          ? num(r.akhir)
+          : num(r.awal) + num(r.db) - num(r.cr);
+      return [
+        r.tanggal || "-",
+        r.kodetrans || "-",
+        fmtN(r.saldo),
+        '<span class="tag tag-akhir">' + fmtN(ak) + "</span>",
+        r.masa || "-",
+        lookupCabangLabel(r.cabang),
+        r.group || "-",
+      ];
+    });
+
+    var pageSaldoTotal = dataLimit.reduce(function (s, r) {
+      return s + num(r.saldo);
+    }, 0);
+
+    var foot = ["", "", fmtN(pageSaldoTotal), "", "", "", ""];
+
+    // Pembuatan Header Tabel & Checkbox
+    var headerLabels = [
+      "Tanggal",
+      "Kode Trans",
+      "Saldo",
+      "Akhir",
+      "Masa",
+      "Cabang",
+      "Group",
+    ];
+    var numCols = [2, 3];
+
+    var tableHtml =
+      '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
+
+    // Checkbox Header (Select All)
+    tableHtml +=
+      '<th style="padding:8px;border:1px solid var(--brd);width:35px;text-align:center;">' +
+      '<input type="checkbox" onchange="toggleBulkAll(\'saldopembukuan\', this.checked)" title="Pilih Semua">' +
+      "</th>";
+
+    headerLabels.forEach(function (label, idx) {
+      var isActive = _saldoSort.col === idx;
+      var icon = "";
+      if (isActive) {
+        icon =
+          _saldoSort.dir === "asc"
+            ? ' <i class="fa-solid fa-sort-up" style="color:var(--accent);"></i>'
+            : ' <i class="fa-solid fa-sort-down" style="color:var(--accent);"></i>';
+      } else {
+        icon =
+          ' <i class="fa-solid fa-sort" style="color:var(--muted);opacity:.4;"></i>';
+      }
+      var bgStyle = isActive
+        ? "background:var(--bg2);color:var(--accent);font-weight:bold;"
+        : "";
+
+      tableHtml +=
+        '<th style="' +
+        bgStyle +
+        'padding:8px;border:1px solid var(--brd);white-space:nowrap;cursor:pointer;user-select:none;" onclick="sortSaldoPembukuan(' +
+        idx +
+        ')">' +
+        label +
+        icon +
+        "</th>";
+    });
+    tableHtml +=
+      '<th style="padding:8px;border:1px solid var(--brd);">Aksi</th></tr></thead><tbody>';
+
+    if (rows.length === 0) {
+      tableHtml +=
+        '<tr><td colspan="' +
+        (headerLabels.length + 2) +
+        '" style="padding:2rem;text-align:center;color:var(--muted);">Belum ada data Saldo Pembukuan</td></tr>';
+    } else {
+      rows.forEach(function (row, i) {
+        tableHtml += "<tr>";
+        tableHtml +=
+          '<td style="padding:6px 8px;border:1px solid var(--brd);text-align:center;">' +
+          '<input type="checkbox" class="bulk-check" data-store="saldopembukuan" data-id="' +
+          dataLimit[i].id +
+          '">' +
+          "</td>";
+
+        row.forEach(function (cell, ci) {
+          var align = numCols.includes(ci) ? "text-align:right;" : "";
+          tableHtml +=
+            '<td style="padding:6px 8px;border:1px solid var(--brd);font-size:.85rem;' +
+            align +
+            '">' +
+            cell +
+            "</td>";
+        });
+
+        tableHtml +=
+          '<td style="padding:6px 8px;border:1px solid var(--brd);">' +
+          crudActions(dataLimit[i].id, "saldopembukuan") +
+          "</td>";
+        tableHtml += "</tr>";
+      });
+    }
+
+    // Footer Row
+    tableHtml += '<tr style="background:var(--bg2);font-weight:bold;">';
+    tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+    foot.forEach(function (cell, ci) {
+      var align = numCols.includes(ci) ? "text-align:right;" : "";
+      tableHtml +=
+        '<td style="padding:8px;border:1px solid var(--brd);' +
+        align +
+        '">' +
+        cell +
+        "</td>";
+    });
+    tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
+    tableHtml += "</tr></tbody></table>";
+
+    // Pagination HTML
+    var paginationHTML = "";
+    if (totalRecords > 0) {
+      paginationHTML =
+        '<div style="display:flex;align-items:center;gap:.7rem;margin-top:.7rem;justify-content:space-between;flex-wrap:wrap">' +
+        '<div style="font-size:.8rem;color:var(--muted)">Menampilkan <b>' +
+        showStart +
+        " - " +
+        showEnd +
+        "</b> dari <b>" +
+        totalRecords +
+        "</b> record (Hal. " +
+        _currentPage +
+        "/" +
+        totalPages +
+        ")</div>" +
+        '<div style="display:flex;gap:.4rem;align-items:center">' +
+        '<button type="button" class="btn btn-inf" onclick="changePagePembukuan(' +
+        (_currentPage - 1) +
+        ')" ' +
+        (_currentPage <= 1
+          ? 'disabled style="opacity:.5;cursor:not-allowed"'
+          : "") +
+        '><i class="fa-solid fa-arrow-left"></i> Prev</button>' +
+        '<button type="button" class="btn btn-inf" onclick="changePagePembukuan(' +
+        (_currentPage + 1) +
+        ')" ' +
+        (_currentPage >= totalPages
+          ? 'disabled style="opacity:.5;cursor:not-allowed"'
+          : "") +
+        '>Next <i class="fa-solid fa-arrow-right"></i></button>' +
+        "</div></div>";
+    }
+
+    // Render Final Layout
+    var htmlResult =
+      bulkBarHTML("saldopembukuan", "Saldo Pembukuan") +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
+      '<div style="font-size:.82rem;color:var(--muted);display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">' +
+      "Filter Group: " +
+      getGroupFilterHTML() +
+      '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+      "Filter Cabang: " +
+      getCabangFilterHTML() +
+      '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+      "Tampilkan " +
+      getLimitOptsHTML() +
+      " dari " +
+      totalRecords +
+      " record" +
+      "</div>" +
+      '<div style="display:flex;gap:.4rem">' +
+      '<button type="button" class="btn btn-s" style="background-color:#107c41;color:#fff;border-color:#107c41" onclick="exportTableToExcel(\'saldopembukuan\', \'Data_Saldo_Pembukuan\')" title="Download Excel"><i class="fa-solid fa-file-excel"></i> XLS</button>' +
+      '<button type="button" class="btn btn-inf" onclick="openDBFImportModal(\'saldopembukuan\')"><i class="fa-solid fa-file-import"></i> Import DBF</button>' +
+      '<button type="button" class="btn btn-r" onclick="clearAllData(\'saldopembukuan\')"><i class="fa-solid fa-trash-can"></i> Kosongkan</button>' +
+      '<button type="button" class="btn btn-a" onclick="formSaldoPembukuan()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
+      "</div></div>" +
+      wrapTable(tableHtml) +
+      paginationHTML;
+
+    return htmlResult;
+  } catch (error) {
+    console.error("CRASH PADA RENDER SALDO:", error);
+    return (
+      '<div style="color:red;padding:1rem;">Gagal memuat tabel: ' +
+      error.message +
+      "</div>"
+    );
+  }
+}
+
+// --- 3. FUNGSI UNTUK PINDAH HALAMAN (PREV / NEXT) ---
+function changePagePembukuan(targetPage) {
+  _currentPage = targetPage;
+
+  if (typeof safeRenderCurrentPanel === "function") {
+    safeRenderCurrentPanel();
+    return;
+  }
+
+  var appContainer = null;
+  var possibleIds = [
+    "main-content",
+    "app-content",
+    "content-area",
+    "page-content",
+    "view-content",
+    "contentArea",
+  ];
+
+  for (var i = 0; i < possibleIds.length; i++) {
+    var el = document.getElementById(possibleIds[i]);
+    if (el && el.innerHTML.indexOf("Saldo Pembukuan") !== -1) {
+      appContainer = el;
+      break;
+    }
+  }
+
+  if (!appContainer) {
+    var allDivs = document.getElementsByTagName("div");
+    for (var j = 0; j < allDivs.length; j++) {
+      if (
+        allDivs[j].innerHTML.indexOf("Saldo Pembukuan") !== -1 &&
+        allDivs[j].children.length > 3
+      ) {
+        appContainer = allDivs[j];
+        break;
+      }
+    }
+  }
+
+  if (appContainer) {
+    renderSaldoPembukuan().then(function (html) {
+      appContainer.innerHTML = '<div class="pnl active">' + html + "</div>";
+    });
+  } else {
+    console.error(
+      "Tidak bisa menemukan container untuk merender halaman pembukuan.",
+    );
+  }
+}
+
+function formSaldoPembukuan(id) {
+  var isEdit = !!id;
+
+  // Ambil data dengan pencarian yang aman
+  var data = isEdit
+    ? (DBCache.saldopembukuan || []).find(function (d) {
+        return String(d.id) === String(id);
+      }) || {}
+    : {};
+
+  // Antisipasi properti huruf besar/kecil dari database/cache
+  var groupVal = data.group || data.GROUP || "";
+  var cabangVal = data.cabang || data.CABANG || data.kode_cabang || "";
+  var tanggalVal = data.tanggal || data.TANGGAL || "";
+  var kodetransVal = data.kodetrans || data.KODETRANS || "";
+  var awalVal = data.awal !== undefined ? data.awal : data.AWAL || 0;
+  var masaVal = data.masa || data.MASA || "";
+
+  // HTML dengan posisi Group di atas Cabang
+  // Menambahkan atribut onchange="updateCabangOptions(this.value)" pada select Group
+  var html =
+    '<div class="fg"><label>Group</label><select id="fSpGroup" class="in"' +
+    (isEdit ? " disabled" : "") +
+    ' onchange="updateCabangOptions(this.value)">' +
+    getGroupOpts(groupVal) +
+    "</select></div>" +
+    '<div class="fg"><label>Cabang</label><select id="fSpCab" class="in"' +
+    (isEdit ? " disabled" : "") +
+    ">" +
+    getCabangOpts2(cabangVal, groupVal) + // Mengirim parameter groupVal ke fungsi opsi cabang
+    "</select></div>" +
+    '<div class="fg"><label>Tanggal</label><input id="fSpTgl" type="date" class="in" value="' +
+    esc(tanggalVal) +
+    '"' +
+    (isEdit ? " disabled" : "") +
+    "></div>" +
+    '<div class="fg"><label>Masa</label><input id="fSpMasa" class="in" value="' +
+    esc(masaVal) +
+    '"></div>' +
+    '<div class="fg"><label>Kode Transaksi</label><input id="fSpKodetrans" class="in" value="' +
+    esc(kodetransVal) +
+    '"></div>' +
+    '<div style="display:flex; gap:.5rem;">' +
+    '<div class="fg" style="flex:1;"><label>Saldo Awal</label><input id="fSpAwal" type="number" class="in" value="' +
+    esc(awalVal) +
+    '"></div>' +
+    "</div>";
+
+  var foot =
+    '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
+    '<button type="button" class="btn btn-a" onclick="saveSaldoPembukuan(event, \'' +
+    (id || "") +
+    "')\">" +
+    (isEdit ? "Update" : "Simpan") +
+    "</button>";
+
+  openModal(
+    isEdit ? "Edit Saldo Pembukuan" : "Tambah Saldo Pembukuan",
+    html,
+    foot,
+  );
+}
+
+/**
+ * Fungsi tambahan untuk memperbarui dropdown Cabang secara dinamis saat Group diubah
+ * @param {string} selectedGroup - Nilai group yang dipilih
+ */
+function updateCabangOptions(selectedGroup) {
+  var cabSelect = document.getElementById("fSpCab");
+  if (cabSelect) {
+    // Memanggil ulang fungsi getCabangOpts dengan filter group terbaru
+    // Parameter kedua kosong ("") karena ini adalah input baru/perubahan input, bukan data edit
+    cabSelect.innerHTML = getCabangOpts2("", selectedGroup);
+  }
+}
+
+async function saveSaldoPembukuan(e, id) {
+  if (e && e.preventDefault) e.preventDefault();
+
+  try {
+    var cabang = $("fSpCab").value;
+    var group = $("fSpGroup").value;
+    var tanggal = $("fSpTgl").value;
+    var masa = $("fSpMasa").value.trim();
+    var kodetrans = $("fSpKodetrans").value.trim();
+    var awal = num($("fSpAwal").value);
+
+    if (id) {
+      var r = await db.get("saldopembukuan", id);
+      if (r) {
+        var updated = Object.assign({}, r, {
+          tanggal: tanggal,
+          kodetrans: kodetrans,
+          saldo: awal,
+          db: db,
+          cr: cr,
+          akhir: akhir,
+          masa: masa,
+          cabang: cabang,
+          group: group,
+        });
+        await db.put("saldopembukuan", updated);
+
+        // MANUAL CACHE UPDATE
+        var idx = DBCache.saldopembukuan.findIndex((x) => x.id === id);
+        if (idx !== -1) DBCache.saldopembukuan[idx] = updated;
+      }
+    } else {
+      var newId = uid();
+      var newObj = {
+        id: newId,
+        tanggal: tanggal,
+        kodetrans: kodetrans,
+        saldo: saldo,
+        masa: masa,
+        cabang: cabang,
+        group: group,
+      };
+      await db.add("saldopembukuan", newObj);
+
+      // MANUAL CACHE UPDATE
+      DBCache.saldopembukuan.push(newObj);
+    }
+
+    closeModal();
+    toast("Tersimpan!", "ok");
+    safeRenderCurrentPanel();
+  } catch (err) {
+    toast("Gagal simpan: " + err.message, "err");
+  }
 }
