@@ -182,6 +182,12 @@ function buildSidebar() {
           label: "Saldo Kasir",
           icon: "fa-building-columns",
         },
+        {
+          id: "saldoPbk",
+          label: "Saldo Kasir Pembukuan",
+          icon: "fa-building-columns",
+        },
+
         { id: "group", label: "Group Project", icon: "fa-network-wired" },
       ],
     },
@@ -223,6 +229,11 @@ function buildSidebar() {
           id: "sales",
           label: "Data Sales",
           icon: "fa-store",
+        },
+        {
+          id: "lapsales",
+          label: "Laporan Data Sales",
+          icon: "fa-solid fa-chart-line",
         },
       ],
     },
