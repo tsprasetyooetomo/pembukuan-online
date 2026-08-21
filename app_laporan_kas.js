@@ -30,7 +30,7 @@ var APP_PAGINATION_STATE = {
 
 /* ---------- Kas Harian ---------- */
 PANEL_MAP.kasHarian = renderKasHarian;
-AFTER_RENDER.kasHarian = refreshKasHarian;
+//AFTER_RENDER.kasHarian = refreshKasHarian;
 // Wadah global untuk menyimpan data kas harian yang sedang aktif di layar
 let DATA_KAS_AKTIF = {
   saldoAwalMaster: 0,
@@ -38,73 +38,76 @@ let DATA_KAS_AKTIF = {
 };
 
 function renderKasHarian() {
-  // Set Tanggal Hari Ini untuk Tanggal Akhir
   var today = new Date().toISOString().slice(0, 10);
-  // Set 1 Bulan ke belakang untuk Tanggal Awal (Default)
   var lastMonth = new Date();
   lastMonth.setMonth(lastMonth.getMonth() - 1);
   var defaultStart = lastMonth.toISOString().slice(0, 10);
 
-  // 1. Reset nomor halaman kas harian ke angka 1 saat menu dibuka pertama kali
   if (APP_PAGINATION_STATE && APP_PAGINATION_STATE.kasHarian) {
     APP_PAGINATION_STATE.kasHarian.current = 1;
   }
 
-  // Ambil group aktif dari session browser untuk dilempar ke parameter getGroupOpts
   var activeGroupSession = localStorage.getItem("group") || "";
 
-  // 2. Render UI Filter - Semua dropdown dan tombol dipaksa lurus horizontal sejajar satu baris
+  // STYLE TAMBAHAN UNTUK TOMBOL DISABLED
+  var btnDisabledStyle =
+    "opacity: 0.5; cursor: not-allowed; pointer-events: none;";
+  var btnBaseStyle =
+    "padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;";
+
   return `<div class="flt" style="display: flex; flex-direction: row; flex-wrap: nowrap !important; gap: .6rem; align-items: flex-end; justify-content: flex-start; height: auto !important; padding: .6rem; min-height: 45px; overflow-x: auto; width: 100%;">
       
       <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
         <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Tgl Awal</label>
-        <input type="date" id="fkh_tgl_awal" value="${defaultStart}" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+        <input type="date" id="fkh_tgl_awal" value="${defaultStart}" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
       </div>
       
       <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
         <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Tgl Akhir</label>
-        <input type="date" id="fkh_tgl_akhir" value="${today}" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+        <input type="date" id="fkh_tgl_akhir" value="${today}" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
       </div>
       
-      <!-- 🌟 ELEMEN GROUP: SEKARANG 100% DINAMIS MENGGUNAKAN FUNGSI getGroupOpts() ANDA -->
+      <!-- 🔥 GROUP: TRIGGER UTAMA ALUR -->
       <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
         <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Group</label>
-        <select id="fkh_group" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+        <select id="fkh_group" onchange="onKasHarianGroupChange()" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
           ${getGroupOpts(activeGroupSession)}
         </select>
       </div>
 
+      <!-- 🔥 CABANG: AKAN DI-UPDATE OLEH GROUP -->
       <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
         <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Cabang</label>
-        <select id="fkh_cabang" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
-          ${getCabangOpts("")}
+        <select id="fkh_cabang" onchange="onKasHarianCabangChange()" disabled style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem; opacity: 0.5;">
+          <option value="">-- Pilih Group Dulu --</option>
         </select>
       </div>
       
+      <!-- 🔥 KODE BANK: AKAN DI-UPDATE OLEH CABANG -->
       <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 130px; min-width: 110px;">
         <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">KodeBank/Kas</label>
-        <select id="fkh_kodebank" onchange="if(APP_PAGINATION_STATE?.kasHarian) APP_PAGINATION_STATE.kasHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
-          <option value="">Semua</option>
+        <select id="fkh_kodebank" disabled style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem; opacity: 0.5;">
+          <option value="">-- Pilih Cabang Dulu --</option>
         </select>
       </div>
       
-      <!-- TOMBOL TERAPKAN MANUAL -->
+      <!-- TOMBOL TERAPKAN (DISABLED AWALNYA) -->
       <div class="fg" style="flex: 0 0 auto;">
-        <button class="btn btn-b" style="background-color: #0284c7 !important; color: #fff !important; border-color: #0284c7 !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="refreshKasHarian(false)" title="Terapkan Filter">
+        <button id="btnTerapkanKas" class="btn btn-b" style="background-color: #0284c7 !important; color: #fff !important; border-color: #0284c7 !important; ${btnBaseStyle} ${btnDisabledStyle}" title="Terapkan Filter">
           <i class="fa-solid fa-filter"></i> Terapkan
         </button>
       </div>
 
-      <!-- TOMBOL EXPORT -->
+      <!-- TOMBOL EXPORT (DISABLED AWALNYA) -->
       <div class="fg" style="flex: 0 0 auto;">
-        <button class="btn btn-s" style="background-color: #107c41 !important; color: #fff !important; border-color: #107c41 !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="exportKasHarian()" title="Download Excel/CSV">
+        <button id="btnExportKas" class="btn btn-s" style="background-color: #107c41 !important; color: #fff !important; border-color: #107c41 !important; ${btnBaseStyle} ${btnDisabledStyle}" title="Download Excel/CSV">
           <i class="fa-solid fa-file-excel"></i> Export XLS
         </button>
       </div>
       
-      <!-- TOMBOL TUTUP BUKU -->
+      <!-- TOMBOL TUTUP BUKU (DISABLED AWALNYA) -->
       <div class="fg" style="flex: 0 0 auto;">
-        <button class="btn btn-s" style="background-color: #8e24aa !important; color: #fff !important; border-color: #8e24aa !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="tutupBukuHarian()">
+        <button id="btnTutupBukuKas" class="btn btn-s" style="background-color: #8e24aa !important; color: #fff !important; border-color: #8e24aa !important; ${btnBaseStyle} ${btnDisabledStyle}">
           <i class="fa-solid fa-save"></i> Tutup Buku / Simpan Saldo
         </button>
       </div>
@@ -113,7 +116,154 @@ function renderKasHarian() {
     <div id="kasHarianPagination" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:5px;"></div>
   `;
 }
+// --- FUNGSI KONTROL ALUR DROPDOWN KAS HARIAN ---
 
+// 1. SAAT GROUP BERUBAH
+function onKasHarianGroupChange() {
+  var selectedGroup = $("fkh_group").value;
+  var ddCab = $("fkh_cabang");
+  var ddBank = $("fkh_kodebank");
+
+  // Langkah 1: Disable & Kosongkan Cabang dan Bank
+  ddCab.disabled = true;
+  ddCab.style.opacity = "0.5";
+  ddCab.innerHTML = '<option value="">-- Pilih Cabang --</option>';
+
+  ddBank.disabled = true;
+  ddBank.style.opacity = "0.5";
+  ddBank.innerHTML = '<option value="">-- Pilih Cabang Dulu --</option>';
+
+  // Langkah 2: Lock semua tombol aksi
+  lockKasHarianActions(true);
+
+  // Langkah 3: Jika Group kosong, hentikan alur
+  if (!selectedGroup) return;
+
+  // Langkah 4: Update Opsi Cabang berdasarkan Group yang dipilih
+  ddCab.innerHTML = getCabangOpts2("", selectedGroup); // Menggunakan fungsi filter cabang milik Anda
+  ddCab.disabled = false;
+  ddCab.style.opacity = "1";
+}
+
+// 2. SAAT CABANG BERUBAH
+// 2. SAAT CABANG BERUBAH
+function onKasHarianCabangChange() {
+  var selectedGroup = $("fkh_group").value;
+  var selectedCab = $("fkh_cabang").value;
+  var ddBank = $("fkh_kodebank");
+
+  // Langkah 1: Disable & Kosongkan Bank
+  ddBank.disabled = true;
+  ddBank.style.opacity = "0.5";
+  ddBank.innerHTML = '<option value="">-- Pilih Cabang Dulu --</option>';
+  lockKasHarianActions(true);
+
+  if (!selectedCab) return;
+
+  var bankList = Array.isArray(DBCache.kodeBank) ? DBCache.kodeBank : [];
+
+  // --- PROSES FILTER BERDASARKAN CABANG & GROUP ---
+  // Catatan: Sesuaikan nama property cabang/group jika di database Anda berbeda (misal: b.kode_cabang)
+  var filteredBanks = bankList.filter(function (b) {
+    var matchCabang = (b.cabang || "Pusat") === selectedCab;
+    var matchGroup = (b.group || "TLGA") === selectedGroup;
+    return matchCabang && matchGroup;
+  });
+
+  var digitMap = {};
+  filteredBanks.forEach(function (b) {
+    // 🌟 PERBAIKAN UTAMA:
+    // Karena data berbentuk array/kolom terpisah, kita ambil kolom ke-2 (index 1)
+    // Asumsi kolom: [0: ID, 1: Kode Huruf, 2: Nama Bank, ...]
+    var charPenanda = " "; // Default spasi
+
+    if (Array.isArray(b)) {
+      // Jika datanya berupa array of array
+      charPenanda = b[1] !== undefined ? String(b[1]).trim() : " ";
+    } else if (typeof b === "object") {
+      // Jika datanya berupa object, coba cari property yang isinya 1 huruf (misal: b.kode, b.indeks, b.tipe)
+      // Sesuaikan "b.kode" di bawah ini dengan nama kolom asli di database Anda jika bukan "kode"
+      charPenanda =
+        b.kode ||
+        b.tipe ||
+        b.indeks ||
+        (b.kodebank ? String(b.kodebank).trim() : " ");
+    }
+
+    // Ambil Nama Bank-nya (Kolom ke-3 / index 2)
+    var penj = "Bank " + charPenanda;
+    if (Array.isArray(b)) {
+      penj = b[2] !== undefined ? String(b[2]).trim() : penj;
+    } else if (typeof b === "object") {
+      penj = b.penjelasan || b.nama_bank || b.keterangan || penj;
+    }
+
+    if (!digitMap[charPenanda]) digitMap[charPenanda] = [];
+    if (digitMap[charPenanda].indexOf(penj) === -1)
+      digitMap[charPenanda].push(penj);
+  });
+
+  // Urutkan berdasarkan abjad (A, B, C, D...)
+  var uniqueDigits = Object.keys(digitMap).sort();
+
+  var newOpts = uniqueDigits
+    .map(function (c) {
+      var textPenj = digitMap[c].join(", ");
+      var label =
+        c === " " || c === "" ? "(Kosong) - " + textPenj : c + " - " + textPenj;
+      return `<option value="${esc(c)}">${esc(label)}</option>`;
+    })
+    .join("");
+
+  // Langkah: Isi dan buka kunci dropdown Bank
+  if (uniqueDigits.length > 0) {
+    ddBank.innerHTML = '<option value="">Semua</option>' + newOpts;
+    ddBank.disabled = false;
+    ddBank.style.opacity = "1";
+    lockKasHarianActions(false); // Buka tombol Terapkan, Export, dll
+  } else {
+    ddBank.innerHTML =
+      '<option value="">-- Tidak ada bank untuk cabang ini --</option>';
+    ddBank.disabled = true;
+    ddBank.style.opacity = "0.5";
+    lockKasHarianActions(true); // Tetap kunci tombol
+  }
+}
+
+// 3. FUNGSI UTUK MENGATUR TOOMBOL ENABLED/DISABLED
+function lockKasHarianActions(isLocked) {
+  var styleOff = "opacity: 0.5; cursor: not-allowed; pointer-events: none;";
+  var btnTerapkan = $("btnTerapkanKas");
+  var btnExport = $("btnExportKas");
+  var btnTutup = $("btnTutupBukuKas");
+
+  if (isLocked) {
+    if (btnTerapkan) btnTerapkan.style.cssText += styleOff;
+    if (btnExport) btnExport.style.cssText += styleOff;
+    if (btnTutup) btnTutup.style.cssText += styleOff;
+
+    // Hapus onclick saat disable agar tidak bisa diakses lewat keyboard
+    if (btnTerapkan) btnTerapkan.removeAttribute("onclick");
+    if (btnExport) btnExport.removeAttribute("onclick");
+    if (btnTutup) btnTutup.removeAttribute("onclick");
+  } else {
+    if (btnTerapkan)
+      btnTerapkan.style.cssText = btnTerapkan.style.cssText.replace(
+        styleOff,
+        "",
+      );
+    if (btnExport)
+      btnExport.style.cssText = btnExport.style.cssText.replace(styleOff, "");
+    if (btnTutup)
+      btnTutup.style.cssText = btnTutup.style.cssText.replace(styleOff, "");
+
+    // Kembalikan onclick saat enable
+    if (btnTerapkan)
+      btnTerapkan.setAttribute("onclick", "refreshKasHarian(false)");
+    if (btnExport) btnExport.setAttribute("onclick", "exportKasHarian()");
+    if (btnTutup) btnTutup.setAttribute("onclick", "tutupBukuHarian()");
+  }
+}
 async function tutupBukuHarian() {
   // 🌟 FIX 1: Ambil data filter secara dinamis dari elemen fkh_...
   var tglAwal = $("fkh_tgl_awal").value;
@@ -240,7 +390,6 @@ async function simpanSnapshotSaldo(
     const kodeCabang = cabang || "Pusat";
     const kodeChar = char4 || " ";
 
-    // 🔥 PERBAIKAN UTAMA: Ambil nilai Group dari dropdown HTML layar agar sinkron saat penyimpanan database batch
     const activeGroup = $("fkh_group")
       ? $("fkh_group").value
       : localStorage.getItem("group") || "TLGA";
@@ -251,35 +400,36 @@ async function simpanSnapshotSaldo(
     console.log("=== MEMULAI PROSES SIMPAN SALDO HARIAN ===");
 
     // 1. Bersihkan range lama di backend
+    // (Pastikan backend Anda juga membaca "kodebank" bukan "char4" di endpoint clear-range ini)
     await fetch(window.location.origin + "/api/saldo-harian/clear-range", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         cabang: kodeCabang,
-        char4: kodeChar,
+        kodebank: kodeChar, // 🔥 Diubah dari char4 menjadi kodebank
         tanggalAwal: tanggalAwal,
         tanggalAkhir: tanggalAkhir,
         masa: calculatedMasaSnapshot,
-        group: activeGroup, // Dikirim secara dinamis
+        group: activeGroup,
       }),
     });
 
-    // 2. Petakan payload data murni sesuai skema kolom database SQLite
+    // 2. Petakan payload data murni SESUAI PERMINTAAN
     const dataSiapSimpan = daftarSaldo.map((item) => {
       return {
-        id: `${kodeCabang}_${kodeChar}_${activeGroup}_${item.tanggal}`,
+        id: `${kodeCabang}_${kodeChar}_${activeGroup}_${item.tanggal}`, // ID unik (jika dibutuhkan DB)
         cabang: kodeCabang,
-        char4: kodeChar,
-        tanggal: item.tanggal,
-        saldo_akhir: item.saldoAkhir,
         group: activeGroup,
+        kodebank: kodeChar, // 🔥 Nama kolom diubah menjadi: kodebank
+        tanggal: item.tanggal,
         masa: calculatedMasaSnapshot,
+        saldo: item.saldoAkhir, // 🔥 Nama kolom diubah dari saldo_akhir menjadi: saldo
       };
     });
 
     // 3. Tembak massal ke batch API
     var response = await fetch(
-      window.location.origin + `/api/batch/saldo_harian`,
+      window.location.origin + `/api/batch/saldopembukuan`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -544,8 +694,8 @@ async function refreshKasHarian(isSwitchPage = false) {
             currentCr = num(t.cr || 0);
           }
         } else {
-          currentDb = num(t.db || 0);
-          currentCr = num(t.cr || 0);
+          currentDb = num(t.cr || 0);
+          currentCr = num(t.db || 0);
         }
 
         if (!groupedMap[keyRef]) {
@@ -614,8 +764,8 @@ async function refreshKasHarian(isSwitchPage = false) {
     var saldoAwalRow = runBal;
     runBal += t.db - t.cr;
 
-    var viewBtnHtml = `<button type="button" class="btn btn-s btn-a" style="padding:2px 6px;" onclick="showDetailReff('${esc(t.noreff)}', '${esc(t.cabang)}', '${esc(t.group)}')"><i class="fa-solid fa-eye"></i> View</button>`;
-
+    //   var viewBtnHtml = `<button type="button" class="btn btn-s btn-a" style="padding:2px 6px;" onclick="showDetailReff('${esc(t.noreff)}', '${esc(t.cabang)}', '${esc(t.group)}')"><i class="fa-solid fa-eye"></i> View</button>`;
+    var viewBtnHtml = `<button type="button" class="btn btn-s btn-a" style="padding:2px 6px;" onclick="event.preventDefault(); event.stopPropagation(); showDetailReff('${esc(t.noreff)}', '${esc(t.cabang)}', '${esc(t.group)}')"><i class="fa-solid fa-eye"></i> View</button>`;
     rows.push([
       t.tanggal,
       esc(t.dariKePada).substring(0, 25),
@@ -678,7 +828,7 @@ async function refreshKasHarian(isSwitchPage = false) {
 }
 
 // 🌟 MAKSURKAN KE SCOPE GLOBAL WINDOW AGAR BISA DIAKSES OLEH gantiHalamanUniversal
-window.refreshKasHarian = refreshKasHarian;
+//window.refreshKasHarian = refreshKasHarian;
 async function getSaldoAwalClient(cabang, kodeBankKas, tglAwal) {
   var cab = cabang || "Pusat";
 
@@ -687,25 +837,26 @@ async function getSaldoAwalClient(cabang, kodeBankKas, tglAwal) {
     ? $("fkh_group").value
     : localStorage.getItem("group") || "TLGA";
 
-  // Karena kodeBankKas bisa berupa karakter tunggal indeks pemicu (Contoh: "A", "B", " "),
-  // kita standarisasi parameternya agar query ke backend aman
   var charPenanda = kodeBankKas || " ";
 
   try {
-    // 🌟 KUNCI UTAMA LAZY LOADING: Tarik saldo terakhir dari server murni berdasarkan kriteria spesifik
-    // Query backend langsung menyaring Cabang, Kode Bank, Group, dan Tanggal sebelum hari berjalan
-    var url = `/api/data/saldo_harian?cabang=${encodeURIComponent(cab)}&group=${activeGroup}`;
+    // 🌟 PERBAIKAN 1: Menambahkan &kodebank= ke URL agar server langsung memfilter
+    // Ini jauh lebih efisien karena server hanya mengirim data Bank yang dicari saja
+    var url = `/api/data/saldopembukuan?cabang=${encodeURIComponent(cab)}&group=${activeGroup}&kodebank=${encodeURIComponent(charPenanda)}`;
+
     var response = await fetch(url);
 
     if (response.ok) {
       var serverSaldoList = await response.json();
-      var listSaldo = Array.isArray(serverSaldoList) ? serverServerList : [];
 
-      // Saring data lokal di memori untuk tanggal sebelum tglAwal dan penanda karakter kode kas yang sama
+      // 🌟 PERBAIKAN 2: Memperbaiki Typo "serverServerList" menjadi "serverSaldoList"
+      var listSaldo = Array.isArray(serverSaldoList) ? serverSaldoList : [];
+
+      // Saring data lokal di memori untuk tanggal sebelum tglAwal
+      // (Meskipun server sudah filter kodebank, filter tanggal tetap dilakukan di client)
       var filteredSaldo = listSaldo.filter(function (s) {
-        var sChar = s.char4 || s.kode_bank || " ";
         var sTgl = s.tanggal || s.tgl_awal || "";
-        return sChar === charPenanda && sTgl < tglAwal;
+        return sTgl < tglAwal;
       });
 
       // Urutkan dari tanggal terbesar ke terkecil (DESC) untuk mengambil snapshot saldo paling dekat
@@ -715,21 +866,29 @@ async function getSaldoAwalClient(cabang, kodeBankKas, tglAwal) {
         return tglB.localeCompare(tglA);
       });
 
+      console.log(filteredSaldo);
+
       if (filteredSaldo.length > 0) {
         var saldoTerakhir = filteredSaldo[0];
-        return num(saldoTerakhir.saldo_akhir || saldoTerakhir.saldoakhir || 0);
+        return num(
+          saldoTerakhir.saldo ||
+            saldoTerakhir.akhir ||
+            saldoTerakhir.saldoakhir ||
+            0,
+        );
       }
     }
   } catch (err) {
     console.error(
-      "⚠️ Gagal menarik data saldo harian dari server:",
+      "⚠️ Gagal menarik data saldo pembukuan dari server:",
       err.message,
     );
   }
 
-  // 🌟 FALLBACK JALUR 2: Jika tidak ada riwayat di saldo_harian, fetch data dari saldokasirawal di server
+  // 🌟 FALLBACK JALUR 2: Jika tidak ada riwayat di saldopembukuan, ambil dari saldokasirawal
   try {
-    var urlAwal = `/api/data/saldokasirawal?cabang=${encodeURIComponent(cab)}&group=${activeGroup}`;
+    // Di fallback ini juga ditambahkan kodebank agar konsisten
+    var urlAwal = `/api/data/saldokasirawal?cabang=${encodeURIComponent(cab)}&group=${activeGroup}&kodebank=${encodeURIComponent(charPenanda)}`;
     var responseAwal = await fetch(urlAwal);
 
     if (responseAwal.ok) {
@@ -737,9 +896,8 @@ async function getSaldoAwalClient(cabang, kodeBankKas, tglAwal) {
       var listSaldoAwal = Array.isArray(serverSaldoAwal) ? serverSaldoAwal : [];
 
       var filteredAwal = listSaldoAwal.filter(function (s) {
-        var sChar = s.char4 || s.kode_bank || " ";
         var sTgl = s.tanggal || s.tgl_awal || "";
-        return sChar === charPenanda && sTgl < tglAwal;
+        return sTgl < tglAwal;
       });
 
       filteredAwal.sort(function (a, b) {
@@ -752,7 +910,7 @@ async function getSaldoAwalClient(cabang, kodeBankKas, tglAwal) {
         var saldoAwalRow = filteredAwal[0];
         return num(
           saldoAwalRow.saldo_akhir ||
-            saldoAwalRow.saldoakhir ||
+            saldoAwalRow.akhir ||
             saldoAwalRow.awal ||
             0,
         );
@@ -768,115 +926,131 @@ async function getSaldoAwalClient(cabang, kodeBankKas, tglAwal) {
   // Jika dari kedua tabel di database server tidak ada riwayat sama sekali, kembalikan 0
   return 0;
 }
-
 // --- FUNGSI MODAL RINCIAN (VERSI SPESIFIK: FETCH DATA REAL-TIME SAAT DIKLIK) ---
 async function showDetailReff(noreffTarget, clickedCabang, clickedGroup) {
   var targetCab = clickedCabang || "Pusat";
-
-  // Memprioritaskan data group dari baris tabel, jika kosong baru ambil dari filter/localStorage
   var activeGroup =
     clickedGroup ||
     ($("fkh_group")
       ? $("fkh_group").value
       : localStorage.getItem("group") || "TLGA");
 
+  // 🌟 BIKIN ID UNIK SETIAP KALI BUKA POPUP (AGAR BISA BUKA BANYAK SEKALIGUS TIDAK TUMPUK)
+  var popupId = "popup_detail_" + Date.now();
+
+  // 1. LANGSUNG TANAMKAN KERANGKA POPUP KE LAYAR
+  var popupHtml =
+    '<div id="' +
+    popupId +
+    '" style="position:fixed; top:20px; right:20px; width:60%; max-width:1000px; max-height:90vh; background:#000; border:2px solid #4da3ff; box-shadow:0 0 20px rgba(77, 163, 255, 0.5); z-index:10001; display:flex; flex-direction:column; border-radius:8px;">' +
+    // HEADER POPUP
+    '<div style="padding:12px; background:#1a1a1a; border-bottom:1px solid #333; display:flex; justify-content:space-between; align-items:center; border-radius:8px 8px 0 0;">' +
+    '<strong style="font-size:0.9rem; color:#4da3ff;">Detil Jurnal No Ref: ' +
+    esc(noreffTarget) +
+    " | Cabang: " +
+    esc(targetCab) +
+    " | Group: " +
+    esc(activeGroup) +
+    "</strong>" +
+    "<button onclick=\"document.getElementById('" +
+    popupId +
+    '\').remove()" style="background:none; border:none; font-size:1.5rem; line-height:1; cursor:pointer; color:#fff;">&times;</button>' +
+    "</div>" +
+    // BODY POPUP (TEMPAT TABEL NYA NANTI)
+    '<div id="' +
+    popupId +
+    '_body" style="padding:10px; overflow-y:auto; flex:1; font-size:0.8rem; color:#fff;">' +
+    '<div style="text-align:center; padding:20px; color:#888;">Loading data transaksi...</div>' +
+    "</div></div>";
+
+  document.body.insertAdjacentHTML("beforeend", popupHtml);
+
+  // 2. PROSES AMBIL DATA
   try {
-    if (typeof toast === "function")
-      toast("Menarik rincian jurnal dari server...", "info");
+    var url = `/api/data/transaksi?search=${encodeURIComponent(noreffTarget)}&cabang=${encodeURIComponent(targetCab)}&group=${encodeURIComponent(activeGroup)}`;
+    var response = await fetch(url);
+    if (!response.ok) throw new Error("Gagal menghubungi server");
 
-    // 🌟 SEKARANG MENGIKUTI POLA FETCH ONNOREFFCLICKED SECARA PERSIS
-    var response = await fetch(
-      `/api/data/transaksi?search=${encodeURIComponent(noreffTarget)}&cabang=${targetCab}&group=${activeGroup}`,
-    );
+    var rawDetailData = await response.json();
+    var detailData = Array.isArray(rawDetailData) ? rawDetailData : [];
 
-    if (!response.ok)
-      throw new Error("Gagal mengunduh rincian detail transaksi");
+    var finalData = [];
+    for (var i = 0; i < detailData.length; i++) {
+      if (detailData[i].noreff === noreffTarget) {
+        finalData.push(detailData[i]);
+      }
+    }
 
-    var detailData = await response.json();
+    // 3. TANGANI KALAU DATA KOSONG
+    var bodyContainer = document.getElementById(popupId + "_body");
+    if (!bodyContainer) return; // Popup sudah ditutup user sebelum data selesai
 
-    if (!detailData || detailData.length === 0) {
-      alert(
-        `Detail transaksi jurnal tidak ditemukan untuk No Ref: ${noreffTarget} (Cabang: ${targetCab})`,
-      );
+    if (finalData.length === 0) {
+      bodyContainer.innerHTML =
+        '<div style="text-align:center; padding:20px; color:#ff6b6b;">Tidak ada detail untuk No Ref ini</div>';
       return;
     }
 
-    // 📝 3. BANGUN TABEL HTML KELAS DETAIL JURNAL MODAL
-    var subRows = detailData
-      .map(function (t) {
-        var noPerkiraan = t.noperkiraan || t.noPerkiraan || t.kode_akun || "-";
-        var description = t.desc || t.keterangan || "-";
-        var cabangLabel = lookupCabangLabel(t.cabang) || t.cabang || "Pusat";
+    // 4. RENDER TABEL DENGAN TEMA GELAP
+    var subRows = "";
+    for (var j = 0; j < finalData.length; j++) {
+      var t = finalData[j];
+      var noPerk = t.noper || t.noPerkiraan || t.kode_akun || "-";
+      var desc = t.penjelasan || t.keterangan || "-";
+      var cabLab = lookupCabangLabel(t.cabang) || t.cabang || "Pusat";
+      var dbVal = num(t.db || 0);
+      var crVal = num(t.cr || 0);
 
-        return (
-          "<tr>" +
-          '<td style="padding:8px; border:1px solid #ddd;">' +
-          esc(t.tanggal || "-") +
-          "</td>" +
-          '<td style="padding:8px; border:1px solid #ddd;">' +
-          esc(noPerkiraan) +
-          "</td>" +
-          '<td style="padding:8px; border:1px solid #ddd;">' +
-          esc(description) +
-          "</td>" +
-          '<td style="padding:8px; border:1px solid #ddd; text-align:right;">' +
-          fmtN(num(t.db || 0)) +
-          "</td>" +
-          '<td style="padding:8px; border:1px solid #ddd; text-align:right;">' +
-          fmtN(num(t.cr || 0)) +
-          "</td>" +
-          '<td style="padding:8px; border:1px solid #ddd; font-weight:600; color:var(--accent);">' +
-          esc(cabangLabel) +
-          "</td>" +
-          "</tr>"
-        );
-      })
-      .join("");
-
-    var html =
-      '<div style="font-family:sans-serif; width: 100%; overflow-x: auto;">' +
-      '<table style="width:100%; border-collapse:collapse; margin-top:5px; font-size:14px;">' +
-      "<thead>" +
-      '<tr style="background:#f5f5f5; border-bottom:2px solid #ddd;">' +
-      '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:100px;">Tanggal</th>' +
-      '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:100px;">No Perkiraan</th>' +
-      '<th style="padding:8px; text-align:left; border:1px solid #ddd;">Desc</th>' +
-      '<th style="padding:8px; text-align:right; border:1px solid #ddd; width:110px;">Debet</th>' +
-      '<th style="padding:8px; text-align:right; border:1px solid #ddd; width:110px;">Kredit</th>' +
-      '<th style="padding:8px; text-align:left; border:1px solid #ddd; width:120px;">Cabang</th>' +
-      "</tr>" +
-      "</thead>" +
-      "<tbody>" +
-      subRows +
-      "</tbody>" +
-      "</table>" +
-      "</div>";
-
-    var foot =
-      '<button type="button" class="btn btn-g" onclick="closeModal()">Tutup</button>';
-
-    // Buka jendela layar modal rincian akuntansi kas
-    openModal(
-      "Rincian Jurnal: " + noreffTarget + " (" + targetCab + ")",
-      html,
-      foot,
-    );
-
-    // Sesuaikan lebar bingkai modal agar muat berbaris horizontal
-    var modalFrame =
-      document.querySelector(".modal-box") ||
-      document.querySelector(".modal-content") ||
-      document.querySelector("#modal");
-    if (modalFrame) {
-      modalFrame.style.width = "100%";
-      modalFrame.style.maxWidth = "1000px";
+      subRows +=
+        "<tr>" +
+        "<td style='padding:6px 8px; border-bottom:1px solid #333;'>" +
+        esc(t.tanggal || "-") +
+        "</td>" +
+        "<td style='padding:6px 8px; border-bottom:1px solid #333;'>" +
+        esc(noPerk) +
+        "</td>" +
+        "<td style='padding:6px 8px; border-bottom:1px solid #333;'>" +
+        esc(desc) +
+        "</td>" +
+        "<td style='padding:6px 8px; border-bottom:1px solid #333; text-align:right;'>" +
+        fmtN(dbVal) +
+        "</td>" +
+        "<td style='padding:6px 8px; border-bottom:1px solid #333; text-align:right;'>" +
+        fmtN(crVal) +
+        "</td>" +
+        "<td style='padding:6px 8px; border-bottom:1px solid #333;'><strong>" +
+        esc(cabLab) +
+        "</strong></td>" +
+        "</tr>";
     }
+
+    // Susun HTML Table-nya
+    var tableHtml =
+      '<table style="width:100%; border-collapse:collapse;">' +
+      "<thead><tr style='background:#1a1a1a;'>" +
+      "<th style='padding:8px; text-align:left; border-bottom:2px solid #4da3ff;'>Tanggal</th>" +
+      "<th style='padding:8px; text-align:left; border-bottom:2px solid #4da3ff;'>No Perkiraan</th>" +
+      "<th style='padding:8px; text-align:left; border-bottom:2px solid #4da3ff;'>Keterangan</th>" +
+      "<th style='padding:8px; text-align:right; border-bottom:2px solid #4da3ff;'>Debet</th>" +
+      "<th style='padding:8px; text-align:right; border-bottom:2px solid #4da3ff;'>Kredit</th>" +
+      "<th style='padding:8px; text-align:left; border-bottom:2px solid #4da3ff;'>Cabang</th>" +
+      "</tr></thead><tbody>" +
+      subRows +
+      "</tbody></table>";
+
+    // Suntikkan tabel ke dalam body popup
+    bodyContainer.innerHTML = tableHtml;
   } catch (error) {
-    console.error("🔥 Gagal memuat modal rincian:", error.message);
-    alert("Gagal memuat rincian detail: " + error.message);
+    console.error("Error:", error);
+    var errorBody = document.getElementById(popupId + "_body");
+    if (errorBody) {
+      errorBody.innerHTML =
+        '<div style="text-align:center; padding:20px; color:#ff6b6b;">Gagal memuat: ' +
+        error.message +
+        "</div>";
+    }
   }
 }
-
 /* ---------- Input Harian Layout Panel ---------- */
 PANEL_MAP.inputHarian = renderInputHarian;
 AFTER_RENDER.inputHarian = refreshInputHarian;
@@ -1042,12 +1216,12 @@ async function refreshInputHarian(isSwitchPage = false) {
             return p.gol === gol;
           })
           .map(function (p) {
-            return p.noPerk || p.noperkiraan || p.kode_akun;
+            return p.noPerk || p.noper || p.kode_akun;
           });
 
         if (gp.length) {
           data = data.filter(function (t) {
-            var akunTransaksi = t.noperkiraan || t.noPerkiraan || "";
+            var akunTransaksi = t.noper || t.noPerkiraan || "";
             return gp.indexOf(akunTransaksi) !== -1;
           });
         } else {
@@ -1136,8 +1310,8 @@ async function refreshInputHarian(isSwitchPage = false) {
         currentCr = num(r.cr || 0);
       }
 
-      var isiDesc = r.desc || r.keterangan || "-";
-      var acct = r.noperkiraan || "-";
+      var isiDesc = r.penjelasan || r.keterangan || "-";
+      var acct = r.noper || "-";
 
       return [
         esc(r.tanggal || "-"),
