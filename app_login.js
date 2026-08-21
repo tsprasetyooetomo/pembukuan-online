@@ -13,7 +13,8 @@ async function loginSystem() {
   if (typeof showLoading === "function") showLoading();
 
   try {
-    const res = await fetch("/api/login", {
+    const res = await fetch("http://localhost:3000/api/login", {
+      // const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username: u, password: p }),
@@ -88,7 +89,6 @@ function doLogout() {
   localStorage.removeItem("role");
   localStorage.removeItem("group");
 
-  
   // 2. Tampilkan notifikasi toast (jika fungsi toast ada)
   if (typeof toast === "function") {
     toast("Berhasil logout, mengalihkan ke Dashboard...", "ok");
