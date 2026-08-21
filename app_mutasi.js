@@ -52,51 +52,76 @@ function generateKbOpts(cabang, activeGroup, selectedKb) {
   return opts;
 }
 
-function generatePerkOpts(cabangKode, activeGroup, selectedNoper) {
+function generatePerkOptsLjt(cabangKode, activeGroup, selectedNoper) {
   var data = Array.isArray(DBCache.perkiraan) ? DBCache.perkiraan : [];
 
+  // 1. Console untuk melihat data mentah dari cache
+  console.log("=== DATA MENTAH (DBCache.perkiraan) ===", data);
+
+  // Konversi input utama ke string/lowercase sekali saja agar lebih efisien
+  var targetCab = String(cabangKode || "")
+    .trim()
+    .toLowerCase();
+  var targetGroup = String(activeGroup || "").trim();
+
   var filtered = data.filter(function (p) {
-    var matchCabang =
-      String(p.cabang || "")
-        .trim()
-        .toLowerCase() ===
-      String(cabangKode || "")
-        .trim()
-        .toLowerCase();
-    var matchGroup = (p.group || "TLGA") === activeGroup;
+    var pCab = String(p.cabang || "")
+      .trim()
+      .toLowerCase();
+    var pGroup = String(p.group || "TLGA").trim();
+
+    var matchCabang = pCab === targetCab;
+    var matchGroup = pGroup === targetGroup;
+
     return matchCabang && matchGroup;
   });
 
+  // 2. Console untuk melihat hasil data setelah difilter
+  console.log(
+    "=== DATA SETELAH FILTER (Cabang: " +
+      cabangKode +
+      ", Group: " +
+      activeGroup +
+      ") ===",
+    filtered,
+  );
+
+  // Urutkan berdasarkan nomor perkiraan secara numerik
   filtered.sort(function (a, b) {
-    return String(a.noPerk || "").localeCompare(
-      String(b.noPerk || ""),
+    return String(a.noper || "").localeCompare(
+      String(b.noper || ""),
       undefined,
       { numeric: true },
     );
   });
 
+  if (filtered.length === 0) {
+    return '<option value="">Tidak ada No Perkiraan untuk Cabang & Group ini</option>';
+  }
+
+  // Buat list option
   var opts = filtered
     .map(function (p) {
-      var sel = p.noPerk === selectedNoper ? " selected" : "";
+      var noPerk = p.noper || "";
+      var namaAkun = p.penjelasan || p.nama_akun || "";
+      var sel = noPerk === selectedNoper ? ' selected="selected"' : "";
+
       return (
         '<option value="' +
-        esc(p.noPerk) +
+        esc(noPerk) +
         '"' +
         sel +
         ">" +
-        esc(p.noPerk) +
+        esc(noPerk) +
         " — " +
-        esc(p.desc || p.nama_akun || "") +
+        esc(namaAkun) +
         "</option>"
       );
     })
     .join("");
 
-  if (filtered.length === 0)
-    return '<option value="">Tidak ada No Perkiraan untuk Cabang & Group ini</option>';
   return '<option value="">-- Pilih No Perkiraan --</option>' + opts;
 }
-
 function generateBulanOpts(selectedBulan) {
   var now = new Date();
   var defaultBulan = selectedBulan
@@ -432,7 +457,7 @@ function _mutUnlockHeader() {
 }
 
 function editDetil(id) {
-  // 🌟 PERBAIKAN: Pakai _mutSession.cabang
+  // 1. Ambil sesi cabang dan group yang aktif
   var activeGroup =
     _mutSession.group || localStorage.getItem("group") || "TLGA";
   var activeCab = _mutSession.cabang || ($("m_cab") ? $("m_cab").value : "");
@@ -452,17 +477,25 @@ function editDetil(id) {
       "err",
     );
 
-  var perkOpts = generatePerkOpts(activeCab, d.noperkiraan);
+  // 2. Ambil nilai noper yang tersimpan di data (sesuaikan d.noperkiraan / d.noper / d.noperk)
+  var savedNoper = d.noperkiraan || d.noper || d.noperk || "";
+
+  // 3. Kirim 3 parameter: Cabang, Group, dan noper yang mau di-select otomatis
+  var perkOpts = generatePerkOpts(activeCab, activeGroup, savedNoper);
+
+  // 4. Bungkus dengan Number() agar penjumlahan db + cr tidak menjadi teks (misal: "0123")
+  var totalRp = d.total || Number(d.db) + Number(d.cr) || 0;
+
   openModal(
     "Edit Detil Jurnal",
     '<div class="fg"><label>No Perkiraan</label><select id="ed_perk">' +
       perkOpts +
       "</select></div>" +
       '<div class="fg"><label>Penjelasan</label><input id="ed_penjelasan" value="' +
-      esc(d.desc || d.keterangan || "") +
+      esc(d.penjelasan || d.keterangan || "") +
       '"></div>' +
       '<div class="fg"><label>Rp</label><input type="number" id="ed_rp" value="' +
-      (d.total || d.db || 0) +
+      totalRp +
       '"></div>',
     '<button class="btn btn-g" onclick="closeModal()">Batal</button><button class="btn btn-a" onclick="event.preventDefault(); event.stopPropagation(); saveEditDetil(\'' +
       id +
@@ -703,6 +736,7 @@ async function saveEditDetil(id) {
         );
       })
     : null;
+
   if (!dataLama)
     return toast(
       "Data tidak ditemukan atau Anda tidak memiliki akses ke data cabang ini!",
@@ -716,27 +750,62 @@ async function saveEditDetil(id) {
     return toast("Field wajib tidak boleh kosong!", "err");
 
   try {
+    // 1. Cek kondisi huruf "K" pada posisi substr(noreff, 2, 1)
+    var noReff = dataLama.noreff || dataLama.no_reff || "";
+    var isKredit = noReff.substring(2, 3).toUpperCase() === "K";
+
+    // 2. Buat objek update untuk data utama transaksi
     var objUpdate = Object.assign({}, dataLama, {
-      noperkiraan: noper,
-      desc: penjelasan,
-      total: rp,
-      db: rp,
+      noper: noper,
+      penjelasan: penjelasan,
+
+      db: isKredit ? 0 : rp,
+      cr: isKredit ? rp : 0,
       cabang: activeCabang,
       group: activeGroup,
     });
+
+    // Kirim update data utama ke server
     await fetch(window.location.origin + "/api/data/transaksi/" + id, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(objUpdate),
     });
+
+    // Update data utama di cache transaksi lokal
     var idx = DBCache.transaksi.findIndex((t) => t.id === id);
     if (idx !== -1) DBCache.transaksi[idx] = objUpdate;
+
+    // 3. 🌟 UPDATE TOTAL DI DBCache.listrekaptransaksi UNTUK NOREFF, CABANG, & GROUP YANG SAMA
+    var targetNoReff = dataLama.noreff || dataLama.no_reff;
+    if (targetNoReff && Array.isArray(DBCache.listrekaptransaksi)) {
+      for (var i = 0; i < DBCache.listrekaptransaksi.length; i++) {
+        var rItem = DBCache.listrekaptransaksi[i];
+        var itemReff = rItem.noreff || rItem.no_reff;
+
+        // Cocokkan berdasarkan noreff, cabang, dan group
+        if (
+          itemReff === targetNoReff &&
+          rItem.cabang === activeCabang &&
+          (rItem.group || "TLGA") === activeGroup
+        ) {
+          // Update total pada listrekaptransaksi
+          rItem.total = rp;
+
+          // (Opsional) Jika rekap transaksi ini juga perlu di-PUT/update ke server,
+          // Anda bisa sesuaikan endpoint API-nya di sini.
+        }
+      }
+    }
+
+    // Tutup modal dan refresh semua tampilan terkait
     closeModal();
     renderDetilTable();
     updateHeaderNominal();
     renderNoreffList();
     updateMutasiSummary();
-    toast("Detil diperbarui di Server", "ok");
+
+    toast("Detil & Total Rekap Referensi diperbarui", "ok");
   } catch (error) {
     toast("Gagal update: " + error.message, "err");
   }
@@ -827,7 +896,7 @@ function updateHeaderNominal() {
       (t.group || "TLGA") === activeGroup &&
       String(t.cabang || "") === String(activeCabang)
     ) {
-      totalRp += num(t.total || t.db || 0);
+      totalRp += num(t.total || t.db + t.cr || 0);
     }
   });
   $("m_nominal").value = fmtN(totalRp);
@@ -872,9 +941,11 @@ function renderDetilTable() {
   var rows = detilData.map(function (r) {
     return [
       r.tanggal || "-",
-      esc(r.noperkiraan || "-"),
-      esc(r.desc || "-"),
-      '<span style="font-weight:600">' + fmtN(r.total || r.db || 0) + "</span>",
+      esc(r.noper || "-"),
+      esc(r.penjelasan || "-"),
+      '<span style="font-weight:600">' +
+        fmtN(r.total || r.db + r.cr || 0) +
+        "</span>",
       '<span style="font-size:.75rem;color:var(--muted)">' +
         esc(r.noreff) +
         "</span>",
@@ -918,7 +989,7 @@ function reloadCabangDropdown() {
 async function clearAllDataMutasi(storeName) {
   var labelMap = {
     transaksi: "Transaksi",
-    mutasikasir: "Mutasi Kasir", // Tambahkan label mutasikasir sekalian agar dinamis
+    mutasikasir: "Mutasi Kasir",
   };
   var label = labelMap[storeName] || storeName;
 
@@ -963,6 +1034,48 @@ async function clearAllDataMutasi(storeName) {
       .join("");
   }
 
+  // 🔥 RANGKAI OPSI DROPDOWN GROUP BERDASARKAN ROLE / CACHE / LOCALSTORAGE
+  var defaultActiveGroup = localStorage.getItem("group") || "TLGA";
+  var groupList = [];
+
+  if (DBCache.group && Array.isArray(DBCache.group)) {
+    groupList = DBCache.group.map(function (g) {
+      // Jika g adalah Object, ambil string-nya. Jika sudah string, pakai apa adanya.
+      return typeof g === "object" && g !== null
+        ? g.group || g.kode || g.nama || g.value || ""
+        : String(g || "");
+    });
+  } else if (DBCache.groupproject && Array.isArray(DBCache.groupproject)) {
+    groupList = DBCache.groupproject.map(function (g) {
+      return typeof g === "object" && g !== null
+        ? g.group || g.kode || g.nama || g.value || ""
+        : String(g || "");
+    });
+  } else {
+    groupList = [defaultActiveGroup];
+  }
+
+  // 🛡️ FILTER SUPER AMAN: Pastikan yang masuk list HANYA string yang tidak kosong, lalu bersihkan duplikat
+  groupList = [
+    ...new Set(groupList.filter((g) => g && String(g).trim() !== "")),
+  ];
+
+  // 🌟 Tambahkan opsi "-" di awal pilihan group
+  var groupFilterOpts = '<option value="">-</option>';
+
+  groupList.forEach(function (grp) {
+    // Paksa grp menjadi string 100% aman sebelum .toUpperCase()
+    var strGrp = String(grp || "")
+      .trim()
+      .toUpperCase();
+    var strDef = String(defaultActiveGroup || "")
+      .trim()
+      .toUpperCase();
+
+    var selected = strGrp === strDef ? "selected" : "";
+    groupFilterOpts += `<option value="${strGrp}" ${selected}>${strGrp}</option>`;
+  });
+
   openModal(
     "Filter Hapus Data " + label,
     `<div class="confirm-box" style="padding: .5rem">
@@ -971,6 +1084,13 @@ async function clearAllDataMutasi(storeName) {
       </div>
       
       <div style="display: flex; flex-direction: column; gap: .8rem; margin-bottom: 1.5rem">
+        <div>
+          <label style="display:block; font-size:.8rem; margin-bottom:.3rem; font-weight:bold">Kode Group</label>
+          <select id="del_group" style="width:100%; padding:.5rem; border-radius:6px; border:1px solid var(--brd); background:var(--bg2); color:inherit">
+            ${groupFilterOpts}
+          </select>
+        </div>
+
         <div>
           <label style="display:block; font-size:.8rem; margin-bottom:.3rem; font-weight:bold">Bulan</label>
           <select id="del_bulan" style="width:100%; padding:.5rem; border-radius:6px; border:1px solid var(--brd); background:var(--bg2); color:inherit">
@@ -1006,16 +1126,17 @@ async function clearAllDataMutasi(storeName) {
     var bln = document.getElementById("del_bulan").value;
     var thn = document.getElementById("del_tahun").value;
     var cbg = document.getElementById("del_cabang").value;
-
-    // 🔥 PERBAIKAN GROUP: Ambil dari localStorage aktif (Contoh: "TLGA") agar sinkron ke server
-    var activeGroup = localStorage.getItem("group") || "TLGA";
+    var activeGroup = document
+      .getElementById("del_group")
+      .value.trim()
+      .toUpperCase();
 
     var calculatedMasaRef = "";
     if (bln && thn) {
       calculatedMasaRef = bln + String(thn).substring(2, 4);
     }
 
-    var infoFilter = `\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg || "Semua"}\nGroup: ${activeGroup}${calculatedMasaRef ? "\nMasa Ref: " + calculatedMasaRef : ""}`;
+    var infoFilter = `\nGroup: ${activeGroup || "Semua"}\nBulan: ${bln || "Semua"}\nTahun: ${thn || "Semua"}\nCabang: ${cbg || "Semua"}${calculatedMasaRef ? "\nMasa Ref: " + calculatedMasaRef : ""}`;
 
     if (
       !confirm(
@@ -1047,7 +1168,7 @@ async function clearAllDataMutasi(storeName) {
           cabang: cbg || "ALL",
           tahun: thn,
           bulan: bln,
-          group: activeGroup, // 🔥 Diubah dari "TRANSAKSI" menjadi activeGroup ("TLGA")
+          group: activeGroup,
           masaRef: calculatedMasaRef || null,
         }),
       });
@@ -1062,23 +1183,48 @@ async function clearAllDataMutasi(storeName) {
       var serverResult = await serverResponse.json();
 
       // 2. PROSES LOCAL BROWSER (IndexedDB untuk store utama)
-      var allData = await db.getAll(storeName);
+      let allData = [];
+      try {
+        if (typeof db.getAll === "function") {
+          allData = await db.getAll(storeName);
+        } else if (
+          db[storeName] &&
+          typeof db[storeName].toArray === "function"
+        ) {
+          allData = await db[storeName].toArray();
+        }
+      } catch (errDB) {
+        console.warn("⚠️ Gagal ambil data lokal, dilewati:", errDB.message);
+      }
+
+      if (!Array.isArray(allData)) {
+        allData = [];
+      }
+
       var dataDipertahankan = [];
       var dataDihapusCount = 0;
 
       for (var item of allData) {
+        var itemGroup = String(item.group || item.group_project || "")
+          .trim()
+          .toUpperCase();
+        var cocokGroup = !activeGroup || itemGroup === activeGroup;
         var cocokBulan = !bln || item.bulan == bln;
         var cocokTahun = !thn || item.tahun == thn;
-        var cocokCabang = !cbg || item.kodeCabang == cbg;
+        var cocokCabang = !cbg || item.kodeCabang == cbg || item.cabang == cbg;
 
-        if (cocokBulan && cocokTahun && cocokCabang) {
+        if (cocokGroup && cocokBulan && cocokTahun && cocokCabang) {
           dataDihapusCount++;
         } else {
           dataDipertahankan.push(item);
         }
       }
 
-      await db.clear(storeName);
+      if (typeof db.clear === "function") {
+        await db.clear(storeName);
+      } else if (db[storeName] && typeof db[storeName].clear === "function") {
+        await db[storeName].clear();
+      }
 
       if (dataDipertahankan.length > 0) {
         if (typeof db.batch === "function") {
@@ -1099,8 +1245,7 @@ async function clearAllDataMutasi(storeName) {
         DBCache[storeName] = dataDipertahankan;
       }
 
-      // 🌟 3. BERSIHKAN CACHE LOKAL BROWSER: listrefftransaksi
-      // Mengubah filter agar mencocokkan logic penghapusan database backend secara akurat
+      // 3. BERSIHKAN CACHE LOKAL BROWSER: listrefftransaksi / listreffkasir
       var targetCacheRef =
         storeName === "mutasikasir" ? "listreffkasir" : "listrefftransaksi";
 
@@ -1109,6 +1254,7 @@ async function clearAllDataMutasi(storeName) {
           function (ref) {
             var cocokCabangRef = !cbg || ref.cabang === cbg;
             var cocokGroupRef =
+              !activeGroup ||
               String(ref.group || "")
                 .trim()
                 .toUpperCase() === activeGroup.toUpperCase();
@@ -1121,7 +1267,6 @@ async function clearAllDataMutasi(storeName) {
               cocokMasaRef = ref.masa && ref.masa.endsWith(shortThn);
             }
 
-            // Jika kriteria COCOK dengan filter hapus, return FALSE agar dibuang dari cache
             var isDataYangDihapus =
               cocokCabangRef && cocokGroupRef && cocokMasaRef;
             return !isDataYangDihapus;
@@ -1139,7 +1284,6 @@ async function clearAllDataMutasi(storeName) {
     }
   };
 }
-
 async function renderNoreffList() {
   var box = $("mutNoreffList");
   var countBox = $("mutNoreffCount");
