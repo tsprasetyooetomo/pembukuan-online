@@ -103,17 +103,18 @@ async function terapkanOpsiRLGabungan() {
   }
 
   // ==========================================
-  // 1. SIMPAN GROUP YANG DIPILIH (JIKA USER PUSAT MENGUBAH DROPDOWN)
+  // 1. SIMPAN GROUP YANG DIPILIH
   // ==========================================
   var groupDropdown = document.getElementById("filter_rlgab_group");
+  var activeGroup = localStorage.getItem("activeGroup") || "TLGA";
+
   if (groupDropdown) {
-    var selectedGroup = groupDropdown.value;
-    localStorage.setItem("group", selectedGroup);
+    activeGroup = groupDropdown.value;
+    localStorage.setItem("activeGroup", activeGroup);
   }
 
-  var activeGroup = localStorage.getItem("group") || "TLGA";
   console.log(
-    "🟢 [RL Gabungan Proses] Tombol Terapkan diklik. Group yang akan dipakai:",
+    "🟢 [RL Gabungan Proses] Tombol Terapkan diklik. Group:",
     activeGroup,
   );
 
@@ -131,11 +132,13 @@ async function terapkanOpsiRLGabungan() {
   var area = document.getElementById("tempat_tabel_rlgab");
   if (area) {
     area.innerHTML =
-      '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data gabungan semua cabang...</div>';
+      '<div style="padding:3rem; text-align:center; color:var(--muted);"><span class="spinner"></span> 🔍 Memuat data gabungan cabang group: ' +
+      esc(activeGroup) +
+      "...</div>";
   }
 
   try {
-    console.log("📡 [RL Gabungan Proses] Mengambil data Master Golongan...");
+    console.log("📡 Mengambil data Master Golongan...");
     var rawMasterGol = await db.getAll("golongan");
     var mapMasterGol = {};
     if (rawMasterGol) {
@@ -143,38 +146,55 @@ async function terapkanOpsiRLGabungan() {
         ? rawMasterGol
         : Object.values(rawMasterGol);
       arrMasterGol.forEach(function (m) {
+        // Ekstrak JSON jika perlu
+        if ((!m.gol || !m.namagol) && m.data) {
+          try {
+            m = Object.assign({}, m, JSON.parse(m.data));
+          } catch (e) {}
+        }
         var kode = String(m.gol || m.kode_gol || "").trim();
-        var nama = String(m.namaGol || m.nama || "").trim();
+        var nama = String(m.namagol || m.nama || "").trim();
         if (kode) mapMasterGol[kode] = nama;
       });
     }
 
-    console.log("📡 [RL Gabungan Proses] Mengambil data Master Cabang...");
+    console.log("📡 Mengambil data Master Cabang...");
     var rawMasterCab = await db.getAll("cabang");
     var mapMasterCab = {};
-    var setValidCabang = new Set();
+    var daftarCabang = []; // ✅ PERUBAHAN: Kolom langsung diambil dari sini!
 
     if (rawMasterCab) {
       var arrMasterCab = Array.isArray(rawMasterCab)
         ? rawMasterCab
         : Object.values(rawMasterCab);
       arrMasterCab.forEach(function (c) {
+        // Ekstrak JSON jika perlu
+        if ((!c.kode || !c.nama) && c.data) {
+          try {
+            c = Object.assign({}, c, JSON.parse(c.data));
+          } catch (e) {}
+        }
+
         var kode = String(c.kode_cabang || c.kode || c.cab || "").trim();
         var nama = String(c.nama_cabang || c.nama || c.cabang || "").trim();
-        if (kode && nama) {
+        var cabGroup = String(c.group || "").trim();
+
+        // ✅ LOGIKA BARU: Hanya ambil cabang yang sesuai Group-nya
+        if (cabGroup === activeGroup && kode && nama) {
           mapMasterCab[kode] = nama;
-          setValidCabang.add(kode);
+          daftarCabang.push(kode); // Masukkan ke array kolom
         }
       });
     }
 
+    // Urutkan kode cabang (misal: 00, 01, 02...)
+    daftarCabang.sort();
+
     console.log(
-      "📡 [RL Gabungan Proses] Mengambil data Golongan Tahunan:",
+      "📡 Mengambil data Golongan Tahunan:",
       namastoregolbackup,
-      "| Mencari Masa:",
+      "| Masa:",
       kodemasadicari,
-      "| Group:",
-      activeGroup,
     );
     var resgolbackup = await db.getAll(namastoregolbackup);
     var rawdatagolongan = resgolbackup
@@ -185,19 +205,31 @@ async function terapkanOpsiRLGabungan() {
 
     var dataByCabang = {};
 
+    // Inisialisasi array untuk semua cabang yang sudah difilter di atas (agar yang 0 rupiah tetap muncul)
+    daftarCabang.forEach(function (cab) {
+      dataByCabang[cab] = {};
+    });
+
     rawdatagolongan.forEach(function (g) {
+      // Ekstrak JSON jika data fisik kosong
+      if ((!g.gol || !g.cabang || !g.masa) && g.data) {
+        try {
+          g = Object.assign({}, g, JSON.parse(g.data));
+        } catch (e) {}
+      }
+
       var kodeGol = String(g.gol || g.golongan || "").trim();
       var cabangData = String(g.cabang || g.cab || g.kode_cabang || "").trim();
       var masaData = String(g.masa || g.periode || g.kode_masa || "").trim();
       var groupData = String(g.group || "").trim();
 
-      if (!setValidCabang.has(cabangData)) return;
+      if (!groupData) groupData = "TLGA"; // Fallback group lama
 
-      // ✅ FILTER GROUP DI DATA GOLONGAN
+      // ✅ LOGIKA BARU: Hanya proses jika cabangnya ADA di daftar kolom (yang sudah difilter by group)
+      if (!dataByCabang.hasOwnProperty(cabangData)) return;
       if (groupData !== activeGroup) return;
 
       if (kodeGol >= 300 && kodeGol < 700 && masaData === kodemasadicari) {
-        if (!dataByCabang[cabangData]) dataByCabang[cabangData] = {};
         if (!dataByCabang[cabangData][kodeGol])
           dataByCabang[cabangData][kodeGol] = 0;
         var saldoAkhir = +(g.db || 0) - +(g.cr || 0);
@@ -205,12 +237,7 @@ async function terapkanOpsiRLGabungan() {
       }
     });
 
-    var daftarCabang = Object.keys(dataByCabang).sort();
-    console.log(
-      "✅ [RL Gabungan Proses] Selesai filter. Cabang yang dapat data:",
-      daftarCabang.length,
-      "cabang",
-    );
+    console.log("✅ Selesai filter. Total kolom cabang:", daftarCabang.length);
 
     var setKodeGol = new Set();
     daftarCabang.forEach(function (cab) {
@@ -223,6 +250,7 @@ async function terapkanOpsiRLGabungan() {
       return parseInt(a) - parseInt(b);
     });
 
+    // Hapus baris golongan yang TOTALNYA 0 di semua cabang
     arrKodeGol = arrKodeGol.filter(function (kodeGol) {
       var totalSemuaCabang = 0;
       daftarCabang.forEach(function (cab) {
@@ -677,7 +705,7 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
         if (!_tmpMapGolonganForChart[kodeGol]) {
           _tmpMapGolonganForChart[kodeGol] = {
             gol: kodeGol,
-            namaGol: item.namaGol || item.nama_golongan || "",
+            namaGol: item.namagol || item.nama_golongan || "",
             cabang: kodeCabang,
             bulan: {},
             total: 0,
@@ -728,6 +756,19 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
       encodeURIComponent(activeGroup) +
       "', true)\">" +
       '<i class="fa-solid fa-file-excel"></i> Download Excel' +
+      "</button>" +
+      // 🌟 TOMBOL VERSUS (MENGGUNAKAN FUNGSI PERANTARA)
+      '<button class="btn btn-w" style="background-color:#ed7d31; color:#fff; border:1px solid #c55a11; font-size:.8rem; padding:5px 15px; cursor:pointer; font-weight:bold;" onclick="tampilkanVersusSD(\'' +
+      encodeURIComponent(kodeCabang) +
+      "', '" +
+      encodeURIComponent(activeGroup) +
+      "')\">" +
+      '<i class="fa-solid fa-scale-balanced"></i> Lihat HPP vs Sales' +
+      "</button>" +
+      '<button class="btn" style="background:#7c3aed; color:#fff; border:1px solid #6d28d9; font-size:.8rem; padding:5px 15px; cursor:pointer; font-weight:bold;" onclick="tampilkanRLPerCabangDetil(\'' +
+      kodeCabang +
+      "')\">" +
+      '<i class="fa-solid fa-list-check"></i> RL Detil Perkiraan' +
       "</button>" +
       '<button class="btn btn-b" style="background:#333; color:#fff; border:1px solid #555; font-size:.8rem; padding:5px 15px; cursor:pointer;" onclick="kembaliKeRLGabungan()">' +
       '<i class="fa-solid fa-arrow-left"></i> Kembali ke RL Gabungan' +
@@ -896,6 +937,7 @@ async function tampilkanRLPerCabangSD(kodeCabang) {
         "</div>";
   }
 }
+
 async function downloadRLLebarExcel(namaCabang, tahun, group) {
   var area = document.getElementById("tempat_tabel_rlgab");
   if (!area) return;
@@ -1162,6 +1204,531 @@ function generateHTMLRLPercabangSD(
   return html;
 }
 
+async function tampilkanRLPerCabangDetil(kodeCabang) {
+  if (!window._rlGabFilterMasa) {
+    alert("Filter masa/periode belum dipilih!");
+    return;
+  }
+
+  var activeGroup =
+    window._rlGabunganData && window._rlGabunganData.activeGroup
+      ? window._rlGabunganData.activeGroup
+      : localStorage.getItem("group") || "TLGA";
+
+  var namaCab =
+    window._rlGabunganData &&
+    window._rlGabunganData.mapMasterCab &&
+    window._rlGabunganData.mapMasterCab[kodeCabang]
+      ? window._rlGabunganData.mapMasterCab[kodeCabang]
+      : kodeCabang;
+
+  var partMasa = window._rlGabFilterMasa.split("-");
+  var filterTahunFull = partMasa[1];
+
+  // 1. Langsung buka Window Baru terlebih dahulu (Cegah Popup Blocker)
+  var win = window.open("", "_blank");
+  if (!win) {
+    alert("Pop-up diblokir browser! Harap izinkan Pop-up untuk situs ini.");
+    return;
+  }
+
+  // Tampilan Loading Awal
+  win.document.open();
+  win.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>Memuat RL Detail - ${namaCab}</title>
+        <style>
+          body { background: #121212; color: #fff; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+          .spinner { border: 4px solid rgba(255,255,255,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #00D2FF; animation: spin 1s linear infinite; }
+          @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        </style>
+      </head>
+      <body>
+        <div style="text-align:center;">
+          <div class="spinner" style="margin:0 auto 15px;"></div>
+          <div>Memuat Data Perkiraan RL ${namaCab} (${filterTahunFull})...</div>
+        </div>
+      </body>
+    </html>
+  `);
+  win.document.close();
+
+  try {
+    // 2. Ambil data dari IndexedDB
+    var namaStorePerkiraan = "perkiraan" + filterTahunFull;
+    var resPerkiraan = await db.getAll(namaStorePerkiraan);
+
+    var rawDataPerkiraan = resPerkiraan
+      ? Array.isArray(resPerkiraan)
+        ? resPerkiraan
+        : Object.values(resPerkiraan)
+      : [];
+
+    var namaBulan = [
+      "JAN",
+      "FEB",
+      "MAR",
+      "APR",
+      "MEI",
+      "JUN",
+      "JUL",
+      "AGS",
+      "SEP",
+      "OKT",
+      "NOV",
+      "DES",
+    ];
+    var tmpMap = {};
+
+    rawDataPerkiraan.forEach((p) => {
+      let noPerkFull = String(p.noPerk || p.noper || p.gol || "").trim();
+      let kodeKepala = parseInt(noPerkFull.substring(0, 1), 10);
+
+      let cabangData = String(p.cabang || p.cab || "")
+        .trim()
+        .toUpperCase();
+      let targetCabangKode = String(kodeCabang).trim().toUpperCase();
+      let targetCabangNama = String(namaCab).trim().toUpperCase();
+
+      let cocokCabang =
+        cabangData === targetCabangKode || cabangData === targetCabangNama;
+      let groupData = String(p.group || "")
+        .trim()
+        .toUpperCase();
+      let cocokGroup = groupData === String(activeGroup).trim().toUpperCase();
+
+      if (kodeKepala >= 3 && kodeKepala <= 6 && cocokCabang && cocokGroup) {
+        let namaPerkiraan =
+          p.penjelasan || p.namaGol || p.nama || "Perkiraan " + noPerkFull;
+
+        if (!tmpMap[noPerkFull]) {
+          tmpMap[noPerkFull] = {
+            noper: noPerkFull,
+            namaGol: namaPerkiraan,
+            bulan: {},
+            total: 0,
+          };
+          for (let x = 1; x <= 12; x++)
+            tmpMap[noPerkFull].bulan[("0" + x).slice(-2)] = 0;
+        }
+
+        let masaStr = String(p.masa || "").trim();
+        let blnStr = masaStr.substring(0, 2);
+
+        if (blnStr && parseInt(blnStr, 10) >= 1 && parseInt(blnStr, 10) <= 12) {
+          let mutasiBulan = Number(p.db || 0) - Number(p.cr || 0);
+          tmpMap[noPerkFull].bulan[blnStr] += mutasiBulan;
+          tmpMap[noPerkFull].total += mutasiBulan;
+        }
+      }
+    });
+
+    let listPerkiraan = Object.values(tmpMap)
+      .filter((g) => g.total !== 0)
+      .sort((a, b) => parseFloat(a.noper) - parseFloat(b.noper));
+
+    // 3. Generate Dokumen HTML Utuh
+    let htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>RL Detail Perkiraan - ${namaCab}</title>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <style>
+          body { background: #000; color: #fff; font-family: Segoe UI, Tahoma, Geneva, Verdana, sans-serif; padding: 20px; margin: 0; }
+          .no-print { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; gap: 10px; flex-wrap: wrap; }
+          .btn { padding: 8px 14px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 0.8rem; color: #fff; display: inline-flex; align-items: center; gap: 6px; }
+          .btn-print { background: #0284c7; }
+          .btn-close { background: #dc2626; }
+          table { width: 100%; border-collapse: collapse; min-width: 1250px; font-size: 0.85rem; }
+          th, td { border: 1px solid #444; padding: 6px 8px; }
+          th { background: #1a1a1a; color: #fff; text-align: center; }
+          tr.subtotal { background: #1b5e20; font-weight: bold; }
+          tr.header-group { background: #111; color: #00D2FF; font-weight: bold; }
+          .text-right { text-align: right; }
+          .text-center { text-align: center; }
+          @media print {
+            .no-print { display: none !important; }
+            body { background: #fff; color: #000; padding: 0; }
+            th, td { border: 1px solid #000 !important; color: #000 !important; }
+            th { background: #f2f2f2 !important; }
+            tr.subtotal { background: #e2e2e2 !important; color: #000 !important; }
+            tr.header-group { background: #f9f9f9 !important; color: #000 !important; }
+          }
+        </style>
+        <script>
+          // Fungsi pembantu di TAB BARU untuk meneruskan perintah ke TAB INDUK
+          // Menggunakan encodeURIComponent mencegah error jika ada tanda kutip (') di nama cabang
+          function triggerVersusBukaTab(cab, group) {
+            if (window.opener && typeof window.opener.bukaVersusBukaTab === 'function') {
+              window.opener.bukaVersusBukaTab(cab, group);
+            } else {
+              alert('Tidak dapat terhubung ke halaman utama untuk mengambil data.');
+            }
+          }
+        </script>
+      </head>
+      <body>
+   <div class="no-print">
+  <h3 style="margin:0; color:#00D2FF;">RL Detail Perkiraan: ${namaCab} | Group: ${activeGroup} - Tahun ${filterTahunFull}</h3>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    
+    <!-- Tombol HPP Detil vs Sales Detil -->
+    <button class="btn" style="background:#ed7d31; border:1px solid #c55a11;" onclick="triggerVersusBukaTab('${kodeCabang}', '${activeGroup}')">
+      <i class="fa-solid fa-scale-balanced"></i> HPP Detil vs Sales Detil
+    </button>
+
+    <!-- Tombol Export Excel (Disederhanakan & Diperbaiki) -->
+    <!-- Kita hapus encodeURIComponent agar teks dikirim polos, sehingga nama file Excel nanti bersih -->
+    <button class="btn" style="background:#1b5e20; border:1px solid #2e7d32;" 
+  onclick="if(window.opener && window.opener.downloadRLExceldetil){ window.opener.downloadRLExceldetil(window, '${namaCab}', '${filterTahunFull}', '${activeGroup}'); } else { alert('Fungsi Export tidak ditemukan!'); }">
+  <i class="fa-solid fa-file-excel"></i> Export Excel
+</button>
+
+    <button class="btn btn-print" onclick="window.print()"><i class="fa-solid fa-print"></i> Cetak / PDF</button>
+    <button class="btn btn-close" onclick="window.close()"><i class="fa-solid fa-xmark"></i> Tutup</button>
+  </div>
+</div>
+   
+      <!-- SAYA SARANKAN HAPUS BAGIAN INI KARENA TIDAK DIPAKAI (DIV KOSONG) -->
+        <!--
+        <div id="area_versus_sd" style="display:none; margin-bottom:20px; padding:15px; background:#111; border:1px solid #ed7d31; border-radius:8px;">
+          <h4 style="margin-top:0; color:#ed7d31;"><i class="fa-solid fa-scale-balanced"></i> Ringkasan Rasio HPP vs Sales</h4>
+          <table style="min-width:100%; margin-top:10px;">
+            <thead>
+              <tr>
+                <th style="text-align:left;">KETERANGAN</th>
+                ${namaBulan.map((b) => `<th>${b}</th>`).join("")}
+                <th>TOTAL YTD</th>
+              </tr>
+            </thead>
+            <tbody id="body_versus_sd">
+            </tbody>
+          </table>
+        </div>
+        -->
+
+        <div style="overflow-x:auto;" id="tabel_rlcabdetil">
+          <table>
+            <thead>
+              <tr>
+                <th rowspan="2">NO.PERK</th>
+                <th rowspan="2" style="min-width:200px; text-align:left;">NAMA PERKIRAAN</th>
+                <th colspan="12">BULAN</th>
+                <th rowspan="2">TOTAL YTD</th>
+              </tr>
+              <tr>
+                ${namaBulan.map((b) => `<th>${b}</th>`).join("")}
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    if (listPerkiraan.length === 0) {
+      htmlContent += `
+        <tr>
+          <td colspan="15" class="text-center" style="padding: 30px; color: #ff6b6b;">
+            Data Perkiraan Tidak Ditemukan untuk cabang ${namaCab} (${kodeCabang}) & group ${activeGroup} pada tahun ${filterTahunFull}.
+          </td>
+        </tr>
+      `;
+    } else {
+      let currentDigit = null;
+      let subTotalPerBulan = {};
+      let akumulasiLabaRugiPerBulan = {};
+      let salesBulanVersus = Array(12).fill(0);
+      let hppBulanVersus = Array(12).fill(0);
+
+      for (let b = 1; b <= 12; b++) {
+        subTotalPerBulan[("0" + b).slice(-2)] = 0;
+        akumulasiLabaRugiPerBulan[("0" + b).slice(-2)] = 0;
+      }
+
+      function formatRupiahWindow(val) {
+        if (!val || val === 0) return "";
+        return new Intl.NumberFormat("id-ID").format(val);
+      }
+
+      listPerkiraan.forEach((item) => {
+        let digit = String(item.noper).charAt(0);
+
+        if (currentDigit !== null && digit !== currentDigit) {
+          let ket = "SUBTOTAL " + currentDigit + "xxxxx";
+          if (currentDigit === "3") ket = "PENJUALAN BERSIH";
+          if (currentDigit === "4") ket = "TOTAL HPP";
+          if (currentDigit === "5") ket = "TOTAL BIAYA ADM & UMUM";
+          if (currentDigit === "6") ket = "TOTAL BEBAN LAINNYA";
+
+          let totalSub = 0;
+          htmlContent += `<tr class="subtotal"><td colspan="2" class="text-right">${ket}</td>`;
+          for (let b = 1; b <= 12; b++) {
+            let bs = ("0" + b).slice(-2);
+            let val = subTotalPerBulan[bs];
+            totalSub += val;
+
+            if (currentDigit === "3") salesBulanVersus[b - 1] += val;
+            if (currentDigit === "4") hppBulanVersus[b - 1] += val;
+
+            akumulasiLabaRugiPerBulan[bs] =
+              currentDigit === "3" ? val : akumulasiLabaRugiPerBulan[bs] + val;
+            htmlContent += `<td class="text-right">${formatRupiahWindow(val)}</td>`;
+            subTotalPerBulan[bs] = 0;
+          }
+          htmlContent += `<td class="text-right">${formatRupiahWindow(totalSub)}</td></tr>`;
+        }
+
+        if (currentDigit !== digit) {
+          let labelHeader = "";
+          if (digit === "3") labelHeader = "3. PENJUALAN";
+          if (digit === "4") labelHeader = "4. HARGA POKOK PENJUALAN (HPP)";
+          if (digit === "5") labelHeader = "5. BIAYA ADMINISTRASI & UMUM";
+          if (digit === "6") labelHeader = "6. BEBAN LAINNYA";
+          htmlContent += `<tr class="header-group"><td colspan="15">${labelHeader}</td></tr>`;
+        }
+
+        currentDigit = digit;
+
+        htmlContent += `<tr><td class="text-center" style="color:#4da3ff; font-weight:bold;">${item.noper}</td><td>${item.namaGol}</td>`;
+        for (let b = 1; b <= 12; b++) {
+          let bs = ("0" + b).slice(-2);
+          let val = item.bulan[bs] || 0;
+          subTotalPerBulan[bs] += val;
+          htmlContent += `<td class="text-right" style="color:${val < 0 ? "#ffc107" : "#fff"}">${formatRupiahWindow(val)}</td>`;
+        }
+        htmlContent += `<td class="text-right" style="font-weight:bold; color:${item.total < 0 ? "#ff6b6b" : "#fff"}">${formatRupiahWindow(item.total)}</td></tr>`;
+      });
+
+      if (currentDigit !== null) {
+        let ket = "SUBTOTAL " + currentDigit + "xxxxx";
+        if (currentDigit === "3") ket = "PENJUALAN BERSIH";
+        if (currentDigit === "4") ket = "TOTAL HPP";
+
+        let totalSub = 0;
+        htmlContent += `<tr class="subtotal"><td colspan="2" class="text-right">${ket}</td>`;
+        for (let b = 1; b <= 12; b++) {
+          let bs = ("0" + b).slice(-2);
+          let val = subTotalPerBulan[bs];
+          totalSub += val;
+
+          if (currentDigit === "3") salesBulanVersus[b - 1] += val;
+          if (currentDigit === "4") hppBulanVersus[b - 1] += val;
+
+          akumulasiLabaRugiPerBulan[bs] =
+            currentDigit === "3" ? val : akumulasiLabaRugiPerBulan[bs] + val;
+          htmlContent += `<td class="text-right">${formatRupiahWindow(val)}</td>`;
+        }
+        htmlContent += `<td class="text-right">${formatRupiahWindow(totalSub)}</td></tr>`;
+      }
+
+      let grandTotal = 0;
+      htmlContent += `<tr style="background:#ffc107;"><td colspan="15" style="padding:2px;"></td></tr>`;
+      htmlContent += `<tr class="subtotal" style="border-top: 3px double #fff;"><td colspan="2" class="text-right">LABA / RUGI BERSIH YTD</td>`;
+      for (let b = 1; b <= 12; b++) {
+        let bs = ("0" + b).slice(-2);
+        let val = akumulasiLabaRugiPerBulan[bs];
+        grandTotal += val;
+        htmlContent += `<td class="text-right">${formatRupiahWindow(val)}</td>`;
+      }
+      htmlContent += `<td class="text-right">${formatRupiahWindow(grandTotal)}</td></tr>`;
+    }
+
+    htmlContent += `
+            </tbody>
+          </table>
+        </div>
+      </body>
+      </html>
+    `;
+
+    win.document.open();
+    win.document.write(htmlContent);
+    win.document.close();
+  } catch (err) {
+    console.error("Gagal memuat window RL Detail:", err);
+    if (win && !win.closed) {
+      win.document.body.innerHTML = `<div style="color:red; padding:30px; font-family:sans-serif;">Gagal memuat data: ${err.message}</div>`;
+    }
+  }
+}
+function downloadRLExceldetil(win, namaCabang, tahun, group) {
+  try {
+    // 1. Tentukan target dokumen (dari window pop-up atau window saat ini)
+    var targetDoc = win && win.document ? win.document : document;
+
+    // 2. Cari elemen tabel
+    var area =
+      targetDoc.getElementById("tabel_rlcabdetil") ||
+      targetDoc.querySelector("#tabel_rlcabdetil");
+    var tabelElement = area
+      ? area.tagName === "TABLE"
+        ? area
+        : area.querySelector("table")
+      : null;
+
+    if (!tabelElement) {
+      tabelElement = targetDoc.querySelector("table");
+    }
+
+    if (!tabelElement) {
+      alert("Tabel RL Detail (#tabel_rlcabdetil) tidak ditemukan!");
+      return;
+    }
+
+    // 3. Sanitasi Parameter
+    var namaCabangBersih = String(namaCabang || "").replace(
+      /<\/?[^>]+(>|$)/g,
+      "",
+    );
+    var groupBersih = String(group || "").replace(/<\/?[^>]+(>|$)/g, "");
+    var tahunBersih = String(tahun || "").replace(/<\/?[^>]+(>|$)/g, "");
+    var safeNamaCabang = namaCabangBersih
+      .replace(/[^a-zA-Z0-9\s]/g, "")
+      .replace(/\s+/g, "_");
+
+    // 4. Kloning tabel untuk diolah
+    var cloneTabel = tabelElement.cloneNode(true);
+
+    // Hapus tombol atau elemen non-print
+    cloneTabel
+      .querySelectorAll("button, input, .no-print")
+      .forEach((el) => el.remove());
+    cloneTabel
+      .querySelectorAll("td[onclick], th[onclick]")
+      .forEach((el) => el.removeAttribute("onclick"));
+
+    // 5. OLAH SEMUA SEL TABEL AGAR WARNA HITAM DAN TEKS PUTIH/CYAN MUNCUL DI EXCEL
+    var allRows = cloneTabel.querySelectorAll("tr");
+    allRows.forEach(function (tr) {
+      // Format Header Tabel (th) -> Background Hitam, Teks Cyan
+      var ths = tr.querySelectorAll("th");
+      ths.forEach(function (th) {
+        th.setAttribute("bgcolor", "#1A1A1A");
+        th.style.cssText =
+          'background-color: #1A1A1A; color: #00D2FF; font-weight: bold; border: 1px solid #444444; text-align: center; mso-number-format:"\\@";';
+      });
+
+      if (ths.length > 0) return;
+
+      var isSubtotal = tr.classList.contains("subtotal");
+      var isHeaderGroup = tr.classList.contains("header-group");
+      var cells = tr.querySelectorAll("td");
+      if (cells.length === 0) return;
+
+      cells.forEach(function (td, index) {
+        var teksAsli = td.textContent ? td.textContent.trim() : "";
+
+        // A. Header Group (Gelap / Hitam dengan Teks Cyan)
+        if (isHeaderGroup) {
+          td.setAttribute("bgcolor", "#111111");
+          td.style.cssText =
+            'background-color: #111111; color: #00D2FF; font-weight: bold; border: 1px solid #444444; mso-number-format:"\\@";';
+          return;
+        }
+
+        // B. Subtotal (Hijau Pekat dengan Teks Putih)
+        if (isSubtotal) {
+          td.setAttribute("bgcolor", "#1B5E20");
+          td.style.cssText =
+            "background-color: #1B5E20; color: #FFFFFF; font-weight: bold; border: 1px solid #444444;";
+          if (index >= 2 && teksAsli !== "") {
+            var angkaPolos = teksAsli.replace(/\./g, "").replace(/,/g, "");
+            if (!isNaN(angkaPolos) && angkaPolos !== "") {
+              td.style.cssText +=
+                ' text-align: right; mso-number-format:"#,##0";';
+              td.textContent = angkaPolos;
+            }
+          }
+          return;
+        }
+
+        // C. Baris Data Biasa (Beri background gelap/hitam & warna teks terang secara eksplisit)
+        var styleBase =
+          "background-color: #000000; color: #FFFFFF; border: 1px solid #444444;";
+        td.setAttribute("bgcolor", "#000000"); // Atribut pendukung Excel
+
+        // Kolom 0: No Perk
+        if (index === 0) {
+          td.style.cssText =
+            styleBase +
+            ' text-align: center; font-weight: bold; color: #4DA3FF; mso-number-format:"\\@";';
+          if (td.childNodes.length > 0 && td.childNodes[0].nodeType === 3) {
+            td.childNodes[0].nodeValue = "'" + td.childNodes[0].nodeValue;
+          }
+        }
+        // Kolom 1: Nama Perk
+        else if (index === 1) {
+          td.style.cssText =
+            styleBase + ' text-align: left; mso-number-format:"\\@";';
+        }
+        // Kolom Nominal Angka
+        else {
+          if (teksAsli !== "") {
+            var angkaPolos = teksAsli.replace(/\./g, "").replace(/,/g, "");
+            if (!isNaN(angkaPolos) && angkaPolos !== "") {
+              td.style.cssText =
+                styleBase + ' text-align: right; mso-number-format:"#,##0";';
+              td.textContent = angkaPolos;
+            } else {
+              td.style.cssText =
+                styleBase + ' text-align: right; mso-number-format:"\\@";';
+            }
+          } else {
+            td.style.cssText = styleBase;
+          }
+        }
+      });
+    });
+
+    var htmlContent = cloneTabel.outerHTML;
+
+    // 6. Buat Dokumen Excel (.xls)
+    var fullHtml =
+      `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">` +
+      `<head><meta charset="UTF-8">` +
+      `<!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>` +
+      `<x:Name>RL Detail 12 Bulan</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>` +
+      `</x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]-->` +
+      `<style>` +
+      `  table { border-collapse: collapse; font-family: Arial, sans-serif; font-size: 11px; width: 100%; background-color: #000000; color: #FFFFFF; }` +
+      `  th { background-color: #1A1A1A; color: #00D2FF; border: 1px solid #444444; text-align: center; font-weight: bold; padding: 6px; }` +
+      `  td { background-color: #000000; color: #FFFFFF; border: 1px solid #444444; padding: 5px; }` +
+      `  .subtotal { background-color: #1B5E20 !important; color: #FFFFFF !important; font-weight: bold; }` +
+      `  .header-group { background-color: #111111 !important; color: #00D2FF !important; font-weight: bold; }` +
+      `</style></head>` +
+      `<body style="background-color: #000000;">` +
+      `  <h2 style="text-align:center; font-family: Arial, sans-serif; color: #00D2FF;">LAPORAN LABA RUGI DETAIL PERKIRAAN</h2>` +
+      `  <h4 style="text-align:center; font-family: Arial, sans-serif; color: #FFFFFF;">Cabang: ${namaCabangBersih} | Group: ${groupBersih} | Tahun: ${tahunBersih}</h4>` +
+      `  ${htmlContent}` +
+      `</body></html>`;
+
+    // 7. Unduh File
+    var blob = new Blob([fullHtml], {
+      type: "application/vnd.ms-excel;charset=utf-8",
+    });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = `RL_Detail_${safeNamaCabang}_Group_${groupBersih}_${tahunBersih}.xls`;
+
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error("Gagal mendownload Excel:", err);
+    alert("Terjadi kesalahan saat mengunduh Excel: " + err.message);
+  }
+}
+
+// ==========================================
+// 🛠️ FUNGSI HELPER: FORMAT PERSEN
+// ==========================================
+function formatPersen(num) {
+  if (num === 0) return "0.00%";
+  return num.toFixed(2).replace(".", ",") + "%";
+}
 function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
   let tahunFull = masa.replace("YTD", "");
   let namaStore = "transaksi" + tahunFull;
@@ -1208,7 +1775,7 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
         .substring(0, 3);
 
       let detilTrans = listTrans.filter(function (t) {
-        let tNo = String(t.noperkiraan || "").trim();
+        let tNo = String(t.noper || "").trim();
         let tCab = String(t.cabang || "")
           .trim()
           .toUpperCase();
@@ -1281,7 +1848,7 @@ function lihatDetilTransaksiRLLebar(noPerkiraan, masa, cabang) {
           (t.noreff || "-") +
           "</td>" +
           '<td style="border:1px solid #444; padding:4px;">' +
-          (t.desc || "-") +
+          (t.penjelasan || "-") +
           "</td>" +
           '<td style="border:1px solid #444; padding:4px; text-align:right;">' +
           formatRupiah(dbVal) +
@@ -2640,8 +3207,8 @@ async function tampilkanArusKasPerCabangSD(kodeCabang) {
 
 function formatRupiah(angka) {
   if (isNaN(angka)) return "0";
-  var number = parseFloat(angka);
-  var formatted = number.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, "$&,");
+  var number = Math.round(parseFloat(angka)); // Membulatkan ke angka bulat terdekat
+  var formatted = number.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   return formatted;
 }
 
@@ -3077,4 +3644,872 @@ function generateHTMLArusKasGabungan(
 
   html += "</tbody></table></div>";
   return html;
+}
+
+// ==========================================
+// 🚀 FUNGSI PERANTARA: SIAPKAN DATA MASTER CABANG, LALU EKSEKUSI TABLE VERSUS
+// ==========================================
+function tampilkanVersusSD(encodedCab, encodedGroup) {
+  var cab = decodeURIComponent(encodedCab);
+  var group = decodeURIComponent(encodedGroup);
+  var filterTahunFull = window._rlGabFilterMasa.split("-")[1];
+  var duaDigitTahun = String(filterTahunFull).slice(-2);
+
+  toast("Memproses perbandingan RL vs Data Sales...", "inf");
+
+  var listGol = Object.values(_tmpMapGolonganForChart)
+    .filter((g) => g.total !== 0)
+    .sort((a, b) => parseInt(a.gol) - parseInt(b.gol));
+
+  if (listGol.length === 0)
+    return toast("Tidak ada data RL untuk dibandingkan.", "err");
+
+  var rawSales = DBCache.datasales || [];
+  var filteredSales = rawSales.filter(
+    (s) =>
+      s.cabang === cab &&
+      (s.group || "TLGA") === group &&
+      s.noper &&
+      String(s.noper).trim() !== "",
+  );
+
+  var namaCab = window._rlGabunganData.mapMasterCab[cab] || cab;
+  var namaBulan = [
+    "JANUARI",
+    "FEBRUARI",
+    "MARET",
+    "APRIL",
+    "MEI",
+    "JUNI",
+    "JULI",
+    "AGUSTUS",
+    "SEPTEMBER",
+    "OKTOBER",
+    "NOVEMBER",
+    "DESEMBER",
+  ];
+
+  // Hanya Kepala 3 dan 4
+  var configKepala = {
+    3: { title: "PENJUALAN", subtotalName: "Penjualan Bersih", bg: "#004d40" },
+    4: {
+      title: "HARGA POKOK PENJUALAN (HPP)",
+      subtotalName: "Total HPP",
+      bg: "#b71c1c",
+    },
+  };
+
+  // Noper tambahan non-RL beserta Mapping Nama Perkiraannya
+  var listNoperTambahan = [
+    { kode: "COFFEBREAK", nama: "COFFEBREAK" },
+    { kode: "KBGGULING", nama: "KBGGULING" },
+    { kode: "NASIKOTAK", nama: "NASIKOTAK" },
+    { kode: "NASIKUNING", nama: "NASIKUNING" },
+    { kode: "TUMPENG", nama: "TUMPENG" },
+    { kode: "PAKET4", nama: "PAKET4" },
+    { kode: "PAKET8", nama: "PAKET8" },
+    { kode: "PAMER", nama: "PAKET MEETING" },
+    { kode: "PRAS", nama: "PRASMANAN" },
+    { kode: "LAIN", nama: "LAIN" },
+    { kode: "SNACK", nama: "SNACK" },
+    { kode: "SNACKB", nama: "SNACKB" },
+  ];
+
+  // Helper untuk hitung persentase (Sales / RL * 100)
+  function formatPersen(valSales, valRL) {
+    if (!valRL || valRL === 0) return "0%";
+    let pct = (valSales / valRL) * 100;
+    return pct.toFixed(1) + "%";
+  }
+
+  // Helper: Generate 12 kolom bulanan (RL, Sales, Selisih, %, Spasi)
+  function generate12Cols(accRL, accSales, isBold, isCalc, customSelisihArray) {
+    let cols = "";
+    let fw = isBold ? "font-weight:bold;" : "";
+    let bgCalc = isCalc ? "background:#263238;" : "";
+
+    for (let b = 0; b < 12; b++) {
+      let valRL = accRL[b] || 0;
+      let valSales = accSales[b] || 0;
+
+      // Jika ada custom selisih (misal untuk TOTAL SALES), gunakan itu; jika tidak, hitung RL - Sales
+      let selisih = customSelisihArray
+        ? customSelisihArray[b]
+        : valRL - valSales;
+      let pct = formatPersen(valSales, valRL);
+
+      let colorRL = valRL > 0 ? "#fff" : valRL < 0 ? "#ffcdd2" : "#fff";
+      let colorSales =
+        valSales > 0 ? "#bbdefb" : valSales < 0 ? "#ffcdd2" : "#fff";
+      let colorSelisih =
+        selisih < 0 ? "#ffcdd2" : selisih > 0 ? "#c8e6c9" : "#fff";
+
+      cols += `<td style="padding:6px;border:1px solid #444;text-align:right;color:${colorRL};${fw}${bgCalc}">${valRL !== 0 ? formatRupiah(valRL) : ""}</td>`;
+      cols += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#0d1b2a;color:${colorSales};${fw}${bgCalc}">${valSales !== 0 ? formatRupiah(valSales) : ""}</td>`;
+      cols += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#1a1a1a;color:${colorSelisih};${fw}${bgCalc}">${selisih !== 0 ? formatRupiah(selisih) : ""}</td>`;
+      cols += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#2d3748;color:#00D2FF;${fw}${bgCalc}">${pct}</td>`;
+      cols += `<td style="padding:4px;border:1px solid #000;background:#000;width:15px;"></td>`;
+    }
+    return cols;
+  }
+
+  // Helper Total Akhir
+  function generateTotalCol(totalRL) {
+    return `<td style="padding:8px;border:1px solid #444;text-align:right;font-weight:bold;background:#1b5e20;color:#fff;">${formatRupiah(totalRL)}</td>`;
+  }
+
+  var html = `
+  <div style="margin-bottom: 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+    <h4 style="margin:0; color:#00D2FF; font-size:1.1rem;">Perbandingan RL vs Sales: ${namaCab} | Group: ${group} - Tahun ${filterTahunFull}</h4>
+    <div style="display:flex; gap:10px;">
+      <button onclick="exportToExcel()" style="padding:8px 15px; background:#16a34a; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">📥 Export ke Excel</button>
+      <button onclick="window.print()" style="padding:8px 15px; background:#0284c7; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">🖨️ Cetak / Print</button>
+    </div>
+  </div>
+  
+  <div style="overflow-x:auto; border:1px solid #444; border-radius:8px;">
+    <table id="tableVersus" border="1" style="width:100%;border-collapse:collapse;color:#fff;background:#000; min-width:1600px; font-size:.85rem;">
+      <thead>
+        <tr style="background:#1a1a1a;font-weight:bold;">
+          <th rowspan="2" style="padding:8px;border:1px solid #444; min-width:80px;">No.Perk</th>
+          <th rowspan="2" style="padding:8px;border:1px solid #444; min-width:220px; text-align:left;">KETERANGAN</th>
+          ${namaBulan.map((bln) => `<th colspan="4" style="padding:8px;border:1px solid #444;text-align:center;background:#1e293b;color:#00D2FF;">${bln}</th><th rowspan="2" style="padding:4px;border:1px solid #000;background:#000;width:15px;"></th>`).join("")}
+          <th rowspan="2" style="padding:8px;border:1px solid #444;text-align:right;background:#1b5e20; min-width:110px;">TOTAL RL</th>
+        </tr>
+        <tr style="background:#1a1a1a;font-weight:bold;text-align:center;">
+          ${namaBulan.map(() => `<th style="padding:6px;border:1px solid #444;">RL</th><th style="padding:6px;border:1px solid #444;">SL</th><th style="padding:6px;border:1px solid #444;">SLH</th><th style="padding:6px;border:1px solid #444;color:#00D2FF;">%</th>`).join("")}
+        </tr>
+      </thead>
+      <tbody>`;
+
+  var groupedData = {};
+  listGol.forEach((item) => {
+    var kepala = item.gol.substring(0, 1);
+    if (kepala === "3" || kepala === "4") {
+      if (!groupedData[kepala]) groupedData[kepala] = [];
+      groupedData[kepala].push(item);
+    }
+  });
+
+  var grandTotalRL = 0;
+  var sumPenjualanRL = new Array(12).fill(0);
+  var sumPenjualanSales = new Array(12).fill(0);
+  var sumHppRL = new Array(12).fill(0);
+  var sumHppSales = new Array(12).fill(0);
+
+  var urutanKepala = Object.keys(configKepala);
+
+  urutanKepala.forEach((kepala) => {
+    var items = groupedData[kepala] || [];
+    if (items.length === 0) return;
+
+    var cfg = configKepala[kepala];
+
+    var accKepalaRL = new Array(12).fill(0);
+    var accKepalaSales = new Array(12).fill(0);
+
+    // BARIS JUDUL KELOMPOK
+    html += `<tr style="background:${cfg.bg};"><td colspan="2" style="padding:8px;border:1px solid #444;font-weight:bold;color:#fff;">${kepala}. ${cfg.title}</td>`;
+    html += `<td colspan="60" style="padding:0;border:1px solid ${cfg.bg};background:${cfg.bg};"></td>`;
+    html += `<td style="padding:0;border:1px solid ${cfg.bg};background:${cfg.bg};"></td></tr>`;
+
+    var totalKepalaRL = 0;
+
+    // LOOPING DATA RL (KEPALA 3 & 4)
+    items.forEach((item) => {
+      var digit3 = item.gol.substring(0, 3);
+      var rowRL = 0;
+      var arrRL = new Array(12).fill(0);
+      var arrSales = new Array(12).fill(0);
+
+      html += `<tr><td style="padding:6px;border:1px solid #444;color:#4da3ff;font-weight:bold;">${digit3}</td>`;
+      html += `<td style="padding:6px;border:1px solid #444; min-width:220px;">${item.namaGol}</td>`;
+
+      for (let b = 1; b <= 12; b++) {
+        let blnStr = ("0" + b).slice(-2);
+        let saldoRL = item.bulan[blnStr] || 0;
+        rowRL += saldoRL;
+        arrRL[b - 1] = saldoRL;
+
+        let salesBulanIni = 0;
+        filteredSales.forEach((s) => {
+          let noperSales = String(s.noper).trim().substring(0, 3);
+          let masaSales = String(s.masa || s.ma || "").trim();
+          if (noperSales === digit3 && masaSales === blnStr + duaDigitTahun) {
+            salesBulanIni += num(s.amount || s.total || 0);
+          }
+        });
+        arrSales[b - 1] = salesBulanIni;
+
+        let selisih = saldoRL - salesBulanIni;
+        let pct = formatPersen(salesBulanIni, saldoRL);
+        let colorRL = saldoRL >= 0 ? "#fff" : "#ffcdd2";
+        let colorSales = salesBulanIni > 0 ? "#bbdefb" : "#fff";
+        let colorSelisih =
+          selisih < 0 ? "#ffcdd2" : selisih > 0 ? "#c8e6c9" : "#fff";
+
+        html += `<td style="padding:6px;border:1px solid #444;text-align:right;color:${colorRL}">${saldoRL !== 0 ? formatRupiah(saldoRL) : ""}</td>`;
+        html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#0d1b2a;color:${colorSales}">${salesBulanIni !== 0 ? formatRupiah(salesBulanIni) : ""}</td>`;
+        html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#1a1a1a;color:${colorSelisih};font-weight:bold;">${selisih !== 0 ? formatRupiah(selisih) : ""}</td>`;
+        html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#2d3748;color:#00D2FF;">${pct}</td>`;
+        html += `<td style="padding:4px;border:1px solid #000;background:#000;width:15px;"></td>`;
+      }
+
+      for (let i = 0; i < 12; i++) {
+        accKepalaRL[i] += arrRL[i];
+        accKepalaSales[i] += arrSales[i];
+      }
+
+      totalKepalaRL += rowRL;
+      html += generateTotalCol(rowRL);
+      html += `</tr>`;
+    });
+
+    // BARIS SUBTOTAL KELOMPOK
+    html += `<tr style="border-top:2px solid #fff; background:#111;">`;
+    html += `<td colspan="2" style="padding:8px;border:1px solid #444;text-align:right;font-weight:bold;color:#fff;">${cfg.subtotalName}</td>`;
+    html += generate12Cols(accKepalaRL, accKepalaSales, true, false);
+    html += generateTotalCol(totalKepalaRL);
+    html += `</tr>`;
+
+    grandTotalRL += totalKepalaRL;
+
+    if (kepala === "3") {
+      sumPenjualanRL = accKepalaRL.slice();
+      sumPenjualanSales = accKepalaSales.slice();
+    }
+    if (kepala === "4") {
+      sumHppRL = accKepalaRL.slice();
+      sumHppSales = accKepalaSales.slice();
+    }
+  });
+
+  // BARIS TAMBAHAN NOPER KHUSUS (RL = 0)
+  html += `<tr style="background:#312e81;"><td colspan="2" style="padding:8px;border:1px solid #444;font-weight:bold;color:#fff;">ITEM TAMBAHAN SALES</td>`;
+  html += `<td colspan="60" style="padding:0;border:1px solid #312e81;background:#312e81;"></td>`;
+  html += `<td style="padding:0;border:1px solid #312e81;background:#312e81;"></td></tr>`;
+
+  var accExtraSales = new Array(12).fill(0);
+  var accExtraRL = new Array(12).fill(0); // bernilai 0
+
+  listNoperTambahan.forEach((itemExtra) => {
+    html += `<tr><td style="padding:6px;border:1px solid #444;color:#a5b4fc;font-weight:bold;">${itemExtra.kode}</td>`;
+    html += `<td style="padding:6px;border:1px solid #444; min-width:220px;">${itemExtra.nama}</td>`;
+
+    for (let b = 1; b <= 12; b++) {
+      let blnStr = ("0" + b).slice(-2);
+      let salesBulanIni = 0;
+
+      filteredSales.forEach((s) => {
+        let noperSales = String(s.noper).trim().toUpperCase();
+        let masaSales = String(s.masa || s.ma || "").trim();
+        if (
+          noperSales === itemExtra.kode &&
+          masaSales === blnStr + duaDigitTahun
+        ) {
+          salesBulanIni += num(s.amount || s.total || 0);
+        }
+      });
+
+      accExtraSales[b - 1] += salesBulanIni;
+      let selisih = 0 - salesBulanIni;
+      let colorSales = salesBulanIni > 0 ? "#bbdefb" : "#fff";
+      let colorSelisih = selisih < 0 ? "#ffcdd2" : "#fff";
+
+      html += `<td style="padding:6px;border:1px solid #444;text-align:right;color:#fff;"></td>`;
+      html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#0d1b2a;color:${colorSales}">${salesBulanIni !== 0 ? formatRupiah(salesBulanIni) : ""}</td>`;
+      html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#1a1a1a;color:${colorSelisih};font-weight:bold;">${selisih !== 0 ? formatRupiah(selisih) : ""}</td>`;
+      html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#2d3748;color:#00D2FF;">0%</td>`;
+      html += `<td style="padding:4px;border:1px solid #000;background:#000;width:15px;"></td>`;
+    }
+
+    html += generateTotalCol(0);
+    html += `</tr>`;
+  });
+
+  // BARIS SUBTOTAL ITEM TAMBAHAN
+  html += `<tr style="border-top:2px solid #fff; background:#1e1b4b;">`;
+  html += `<td colspan="2" style="padding:8px;border:1px solid #444;text-align:right;font-weight:bold;color:#a5b4fc;">Subtotal Item Tambahan</td>`;
+  html += generate12Cols(accExtraRL, accExtraSales, true, false);
+  html += generateTotalCol(0);
+  html += `</tr>`;
+
+  // BARIS TOTAL SALES (SEUAI DENGAN PERBAIKAN REVISI TERBARU)
+  var combinedTotalSalesRL = new Array(12).fill(0); // RL = 0
+  var combinedTotalSalesSales = new Array(12).fill(0); // Sales HPP + Sales Tambahan
+  var customSelisihTotalSales = new Array(12).fill(0); // Selisih HPP + Selisih Tambahan
+
+  for (let i = 0; i < 12; i++) {
+    // 1. Sales Total = Subtotal Sales HPP + Subtotal Sales Tambahan
+    combinedTotalSalesSales[i] = sumHppSales[i] + accExtraSales[i];
+
+    // 2. Selisih HPP = sumHppRL[i] - sumHppSales[i]
+    let selisihHpp = sumHppRL[i] - sumHppSales[i];
+
+    // 3. Selisih Tambahan = 0 - accExtraSales[i]
+    let selisihTambahan = 0 - accExtraSales[i];
+
+    // 4. Custom Selisih = Selisih HPP + Selisih Tambahan
+    customSelisihTotalSales[i] = selisihHpp + selisihTambahan;
+  }
+
+  html += `<tr style="border-bottom:3px double #00D2FF; background:#111;">`;
+  html += `<td colspan="2" style="padding:10px;border:1px solid #444;font-weight:bold;color:#00D2FF; font-size:1rem;">TOTAL SALES</td>`;
+  html += generate12Cols(
+    combinedTotalSalesRL,
+    combinedTotalSalesSales,
+    true,
+    true,
+    customSelisihTotalSales,
+  );
+  html += generateTotalCol(0);
+  html += `</tr>`;
+
+  // BARIS GRAND TOTAL RL
+  html += `<tr style="border-top:3px double #fff; font-weight:bold; background:#2c3e50;">
+    <td colspan="2" style="padding:10px;border:1px solid #444;text-align:right;">GRAND TOTAL RL</td>
+    <td colspan="60" style="padding:10px;border:1px solid #444;text-align:right;background:#1b5e20;color:#fff;">${formatRupiah(grandTotalRL)}</td>
+    <td style="padding:10px;border:1px solid #444;text-align:right;background:#1b5e20;color:#fff;">${formatRupiah(grandTotalRL)}</td>
+  </tr>`;
+
+  html += `</tbody></table></div>`;
+
+  // Buka Window Baru dengan Fitur Export
+  var fullHTML = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>Laporan RL vs Sales - ${namaCab}</title>
+  <style>body{font-family:'Segoe UI',Tahoma,sans-serif;background:#121212;color:#e0e0e0;padding:20px;margin:0;} @media print{body{background:#fff;color:#000;} table{border-color:#000 !important;} td,th{color:#000 !important; background-color:#fff !important;}}</style></head>
+  <body>${html}
+  <script>
+    function formatRupiah(num){if(isNaN(num))return"0";return Math.abs(num).toLocaleString('id-ID');}
+    function exportToExcel() {
+      var table = document.getElementById("tableVersus");
+      var html = table.outerHTML;
+      var url = 'data:application/vnd.ms-excel,' + encodeURIComponent(html);
+      var link = document.createElement('a');
+      link.href = url;
+      link.download = 'Laporan_RL_vs_Sales_${namaCab}.xls';
+      link.click();
+    }
+  </script>
+  </body></html>`;
+
+  var newWindow = window.open("", "_blank");
+  if (newWindow) {
+    newWindow.document.open();
+    newWindow.document.write(fullHTML);
+    newWindow.document.close();
+    toast("Tab perbandingan berhasil dibuka!", "ok");
+  } else {
+    toast("Gagal membuka tab baru. Izinkan popup browser.", "err");
+  }
+}
+
+async function bukaVersusBukaTab(kodeCabang, activeGroup) {
+  // Terima kode cabang asli (misalnya 'TC' atau '001')
+  var cab = String(kodeCabang || "").trim();
+  var group = String(activeGroup || "").trim();
+
+  if (!window._rlGabFilterMasa) {
+    if (typeof toast === "function")
+      toast("Filter masa/periode belum dipilih!", "err");
+    else alert("Filter masa/periode belum dipilih!");
+    return;
+  }
+
+  var partMasa = window._rlGabFilterMasa.split("-");
+  var filterTahunFull = partMasa[1];
+  var duaDigitTahun = String(filterTahunFull).slice(-2);
+
+  if (typeof toast === "function") {
+    toast(
+      "Memproses perbandingan HPP Detil vs Sales Detil (" +
+        filterTahunFull +
+        ")...",
+      "inf",
+    );
+  }
+
+  try {
+    // 1. AMBIL DATA DARI STORE PERKIRAAN + TAHUN
+    var namaStorePerkiraan = "perkiraan" + filterTahunFull;
+    var resPerkiraan = await db.getAll(namaStorePerkiraan);
+
+    var rawDataPerkiraan = resPerkiraan
+      ? Array.isArray(resPerkiraan)
+        ? resPerkiraan
+        : Object.values(resPerkiraan)
+      : [];
+
+    if (rawDataPerkiraan.length === 0) {
+      if (typeof toast === "function")
+        toast(
+          "Data Perkiraan " + filterTahunFull + " kosong di database lokal.",
+          "err",
+        );
+      return;
+    }
+
+    // 2. OLAH DATA PERKIRAAN KEPALA 3 (SALES) & 4 (HPP)
+    var tmpMapDetil = {};
+    var namaCab =
+      window._rlGabunganData && window._rlGabunganData.mapMasterCab
+        ? window._rlGabunganData.mapMasterCab[cab] || cab
+        : cab;
+
+    rawDataPerkiraan.forEach((p) => {
+      let noPerkFull = String(p.noPerk || p.noper || p.gol || "").trim();
+      let kodeKepala = parseInt(noPerkFull.substring(0, 1), 10);
+
+      let cabangData = String(p.cabang || p.cab || "")
+        .trim()
+        .toUpperCase();
+      let targetCabangKode = String(cab).trim().toUpperCase();
+      let targetCabangNama = String(namaCab).trim().toUpperCase();
+
+      let cocokCabang =
+        cabangData === targetCabangKode || cabangData === targetCabangNama;
+      let groupData = String(p.group || "")
+        .trim()
+        .toUpperCase();
+      let cocokGroup = groupData === String(group).trim().toUpperCase();
+
+      if ((kodeKepala === 3 || kodeKepala === 4) && cocokCabang && cocokGroup) {
+        let namaPerkiraan =
+          p.penjelasan || p.namaGol || p.nama || "Perkiraan " + noPerkFull;
+
+        if (!tmpMapDetil[noPerkFull]) {
+          tmpMapDetil[noPerkFull] = {
+            noper: noPerkFull,
+            namaGol: namaPerkiraan,
+            kepala: kodeKepala,
+            bulan: {},
+            total: 0,
+          };
+          for (let x = 1; x <= 12; x++) {
+            tmpMapDetil[noPerkFull].bulan[("0" + x).slice(-2)] = 0;
+          }
+        }
+
+        let masaStr = String(p.masa || "").trim();
+        let blnStr = masaStr.substring(0, 2);
+
+        if (blnStr && parseInt(blnStr, 10) >= 1 && parseInt(blnStr, 10) <= 12) {
+          let mutasiBulan = Number(p.db || 0) - Number(p.cr || 0);
+          tmpMapDetil[noPerkFull].bulan[blnStr] += mutasiBulan;
+          tmpMapDetil[noPerkFull].total += mutasiBulan;
+        }
+      }
+    });
+
+    var listPerkiraan = Object.values(tmpMapDetil)
+      .filter((g) => g.total !== 0)
+      .sort((a, b) => parseFloat(a.noper) - parseFloat(b.noper));
+
+    if (listPerkiraan.length === 0) {
+      if (typeof toast === "function")
+        toast("Tidak ada transaksi HPP / Penjualan untuk cabang ini.", "err");
+      return;
+    }
+
+    // 3. AMBIL DATA SALES TAMBAHAN
+    var rawSales =
+      typeof DBCache !== "undefined" && DBCache.datasales
+        ? DBCache.datasales
+        : [];
+    var filteredSales = rawSales.filter(
+      (s) =>
+        s.cabang === cab &&
+        (s.group || "TLGA") === group &&
+        s.noper &&
+        String(s.noper).trim() !== "",
+    );
+
+    var namaBulan = [
+      "JANUARI",
+      "FEBRUARI",
+      "MARET",
+      "APRIL",
+      "MEI",
+      "JUNI",
+      "JULI",
+      "AGUSTUS",
+      "SEPTEMBER",
+      "OKTOBER",
+      "NOVEMBER",
+      "DESEMBER",
+    ];
+
+    var configKepala = {
+      3: {
+        title: "PENJUALAN",
+        subtotalName: "Penjualan Bersih",
+        bg: "#004d40",
+      },
+      4: {
+        title: "HARGA POKOK PENJUALAN (HPP)",
+        subtotalName: "Total HPP",
+        bg: "#b71c1c",
+      },
+    };
+
+    var listNoperTambahan = [
+      { kode: "COFFEBREAK", nama: "COFFEBREAK" },
+      { kode: "KBGGULING", nama: "KBGGULING" },
+      { kode: "NASIKOTAK", nama: "NASIKOTAK" },
+      { kode: "NASIKUNING", nama: "NASIKUNING" },
+      { kode: "TUMPENG", nama: "TUMPENG" },
+      { kode: "PAKET4", nama: "PAKET4" },
+      { kode: "PAKET8", nama: "PAKET8" },
+      { kode: "PAMER", nama: "PAKET MEETING" },
+      { kode: "PRAS", nama: "PRASMANAN" },
+      { kode: "LAIN", nama: "LAIN" },
+      { kode: "SNACK", nama: "SNACK" },
+      { kode: "SNACKB", nama: "SNACKB" },
+    ];
+
+    function formatPersen(valSales, valRL) {
+      if (!valRL || valRL === 0) return "0%";
+      let pct = (valSales / valRL) * 100;
+      return pct.toFixed(1) + "%";
+    }
+
+    function generate12Cols(
+      accRL,
+      accSales,
+      isBold,
+      isCalc,
+      customSelisihArray,
+    ) {
+      let cols = "";
+      let fw = isBold ? "font-weight:bold;" : "";
+      let bgCalc = isCalc ? "background:#263238;" : "";
+      let fmtTxt = "mso-number-format:'\\@';";
+
+      for (let b = 0; b < 12; b++) {
+        let valRL = accRL[b] || 0;
+        let valSales = accSales[b] || 0;
+        let selisih = customSelisihArray
+          ? customSelisihArray[b]
+          : valRL - valSales;
+        let pct = formatPersen(valSales, valRL);
+
+        let colorRL = valRL > 0 ? "#fff" : valRL < 0 ? "#ffcdd2" : "#fff";
+        let colorSales =
+          valSales > 0 ? "#bbdefb" : valSales < 0 ? "#ffcdd2" : "#fff";
+        let colorSelisih =
+          selisih < 0 ? "#ffcdd2" : selisih > 0 ? "#c8e6c9" : "#fff";
+
+        cols += `<td style="padding:6px;border:1px solid #444;text-align:right;color:${colorRL};${fw}${bgCalc}${fmtTxt}">${valRL !== 0 ? formatRupiah(valRL) : ""}</td>`;
+        cols += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#0d1b2a;color:${colorSales};${fw}${bgCalc}${fmtTxt}">${valSales !== 0 ? formatRupiah(valSales) : ""}</td>`;
+        cols += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#1a1a1a;color:${colorSelisih};${fw}${bgCalc}${fmtTxt}">${selisih !== 0 ? formatRupiah(selisih) : ""}</td>`;
+        cols += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#2d3748;color:#00D2FF;${fw}${bgCalc}">${pct}</td>`;
+        cols += `<td style="padding:4px;border:1px solid #000;background:#000;width:15px;"></td>`;
+      }
+      return cols;
+    }
+
+    function generateTotalCol(totalRL) {
+      return `<td style="padding:8px;border:1px solid #444;text-align:right;font-weight:bold;background:#1b5e20;color:#fff;mso-number-format:'\\@';">${formatRupiah(totalRL)}</td>`;
+    }
+
+    // 4. SUSUN DOKUMEN HTML TABEL
+    var judulLaporan = `Perbandingan HPP Detil vs Sales Detil: ${namaCab} | Group: ${group} - Tahun ${filterTahunFull}`;
+
+    var html = `
+    <div style="margin-bottom: 1rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+      <h4 id="judulLaporan" style="margin:0; color:#00D2FF; font-size:1.1rem;">${judulLaporan}</h4>
+      <div style="display:flex; gap:10px;">
+        <button onclick="exportToExcelDetil()" style="padding:8px 15px; background:#16a34a; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">📥 Export ke Excel</button>
+        <button onclick="window.print()" style="padding:8px 15px; background:#0284c7; color:white; border:none; border-radius:5px; cursor:pointer; font-weight:bold;">🖨️ Cetak / Print</button>
+      </div>
+    </div>
+    
+    <div style="overflow-x:auto; border:1px solid #444; border-radius:8px;">
+      <table id="tableVersusDetil" border="1" style="width:100%;border-collapse:collapse;color:#fff;background:#000; min-width:1600px; font-size:.85rem;">
+        <thead>
+          <tr style="background:#1a1a1a;font-weight:bold;">
+            <th rowspan="2" style="padding:8px;border:1px solid #444; min-width:90px;">No.Perk</th>
+            <th rowspan="2" style="padding:8px;border:1px solid #444; min-width:220px; text-align:left;">NAMA PERKIRAAN</th>
+            ${namaBulan.map((bln) => `<th colspan="4" style="padding:8px;border:1px solid #444;text-align:center;background:#1e293b;color:#00D2FF;">${bln}</th><th rowspan="2" style="padding:4px;border:1px solid #000;background:#000;width:15px;"></th>`).join("")}
+            <th rowspan="2" style="padding:8px;border:1px solid #444;text-align:right;background:#1b5e20; min-width:110px;">TOTAL RL</th>
+          </tr>
+          <tr style="background:#1a1a1a;font-weight:bold;text-align:center;">
+            ${namaBulan.map(() => `<th style="padding:6px;border:1px solid #444;">RL</th><th style="padding:6px;border:1px solid #444;">SL</th><th style="padding:6px;border:1px solid #444;">SLH</th><th style="padding:6px;border:1px solid #444;color:#00D2FF;">%</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>`;
+
+    var groupedData = {};
+    listPerkiraan.forEach((item) => {
+      let kepala = item.kepala;
+      if (!groupedData[kepala]) groupedData[kepala] = [];
+      groupedData[kepala].push(item);
+    });
+
+    var grandTotalRL = 0;
+    var sumPenjualanRL = new Array(12).fill(0);
+    var sumPenjualanSales = new Array(12).fill(0);
+    var sumHppRL = new Array(12).fill(0);
+    var sumHppSales = new Array(12).fill(0);
+    var urutanKepala = [3, 4];
+
+    urutanKepala.forEach((kepala) => {
+      var items = groupedData[kepala] || [];
+      if (items.length === 0) return;
+
+      var cfg = configKepala[kepala];
+      var accKepalaRL = new Array(12).fill(0);
+      var accKepalaSales = new Array(12).fill(0);
+
+      html += `<tr style="background:${cfg.bg};"><td colspan="2" style="padding:8px;border:1px solid #444;font-weight:bold;color:#fff;">${kepala}. ${cfg.title}</td>`;
+      html += `<td colspan="60" style="padding:0;border:1px solid ${cfg.bg};background:${cfg.bg};"></td>`;
+      html += `<td style="padding:0;border:1px solid ${cfg.bg};background:${cfg.bg};"></td></tr>`;
+
+      var totalKepalaRL = 0;
+
+      items.forEach((item) => {
+        var noperDetil = String(item.noper).trim();
+        var rowRL = 0;
+        var arrRL = new Array(12).fill(0);
+        var arrSales = new Array(12).fill(0);
+
+        html += `<tr><td style="padding:6px;border:1px solid #444;color:#4da3ff;font-weight:bold;mso-number-format:'\\@';">${noperDetil}</td>`;
+        html += `<td style="padding:6px;border:1px solid #444; min-width:220px;">${item.namaGol}</td>`;
+
+        for (let b = 1; b <= 12; b++) {
+          let blnStr = ("0" + b).slice(-2);
+          let saldoRL = item.bulan[blnStr] || 0;
+          rowRL += saldoRL;
+          arrRL[b - 1] = saldoRL;
+
+          let salesBulanIni = 0;
+          filteredSales.forEach((s) => {
+            let noperSales = String(s.noper || "").trim();
+            let masaSales = String(s.masa || s.ma || "").trim();
+            if (
+              noperSales === noperDetil &&
+              masaSales === blnStr + duaDigitTahun
+            ) {
+              salesBulanIni += Number(s.amount || s.total || 0);
+            }
+          });
+          arrSales[b - 1] = salesBulanIni;
+
+          let selisih = saldoRL - salesBulanIni;
+          let pct = formatPersen(salesBulanIni, saldoRL);
+          let colorRL = saldoRL >= 0 ? "#fff" : "#ffcdd2";
+          let colorSales = salesBulanIni > 0 ? "#bbdefb" : "#fff";
+          let colorSelisih =
+            selisih < 0 ? "#ffcdd2" : selisih > 0 ? "#c8e6c9" : "#fff";
+
+          html += `<td style="padding:6px;border:1px solid #444;text-align:right;color:${colorRL}">${saldoRL !== 0 ? formatRupiah(saldoRL) : ""}</td>`;
+          html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#0d1b2a;color:${colorSales}">${salesBulanIni !== 0 ? formatRupiah(salesBulanIni) : ""}</td>`;
+          html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#1a1a1a;color:${colorSelisih};font-weight:bold;">${selisih !== 0 ? formatRupiah(selisih) : ""}</td>`;
+          html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#2d3748;color:#00D2FF;">${pct}</td>`;
+          html += `<td style="padding:4px;border:1px solid #000;background:#000;width:15px;"></td>`;
+        }
+
+        for (let i = 0; i < 12; i++) {
+          accKepalaRL[i] += arrRL[i];
+          accKepalaSales[i] += arrSales[i];
+        }
+
+        totalKepalaRL += rowRL;
+        html += generateTotalCol(rowRL);
+        html += `</tr>`;
+      });
+
+      html += `<tr style="border-top:2px solid #fff; background:#111;">`;
+      html += `<td colspan="2" style="padding:8px;border:1px solid #444;text-align:right;font-weight:bold;color:#fff;">${cfg.subtotalName}</td>`;
+      html += generate12Cols(accKepalaRL, accKepalaSales, true, false);
+      html += generateTotalCol(totalKepalaRL);
+      html += `</tr>`;
+
+      grandTotalRL += totalKepalaRL;
+
+      if (kepala === 3) {
+        sumPenjualanRL = accKepalaRL.slice();
+        sumPenjualanSales = accKepalaSales.slice();
+      }
+      if (kepala === 4) {
+        sumHppRL = accKepalaRL.slice();
+        sumHppSales = accKepalaSales.slice();
+      }
+    });
+
+    // ITEM TAMBAHAN SALES
+    html += `<tr style="background:#312e81;"><td colspan="2" style="padding:8px;border:1px solid #444;font-weight:bold;color:#fff;">ITEM TAMBAHAN SALES</td>`;
+    html += `<td colspan="60" style="padding:0;border:1px solid #312e81;background:#312e81;"></td>`;
+    html += `<td style="padding:0;border:1px solid #312e81;background:#312e81;"></td></tr>`;
+
+    var accExtraSales = new Array(12).fill(0);
+    var accExtraRL = new Array(12).fill(0);
+
+    listNoperTambahan.forEach((itemExtra) => {
+      html += `<tr><td style="padding:6px;border:1px solid #444;color:#a5b4fc;font-weight:bold;mso-number-format:'\\@';">${itemExtra.kode}</td>`;
+      html += `<td style="padding:6px;border:1px solid #444; min-width:220px;">${itemExtra.nama}</td>`;
+
+      for (let b = 1; b <= 12; b++) {
+        let blnStr = ("0" + b).slice(-2);
+        let salesBulanIni = 0;
+
+        filteredSales.forEach((s) => {
+          let noperSales = String(s.noper).trim().toUpperCase();
+          let masaSales = String(s.masa || s.ma || "").trim();
+          if (
+            noperSales === itemExtra.kode &&
+            masaSales === blnStr + duaDigitTahun
+          ) {
+            salesBulanIni += Number(s.amount || s.total || 0);
+          }
+        });
+
+        accExtraSales[b - 1] += salesBulanIni;
+        let selisih = 0 - salesBulanIni;
+        let colorSales = salesBulanIni > 0 ? "#bbdefb" : "#fff";
+        let colorSelisih = selisih < 0 ? "#ffcdd2" : "#fff";
+
+        html += `<td style="padding:6px;border:1px solid #444;text-align:right;color:#fff;"></td>`;
+        html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#0d1b2a;color:${colorSales}">${salesBulanIni !== 0 ? formatRupiah(salesBulanIni) : ""}</td>`;
+        html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#1a1a1a;color:${colorSelisih};font-weight:bold;">${selisih !== 0 ? formatRupiah(selisih) : ""}</td>`;
+        html += `<td style="padding:6px;border:1px solid #444;text-align:right;background:#2d3748;color:#00D2FF;">0%</td>`;
+        html += `<td style="padding:4px;border:1px solid #000;background:#000;width:15px;"></td>`;
+      }
+
+      html += generateTotalCol(0);
+      html += `</tr>`;
+    });
+
+    html += `<tr style="border-top:2px solid #fff; background:#1e1b4b;">`;
+    html += `<td colspan="2" style="padding:8px;border:1px solid #444;text-align:right;font-weight:bold;color:#a5b4fc;">Subtotal Item Tambahan</td>`;
+    html += generate12Cols(accExtraRL, accExtraSales, true, false);
+    html += generateTotalCol(0);
+    html += `</tr>`;
+
+    // TOTAL SALES COMBINED
+    var combinedTotalSalesRL = new Array(12).fill(0);
+    var combinedTotalSalesSales = new Array(12).fill(0);
+    var customSelisihTotalSales = new Array(12).fill(0);
+
+    for (let i = 0; i < 12; i++) {
+      combinedTotalSalesSales[i] = sumHppSales[i] + accExtraSales[i];
+      let selisihHpp = sumHppRL[i] - sumHppSales[i];
+      let selisihTambahan = 0 - accExtraSales[i];
+      customSelisihTotalSales[i] = selisihHpp + selisihTambahan;
+    }
+
+    html += `<tr style="border-bottom:3px double #00D2FF; background:#111;">`;
+    html += `<td colspan="2" style="padding:10px;border:1px solid #444;font-weight:bold;color:#00D2FF; font-size:1rem;">TOTAL SALES</td>`;
+    html += generate12Cols(
+      combinedTotalSalesRL,
+      combinedTotalSalesSales,
+      true,
+      true,
+      customSelisihTotalSales,
+    );
+    html += generateTotalCol(0);
+    html += `</tr>`;
+
+    // GRAND TOTAL
+    html += `<tr style="border-top:3px double #fff; font-weight:bold; background:#2c3e50;">
+      <td colspan="2" style="padding:10px;border:1px solid #444;text-align:right;">GRAND TOTAL RL</td>
+      <td colspan="60" style="padding:10px;border:1px solid #444;text-align:right;background:#1b5e20;color:#fff;">${formatRupiah(grandTotalRL)}</td>
+      <td style="padding:10px;border:1px solid #444;text-align:right;background:#1b5e20;color:#fff;">${formatRupiah(grandTotalRL)}</td>
+    </tr>`;
+
+    html += `</tbody></table></div>`;
+
+    // 🌟 5. BUKA TAB/WINDOW BARU + FUNGSI EXCEL BARU YANG SUDAH DIPERBAIKI
+    var fullHTML = `<!DOCTYPE html><html lang="id"><head><meta charset="UTF-8"><title>HPP vs Sales Detil - ${namaCab}</title>
+    <style>body{font-family:'Segoe UI',Tahoma,sans-serif;background:#121212;color:#e0e0e0;padding:20px;margin:0;} @media print{body{background:#fff;color:#000;} table{border-color:#000 !important;} td,th{color:#000 !important; background-color:#fff !important;}}</style></head>
+    <body>${html}
+    <script>
+      function formatRupiah(num){if(!num||isNaN(num))return"";return Math.abs(num).toLocaleString('id-ID');}
+      
+      // 🌟 FUNGSI BARU: EXPORT EXCEL DENGAN JUDUL
+      function exportToExcelDetil() {
+        var table = document.getElementById("tableVersusDetil");
+        var judulEl = document.getElementById("judulLaporan");
+        if(!table) return alert("Tabel tidak ditemukan!");
+        
+        // 1. Kloning tabel
+        var clone = table.cloneNode(true);
+        
+        // 2. Hapus elemen non-tabel
+        clone.querySelectorAll("button").forEach(b => b.remove());
+        
+        // 3. PROSES BERSIH-BERSIH ANGKA UNTUK EXCEL
+        var rows = clone.querySelectorAll("tr");
+        rows.forEach(function(tr) {
+          if(tr.querySelector("th")) return; 
+          
+          var cells = tr.querySelectorAll("td");
+          cells.forEach(function(td, index) {
+            var teks = td.textContent.trim();
+            if(teks === "") return;
+            
+            // Kolom 0 (No.Perk) & 1 (Nama) & Persen (%) -> Biarkan Teks
+            if(index === 0 || index === 1 || teks.includes("%")) {
+                td.style.cssText += "; mso-number-format:'\\@';";
+                if(index === 0 && td.childNodes[0] && td.childNodes[0].nodeType === 3) {
+                    td.childNodes[0].nodeValue = "'" + td.childNodes[0].nodeValue; // Amankan No.Perk
+                }
+                return;
+            }
+            
+            // Kolom Nominal
+            var angkaPolos = teks.replace(/[\.\,]/g, "");
+            
+            if(!isNaN(angkaPolos) && angkaPolos !== "") {
+                td.textContent = angkaPolos; 
+                td.style.cssText += "; mso-number-format:'#,##0'; text-align: right;";
+            } else {
+                td.style.cssText += "; mso-number-format:'\\@';";
+            }
+          });
+        });
+        
+        // 4. TAMBAHKAN JUDUL DI BARIS PALING ATAS EXCEL
+        var judulTeks = judulEl ? judulEl.textContent.trim() : "Laporan HPP vs Sales";
+        var headerJudulExcel = '<tr><td colspan="99" style="font-size:16px; font-weight:bold; text-align:center; mso-number-format:\\'@\\';">' + judulTeks + '</td></tr>';
+        
+        // Sisipkan judul tepat di bawah <tbody>
+        var tbody = clone.querySelector("tbody");
+        if(tbody) tbody.insertAdjacentHTML('afterbegin', headerJudulExcel);
+
+        // 5. Bungkus XML Excel
+        var wrapperHtml = \`<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+        <head><meta charset="UTF-8">
+        <!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet>
+        <x:Name>Laporan VS</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+        </x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
+        <body>\${clone.outerHTML}</body></html>\`;
+
+        // 6. Download
+        var url = 'data:application/vnd.ms-excel,' + encodeURIComponent(wrapperHtml);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'HPP_vs_Sales_Detil_' + '${namaCab}' + '_' + '${filterTahunFull}' + '.xls';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+    </script>
+    </body></html>`;
+
+    var newWindow = window.open("", "_blank");
+    if (newWindow) {
+      newWindow.document.open();
+      newWindow.document.write(fullHTML);
+      newWindow.document.close();
+      if (typeof toast === "function")
+        toast("Tab perbandingan HPP vs Sales Detil berhasil dibuka!", "ok");
+    } else {
+      if (typeof toast === "function")
+        toast("Gagal membuka tab baru. Izinkan popup browser.", "err");
+    }
+  } catch (err) {
+    console.error("Error pada tampilkanVersusSD:", err);
+    if (typeof toast === "function")
+      toast("Terjadi kesalahan: " + err.message, "err");
+  }
 }
