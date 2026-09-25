@@ -79,6 +79,7 @@ function renderSalesGabungan() {
     { NOPER: "PAKET8", PENJELASAN: "PAKET8" },
     { NOPER: "PAMER", PENJELASAN: "PAKET MEETING" },
     { NOPER: "PRAS", PENJELASAN: "PRASMANAN" },
+    { NOPER: "SEAFOOD", PENJELASAN: "SEAFOOD" },
     { NOPER: "LAIN", PENJELASAN: "LAIN" },
     { NOPER: "SNACK", PENJELASAN: "SNACK" },
     { NOPER: "SNACKB", PENJELASAN: "SNACKB" },
@@ -845,65 +846,369 @@ function lihatGrafikSalesGabungan() {
 // ============================================
 // DETAIL SALES PER CABANG (KLIK NAMA CABANG)
 // ============================================
-function tampilkanDetailSalesCabang(kodeCabang) {
-  if (!window._salesGabunganData) return;
-
+async function tampilkanDetailSalesCabang(kodeCabang) {
+  // 1. Ambil Konfigurasi
   var d = window._salesGabunganData;
+  if (!d) return;
+
   var namaCabang = d.mapMasterCab[kodeCabang] || kodeCabang;
-  var dataCab = d.dataByCabang[kodeCabang] || {};
-  var arrKeys = d.arrNoper.concat(d.arrMenu);
+  var filterMasa = window._salesGabFilterMasa || "";
+  var activeGroup = d.activeGroup || "TLGA";
 
-  var html =
-    '<div style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd);">' +
-    "<h3>📋 Detail Sales Cabang: " +
-    esc(namaCabang) +
-    "</h3>" +
-    "<p style='color:var(--muted); font-size:.8rem;'>Masa: " +
-    (window._salesGabFilterMasa || "-") +
-    " | Group: " +
-    (d.activeGroup || "-") +
-    "</p>" +
-    '<table border="1" style="width:100%; border-collapse:collapse; margin-top:1rem;">' +
-    "<thead style='background:#f4f4f4;'><tr>" +
-    "<th style='padding:8px; border:1px solid #000;'>Noper / Menu</th>" +
-    "<th style='padding:8px; border:1px solid #000; text-align:right;'>QTY</th>" +
-    "<th style='padding:8px; border:1px solid #000; text-align:right;'>Amount</th>" +
-    "</tr></thead><tbody>";
+  // 2. Tentukan Batas Bulan (SD Bulan Yang Dipilih)
+  var batasBulan = filterMasa ? parseInt(filterMasa.substring(0, 2), 10) : 12;
+  if (isNaN(batasBulan) || batasBulan < 1) batasBulan = 12;
 
-  var totalQty = 0,
-    totalAmount = 0;
+  var namaBulan = [
+    "JAN",
+    "FEB",
+    "MAR",
+    "APR",
+    "MEI",
+    "JUN",
+    "JUL",
+    "AGS",
+    "SEP",
+    "OKT",
+    "NOV",
+    "DES",
+  ];
 
-  arrKeys.forEach(function (key) {
-    var item = dataCab[key];
-    if (!item) return;
-    totalQty += item.qty;
-    totalAmount += item.amount;
-    html +=
-      "<tr><td style='padding:6px 8px; border:1px solid #000;'>" +
-      esc(item.name) +
-      "</td>" +
-      "<td style='padding:6px 8px; border:1px solid #000; text-align:right;'>" +
-      fmtN(item.qty) +
-      "</td>" +
-      "<td style='padding:6px 8px; border:1px solid #000; text-align:right;'>" +
-      formatRupiah(item.amount) +
-      "</td></tr>";
+  var duaDigitTahun = filterMasa ? filterMasa.slice(-2) : "";
+  var daftarMasterNoper = Array.isArray(d.arrNoper) ? d.arrNoper : [];
+
+  // 3. MAPPING MASTER PERKIRAAN
+  var mapMasterPerkiraan = {};
+  (DBCache.perkiraan || []).forEach(function (p) {
+    var kode = String(p.noper || p.noPerk || p.kode_akun || "")
+      .trim()
+      .toUpperCase();
+    if (kode) {
+      mapMasterPerkiraan[kode] = p.namaPerkiraan || p.nama || p.namagol || kode;
+    }
   });
 
-  html +=
-    "<tr style='background:#e9ecef; font-weight:bold;'><td style='padding:8px; border:1px solid #000; text-align:right;'>TOTAL</td>" +
-    "<td style='padding:8px; border:1px solid #000; text-align:right;'>" +
-    fmtN(totalQty) +
-    "</td>" +
-    "<td style='padding:8px; border:1px solid #000; text-align:right; color:#00D2FF;'>" +
-    formatRupiah(totalAmount) +
-    "</td></tr>";
+  // 4. LAZY LOAD DATASALES
+  if (!DBCache.datasales) DBCache.datasales = {};
+  var cacheKey = kodeCabang + "_" + activeGroup;
 
-  html +=
-    "</tbody></table>" +
-    '<button type="button" class="btn btn-inf" style="margin-top:1rem;" onclick="terapkanOpsiSalesGabungan()">← Kembali ke Gabungan</button>' +
-    "</div>";
+  if (!DBCache.datasales[cacheKey]) {
+    toast("Mengambil data sales cabang " + namaCabang + "...", "inf");
+    try {
+      var urlSales = `/api/data/datasales?cabang=${encodeURIComponent(kodeCabang)}&group=${encodeURIComponent(activeGroup)}`;
+      var response = await fetch(urlSales);
+      if (!response.ok) throw new Error("Server Error: " + response.status);
+      var rawData = await response.json();
+      DBCache.datasales[cacheKey] = Array.isArray(rawData) ? rawData : [];
+      toast("Data sales cabang " + namaCabang + " berhasil dimuat.", "ok");
+    } catch (err) {
+      console.error("Gagal load data sales:", err);
+      return toast("Gagal mengambil data sales: " + err.message, "err");
+    }
+  }
+
+  var rawSales = DBCache.datasales[cacheKey] || [];
+
+  // 6. Proses Data
+  var mapDetail = {};
+  daftarMasterNoper.forEach(function (itemNoper) {
+    var cleanKey = String(itemNoper).replace("NOPER:", "").trim().toUpperCase();
+    mapDetail[cleanKey] = {
+      name: mapMasterPerkiraan[cleanKey] || cleanKey,
+      bulanan: {},
+    };
+  });
+
+  rawSales.forEach(function (s) {
+    var rawNoperStr = String(s.noper).trim().toUpperCase();
+    var cleanKey = rawNoperStr.replace("NOPER:", "").trim();
+    var masa = String(s.masa || s.ma || "").trim();
+    var bulanAngka = parseInt(masa.substring(0, 2), 10);
+
+    if (
+      bulanAngka >= 1 &&
+      bulanAngka <= batasBulan &&
+      masa.endsWith(duaDigitTahun)
+    ) {
+      if (!mapDetail[cleanKey]) {
+        mapDetail[cleanKey] = {
+          name:
+            mapMasterPerkiraan[cleanKey] || s.nama || s.namamenu || cleanKey,
+          bulanan: {},
+        };
+      }
+      if (!mapDetail[cleanKey].bulanan[bulanAngka]) {
+        mapDetail[cleanKey].bulanan[bulanAngka] = { qty: 0, amount: 0 };
+      }
+      mapDetail[cleanKey].bulanan[bulanAngka].qty += num(s.qty || 0);
+      mapDetail[cleanKey].bulanan[bulanAngka].amount += num(
+        s.amount || s.total || 0,
+      );
+    }
+  });
+
+  // 7. Bangun HTML
+  var html = `
+    <div style="background:var(--card); padding:1rem; border-radius:var(--r); border:1px solid var(--brd); overflow-x:auto;">
+      <h3>📋 Detail Sales Cabang: ${esc(namaCabang)}</h3>
+      <p style="color:var(--muted); font-size:.8rem;">Periode: Januari s/d ${namaBulan[batasBulan - 1]} ${duaDigitTahun} | Group: ${esc(activeGroup)}</p>
+      <table border="1" style="width:100%; border-collapse:collapse; margin-top:1rem; min-width: 900px; font-size:.85rem;">
+        <thead style="background:#f4f4f4;">
+          <tr>
+            <th rowspan="2" style="padding:8px; border:1px solid #000; text-align:left; min-width:150px;">Noper / Menu</th>`;
+
+  for (var i = 1; i <= batasBulan; i++) {
+    html += `<th colspan="2" style="padding:8px; border:1px solid #000; text-align:center; background:#e2e3e5;">${namaBulan[i - 1]}</th>`;
+  }
+
+  html += `
+            <th colspan="2" style="padding:8px; border:1px solid #000; text-align:center; background:#004d40; color:#fff;">TOTAL</th>
+          </tr>
+          <tr>`;
+
+  for (var j = 1; j <= batasBulan; j++) {
+    html += `
+            <th style="padding:6px; border:1px solid #000; text-align:right; width:90px;">QTY</th>
+            <th style="padding:6px; border:1px solid #000; text-align:right; width:120px;">Amount</th>`;
+  }
+
+  html += `
+     
+             <th style="padding:6px; border:1px solid #000; text-align:right; width:90px;">QTY</th>
+            <th style="padding:6px; border:1px solid #000; text-align:right; width:120px;">Amount</th>
+   
+            </tr>
+        </thead>
+        <tbody>`;
+
+  var grandTotalQty = 0,
+    grandTotalAmount = 0;
+  var sortedKeys = Object.keys(mapDetail).sort();
+
+  if (sortedKeys.length === 0) {
+    html += `<tr><td colspan="${batasBulan * 2 + 3}" style="padding:2rem; text-align:center; border:1px solid #000;">Tidak ada data sales untuk periode ini.</td></tr>`;
+  }
+
+  sortedKeys.forEach(function (key) {
+    var item = mapDetail[key];
+
+    // PERBAIKAN UTAMA: Menggunakan &apos; agar HTML tidak rusak/terputus
+    var safeKey = key.replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+    var safeCab = kodeCabang.replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+
+    html += `
+          <tr>
+            <td style="padding:6px 8px; border:1px solid #000; font-weight:bold;">
+              <span style="color:#0d6efd; cursor:pointer; text-decoration:underline;" onclick="tampilkanPopupDetailTransaksiSales('${safeCab}', '${safeKey}', ${batasBulan}, '${duaDigitTahun}')">${esc(item.name)}</span>
+            </td>`;
+
+    var rowTotalQty = 0,
+      rowTotalAmount = 0;
+
+    for (var b = 1; b <= batasBulan; b++) {
+      var dataBulan = item.bulanan[b];
+      var qtyBulan = dataBulan ? dataBulan.qty : 0;
+      var amountBulan = dataBulan ? dataBulan.amount : 0;
+
+      rowTotalQty += qtyBulan;
+      rowTotalAmount += amountBulan;
+
+      html += `
+            <td style="padding:6px; border:1px solid #000; text-align:right;">${qtyBulan !== 0 ? fmtN(qtyBulan) : ""}</td>
+            <td style="padding:6px; border:1px solid #000; text-align:right;">${amountBulan !== 0 ? formatRupiah(amountBulan) : ""}</td>`;
+    }
+
+    grandTotalQty += rowTotalQty;
+    grandTotalAmount += rowTotalAmount;
+
+    html += `
+              <td style="padding:6px; border:1px solid #000; text-align:right; font-weight:bold;">${fmtN(rowTotalQty)}</td>
+            <td style="padding:6px; border:1px solid #000; text-align:right; font-weight:bold; ">${formatRupiah(rowTotalAmount)}</td>
+        </tr>`;
+  });
+
+  html += `
+          <tr style="background:#004d40; color:#fff; font-weight:bold;">
+            <td style="padding:8px; border:1px solid #000; text-align:right;">GRAND TOTAL</td>`;
+
+  for (var t = 1; t <= batasBulan; t++) {
+    var totQtyBulan = 0,
+      totAmtBulan = 0;
+    sortedKeys.forEach(function (key) {
+      var dBulan = mapDetail[key].bulanan[t];
+      if (dBulan) {
+        totQtyBulan += dBulan.qty;
+        totAmtBulan += dBulan.amount;
+      }
+    });
+    html += `
+         <td style="padding:8px; border:1px solid #000; text-align:right;">${fmtN(totQtyBulan)}</td>
+     <td style="padding:8px; border:1px solid #000; text-align:right;">${formatRupiah(totAmtBulan)}</td>`;
+  }
+
+  html += `
+            <td style="padding:8px; border:1px solid #000; text-align:right;">${fmtN(grandTotalQty)}</td>
+            <td style="padding:8px; border:1px solid #000; text-align:right;">${formatRupiah(grandTotalAmount)}</td>
+          </tr>
+        </tbody>
+      </table>
+      <button type="button" class="btn btn-inf" style="margin-top:1rem;" onclick="terapkanOpsiSalesGabungan()">← Kembali ke Gabungan</button>
+    </div>`;
 
   var area = document.getElementById("tempat_tabel_salesgab");
   if (area) area.innerHTML = html;
+}
+
+function tampilkanPopupDetailTransaksiSales(
+  kodeCabang,
+  noper,
+  batasBulan,
+  duaDigitTahun,
+) {
+  var d = window._salesGabunganData;
+  if (!d) return;
+
+  var namaCabang = d.mapMasterCab[kodeCabang] || kodeCabang;
+  var activeGroup = d.activeGroup || "TLGA";
+  var cacheKey = kodeCabang + "_" + activeGroup;
+  var rawSales = (DBCache.datasales && DBCache.datasales[cacheKey]) || [];
+
+  // MAPPING MASTER PERKIRAAN (sebagai cadangan jika properti menu di sales kosong)
+  var mapMasterPerkiraan = {};
+  if (DBCache.perkiraan) {
+    DBCache.perkiraan.forEach(function (p) {
+      var kode = String(p.noper || p.noPerk || p.kode_akun || "")
+        .trim()
+        .toUpperCase();
+      if (kode) {
+        mapMasterPerkiraan[kode] =
+          p.namaPerkiraan || p.nama || p.namagol || kode;
+      }
+    });
+  }
+
+  // Filter data sesuai noper yang dipilih
+  var filteredData = rawSales.filter(function (s) {
+    var rawNoperStr = String(s.noper || s.kode_menu || "")
+      .trim()
+      .toUpperCase();
+    var cleanKey = rawNoperStr.replace("NOPER:", "").trim();
+    var masa = String(s.masa || s.ma || "").trim();
+    var bulanAngka = parseInt(masa.substring(0, 2), 10);
+
+    return (
+      cleanKey === noper.toUpperCase() &&
+      bulanAngka >= 1 &&
+      bulanAngka <= batasBulan &&
+      masa.endsWith(duaDigitTahun)
+    );
+  });
+
+  var namaPerkiraanUtama = mapMasterPerkiraan[noper.toUpperCase()] || noper;
+
+  // Bangun Konten Tabel Popup
+  var html =
+    '<div id="modalDetailSales" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; z-index:9999;">' +
+    '<div style="background:var(--card, #fff); padding:1.5rem; border-radius:8px; width:90%; max-width:950px; max-height:85vh; overflow-y:auto; box-shadow:0 4px 12px rgba(0,0,0,0.2);">' +
+    '<div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid #ddd; padding-bottom:10px; margin-bottom:1rem;">' +
+    "<h3 style='margin:0; font-size:1.1rem;'>🔍 Detail Transaksi: " +
+    esc(namaPerkiraanUtama) +
+    "</h3>" +
+    '<button type="button" onclick="document.getElementById(\'modalDetailSales\').remove()" style="background:none; border:none; font-size:1.2rem; cursor:pointer; font-weight:bold;">&times;</button>' +
+    "</div>" +
+    "<p style='color:var(--muted, #6c757d); font-size:0.85rem; margin-bottom:1rem;'>" +
+    "Cabang: <b>" +
+    esc(namaCabang) +
+    "</b> | Noper Utama: <b>" +
+    esc(noper) +
+    "</b>" +
+    "</p>";
+
+  if (filteredData.length === 0) {
+    html +=
+      "<p style='text-align:center; padding:2rem; color:#777;'>Tidak ada rincian transaksi untuk item ini.</p>";
+  } else {
+    html +=
+      '<table border="1" style="width:100%; border-collapse:collapse; font-size:0.85rem;">' +
+      "<thead style='background:#f4f4f4;'><tr>" +
+      "<th style='padding:6px; border:1px solid #ddd; text-align:center;'>No</th>" +
+      "<th style='padding:6px; border:1px solid #ddd;'>Kode Menu</th>" +
+      "<th style='padding:6px; border:1px solid #ddd;'>Nama Menu</th>" +
+      "<th style='padding:6px; border:1px solid #ddd; text-align:center;'>Satuan</th>" +
+      "<th style='padding:6px; border:1px solid #ddd; text-align:center;'>Masa / Bulan</th>" +
+      "<th style='padding:6px; border:1px solid #ddd; text-align:right;'>QTY</th>" +
+      "<th style='padding:6px; border:1px solid #ddd; text-align:right;'>Amount</th>" +
+      "</tr></thead><tbody>";
+
+    var totalQty = 0,
+      totalAmount = 0;
+
+    filteredData.forEach(function (row, idx) {
+      var q = num(row.qty || 0);
+      var a = num(row.amount || row.total || 0);
+      totalQty += q;
+      totalAmount += a;
+
+      var kodeMenuDatasales = String(row.kodemenu || row.noper || noper).trim();
+      var cleanKodeMenu = kodeMenuDatasales
+        .replace("NOPER:", "")
+        .trim()
+        .toUpperCase();
+      var namaMenuDatasales =
+        row.namamenu ||
+        row.nama ||
+        row.namamenu ||
+        mapMasterPerkiraan[cleanKodeMenu] ||
+        cleanKodeMenu;
+
+      // Ambil satuan dari datasales (sesuaikan properti jika di data Anda berbeda, misal: row.satuan, row.sat, atau row.uom)
+      var satuanItem = String(row.satuan || row.sat || row.uom || "-").trim();
+
+      html +=
+        "<tr>" +
+        "<td style='padding:6px; border:1px solid #ddd; text-align:center;'>" +
+        (idx + 1) +
+        "</td>" +
+        "<td style='padding:6px; border:1px solid #ddd;'>" +
+        esc(cleanKodeMenu) +
+        "</td>" +
+        "<td style='padding:6px; border:1px solid #ddd;'>" +
+        esc(namaMenuDatasales) +
+        "</td>" +
+        "<td style='padding:6px; border:1px solid #ddd; text-align:center;'>" +
+        esc(satuanItem) +
+        "</td>" +
+        "<td style='padding:6px; border:1px solid #ddd; text-align:center;'>" +
+        esc(row.masa || row.ma || "-") +
+        "</td>" +
+        "<td style='padding:6px; border:1px solid #ddd; text-align:right;'>" +
+        fmtN(q) +
+        "</td>" +
+        "<td style='padding:6px; border:1px solid #ddd; text-align:right;'>" +
+        formatRupiah(a) +
+        "</td>" +
+        "</tr>";
+    });
+
+    html +=
+      "<tr style='background:#004d40; color:#fff; font-weight:bold;'>" +
+      "<td colspan='5' style='padding:8px; border:1px solid #000; text-align:right;'>TOTAL</td>" +
+      "<td style='padding:8px; border:1px solid #000; text-align:right;'>" +
+      fmtN(totalQty) +
+      "</td>" +
+      "<td style='padding:8px; border:1px solid #000; text-align:right;'>" +
+      formatRupiah(totalAmount) +
+      "</td>" +
+      "</tr></tbody></table>";
+  }
+
+  html +=
+    '<div style="text-align:right; margin-top:1.5rem;">' +
+    '<button type="button" onclick="document.getElementById(\'modalDetailSales\').remove()" style="padding:6px 14px; background:#6c757d; color:#fff; border:none; border-radius:4px; cursor:pointer;">Tutup</button>' +
+    "</div></div></div>";
+
+  var existingModal = document.getElementById("modalDetailSales");
+  if (existingModal) existingModal.remove();
+
+  document.body.insertAdjacentHTML("beforeend", html);
 }
