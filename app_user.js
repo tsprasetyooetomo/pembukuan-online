@@ -10,7 +10,7 @@ async function renderUser() {
     return r.id;
   });
   bulkInit("users", ids);
-
+  console.log(data);
   var rows = data.map(function (r) {
     var roleTag =
       r.role === "Admin"
