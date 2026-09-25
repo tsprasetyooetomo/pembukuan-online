@@ -1568,14 +1568,14 @@ function printMutasi() {
 
   var totalRp = 0;
   detilData.forEach(function (t) {
-    totalRp += num(t.total || t.db || t.cr || 0);
+    totalRp += num(t.db + t.cr || 0);
   });
 
   var kbList = Array.isArray(DBCache.kodeBank) ? DBCache.kodeBank : [];
   var kbData = kbList.find(function (k) {
-    return k.kodebank === kodeBank;
+    return k.kode === kodeBank;
   });
-  var kbPenjelasan = kbData ? kbData.penjelasan : "";
+  var kbPenjelasan = kbData ? kbData.desc : "";
 
   var printHtml =
     "<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Print Mutasi - " +
@@ -1610,11 +1610,11 @@ function printMutasi() {
       "<tr><td class='center'>" +
       (idx + 1) +
       "</td><td>" +
-      esc(d.noperkiraan || d.noPerk || "-") +
+      esc(d.noper || d.noPerk || "-") +
       "</td><td>" +
-      esc(d.desc || d.keterangan || "-") +
+      esc(d.penjelasan || d.keterangan || "-") +
       "</td><td class='rp'>" +
-      fmtN(d.total || d.db || d.cr || 0) +
+      fmtN(d.db + d.cr || 0) +
       "</td></tr>";
   });
 
