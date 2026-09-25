@@ -1,0 +1,2503 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sisten Informasi Data Karyawan</title>
+    <!-- Bootstrap CSS -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- DataTables CSS -->
+    <link
+      rel="stylesheet"
+      href="https://cdn.datatables.net/1.13.7/css/dataTables.bootstrap5.min.css"
+    />
+    <!-- Font Awesome -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+    />
+
+    <style>
+      :root {
+        --primary: #0d6efd;
+        --danger: #dc3545;
+        --success: #198754;
+        --warning: #ffc107;
+        --info: #0dcaf0;
+        --dark: #212529;
+        --muted: #6c757d;
+        --bg-body: #f0f2f5;
+        --card-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
+        --card-radius: 10px;
+      }
+
+      body {
+        background-color: var(--bg-body);
+        font-family:
+          "Segoe UI",
+          system-ui,
+          -apple-system,
+          sans-serif;
+        color: #333;
+      }
+
+      .container-fluid {
+        padding-top: 20px;
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+
+      /* ============ NAV TABS ============ */
+      .nav-tabs {
+        border-bottom: 2px solid #dee2e6;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
+      }
+      .nav-tabs::-webkit-scrollbar {
+        height: 3px;
+      }
+      .nav-tabs::-webkit-scrollbar-thumb {
+        background: #ccc;
+        border-radius: 10px;
+      }
+      .nav-tabs .nav-link {
+        font-weight: 600;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        padding: 0.6rem 1rem;
+        color: var(--muted);
+        border: none;
+        border-bottom: 3px solid transparent;
+        transition: all 0.2s ease;
+      }
+      .nav-tabs .nav-link:hover {
+        color: var(--primary);
+        border-bottom-color: rgba(13, 110, 253, 0.3);
+        background: rgba(13, 110, 253, 0.04);
+      }
+      .nav-tabs .nav-link.active {
+        color: var(--primary);
+        border-bottom-color: var(--primary);
+        background: transparent;
+      }
+
+      /* ============ CARD ============ */
+      .card {
+        margin-bottom: 20px;
+        border: none;
+        border-radius: var(--card-radius);
+        box-shadow: var(--card-shadow);
+      }
+      .card-header {
+        font-weight: 700;
+        background-color: var(--primary);
+        color: white;
+        border-radius: var(--card-radius) var(--card-radius) 0 0 !important;
+        padding: 0.85rem 1.25rem;
+        font-size: 0.95rem;
+      }
+      .card-header.bg-info {
+        background-color: var(--info) !important;
+        color: var(--dark) !important;
+      }
+      .card-header.bg-dark {
+        background-color: var(--dark) !important;
+      }
+      .card-header.bg-secondary {
+        background-color: #6c757d !important;
+      }
+      .card-body {
+        padding: 1.25rem;
+      }
+
+      /* ============ LOGIN ============ */
+      .login-container {
+        max-width: 420px;
+        margin: auto;
+        margin-top: 80px;
+      }
+      .login-container .card {
+        border-radius: 16px;
+        overflow: hidden;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+      }
+      .login-container .card-header {
+        background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+        font-size: 1.1rem;
+        padding: 1.2rem;
+        text-align: center;
+      }
+      .login-container .card-header h4 {
+        margin: 0;
+      }
+
+      /* ============ MAIN APP ============ */
+      .main-app {
+        display: none;
+      }
+      .profile-info {
+        position: absolute;
+        top: 10px;
+        right: 20px;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: white;
+        padding: 6px 14px;
+        border-radius: 30px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+      .profile-info span {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: var(--dark);
+      }
+
+      /* ============ FORM GRID KARYAWAN & CABANG ============ */
+      .grid-form-karyawan {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 20px;
+      }
+      .input-section {
+        grid-column: 1;
+      }
+      .foto-section {
+        grid-column: 2;
+        grid-row: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 15px;
+        background: #fafbfc;
+        border: 2px dashed #d0d7de;
+        border-radius: var(--card-radius);
+        transition: border-color 0.2s;
+      }
+      .foto-section:hover {
+        border-color: var(--primary);
+      }
+
+      @media (max-width: 768px) {
+        .grid-form-karyawan {
+          grid-template-columns: 1fr;
+        }
+        .foto-section {
+          grid-column: 1;
+          grid-row: auto;
+        }
+        .profile-info {
+          position: static;
+          justify-content: center;
+          margin-bottom: 10px;
+          border-radius: 8px;
+        }
+        .nav-tabs .nav-link {
+          font-size: 0.75rem;
+          padding: 0.5rem 0.7rem;
+        }
+      }
+
+      /* ============ IMAGE PREVIEW ============ */
+      .img-preview-box {
+        width: 100%;
+        height: 250px;
+        object-fit: cover;
+        object-position: center top;
+        border: 2px solid #e0e0e0;
+        border-radius: 8px;
+        background-color: #f5f5f5;
+        transition: border-color 0.2s;
+      }
+      .img-preview-box:hover {
+        border-color: var(--primary);
+      }
+
+      /* ============ TABEL ============ */
+      .table-responsive {
+        margin-top: 10px;
+      }
+      .col-numerator {
+        width: 50px !important;
+        min-width: 50px !important;
+        max-width: 50px !important;
+        text-align: center;
+        white-space: nowrap;
+      }
+      .img-zoom {
+        width: 45px;
+        height: 55px;
+        object-fit: cover;
+        border-radius: 6px;
+        cursor: pointer;
+        border: 2px solid #e0e0e0;
+        transition: all 0.2s ease;
+      }
+      .img-zoom:hover {
+        transform: scale(1.15);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        border-color: var(--primary);
+      }
+
+      /* ============ FORM CONTROL ============ */
+      .form-label {
+        font-weight: 600;
+        font-size: 0.82rem;
+        color: #495057;
+        margin-bottom: 0.3rem;
+      }
+      .form-control:focus,
+      .form-select:focus {
+        border-color: var(--primary);
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.15);
+      }
+      #userPassword {
+        width: 100% !important;
+        min-width: 150px;
+      }
+
+      /* ============ BTN GROUP Aksi ============ */
+      .btn-group-action {
+        display: flex;
+        gap: 4px;
+        flex-wrap: nowrap;
+      }
+      .btn-group-action .btn {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.78rem;
+      }
+
+      /* ============ FILTER BAR ============ */
+      .filter-bar {
+        background: #f8f9fa;
+        padding: 1rem;
+        border-radius: 8px;
+        border: 1px solid #e9ecef;
+        margin-bottom: 1rem;
+      }
+      .filter-bar .form-label {
+        font-weight: 700;
+        font-size: 0.78rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--muted);
+      }
+
+      /* ============ PREVIEW IMPORT ============ */
+      .preview-duplicate {
+        background-color: #f0f0f0 !important;
+        color: #999 !important;
+      }
+      .preview-new {
+        background-color: #d4edda !important;
+      }
+
+      /* ============ MODAL FOTO ============ */
+      .modal-content.bg-dark {
+        border-radius: 12px;
+        overflow: hidden;
+      }
+
+      /* ============ FACE TAB ============ */
+      .camera-container {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 15px;
+      }
+      .camera-container video,
+      .camera-container canvas {
+        border-radius: 12px;
+      }
+
+      /* ============ ANIMASI SUBTLE ============ */
+      @keyframes fadeInUp {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .tab-pane.show {
+        animation: fadeInUp 0.3s ease;
+      }
+
+      /* ============ TABLE DATA TABLES OVERRIDES ============ */
+      .dataTables_wrapper .dataTables_filter input {
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+        padding: 0.35rem 0.75rem;
+      }
+      .dataTables_wrapper .dataTables_length select {
+        border-radius: 6px;
+        border: 1px solid #dee2e6;
+        padding: 0.35rem;
+      }
+      .page-item.active .page-link {
+        background-color: var(--primary);
+        border-color: var(--primary);
+      }
+    </style>
+    <!-- Di dalam <head> ... </head> -->
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- ============================================= -->
+    <!-- LOGIN SCREEN                                  -->
+    <!-- ============================================= -->
+    <div id="loginScreen" class="login-container">
+      <div class="card">
+        <div class="card-header">
+          <h4>
+            <i class="fas fa-users-cog me-2"></i>Sistem Informasi Karyawan
+          </h4>
+        </div>
+        <div class="card-body">
+          <form id="loginForm">
+            <div class="mb-3">
+              <label for="username" class="form-label">Username</label>
+              <div class="input-group">
+                <span class="input-group-text"
+                  ><i class="fas fa-user"></i
+                ></span>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="username"
+                  placeholder="Masukkan username"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="password" class="form-label">Password</label>
+              <div class="input-group">
+                <span class="input-group-text"
+                  ><i class="fas fa-lock"></i
+                ></span>
+                <input
+                  type="password"
+                  class="form-control"
+                  id="password"
+                  placeholder="Masukkan password"
+                  required
+                />
+                <button
+                  class="btn btn-outline-secondary"
+                  type="button"
+                  id="btnTogglePassword"
+                >
+                  <i class="fas fa-eye"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label for="role" class="form-label">Login Sebagai</label>
+              <div class="input-group">
+                <span class="input-group-text"
+                  ><i class="fas fa-id-badge"></i
+                ></span>
+                <select class="form-select" id="role">
+                  <option value="User">User</option>
+                  b
+                  <option value="Admin">Admin</option>
+                  <option value="Manajer">Manajer</option>
+                </select>
+              </div>
+            </div>
+
+            <button type="submit" class="btn btn-primary w-100 py-2 mt-2">
+              <i class="fas fa-sign-in-alt me-1"></i> Login
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============================================= -->
+    <!-- MAIN APPLICATION                              -->
+    <!-- ============================================= -->
+    <div id="mainApp" class="main-app">
+      <!-- Profile Bar -->
+      <div class="profile-info">
+        <i
+          class="fas fa-user-circle text-primary"
+          style="font-size: 1.3rem"
+        ></i>
+        <span id="currentUser"></span>
+        <button
+          class="btn btn-sm btn-outline-danger"
+          onclick="logout()"
+          title="Logout"
+        >
+          <i class="fas fa-sign-out-alt"></i>
+        </button>
+        <button
+          class="btn btn-sm btn-outline-warning"
+          onclick="
+            if (
+              confirm(
+                'PERINGATAN: Semua data akan dihapus secara permanen dari memori. Lanjutkan?',
+              )
+            )
+              clearDataInMemory();
+          "
+          title="Hapus semua data dari memori"
+        >
+          <i class="fas fa-eraser"></i>
+        </button>
+      </div>
+
+      <div class="container-fluid">
+        <h2 class="text-center mb-4 fw-bold">Sistem Informasi Data Karyawan</h2>
+
+        <!-- ============ TAB NAVIGATION ============ -->
+        <ul class="nav nav-tabs mb-3" id="myTab" role="tablist">
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link active"
+              id="karyawan-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#karyawan-pane"
+              type="button"
+              role="tab"
+            >
+              <i class="fas fa-user me-1"></i> Data Karyawan
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="gaji-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#gaji-pane"
+              type="button"
+              role="tab"
+            >
+              <i class="fas fa-money-bill-wave me-1"></i> Data Gaji
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="mutasi-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#mutasi-pane"
+              type="button"
+              role="tab"
+            >
+              <i class="fas fa-exchange-alt me-1"></i> Data Mutasi
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="cabang-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#cabang-pane"
+              type="button"
+              role="tab"
+            >
+              <i class="fas fa-building me-1"></i> Data Cabang
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="laporan-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#laporan-pane"
+              type="button"
+              role="tab"
+            >
+              <i class="fas fa-file-alt me-1"></i> Laporan
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="hitgaji-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#hitgaji-pane"
+              type="button"
+              role="tab"
+            >
+              <i class="fas fa-calculator me-1"></i> Hitungan Gaji
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="hitabsen-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#hitabsen-pane"
+              type="button"
+              role="tab"
+            >
+              <i class="fas fa-upload me-1"></i> Import Absen
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="user-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#user-pane"
+              type="button"
+              role="tab"
+            >
+              <i class="fas fa-user-cog me-1"></i> User & Akses
+            </button>
+          </li>
+          <li class="nav-item" role="presentation">
+            <button
+              class="nav-link"
+              id="face-tab"
+              data-bs-toggle="tab"
+              data-bs-target="#face-pane"
+              type="button"
+              role="tab"
+            >
+              <i class="fas fa-fingerprint me-1"></i> Absen Wajah
+            </button>
+          </li>
+        </ul>
+
+        <!-- ============ TAB CONTENT ============ -->
+        <div class="tab-content" id="myTabContent">
+          <!-- =========================================== -->
+          <!-- TAB 1: DATA KARYAWAN                        -->
+          <!-- =========================================== -->
+          <div
+            class="tab-pane fade show active"
+            id="karyawan-pane"
+            role="tabpanel"
+          >
+            <!-- Form Input -->
+            <div class="card">
+              <div class="card-header">
+                <i class="fas fa-plus-circle me-1"></i> Input Data Karyawan
+              </div>
+              <div class="card-body">
+                <form id="formKaryawan">
+                  <input type="hidden" id="karyawanId" />
+                  <div class="grid-form-karyawan">
+                    <div class="input-section">
+                      <div class="row">
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">NIK</label>
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="nik"
+                            placeholder="Masukkan NIK"
+                            required
+                          />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Nama Lengkap</label>
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="nama"
+                            placeholder="Nama sesuai KTP"
+                            required
+                          />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Nama Panggilan</label>
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="nikname"
+                            placeholder="Nama Panggilan"
+                          />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                          <label class="form-label">Status</label>
+                          <select class="form-select" id="status" required>
+                            <option>TK/0</option>
+                            <option>K/0</option>
+                            <option>K/1</option>
+                            <option>K/2</option>
+                            <option>K/3</option>
+                          </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                          <label class="form-label">Lulusan</label>
+                          <select class="form-select" id="lulusan" required>
+                            <option>SD</option>
+                            <option>SMP</option>
+                            <option>SMA</option>
+                            <option>S1</option>
+                            <option>S2</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div class="row">
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Alamat</label>
+                          <textarea
+                            class="form-control"
+                            id="alamat"
+                            rows="2"
+                            placeholder="Alamat Domisili"
+                            required
+                          ></textarea>
+                        </div>
+                      </div>
+                      <div class="row">
+                        <div class="col-md-4 mb-3">
+                          <label class="form-label">Jabatan</label>
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="jabatan"
+                            required
+                          />
+                        </div>
+                        <div class="col-md-4 mb-3">
+                          <label class="form-label">Cabang</label>
+                          <select
+                            class="form-select"
+                            id="cabangPenempatan"
+                            required
+                          >
+                            <option value="">-- Pilih Cabang --</option>
+                          </select>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                          <label class="form-label">Tanggal Masuk</label>
+                          <input
+                            type="date"
+                            class="form-control"
+                            id="tanggalMasuk"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div class="row">
+                        <div class="col-md-4 mb-3">
+                          <label class="form-label"
+                            >KIS / BPJS-KES / NONE</label
+                          >
+                          <select class="form-select" id="kis" required>
+                            <option>KIS</option>
+                            <option>BPJS-KES</option>
+                            <option>NONE</option>
+                          </select>
+                        </div>
+                        <div class="col-md-3 mb-3">
+                          <label class="form-label">Id Karyawan</label>
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="idkaryawan"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="foto-section">
+                      <label class="fw-bold mb-2">Pas Foto Karyawan</label>
+                      <img
+                        id="imgPreview"
+                        class="img-preview-box"
+                        src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjI1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTBlMGUwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjOTk5Ij5ObyBJbWFnZTwvdGV4dD48L3N2Zz4="
+                        alt="Preview"
+                      />
+                      <input
+                        type="file"
+                        class="form-control mt-3"
+                        id="fotoInput"
+                        accept="image/*"
+                      />
+                    </div>
+                  </div>
+
+                  <button type="submit" class="btn btn-success mt-2">
+                    <i class="fas fa-save me-1"></i> Simpan
+                  </button>
+                  <button
+                    type="reset"
+                    class="btn btn-secondary mt-2"
+                    onclick="resetKaryawanForm()"
+                  >
+                    <i class="fas fa-redo me-1"></i> Reset
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Import Excel -->
+            <div class="card">
+              <div class="card-header bg-info">
+                <i class="fas fa-file-excel me-1"></i> Import Data Karyawan dari
+                Excel
+              </div>
+              <div class="card-body">
+                <p class="mb-2">
+                  Pilih file Excel (<code>.xlsx</code>) dengan kolom:
+                  <strong
+                    >nik, nama, alamat, status, cabang, jabatan, TglMasuk,
+                    Lulusan</strong
+                  >
+                </p>
+                <input
+                  type="file"
+                  id="fileKaryawanInput"
+                  accept=".xlsx, .xls"
+                />
+                <button id="btnPreviewImport" class="btn btn-primary mt-2">
+                  <i class="fas fa-eye me-1"></i> Preview Data
+                </button>
+              </div>
+
+              <div
+                id="previewContainer"
+                style="display: none"
+                class="card-body border-top"
+              >
+                <h5 class="mb-2">Preview Data yang Akan Diimport</h5>
+                <p class="text-muted small mb-3">
+                  Baris hijau = data baru. Baris abu-abu = duplikat (tidak akan
+                  ditambahkan).
+                </p>
+                <div class="table-responsive">
+                  <table
+                    class="table table-bordered table-hover"
+                    id="previewTable"
+                  >
+                    <thead class="table-light">
+                      <tr>
+                        <th>NIK</th>
+                        <th>Nama</th>
+                        <th>NikName</th>
+                        <th>Alamat</th>
+                        <th>Status</th>
+                        <th>Cabang</th>
+                        <th>Jabatan</th>
+                        <th>TglMasuk</th>
+                        <th>Lulusan</th>
+                        <th>Status Import</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <div class="mt-3">
+                  <button id="btnConfirmImport" class="btn btn-success">
+                    <i class="fas fa-check me-1"></i> Ya, Import Data
+                  </button>
+                  <button id="btnCancelImport" class="btn btn-secondary ms-2">
+                    <i class="fas fa-times me-1"></i> Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+            <div class="filter-bar">
+              <div class="row align-items-end">
+                <div class="col-md-4 mb-2 mb-md-0">
+                  <label class="form-label">Filter Cabang</label>
+                  <select
+                    class="form-select form-select-sm"
+                    id="filterLapCabangawal"
+                  >
+                    <option value="">Semua Cabang</option>
+                  </select>
+                </div>
+                <div class="col-md-4 mb-2 mb-md-0">
+                  <label class="form-label">Filter Jabatan</label>
+                  <select
+                    class="form-select form-select-sm"
+                    id="filterLapJabatanawal"
+                  >
+                    <option value="">Semua Jabatan</option>
+                  </select>
+                </div>
+                <div class="col-md-4">
+                  <button
+                    class="btn btn-primary btn-sm w-100"
+                    onclick="tampilkanLaporanKaryawanawal()"
+                  >
+                    <i class="fas fa-filter me-1"></i> Filter Data
+                  </button>
+                </div>
+              </div>
+            </div>
+            <!-- Tabel Data -->
+            <div class="card">
+              <div class="card-header">
+                <i class="fas fa-database me-1"></i> Data Karyawan Tersimpan
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table
+                    id="tableKaryawan"
+                    class="table table-striped table-bordered"
+                    style="width: 100%"
+                  >
+                    <thead>
+                      <tr>
+                        <th class="col-numerator">No</th>
+                        <th>NIK</th>
+                        <th>Nama</th>
+                        <th>Nickname</th>
+                        <th>Alamat</th>
+                        <th>Cabang</th>
+                        <th>Jabatan</th>
+                        <th>Status</th>
+                        <th>KIS/BPJS</th>
+                        <th>Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- =========================================== -->
+          <!-- TAB 2: DATA GAJI                            -->
+          <!-- =========================================== -->
+          <div class="tab-pane fade" id="gaji-pane" role="tabpanel">
+            <!-- Form Input -->
+            <div class="card">
+              <div class="card-header">
+                <i class="fas fa-plus-circle me-1"></i> Input Data Gaji Karyawan
+              </div>
+              <div class="card-body">
+                <form id="formGaji">
+                  <input type="hidden" id="gajiId" />
+                  <div class="row">
+                    <div class="col-md-3 mb-3">
+                      <label class="form-label">Pilih Cabang</label>
+                      <select class="form-select" id="cbgGaji" required>
+                        <option value="">All</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                      <label class="form-label">Pilih Karyawan</label>
+                      <select class="form-select" id="gajiNik" required>
+                        <option value="">Pilih Karyawan</option>
+                      </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">Status</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="statusGaji"
+                        readonly
+                      />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">Gaji Pokok</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="gajiPokok"
+                        required
+                      />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">T-Jabatan</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="tjabatan"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">T-Beasiswa</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="tbeasiswa"
+                        required
+                      />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">T-Kontrakan</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="tkontrakan"
+                        required
+                      />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">T-PPh</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="tpph"
+                        required
+                      />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">BPJS-Kes</label>
+                      <select class="form-select" id="bpjsKes">
+                        <option value="Tidak">Tidak</option>
+                        <option value="Ya">Ya</option>
+                      </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">BPJS TK</label>
+                      <select class="form-select" id="bpjsTk">
+                        <option value="Tidak">Tidak</option>
+                        <option value="Ya">Ya</option>
+                      </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">Cabang</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="gajiCabang"
+                        readonly
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-success">
+                    <i class="fas fa-save me-1"></i> Simpan
+                  </button>
+                  <button
+                    type="reset"
+                    class="btn btn-secondary"
+                    onclick="resetGajiForm()"
+                  >
+                    <i class="fas fa-redo me-1"></i> Reset
+                  </button>
+                  <button class="btn btn-primary" onclick="tambahGaji()">
+                    <i class="fas fa-plus me-1"></i> Tambah Gaji
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Import Gaji -->
+            <div class="card">
+              <div class="card-header bg-info">
+                <i class="fas fa-file-excel me-1"></i> Import Data Gaji dari
+                Excel
+              </div>
+              <div class="card-body">
+                <p class="mb-2">
+                  Kolom yang diperlukan:
+                  <strong
+                    >nik, namakaryawan, gajiPokok, tjabatan, tbeasiswa,
+                    tkontrakan, tpph</strong
+                  >
+                </p>
+                <input
+                  type="file"
+                  class="form-control"
+                  id="fileGajiInput"
+                  accept=".xlsx, .xls"
+                />
+                <button
+                  type="button"
+                  class="btn btn-info mt-2"
+                  id="btnPreviewGajiImport"
+                >
+                  <i class="fas fa-eye me-1"></i> Preview Data
+                </button>
+              </div>
+            </div>
+
+            <!-- Preview Gaji -->
+            <div id="previewGajiContainer" class="card" style="display: none">
+              <div class="card-header bg-secondary">
+                <i class="fas fa-table me-1"></i> Preview Data Gaji yang Akan
+                Diimport
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table
+                    id="previewGajiTable"
+                    class="table table-bordered table-striped"
+                  >
+                    <thead>
+                      <tr>
+                        <th>NIK</th>
+                        <th>Nama Karyawan</th>
+                        <th>Gaji Pokok</th>
+                        <th>T. Jabatan</th>
+                        <th>T. Beasiswa</th>
+                        <th>T. Kontrakan</th>
+                        <th>PPh</th>
+                        <th>BPJS Kes</th>
+                        <th>BPJS TK</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <div class="mt-3">
+                  <button
+                    type="button"
+                    class="btn btn-success"
+                    id="btnConfirmGajiImport"
+                  >
+                    <i class="fas fa-check me-1"></i> Ya, Import Data
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-danger ms-2"
+                    id="btnCancelGajiImport"
+                  >
+                    <i class="fas fa-times me-1"></i> Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabel Data Gaji -->
+            <div class="card">
+              <div
+                class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+              >
+                <span
+                  ><i class="fas fa-database me-1"></i> Data Gaji
+                  Tersimpan</span
+                >
+                <div>
+                  <button
+                    class="btn btn-success btn-sm"
+                    onclick="exportToExcel('tableGaji', 'Data_Gaji_Karyawan')"
+                  >
+                    <i class="fas fa-file-excel me-1"></i> Export Excel
+                  </button>
+                  <button
+                    class="btn btn-info btn-sm ms-1"
+                    onclick="printReport('printAreaGaji')"
+                  >
+                    <i class="fas fa-print me-1"></i> Print
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="filter-bar">
+                  <div class="row align-items-end">
+                    <div class="col-md-5 mb-2 mb-md-0">
+                      <label class="form-label">Filter Cabang</label>
+                      <select class="form-select" id="filterGajiCabang">
+                        <option value="">-- Semua Cabang --</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3 mb-2 mb-md-0">
+                      <button
+                        class="btn btn-primary w-100"
+                        onclick="applyFilterGaji()"
+                      >
+                        <i class="fas fa-filter me-1"></i> Terapkan Filter
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div id="printAreaGaji">
+                  <div class="table-responsive">
+                    <table
+                      id="tableGaji"
+                      class="table table-striped table-bordered"
+                      style="width: 100%"
+                    >
+                      <thead>
+                        <tr>
+                          <th class="col-numerator">No</th>
+                          <th>NIK</th>
+                          <th>Nama</th>
+                          <th>Cabang</th>
+                          <th>Gaji Pokok</th>
+                          <th>Tunjangan</th>
+                          <th>Total</th>
+                          <th>BPJS</th>
+                          <th>Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- =========================================== -->
+          <!-- TAB 3: DATA MUTASI                          -->
+          <!-- =========================================== -->
+          <div class="tab-pane fade" id="mutasi-pane" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <i class="fas fa-plus-circle me-1"></i> Input Data Mutasi
+                Karyawan
+              </div>
+              <div class="card-body">
+                <form id="formMutasi">
+                  <input type="hidden" id="mutasiId" />
+                  <div class="row">
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label">Pilih Karyawan</label>
+                      <select
+                        class="form-select"
+                        id="mutasiNik"
+                        required
+                      ></select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label">Nama Karyawan (Otomatis)</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="mutasiNama"
+                        readonly
+                      />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label">Cabang Asal</label>
+                      <select class="form-select" id="cabangAsal" required>
+                        <option value="">-- Pilih Cabang --</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label">Cabang Tujuan</label>
+                      <select class="form-select" id="cabangPindah" required>
+                        <option value="">-- Pilih Cabang --</option>
+                      </select>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label">Tanggal Mutasi</label>
+                      <input
+                        type="date"
+                        class="form-control"
+                        id="tanggalMutasi"
+                        required
+                      />
+                    </div>
+                    <div class="col-md-6 mb-3">
+                      <label class="form-label">Alasan Mutasi</label>
+                      <textarea
+                        class="form-control"
+                        id="alasanMutasi"
+                        rows="1"
+                      ></textarea>
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-success">
+                    <i class="fas fa-save me-1"></i> Simpan
+                  </button>
+                  <button
+                    type="reset"
+                    class="btn btn-secondary"
+                    onclick="resetMutasiForm()"
+                  >
+                    <i class="fas fa-redo me-1"></i> Reset
+                  </button>
+                </form>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <i class="fas fa-database me-1"></i> Data Mutasi Tersimpan
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table
+                    id="tableMutasi"
+                    class="table table-striped table-bordered"
+                    style="width: 100%"
+                  >
+                    <thead>
+                      <tr>
+                        <th>NIK</th>
+                        <th>Nama</th>
+                        <th>Cabang Asal</th>
+                        <th>Cabang Tujuan</th>
+                        <th>Tanggal</th>
+                        <th>Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- =========================================== -->
+          <!-- TAB 4: DATA CABANG                          -->
+          <!-- =========================================== -->
+          <div class="tab-pane fade" id="cabang-pane" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <i class="fas fa-plus-circle me-1"></i> Input Data Cabang
+              </div>
+              <div class="card-body">
+                <form id="formCabang">
+                  <input type="hidden" id="cabangId" />
+                  <div class="grid-form-karyawan">
+                    <div class="input-section">
+                      <div class="row">
+                        <div class="col-md-6 mb-3">
+                          <label class="form-label">Nama Cabang</label>
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="namaCabang"
+                            required
+                          />
+                        </div>
+                        <div class="col-md-3 mb-3">
+                          <label class="form-label">Kode Cabang</label>
+                          <input
+                            type="text"
+                            class="form-control"
+                            id="kodeCbg"
+                            required
+                          />
+                        </div>
+                      </div>
+                      <div class="row">
+                        <div class="col-md-12 mb-3">
+                          <label class="form-label">Alamat Cabang</label>
+                          <textarea
+                            class="form-control"
+                            id="alamatCabang"
+                            rows="3"
+                          ></textarea>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="foto-section">
+                      <label class="fw-bold mb-2">Foto Lokasi Cabang</label>
+                      <img
+                        id="imgPreviewCabang"
+                        class="img-preview-box"
+                        src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjI1MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIiBmaWxsPSIjZTBlMGUwIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjIwIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBkb21pbmFudC1iYXNlbGluZT0ibWlkZGxlIiBmaWxsPSIjOTk5Ij5ObyBJbWFnZTwvdGV4dD48L3N2Zz4="
+                        alt="Preview"
+                      />
+                      <input
+                        type="file"
+                        class="form-control mt-3"
+                        id="fotoInputCabang"
+                        accept="image/*"
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-success mt-2">
+                    <i class="fas fa-save me-1"></i> Simpan
+                  </button>
+                  <button
+                    type="reset"
+                    class="btn btn-secondary mt-2"
+                    onclick="resetCabangForm()"
+                  >
+                    <i class="fas fa-redo me-1"></i> Reset
+                  </button>
+                </form>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <i class="fas fa-database me-1"></i> Data Cabang Tersimpan
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table
+                    id="tableCabang"
+                    class="table table-striped table-bordered"
+                    style="width: 100%"
+                  >
+                    <thead>
+                      <tr>
+                        <th class="col-numerator">No</th>
+                        <th>Nama Cabang</th>
+                        <th>Alamat</th>
+                        <th>Kode Cbg</th>
+                        <th>Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- =========================================== -->
+          <!-- TAB 5: LAPORAN                              -->
+          <!-- =========================================== -->
+          <div class="tab-pane fade" id="laporan-pane" role="tabpanel">
+            <div class="card">
+              <div class="card-header bg-dark">
+                <h5 class="mb-0">
+                  <i class="fas fa-chart-bar me-2"></i>Pusat Laporan
+                </h5>
+              </div>
+              <div class="card-body">
+                <ul class="nav nav-pills mb-3" id="pills-tab" role="tablist">
+                  <li class="nav-item">
+                    <button
+                      class="nav-link active"
+                      id="pills-karyawan-tab"
+                      data-bs-toggle="pill"
+                      data-bs-target="#pills-karyawan"
+                      type="button"
+                      role="tab"
+                      onclick="tampilkanLaporanKaryawan()"
+                    >
+                      1. Laporan Karyawan
+                    </button>
+                  </li>
+                  <li class="nav-item">
+                    <button
+                      class="nav-link"
+                      id="pills-gaji-tab"
+                      data-bs-toggle="pill"
+                      data-bs-target="#pills-gaji"
+                      type="button"
+                      role="tab"
+                      onclick="loadLaporanGaji()"
+                    >
+                      2. Laporan Gaji
+                    </button>
+                  </li>
+                  <li class="nav-item">
+                    <button
+                      class="nav-link"
+                      id="pills-mutasi-tab"
+                      data-bs-toggle="pill"
+                      data-bs-target="#pills-mutasi"
+                      type="button"
+                      role="tab"
+                      onclick="loadLaporanMutasi()"
+                    >
+                      3. Laporan Mutasi
+                    </button>
+                  </li>
+                  <li class="nav-item">
+                    <button
+                      class="nav-link"
+                      id="pills-cabang-tab"
+                      data-bs-toggle="pill"
+                      data-bs-target="#pills-cabang"
+                      type="button"
+                      role="tab"
+                      onclick="loadLaporanCabang()"
+                    >
+                      4. Laporan Cabang
+                    </button>
+                  </li>
+                </ul>
+
+                <div class="tab-content" id="pills-tabContent">
+                  <!-- Sub: Laporan Karyawan -->
+                  <div
+                    class="tab-pane fade show active"
+                    id="pills-karyawan"
+                    role="tabpanel"
+                  >
+                    <div
+                      class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"
+                    >
+                      <h5 class="card-title mb-0">Data Karyawan</h5>
+                      <div>
+                        <button
+                          class="btn btn-success btn-sm"
+                          onclick="
+                            exportToExcel(
+                              'tableLaporanKaryawan',
+                              'Laporan_Karyawan',
+                            )
+                          "
+                        >
+                          <i class="fas fa-file-excel me-1"></i> Export Excel
+                        </button>
+                        <button
+                          class="btn btn-info btn-sm ms-1"
+                          onclick="printReport('printAreaLaporanKaryawan')"
+                        >
+                          <i class="fas fa-print me-1"></i> Print
+                        </button>
+                      </div>
+                    </div>
+                    <div class="filter-bar">
+                      <div class="row align-items-end">
+                        <div class="col-md-4 mb-2 mb-md-0">
+                          <label class="form-label">Filter Cabang</label>
+                          <select
+                            class="form-select form-select-sm"
+                            id="filterLapCabang"
+                          >
+                            <option value="">Semua Cabang</option>
+                          </select>
+                        </div>
+                        <div class="col-md-4 mb-2 mb-md-0">
+                          <label class="form-label">Filter Jabatan</label>
+                          <select
+                            class="form-select form-select-sm"
+                            id="filterLapJabatan"
+                          >
+                            <option value="">Semua Jabatan</option>
+                          </select>
+                        </div>
+                        <div class="col-md-4">
+                          <button
+                            class="btn btn-primary btn-sm w-100"
+                            onclick="tampilkanLaporanKaryawan()"
+                          >
+                            <i class="fas fa-filter me-1"></i> Filter Data
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- FIX: Ditambahkan wrapper printAreaLaporanKaryawan -->
+                    <div id="printAreaLaporanKaryawan">
+                      <div class="table-responsive">
+                        <table
+                          id="tableLaporanKaryawan"
+                          class="table table-bordered table-striped"
+                        >
+                          <thead class="table-dark">
+                            <tr>
+                              <th>No</th>
+                              <th>Foto</th>
+                              <th>NIK</th>
+                              <th>Nama</th>
+                              <th>Alamat</th>
+                              <th>Jabatan</th>
+                              <th>Cabang</th>
+                              <th>Status</th>
+                              <th>Tgl Masuk</th>
+                              <th>Lulusan</th>
+                              <th>KIS/BPJS</th>
+                            </tr>
+                          </thead>
+                          <tbody></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Sub: Laporan Gaji -->
+                  <div class="tab-pane fade" id="pills-gaji" role="tabpanel">
+                    <div
+                      class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"
+                    >
+                      <h5 class="card-title mb-0">Data Gaji Karyawan</h5>
+                      <div>
+                        <button
+                          class="btn btn-success btn-sm"
+                          onclick="
+                            exportToExcel('tableLaporanGaji', 'Laporan_Gaji')
+                          "
+                        >
+                          <i class="fas fa-file-excel me-1"></i> Export Excel
+                        </button>
+                        <button
+                          class="btn btn-info btn-sm ms-1"
+                          onclick="printReport('printAreaLaporanGaji')"
+                        >
+                          <i class="fas fa-print me-1"></i> Print
+                        </button>
+                      </div>
+                    </div>
+                    <div class="filter-bar">
+                      <div class="row align-items-end">
+                        <div class="col-md-5 mb-2 mb-md-0">
+                          <label class="form-label">Filter Cabang</label>
+                          <select
+                            class="form-select form-select-sm"
+                            id="filterLapGajiCabang"
+                          >
+                            <option value="">Semua Cabang</option>
+                          </select>
+                        </div>
+                        <div class="col-md-3">
+                          <button
+                            class="btn btn-primary btn-sm w-100"
+                            onclick="loadLaporanGaji()"
+                          >
+                            <i class="fas fa-filter me-1"></i> Filter Data
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <!-- FIX: ID diganti dari printAreaGaji jadi printAreaLaporanGaji -->
+                    <div id="printAreaLaporanGaji">
+                      <div class="table-responsive">
+                        <table
+                          id="tableLaporanGaji"
+                          class="table table-bordered table-striped"
+                        >
+                          <thead class="table-dark">
+                            <tr>
+                              <th>No</th>
+                              <th>Nama</th>
+                              <th>Cabang</th>
+                              <th>GaPok</th>
+                              <th>T.Jabatan</th>
+                              <th>T.Beasiswa</th>
+                              <th>T.Kontrakan</th>
+                              <th>Bonus</th>
+                              <th>Absen</th>
+                              <th>Kasbon</th>
+                              <th>Hari</th>
+                              <th>Total Gaji</th>
+                              <th>Masa</th>
+                            </tr>
+                          </thead>
+                          <tbody></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Sub: Laporan Mutasi -->
+                  <div class="tab-pane fade" id="pills-mutasi" role="tabpanel">
+                    <div
+                      class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"
+                    >
+                      <h5 class="card-title mb-0">Data Mutasi Karyawan</h5>
+                      <div>
+                        <button
+                          class="btn btn-success btn-sm"
+                          onclick="
+                            exportToExcel(
+                              'tableLaporanMutasi',
+                              'Laporan_Mutasi',
+                            )
+                          "
+                        >
+                          <i class="fas fa-file-excel me-1"></i> Export Excel
+                        </button>
+                        <button
+                          class="btn btn-info btn-sm ms-1"
+                          onclick="printReport('printAreaLaporanMutasi')"
+                        >
+                          <i class="fas fa-print me-1"></i> Print
+                        </button>
+                      </div>
+                    </div>
+                    <div id="printAreaLaporanMutasi">
+                      <div class="table-responsive">
+                        <table
+                          id="tableLaporanMutasi"
+                          class="table table-bordered table-striped"
+                        >
+                          <thead class="table-dark">
+                            <tr>
+                              <th>No</th>
+                              <th>NIK</th>
+                              <th>Nama</th>
+                              <th>Cabang Asal</th>
+                              <th>Cabang Tujuan</th>
+                              <th>Tanggal Mutasi</th>
+                              <th>Alasan</th>
+                            </tr>
+                          </thead>
+                          <tbody></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Sub: Laporan Cabang -->
+                  <div class="tab-pane fade" id="pills-cabang" role="tabpanel">
+                    <div
+                      class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2"
+                    >
+                      <h5 class="card-title mb-0">Data Cabang</h5>
+                      <div>
+                        <button
+                          class="btn btn-success btn-sm"
+                          onclick="
+                            exportToExcel(
+                              'tableLaporanCabang',
+                              'Laporan_Cabang',
+                            )
+                          "
+                        >
+                          <i class="fas fa-file-excel me-1"></i> Export Excel
+                        </button>
+                        <button
+                          class="btn btn-info btn-sm ms-1"
+                          onclick="printReport('printAreaLaporanCabang')"
+                        >
+                          <i class="fas fa-print me-1"></i> Print
+                        </button>
+                      </div>
+                    </div>
+                    <div id="printAreaLaporanCabang">
+                      <div class="table-responsive">
+                        <table
+                          id="tableLaporanCabang"
+                          class="table table-bordered table-striped"
+                        >
+                          <thead class="table-dark">
+                            <tr>
+                              <th class="col-numerator">No</th>
+                              <th>Nama Cabang</th>
+                              <th>Alamat</th>
+                              <th>Kode Cabang</th>
+                            </tr>
+                          </thead>
+                          <tbody></tbody>
+                        </table>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- =========================================== -->
+          <!-- TAB 6: HITUNGAN GAJI                        -->
+          <!-- =========================================== -->
+          <div class="tab-pane fade" id="hitgaji-pane" role="tabpanel">
+            <div class="card">
+              <div
+                class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+              >
+                <span
+                  ><i class="fas fa-plus-circle me-1"></i> Input Hitungan Gaji
+                  Karyawan</span
+                >
+                <button
+                  class="btn btn-sm btn-outline-light"
+                  onclick="
+                    if (confirm('Hapus semua data hitung gaji?'))
+                      deleteAllHitGaji();
+                  "
+                >
+                  <i class="fas fa-trash-alt me-1"></i> Hapus Semua
+                </button>
+              </div>
+              <div class="card-body">
+                <form id="hitformGaji">
+                  <input type="hidden" id="hitgajiId" />
+                  <div class="row">
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">Pilih Cabang</label>
+                      <select class="form-select" id="cbgHitGaji" required>
+                        <option value="">All</option>
+                      </select>
+                    </div>
+                    <div class="col-md-3 mb-3">
+                      <label class="form-label">Pilih Karyawan</label>
+                      <select class="form-select" id="gajiHitNik" required>
+                        <option value="">Pilih Karyawan</option>
+                      </select>
+                    </div>
+                    <div class="col-md-1 mb-3">
+                      <label class="form-label">Status</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="hitstatus"
+                        readonly
+                      />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">Gaji Pokok</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="hitgapok"
+                        readonly
+                      />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">T-Jabatan</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="hitjabatan"
+                        readonly
+                      />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">T-Beasiswa</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="hitbeasiswa"
+                        readonly
+                      />
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">T-Kontrakan</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="hitkontrakan"
+                        readonly
+                      />
+                    </div>
+                    <div class="col-md-1 mb-3">
+                      <label class="form-label">T-Hari</label>
+                      <input type="number" class="form-control" id="hithari" />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">Bonus</label>
+                      <input type="number" class="form-control" id="hitbonus" />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">Absen</label>
+                      <input type="number" class="form-control" id="hitabsen" />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">Pot Kasbon</label>
+                      <input
+                        type="number"
+                        class="form-control"
+                        id="hitkasbon"
+                      />
+                    </div>
+                    <div class="col-md-1 mb-3">
+                      <label class="form-label">Bln/Thn</label>
+                      <input type="text" class="form-control" id="hitmasa" />
+                    </div>
+                    <div class="col-md-2 mb-3">
+                      <label class="form-label">Cabang</label>
+                      <input
+                        type="text"
+                        class="form-control"
+                        id="hitcabang"
+                        readonly
+                      />
+                    </div>
+                  </div>
+                  <button type="submit" class="btn btn-success">
+                    <i class="fas fa-save me-1"></i> Simpan
+                  </button>
+                  <button
+                    type="reset"
+                    class="btn btn-secondary"
+                    onclick="resetHitGajiForm()"
+                  >
+                    <i class="fas fa-redo me-1"></i> Reset
+                  </button>
+                  <button class="btn btn-primary" onclick="tambahHitGaji()">
+                    <i class="fas fa-plus me-1"></i> Tambah Gaji
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Import Absen ke Hitung Gaji -->
+            <div class="card">
+              <div class="card-header bg-info">
+                <i class="fas fa-file-excel me-1"></i> Import Data Absen ke
+                Hitung Gaji
+              </div>
+              <div class="card-body">
+                <p class="mb-2">
+                  Kolom: <strong>nik, namakaryawan, absen, masa</strong>
+                </p>
+                <input
+                  type="file"
+                  class="form-control"
+                  id="fileDataAbsen"
+                  accept=".xlsx, .xls"
+                />
+                <button
+                  type="button"
+                  class="btn btn-info mt-2"
+                  id="btnPreviewDataAbsen"
+                >
+                  <i class="fas fa-eye me-1"></i> Preview Data
+                </button>
+              </div>
+            </div>
+
+            <!-- Preview Absen Hitung Gaji -->
+            <div id="previewAbsenContainer" class="card" style="display: none">
+              <div class="card-header bg-secondary">
+                <i class="fas fa-table me-1"></i> Preview Data Absen
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table
+                    id="previewAbsenTable"
+                    class="table table-bordered table-striped"
+                  >
+                    <thead>
+                      <tr>
+                        <th>NIK</th>
+                        <th>Nama Karyawan</th>
+                        <th>Absen</th>
+                        <th>Gapok</th>
+                        <th>T-Jabatan</th>
+                        <th>T-Beasiswa</th>
+                        <th>T-Kontrakan</th>
+                        <th>T-Absen</th>
+                        <th>Total</th>
+                        <th>Bln/Thn</th>
+                        <th>Cbg</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <div class="mt-3">
+                  <button
+                    type="button"
+                    class="btn btn-success"
+                    id="btnConfirmDataAbsen"
+                  >
+                    <i class="fas fa-check me-1"></i> Ya, Import Data
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-danger ms-2"
+                    id="btnCancelDataAbsen"
+                  >
+                    <i class="fas fa-times me-1"></i> Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Tabel Hitung Gaji -->
+            <div class="card">
+              <div
+                class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+              >
+                <span
+                  ><i class="fas fa-database me-1"></i> Data Gaji Karyawan</span
+                >
+                <div>
+                  <button
+                    class="btn btn-success btn-sm"
+                    onclick="
+                      exportToExcel('tableHitGaji', 'Laporan_Hitung_Gaji')
+                    "
+                  >
+                    <i class="fas fa-file-excel me-1"></i> Export Excel
+                  </button>
+                  <button
+                    class="btn btn-info btn-sm ms-1"
+                    onclick="printReport('printAreaHitGaji')"
+                  >
+                    <i class="fas fa-print me-1"></i> Print
+                  </button>
+                  <button
+                    class="btn btn-danger btn-sm ms-1"
+                    onclick="
+                      if (confirm('Hapus semua data hitung gaji?'))
+                        deleteAllHitGaji();
+                    "
+                  >
+                    <i class="fas fa-trash-alt me-1"></i> Hapus Semua
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="filter-bar">
+                  <div class="row align-items-end">
+                    <div class="col-md-4 mb-2 mb-md-0">
+                      <label class="form-label">Filter Cabang</label>
+                      <select class="form-select" id="filterHitCabang">
+                        <option value="">-- Semua Cabang --</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4 mb-2 mb-md-0">
+                      <label class="form-label">Filter Masa (Periode)</label>
+                      <select class="form-select" id="filterHitMasa">
+                        <option value="">-- Semua Masa --</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <button
+                        class="btn btn-primary w-100"
+                        onclick="applyFilterHitGaji()"
+                      >
+                        <i class="fas fa-filter me-1"></i> Terapkan Filter
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div id="printAreaHitGaji">
+                  <div class="table-responsive">
+                    <table
+                      id="tableHitGaji"
+                      class="table table-striped table-bordered"
+                      style="width: 100%"
+                    >
+                      <thead>
+                        <tr>
+                          <th>No</th>
+                          <th>Nama</th>
+                          <th>Cabang</th>
+                          <th>Hari</th>
+                          <th>GaPok</th>
+                          <th>T.Jabatan</th>
+                          <th>T.Kontrakan</th>
+                          <th>T.Beasiswa</th>
+                          <th>Bonus</th>
+                          <th>Absen</th>
+                          <th>Pot Kasbon</th>
+                          <th>Total</th>
+                          <th>Masa</th>
+                          <th>Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- =========================================== -->
+          <!-- TAB 7: IMPORT ABSEN                         -->
+          <!-- =========================================== -->
+          <div class="tab-pane fade" id="hitabsen-pane" role="tabpanel">
+            <div class="card">
+              <div class="card-header bg-info">
+                <i class="fas fa-file-excel me-1"></i> Import Data Absen
+                Karyawan dari Excel
+              </div>
+              <div class="card-body">
+                <p class="mb-2">
+                  Kolom: <strong>nik, namakaryawan, absen, masa</strong>
+                </p>
+                <input
+                  type="file"
+                  class="form-control"
+                  id="absenToImport"
+                  accept=".xlsx, .xls"
+                />
+                <button
+                  type="button"
+                  class="btn btn-info mt-2"
+                  id="btnPreviewAbsen"
+                >
+                  <i class="fas fa-eye me-1"></i> Preview Data
+                </button>
+              </div>
+            </div>
+
+            <div id="previewAbsenContainer2" class="card" style="display: none">
+              <div class="card-header bg-secondary">
+                <i class="fas fa-table me-1"></i> Preview Data Absen yang Akan
+                Diimport
+              </div>
+              <div class="card-body">
+                <div class="table-responsive">
+                  <table
+                    id="previewAbsenTable2"
+                    class="table table-bordered table-striped"
+                  >
+                    <thead>
+                      <tr>
+                        <th>NIK</th>
+                        <th>Nama Karyawan</th>
+                        <th>Absen</th>
+                        <th>Bln/Thn</th>
+                        <th>Cbg</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+                <div class="mt-3">
+                  <button
+                    type="button"
+                    class="btn btn-success"
+                    id="btnConfirmAbsen"
+                  >
+                    <i class="fas fa-check me-1"></i> Ya, Kirim Data
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-danger ms-2"
+                    id="btnCancelAbsen"
+                  >
+                    <i class="fas fa-times me-1"></i> Batal
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="card">
+              <div
+                class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2"
+              >
+                <span
+                  ><i class="fas fa-database me-1"></i> Data Absen
+                  Karyawan</span
+                >
+                <div>
+                  <button
+                    class="btn btn-success btn-sm"
+                    onclick="exportToExcel('tableAbsen', 'Laporan_Absen')"
+                  >
+                    <i class="fas fa-file-excel me-1"></i> Export Excel
+                  </button>
+                  <button
+                    class="btn btn-info btn-sm ms-1"
+                    onclick="printReport('printAreaAbsen')"
+                  >
+                    <i class="fas fa-print me-1"></i> Print
+                  </button>
+                  <button
+                    class="btn btn-danger btn-sm ms-1"
+                    onclick="
+                      if (confirm('Hapus semua data absen?')) deleteAllAbsen();
+                    "
+                  >
+                    <i class="fas fa-trash-alt me-1"></i> Hapus Semua
+                  </button>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="filter-bar">
+                  <div class="row align-items-end">
+                    <div class="col-md-4 mb-2 mb-md-0">
+                      <label class="form-label">Filter Cabang</label>
+                      <select class="form-select" id="filterAbsen">
+                        <option value="">-- Semua Cabang --</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4 mb-2 mb-md-0">
+                      <label class="form-label">Filter Masa (Periode)</label>
+                      <select class="form-select" id="filterMasa">
+                        <option value="">-- Semua Masa --</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4">
+                      <button
+                        class="btn btn-primary w-100"
+                        onclick="applyFilterAbsen()"
+                      >
+                        <i class="fas fa-filter me-1"></i> Terapkan Filter
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                <div id="printAreaAbsen">
+                  <div class="table-responsive">
+                    <table
+                      id="tableAbsen"
+                      class="table table-striped table-bordered"
+                      style="width: 100%"
+                    >
+                      <thead>
+                        <tr>
+                          <th>No</th>
+                          <th>Nama</th>
+                          <th>Cabang</th>
+                          <th>Hari</th>
+                          <th>Masa</th>
+                          <th>Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody></tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- =========================================== -->
+          <!-- TAB 8: USER & AKSES                        -->
+          <!-- =========================================== -->
+          <div class="tab-pane fade" id="user-pane" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <i class="fas fa-user-shield me-1"></i> Manajemen User &
+                Password
+              </div>
+              <div class="card-body">
+                <form id="formUser" class="row g-3 mb-4">
+                  <input type="hidden" id="userId" />
+                  <div class="col-md-2">
+                    <label class="form-label">Username</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="userName"
+                      placeholder="Username login"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Password</label>
+                    <input
+                      type="password"
+                      class="form-control"
+                      id="userPassword"
+                      placeholder="Password"
+                      required
+                    />
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Role</label>
+                    <select class="form-select" id="userRole" required>
+                      <option value="Admin">Admin</option>
+                      <option value="User">User</option>
+                      <option value="Manajer">Manajer</option>
+                    </select>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Cabang</label>
+                    <select class="form-select" id="userCbg" required></select>
+                  </div>
+                  <div class="col-md-4 d-flex align-items-end">
+                    <button type="submit" class="btn btn-success me-2">
+                      <i class="fas fa-save me-1"></i> Simpan
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-secondary"
+                      onclick="resetUserForm()"
+                    >
+                      <i class="fas fa-redo me-1"></i> Reset
+                    </button>
+                  </div>
+                </form>
+
+                <div class="table-responsive">
+                  <table
+                    id="tableUser"
+                    class="table table-striped table-bordered"
+                    style="width: 100%"
+                  >
+                    <thead>
+                      <tr>
+                        <th class="col-numerator">No</th>
+                        <th>Username</th>
+                        <th>Password</th>
+                        <th>Role</th>
+                        <th>Cabang</th>
+                        <th>Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- =========================================== -->
+          <!-- TAB 9: ABSEN WAJAH                          -->
+          <!-- =========================================== -->
+          <div class="tab-pane fade" id="face-pane" role="tabpanel">
+            <div class="card">
+              <div class="card-header">
+                <i class="fas fa-camera me-1"></i> Absensi Pengenalan Wajah
+              </div>
+              <div class="card-body text-center">
+                <div class="camera-container">
+                  <video
+                    id="videoWajah"
+                    width="320"
+                    height="320"
+                    autoplay
+                    muted
+                    playsinline
+                    style="
+                      border-radius: 12px;
+                      border: 2px solid #ccc;
+                      transform: scaleX(-1);
+                    "
+                  ></video>
+
+                  <canvas
+                    id="overlayWajah"
+                    width="320"
+                    height="320"
+                    style="
+                      position: absolute;
+                      top: 0;
+                      left: 0;
+                      transform: scaleX(-1);
+                    "
+                  ></canvas>
+                </div>
+                <div id="statusWajah" class="alert alert-warning mt-3">
+                  <i class="fas fa-spinner fa-spin me-1"></i> Memuat Model AI...
+                </div>
+                <button
+                  id="btnAbsenWajah"
+                  class="btn btn-primary btn-lg"
+                  disabled
+                >
+                  <i class="fas fa-user-check me-1"></i> Proses Absensi
+                </button>
+                <button
+                  id="btnNewkaryawan"
+                  class="btn btn-primary btn-lg"
+                  disabled
+                >
+                  <i class="fas fa-user-check me-1"></i> + Karyawan Baru
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- end tab-content -->
+      </div>
+      <!-- end container-fluid -->
+    </div>
+    <!-- end mainApp -->
+
+    <!-- ============================================= -->
+    <!-- MODAL ZOOM FOTO                                -->
+    <!-- ============================================= -->
+    <div class="modal fade" id="photoModal" tabindex="-1" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content bg-dark border-0">
+          <div class="modal-header border-0">
+            <h5 class="modal-title text-white" id="photoModalLabel">
+              Foto Karyawan
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
+          <div class="modal-body text-center p-0">
+            <img
+              id="modalImageSrc"
+              src=""
+              class="img-fluid"
+              style="max-height: 80vh; width: auto; object-fit: contain"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ============================================= -->
+    <!-- MODAL TAMBAH KARYAWAN               -->
+    <!-- ============================================= -->
+
+    <div
+      class="modal fade"
+      id="modalKaryawanBaru"
+      tabindex="-1"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+          <div class="modal-header bg-primary text-white">
+            <h5 class="modal-title">
+              <i class="fas fa-user-plus me-2"></i> Registrasi Karyawan Baru
+            </h5>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+            ></button>
+          </div>
+          <div class="modal-body">
+            <form id="formKaryawanModal">
+              <input type="hidden" id="m_id" />
+              <div class="row">
+                <div class="col-md-3 text-center border-end">
+                  <label class="fw-bold mb-2">Hasil Scan Wajah</label>
+                  <img
+                    id="imgPreviewModal"
+                    src=""
+                    class="img-thumbnail"
+                    style="
+                      width: 100%;
+                      height: 250px;
+                      object-fit: cover;
+                      background: #eee;
+                    "
+                  />
+                  <input type="hidden" id="faceDescriptorModal" />
+                  <div class="badge bg-info mt-2 text-wrap">
+                    Wajah Berhasil Dipindai
+                  </div>
+                </div>
+
+                <div class="col-md-9">
+                  <div class="row">
+                    <div class="col-md-4 mb-2">
+                      <label class="small fw-bold">NIK</label>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        id="m_nik"
+                        required
+                      />
+                    </div>
+                    <div class="col-md-4 mb-2">
+                      <label class="small fw-bold">Nama Lengkap</label>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        id="m_nama"
+                        required
+                      />
+                    </div>
+                    <div class="col-md-4 mb-2">
+                      <label class="small fw-bold">Nama Panggilan</label>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        id="m_nikname"
+                      />
+                    </div>
+
+                    <div class="col-md-4 mb-2">
+                      <label class="small fw-bold">Status</label>
+                      <select class="form-select form-select-sm" id="m_status">
+                        <option>TK/0</option>
+                        <option>K/0</option>
+                        <option>K/1</option>
+                        <option>K/2</option>
+                        <option>K/3</option>
+                      </select>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                      <label class="small fw-bold">Lulusan</label>
+                      <select class="form-select form-select-sm" id="m_lulusan">
+                        <option>SD</option>
+                        <option>SMP</option>
+                        <option>SMA</option>
+                        <option>S1</option>
+                        <option>S2</option>
+                      </select>
+                    </div>
+
+                    <div class="col-md-12 mb-2">
+                      <label class="small fw-bold">Alamat</label>
+                      <textarea
+                        class="form-control form-control-sm"
+                        id="m_alamat"
+                        rows="2"
+                      ></textarea>
+                    </div>
+
+                    <div class="col-md-4 mb-2">
+                      <label class="small fw-bold">Jabatan</label>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        id="m_jabatan"
+                      />
+                    </div>
+                    <div class="col-md-4 mb-2">
+                      <label class="small fw-bold">Cabang</label>
+                      <select
+                        class="form-select form-select-sm"
+                        id="m_cabang"
+                      ></select>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                      <label class="small fw-bold">ID Karyawan</label>
+                      <input
+                        type="text"
+                        class="form-control form-control-sm"
+                        id="m_idkaryawan"
+                      />
+                    </div>
+                    <div class="col-md-4 mb-2">
+                      <label class="small fw-bold">Tanggal Masuk</label>
+                      <input
+                        type="date"
+                        class="form-control form-control-sm"
+                        id="m_tgl_masuk"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              class="btn btn-secondary"
+              data-bs-dismiss="modal"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              class="btn btn-success"
+              id="btnSimpanKaryawanModal"
+            >
+              <i class="fas fa-save me-1"></i> Simpan Karyawan
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <!-- ============================================= -->
+    <!-- SCRIPTS                                        -->
+    <!-- ============================================= -->
+    <script src="https://code.jquery.com/jquery-3.7.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.mask/1.14.16/jquery.mask.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/dataTables.bootstrap5.min.js"></script>
+
+    <!-- face-api.js: Lazy load hanya ketika tab Absen Wajah diklik -->
+    <script>
+      var faceApiLoaded = false;
+
+      // Pastikan ID 'face-tab' sesuai dengan ID <a> atau <button> tab Anda
+      const tabWajah = document.getElementById("face-tab");
+
+      if (tabWajah) {
+        tabWajah.addEventListener("shown.bs.tab", function () {
+          if (!faceApiLoaded) {
+            console.log("Memuat library Face-API...");
+            var s = document.createElement("script");
+            s.src =
+              "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js";
+            s.onload = function () {
+              faceApiLoaded = true;
+              console.log("Library siap.");
+
+              // Panggil fungsi inisialisasi (pastikan namanya sama dengan di file JS Anda)
+              if (typeof initFaceRecognition === "function") {
+                initFaceRecognition();
+              }
+            };
+            document.body.appendChild(s);
+          }
+        });
+      }
+    </script>
+
+    <!-- File JS utama aplikasi -->
+
+    <script src="karyawan.js"></script>
+    <!--<script src="lapkaryawan.js"></script>
+    <script src="userkaryawan.js"></script>
+    <script src="absenwajah.js"></script>-->
+  </body>
+</html>
