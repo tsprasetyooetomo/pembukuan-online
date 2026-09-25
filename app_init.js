@@ -213,7 +213,11 @@ function buildSidebar() {
           icon: "fa-calendar-day",
         },
         { id: "kasHarian", label: "Kas Pembukuan", icon: "fa-calendar-day" },
-        { id: "inputHarian", label: "Input Harian", icon: "fa-keyboard" },
+        {
+          id: "inputHarian",
+          label: "Input Harian (non backup)",
+          icon: "fa-keyboard",
+        },
       ],
     },
     {
@@ -258,6 +262,11 @@ function buildSidebar() {
         { id: "rlDetil", label: "RL Detil Bulanan", icon: "fa-bars-staggered" },
         { id: "rlLebar", label: "RL Rekap 1-12", icon: "fa-bars-staggered" },
         { id: "bukuBesar", label: "Buku Besar", icon: "fa-book" },
+        {
+          id: "inputHarianBU",
+          label: "Input Harian( dr backup)",
+          icon: "fa-keyboard",
+        },
         //  { id: "expXls", label: "Export XLS", icon: "fa-file-excel" },
       ],
     },
