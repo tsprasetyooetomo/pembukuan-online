@@ -17,8 +17,8 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
     />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-    <!-- Library untuk membaca file DBF di Browser -->
     <script src="https://cdn.jsdelivr.net/npm/dbf-reader@1.1.0/dist/dbf-reader.min.js"></script>
+
     <style>
       .sb-hd {
         display: flex;
@@ -50,10 +50,8 @@
         background: rgba(255, 255, 255, 0.2);
       }
 
-      /* ✅ GANTI SEMUA LOGIKA HIDDEN MENU MENJADI INI: */
-
       .sb {
-        transition: margin-left 0.3s ease; /* Biar smooth saat slide masuk/keluar */
+        transition: margin-left 0.3s ease;
       }
 
       .main {
@@ -63,29 +61,60 @@
         margin-left: 0 !important;
       }
 
-      /* Tambahan CSS untuk Container Login agar rapi */
+      /* Container Login dengan Gaya Digital Lock */
       .login-container {
         padding: 20px;
-        max-width: 300px;
-        margin: 50px auto;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        background: #fff;
+        max-width: 320px;
+        margin: 40px auto;
+        border: 1px solid #d1d5db;
+        border-radius: 12px;
+        background: #ffffff;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
         display: none;
       }
-      .login-container input {
+      .login-container input[type="text"] {
         width: 100%;
-        margin-bottom: 10px;
-        padding: 8px;
-        box-sizing: border-box;
-      }
-      .login-container button {
-        width: 100%;
+        margin-bottom: 4px;
         padding: 10px;
-        background: #000;
+        box-sizing: border-box;
+        border: 1px solid #cbd5e1;
+        border-radius: 6px;
+        font-size: 0.9rem;
+      }
+      .login-container button:not(.lock-key) {
+        width: 100%;
+        padding: 12px;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
         color: #fff;
         border: none;
         cursor: pointer;
+        border-radius: 6px;
+        font-size: 0.9rem;
+        transition: opacity 0.2s;
+      }
+      .login-container button:not(.lock-key):hover {
+        opacity: 0.9;
+      }
+
+      /* Styling Keypad Digital Lock */
+      .lock-key {
+        background: #f3f4f6;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        padding: 12px 0;
+        font-size: 1rem;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.15s ease;
+        color: #1f2937;
+      }
+      .lock-key:hover {
+        background: #e5e7eb;
+        border-color: #9ca3af;
+      }
+      .lock-key:active {
+        background: #d1d5db;
+        transform: scale(0.95);
       }
     </style>
   </head>
@@ -172,17 +201,151 @@
           <span><span class="spinner"></span> Membuka database...</span>
         </div>
 
-        <!-- Box Login dipindahkan ke dalam area konten/modal agar lebih terstruktur -->
+        <!-- Box Login Interaktif & Digital Lock -->
         <div class="login-container" id="loginBox">
-          <h3 style="color: #ffd700">Login Sistem</h3>
+          <div style="text-align: center; margin-bottom: 15px">
+            <i
+              class="fa-solid fa-shield-halved"
+              style="font-size: 2rem; color: #2563eb"
+            ></i>
+            <h3 style="color: #1e293b; margin-top: 5px; font-size: 1.1rem">
+              Sistem Keamanan
+            </h3>
+            <p style="font-size: 0.75rem; color: #64748b">
+              Masukkan username & PIN digital lock
+            </p>
+          </div>
 
-          <input type="text" id="username" placeholder="Masukkan Username" />
-          <input
-            type="password"
-            id="password"
-            placeholder="Masukkan Password"
-          />
-          <button onclick="loginSystem()">LOGIN</button>
+          <!-- Input Username -->
+          <div style="margin-bottom: 12px">
+            <label
+              style="
+                font-size: 0.7rem;
+                font-weight: bold;
+                color: #475569;
+                display: block;
+                margin-bottom: 4px;
+              "
+              >USERNAME</label
+            >
+            <input
+              type="text"
+              id="username"
+              placeholder="Masukkan Username"
+              style="text-align: center; font-weight: bold"
+            />
+          </div>
+
+          <!-- Panel Digital Door Lock (PIN / Password) -->
+          <div style="margin-bottom: 15px">
+            <label
+              style="
+                font-size: 0.7rem;
+                font-weight: bold;
+                color: #475569;
+                display: block;
+                margin-bottom: 4px;
+              "
+              >DIGITAL LOCK PIN</label
+            >
+
+            <!-- Layar Tampilan PIN -->
+            <div
+              id="lockScreenDisplay"
+              style="
+                background: #0f172a;
+                color: #00ffcc;
+                font-family: &quot;JetBrains Mono&quot;, monospace;
+                font-size: 1.1rem;
+                text-align: center;
+                padding: 10px;
+                border-radius: 6px;
+                letter-spacing: 4px;
+                margin-bottom: 8px;
+                min-height: 20px;
+                border: 1px solid #334155;
+              "
+            >
+              ____
+            </div>
+
+            <!-- Input Tersembunyi Password -->
+            <input type="password" id="password" style="display: none" />
+
+            <!-- Keypad Digital Lock -->
+            <div
+              style="
+                display: grid;
+                grid-template-columns: repeat(3, 1fr);
+                gap: 6px;
+              "
+            >
+              <button type="button" class="lock-key" onclick="pressKey('1')">
+                1
+              </button>
+              <button type="button" class="lock-key" onclick="pressKey('2')">
+                2
+              </button>
+              <button type="button" class="lock-key" onclick="pressKey('3')">
+                3
+              </button>
+              <button type="button" class="lock-key" onclick="pressKey('4')">
+                4
+              </button>
+              <button type="button" class="lock-key" onclick="pressKey('5')">
+                5
+              </button>
+              <button type="button" class="lock-key" onclick="pressKey('6')">
+                6
+              </button>
+              <button type="button" class="lock-key" onclick="pressKey('7')">
+                7
+              </button>
+              <button type="button" class="lock-key" onclick="pressKey('8')">
+                8
+              </button>
+              <button type="button" class="lock-key" onclick="pressKey('9')">
+                9
+              </button>
+              <button
+                type="button"
+                class="lock-key"
+                onclick="clearLock()"
+                style="
+                  background: #fee2e2;
+                  color: #dc2626;
+                  font-size: 0.75rem;
+                  border-color: #fecaca;
+                "
+              >
+                C
+              </button>
+              <button type="button" class="lock-key" onclick="pressKey('0')">
+                0
+              </button>
+              <button
+                type="button"
+                class="lock-key"
+                onclick="backspaceLock()"
+                style="
+                  background: #fef3c7;
+                  color: #d97706;
+                  font-size: 0.75rem;
+                  border-color: #fde68a;
+                "
+              >
+                <i class="fa-solid fa-delete-left"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- Tombol Eksekusi Login -->
+          <button
+            onclick="loginSystem()"
+            style="font-weight: bold; letter-spacing: 0.5px"
+          >
+            <i class="fa-solid fa-lock-open"></i> BUKA SISTEM
+          </button>
         </div>
       </div>
     </div>
@@ -210,163 +373,11 @@
     <script src="app_posting.js"></script>
     <script src="app_laporan.js"></script>
     <script src="app_laporan_gab.js"></script>
+    <script src="app_laporan_sales.js"></script>
     <script src="app_utility.js"></script>
     <script src="app_user.js"></script>
     <script src="app_impor_foxpro.js"></script>
     <script src="app_login.js"></script>
     <script src="app_init.js"></script>
-    <script>
-      function refreshApp() {
-        if (
-          typeof navigate === "function" &&
-          typeof currentPanel !== "undefined"
-        ) {
-          showLoading();
-          setTimeout(() => {
-            navigate(currentPanel);
-            hideLoading();
-            toast("Data berhasil diperbarui", "ok");
-          }, 300);
-        } else {
-          window.location.reload();
-        }
-      }
-
-      document.addEventListener("DOMContentLoaded", function () {
-        var btnToggle = document.getElementById("btnToggleMenu");
-        var btnHamburger = document.getElementById("btnHamburger");
-        var sidebar = document.getElementById("sidebar");
-        var iconToggle = btnToggle.querySelector("i");
-
-        function hideMenu() {
-          sidebar.classList.add("hidden-menu");
-          sidebar.classList.remove("open");
-          iconToggle.classList.remove("fa-angles-left");
-          iconToggle.classList.add("fa-angles-right");
-        }
-
-        function showMenu() {
-          sidebar.classList.remove("hidden-menu");
-          iconToggle.classList.remove("fa-angles-right");
-          iconToggle.classList.add("fa-angles-left");
-        }
-
-        btnToggle.addEventListener("click", function () {
-          if (sidebar.classList.contains("hidden-menu")) {
-            showMenu();
-          } else {
-            hideMenu();
-          }
-        });
-
-        btnHamburger.addEventListener("click", function (e) {
-          e.stopPropagation();
-          // ✅ SUDAH DIPERBAIKI: Mengubah { menjadi ) di baris bawah ini
-          if (sidebar.classList.contains("hidden-menu")) {
-            showMenu();
-          } else {
-            sidebar.classList.toggle("open");
-          }
-        });
-
-        document.addEventListener("click", function (e) {
-          if (
-            window.innerWidth <= 768 &&
-            sidebar.classList.contains("open") &&
-            !sidebar.contains(e.target) &&
-            !btnHamburger.contains(e.target)
-          ) {
-            sidebar.classList.remove("open");
-          }
-        });
-      });
-      // Contoh fungsi handler ketika item menu diklik (sesuaikan dengan framework/sistem Anda)
-      function onMenuClick(menuId) {
-        // Sembunyikan semua view menu terlebih dahulu
-        document.getElementById("view-migrasiFisik").style.display = "none";
-        // ... sembunyikan view lainnya ...
-
-        // Tampilkan view yang dipilih
-        if (menuId === "migrasiFisik") {
-          document.getElementById("view-migrasiFisik").style.display = "block";
-        }
-      }
-
-      // Fungsi utama penembak API streaming data
-      async function eksekusiMigrasiSSE() {
-        const btn = document.getElementById("btnMulaiMigrasi");
-        const panel = document.getElementById("panelProgress");
-        const txtTabel = document.getElementById("txtNamaTabel");
-        const txtPersen = document.getElementById("txtPersen");
-        const bar = document.getElementById("barPersen");
-        const terminal = document.getElementById("boxLogTerminal");
-
-        // Kunci tombol agar tidak diklik dua kali
-        btn.disabled = true;
-        btn.style.background = "#6c757d";
-        btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Memproses Data...`;
-
-        panel.style.display = "block";
-        terminal.innerHTML = "🔌 Menyambungkan ke server Railway...\n";
-
-        try {
-          // Tembak endpoint POST SSE yang sudah dibuat sebelumnya
-          const response = await fetch(
-            "/api/migrasi-kolom-fisik?secret=ubahdata2024",
-            {
-              method: "POST",
-            },
-          );
-
-          const reader = response.body.getReader();
-          const decoder = new TextDecoder();
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            const chunk = decoder.decode(value);
-            const lines = chunk.split("\n");
-
-            for (const line of lines) {
-              if (line.startsWith("data: ")) {
-                // Konversi baris teks streaming menjadi objek JSON asli
-                const payload = JSON.parse(line.replace("data: ", ""));
-
-                // 1. Update teks log di terminal hitam
-                terminal.innerHTML += `> ${payload.message}\n`;
-                terminal.scrollTop = terminal.scrollHeight; // Auto scroll ke bawah
-
-                // 2. Ambil informasi tabel yang sedang dikerjakan
-                if (payload.table) {
-                  txtTabel.innerText = payload.table.toUpperCase();
-                }
-
-                // 3. Update animasi grafik persentase
-                if (payload.percent !== undefined) {
-                  txtPersen.innerText = `${payload.percent}%`;
-                  bar.style.width = `${payload.percent}%`;
-                }
-
-                // 4. Deteksi tanda selesai dari server
-                if (payload.status === "done") {
-                  btn.innerHTML = `<i class="fas fa-check"></i> Selesai Sukses`;
-                  btn.style.background = "#28a745";
-                  terminal.innerHTML += `\n[FINISH] Hubungan diputus secara aman. Database sudah sinkron.\n`;
-                  alert(
-                    "🎉 Sukses! Seluruh data transaksi & master berhasil dimigrasi ke kolom fisik.",
-                  );
-                }
-              }
-            }
-          }
-        } catch (err) {
-          terminal.innerHTML += `\n🔴 ERROR KONEKSI: ${err.message}\n`;
-          btn.disabled = false;
-          btn.style.background = "#007bff";
-          btn.innerHTML = `<i class="fas fa-play"></i> Coba Ulangi Migrasi`;
-        }
-      }
-    </script>
   </body>
 </html>
