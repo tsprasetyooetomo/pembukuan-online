@@ -4,19 +4,19 @@
 var APP_PAGINATION_STATE = {
   kasir: {
     current: 1,
-    size: 20,
+    size: 10,
     func: "refreshSaldoKasir",
     target: "kasirPagination",
   },
   inputHarian: {
     current: 1,
-    size: 20,
+    size: 10,
     func: "refreshInputHarian",
     target: "inputHarianPagination",
   },
   kasHarian: {
     current: 1,
-    size: 20,
+    size: 10,
     func: "refreshKasHarian",
     target: "kasHarianPagination",
   },
@@ -1053,23 +1053,179 @@ async function showDetailReff(noreffTarget, clickedCabang, clickedGroup) {
 }
 /* ---------- Input Harian Layout Panel ---------- */
 PANEL_MAP.inputHarian = renderInputHarian;
-AFTER_RENDER.inputHarian = refreshInputHarian;
+//AFTER_RENDER.inputHarian = refreshInputHarian;
+
+// Global State untuk Tabel & Paginasi Input Harian
+var APP_SORT_STATE = APP_SORT_STATE || {
+  column: null,
+  direction: "asc",
+};
+var APP_PAGINATION_STATE = APP_PAGINATION_STATE || {
+  inputHarian: { current: 1, size: 10 },
+};
+var CACHE_INPUT_HARIAN_FILTERED = CACHE_INPUT_HARIAN_FILTERED || [];
+var FOOTER_INPUT_HARIAN_TOTAL = FOOTER_INPUT_HARIAN_TOTAL || [];
+
+// --- HELPER FUNCTIONS ---
+
+function calcDbCrTotal(r) {
+  var keyRef = r.noreff || "";
+  var indicator = keyRef.charAt(1).toLowerCase();
+  var rawAmount = num(r.total) || num(r.db || 0) || num(r.cr || 0);
+  var currentDb = 0,
+    currentCr = 0;
+
+  currentDb = num(r.db || 0);
+  currentCr = num(r.cr || 0);
+
+  return { db: currentDb, cr: currentCr, total: rawAmount };
+}
+
+function getSortComparator(colIndex, direction) {
+  var dir = direction === "asc" ? 1 : -1;
+
+  return function (a, b) {
+    var valA, valB;
+    switch (colIndex) {
+      case 0:
+        valA = a.tanggal || "";
+        valB = b.tanggal || "";
+        return valA.localeCompare(valB) * dir;
+      case 1:
+        valA = a.noreff || "";
+        valB = b.noreff || "";
+        return valA.localeCompare(valB) * dir;
+      case 2:
+        valA = a.noper || a.noPerkiraan || "";
+        valB = b.noper || b.noPerkiraan || "";
+        return valA.localeCompare(valB) * dir;
+      case 3:
+        valA = a.penjelasan || a.keterangan || "";
+        valB = b.penjelasan || b.keterangan || "";
+        return valA.localeCompare(valB) * dir;
+      case 4:
+        valA = num(a.total) || num(a.db || 0) || num(a.cr || 0);
+        valB = num(b.total) || num(b.db || 0) || num(b.cr || 0);
+        return (valA - valB) * dir;
+      case 5:
+        valA = num(a.db || 0);
+        valB = num(b.db || 0);
+        return (valA - valB) * dir;
+      case 6:
+        valA = num(a.cr || 0);
+        valB = num(b.cr || 0);
+        return (valA - valB) * dir;
+      case 7:
+        valA = lookupCabangLabel(a.cabang) || "Pusat";
+        valB = lookupCabangLabel(b.cabang) || "Pusat";
+        return valA.localeCompare(valB) * dir;
+      default:
+        return 0;
+    }
+  };
+}
+
+function getInteractiveTableHeadersHtml() {
+  var headers = [
+    "Tanggal",
+    "No Reff",
+    "No Perk",
+    "Penjelasan",
+    "Total",
+    "Debit",
+    "Kredit",
+    "Cabang",
+  ];
+
+  return headers
+    .map(function (title, idx) {
+      var isAsc =
+        APP_SORT_STATE.column === idx && APP_SORT_STATE.direction === "asc";
+      var icon =
+        APP_SORT_STATE.column === idx
+          ? isAsc
+            ? ' <i class="fa-solid fa-arrow-up"></i>'
+            : ' <i class="fa-solid fa-arrow-down"></i>'
+          : ' <i class="fa-solid fa-sort" style="opacity:0.3;"></i>';
+
+      var align = [4, 5, 6].includes(idx)
+        ? "text-align:right;"
+        : "text-align:left;";
+
+      return `<th style="padding:10px 8px; border-bottom:2px solid var(--brd); cursor:pointer; user-select:none; ${align}" onclick="handleTableSort(${idx})">${title}${icon}</th>`;
+    })
+    .join("");
+}
+
+function handleTableSort(columnIndex) {
+  if (APP_SORT_STATE.column === columnIndex) {
+    APP_SORT_STATE.direction =
+      APP_SORT_STATE.direction === "asc" ? "desc" : "asc";
+  } else {
+    APP_SORT_STATE.column = columnIndex;
+    APP_SORT_STATE.direction = [4, 5, 6].includes(columnIndex) ? "desc" : "asc";
+  }
+
+  if (CACHE_INPUT_HARIAN_FILTERED.length > 0) {
+    CACHE_INPUT_HARIAN_FILTERED.sort(
+      getSortComparator(APP_SORT_STATE.column, APP_SORT_STATE.direction),
+    );
+  }
+
+  refreshInputHarian(true);
+}
+
+function updateTableHeadersUI() {
+  var tblContainer = $("inputHarianTbl");
+  if (!tblContainer) return;
+  var trHead = tblContainer.querySelector("thead tr");
+  if (trHead) {
+    trHead.innerHTML = getInteractiveTableHeadersHtml();
+  }
+}
+
+function formatTanggalBersih(rawDate) {
+  if (!rawDate) return "-";
+  var d = new Date(rawDate);
+  if (isNaN(d.getTime())) return rawDate;
+
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, "0");
+  var day = String(d.getDate()).padStart(2, "0");
+
+  return `${y}-${m}-${day}`;
+}
 
 function renderInputHarian() {
-  var today = new Date().toISOString().slice(0, 7); // Format YYYY-MM untuk input month
+  var d = new Date();
+  var year = d.getFullYear();
+  var month = String(d.getMonth() + 1).padStart(2, "0");
+  var today = year + "-" + month;
 
-  // 1. Reset nomor halaman ke angka 1 setiap kali menu utama dibuka pertama kali
   if (APP_PAGINATION_STATE && APP_PAGINATION_STATE.inputHarian) {
     APP_PAGINATION_STATE.inputHarian.current = 1;
   }
 
-  // Ambil group aktif dari session browser untuk dilempar ke parameter getGroupOpts
+  CACHE_INPUT_HARIAN_FILTERED = [];
+  FOOTER_INPUT_HARIAN_TOTAL = [];
+
   var activeGroupSession = localStorage.getItem("group") || "";
 
-  // 2. Render UI Filter dengan dropdown Group dinamis dari fungsi getGroupOpts()
-  return `<div class="flt" style="display: flex; flex-direction: row; flex-wrap: nowrap !important; gap: .6rem; align-items: flex-end; justify-content: flex-start; height: auto !important; padding: .6rem; min-height: 45px; overflow-x: auto; width: 100%;">
-      
-      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+  setTimeout(function () {
+    var tblContainer = $("inputHarianTbl");
+    if (tblContainer) {
+      tblContainer.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+        <thead><tr>${getInteractiveTableHeadersHtml()}</tr></thead>
+        <tbody>
+          <tr><td colspan="8" style="padding:2.5rem; text-align:center; color:var(--text-muted, #777);">Silakan tentukan kriteria filter lalu klik tombol <b>Terapkan</b> untuk menampilkan data.</td></tr>
+        </tbody>
+      </table></div>`;
+    }
+  }, 50);
+
+  return `<div style="position: relative; margin-bottom: 8px;">
+ <div class="flt" style="display: flex; flex-direction: row; flex-wrap: wrap !important; gap: .6rem; align-items: flex-end; justify-content: flex-start; padding: .6rem; width: 100%;">
+       <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
         <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Periode</label>
         <select id="fi_periode" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
           <option value="bulan">Bulanan</option>
@@ -1082,7 +1238,6 @@ function renderInputHarian() {
         <input type="month" id="fi_bulan" value="${today}" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
       </div>
       
-      <!-- 🌟 ELEMEN GROUP: SEKARANG 100% DINAMIS MENGGUNAKAN FUNGSI getGroupOpts() ANDA -->
       <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
         <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Group</label>
         <select id="fi_group" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
@@ -1097,173 +1252,110 @@ function renderInputHarian() {
         </select>
       </div>
       
-      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
-        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Kode Trans</label>
-        <input type="text" id="fi_ktrans" class="in" placeholder="Semua" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
-      </div>
+     
       
-      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 90px;">
-        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Min. Nilai</label>
-        <input type="number" id="fi_nilai" class="in" value="0" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
-      </div>
-      
-      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 130px; min-width: 120px;">
-        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Golongan</label>
-        <select id="fi_gol" onchange="if(APP_PAGINATION_STATE?.inputHarian) APP_PAGINATION_STATE.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
-          <option value="">Semua</option>
-        </select>
-      </div>
-      
-      <!-- TOMBOL TERAPKAN MANUAL -->
-      <div class="fg" style="flex: 0 0 auto;">
+      <div class="fg" style="display: flex; flex-direction: row; gap: 6px; align-items: flex-end; flex: 0 0 auto;">
         <button class="btn btn-b" style="background-color: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="refreshInputHarian(false)" title="Terapkan Filter">
           <i class="fa-solid fa-filter"></i> Terapkan
         </button>
-      </div>
-      
-      <!-- TOMBOL EXPORT -->
-      <div class="fg" style="flex: 0 0 auto;">
+        
         <button class="btn btn-s" style="background-color: #107c41 !important; color: #fff !important; border-color: #107c41 !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="exportInputHarian()" title="Download Excel/CSV">
           <i class="fa-solid fa-file-excel"></i> Export XLS
         </button>
       </div>
+    
     </div>
-    <div id="inputHarianTbl"></div>
-    <div id="inputHarianPagination" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:5px;"></div>`;
+  
+  </div>
+  
+  <div id="inputHarianTbl"></div>
+  <div id="inputHarianPagination" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:5px;"></div>`;
 }
 
-var CACHE_INPUT_HARIAN_FILTERED = CACHE_INPUT_HARIAN_FILTERED || [];
-var FOOTER_INPUT_HARIAN_TOTAL = FOOTER_INPUT_HARIAN_TOTAL || [];
-
 async function refreshInputHarian(isSwitchPage = false) {
-  // 🌟 FIX 1: Tambahkan validasi elemen fisik fi_group yang baru ke gerbang pengaman awal
-  if (
-    !$("fi_periode") ||
-    !$("fi_bulan") ||
-    !$("fi_cabang") ||
-    !$("fi_ktrans") ||
-    !$("fi_nilai") ||
-    !$("fi_gol") ||
-    !$("fi_group")
-  ) {
+  if (!$("fi_periode") || !$("fi_cabang") || !$("fi_group") || !$("fi_bulan"))
     return;
-  }
 
-  // Jika hanya pindah halaman pagination, langsung gunakan data cache memori
   if (isSwitchPage && CACHE_INPUT_HARIAN_FILTERED.length > 0) {
-    // Lewati proses fetch ke server, langsung lompat ke rendering UI di bawah
+    // Lewati fetch server, gunakan cache
   } else {
-    // Jika isSwitchPage = false (Tombol Terapkan diklik), tarik data segar dari server sesuai filter
     var periode = $("fi_periode").value,
-      bln = $("fi_bulan").value,
-      cab = $("fi_cabang").value,
-      ktrans = $("fi_ktrans").value,
-      nilai = num($("fi_nilai").value),
-      gol = $("fi_gol").value;
-
-    // 🌟 FIX 2: Ambil nilai Group secara dinamis dari dropdown HTML layar (#fi_group)
-    var activeGroup = $("fi_group").value;
-
-    // Ubah filter bulan/tahun YYYY-MM menjadi parameter masa MMYY
-    var formatMasaParam = "";
-    if (bln && bln.includes("-")) {
-      var parts = bln.split("-");
-      formatMasaParam = parts[1] + parts[0].substring(2, 4);
-    }
-
-    var tblContainer = $("inputHarianTbl");
-    if (tblContainer && !isSwitchPage) {
-      tblContainer.innerHTML =
-        '<div style="padding:2rem; text-align:center;"><span class="spinner"></span><br>Sedang menarik data dari server...</div>';
-    }
+      bln = $("fi_bulan").value || new Date().toISOString().slice(0, 7),
+      cab = $("fi_cabang").value || "",
+      activeGroup = $("fi_group").value;
 
     try {
-      // 🌟 KUNCI UTAMA: Ambil data On-Demand dari server backend menggunakan filter group dinamis
-      var url = `/api/data/transaksi?group=${activeGroup}`;
-      if (cab) url += `&cabang=${encodeURIComponent(cab)}`;
-      if (ktrans) url += `&search=${encodeURIComponent(ktrans)}`;
+      var tahunSaja = bln ? bln.substring(0, 4) : new Date().getFullYear();
+      var tableName = `transaksi`;
+      var url = `/api/data/${tableName}?group=${encodeURIComponent(activeGroup)}&tahun=${tahunSaja}`;
+
+      if (cab && cab !== "undefined" && cab !== "Semua") {
+        url += `&cabang=${encodeURIComponent(cab)}`;
+      }
 
       var response = await fetch(url);
-      if (!response.ok) throw new Error("Gagal mengambil data dari server");
+      if (!response.ok)
+        throw new Error(`Gagal mengambil data dari tabel ${tableName}`);
 
       var rawServerData = await response.json();
       var data = Array.isArray(rawServerData) ? rawServerData : [];
 
-      // --- 1. FILTER PERIODE WAKTU (POST-SERVER SINKRONISASI) ---
       if (periode === "bulan" && bln) {
-        data = data.filter(function (t) {
-          return t.tanggal && t.tanggal.startsWith(bln);
+        data = data.filter((t) => {
+          if (!t.tanggal) return false;
+          var dObj = new Date(t.tanggal);
+          if (isNaN(dObj.getTime())) return false;
+
+          var y = dObj.getFullYear();
+          var m = String(dObj.getMonth() + 1).padStart(2, "0");
+          var tglFormatted = `${y}-${m}`;
+
+          return tglFormatted === bln;
         });
-      } else if (periode === "tahun" && bln) {
-        var tahunSaja = bln.substring(0, 4);
-        data = data.filter(function (t) {
-          return t.tanggal && t.tanggal.startsWith(tahunSaja);
+      } else if (periode === "tahun" && tahunSaja) {
+        data = data.filter((t) => {
+          if (!t.tanggal) return false;
+          var dObj = new Date(t.tanggal);
+          if (isNaN(dObj.getTime())) return false;
+
+          var y = dObj.getFullYear();
+          var m = String(dObj.getMonth() + 1).padStart(2, "0");
+          var tglFormatted = `${y}-${m}`;
+
+          // Memastikan tahun sama dan bulan tidak melebihi bulan yang dipilih pada input (bln)
+          return String(y) === String(tahunSaja) && tglFormatted <= bln;
         });
       }
 
-      // --- 2. FILTER NOMINAL NILAI MINIMAL ---
-      if (nilai > 0) {
-        data = data.filter(function (t) {
-          var nilaiAktif = num(t.total) || num(t.db || 0) || num(t.cr || 0);
-          return nilaiAktif >= nilai;
-        });
+      if (APP_SORT_STATE.column !== null) {
+        data.sort(
+          getSortComparator(APP_SORT_STATE.column, APP_SORT_STATE.direction),
+        );
+      } else {
+        data.sort(
+          (a, b) =>
+            (a.tanggal || "").localeCompare(b.tanggal || "") ||
+            (a.id || "").localeCompare(b.id || ""),
+        );
       }
 
-      // --- 3. FILTER GOLONGAN PERKIRAAN INDEPENDEN ---
-      if (gol) {
-        var gp = (DBCache.perkiraan || [])
-          .filter(function (p) {
-            return p.gol === gol;
-          })
-          .map(function (p) {
-            return p.noPerk || p.noper || p.kode_akun;
-          });
-
-        if (gp.length) {
-          data = data.filter(function (t) {
-            var akunTransaksi = t.noper || t.noPerkiraan || "";
-            return gp.indexOf(akunTransaksi) !== -1;
-          });
-        } else {
-          data = [];
-        }
-      }
-
-      // --- 4. URUTKAN DATA KRONOLOGIS ---
-      data.sort(function (a, b) {
-        var dateComp = (a.tanggal || "").localeCompare(b.tanggal || "");
-        if (dateComp !== 0) return dateComp;
-        return (a.id || "").localeCompare(b.id || "");
-      });
-
-      // Simpan hasil data terfilter ke memori cache halaman
       CACHE_INPUT_HARIAN_FILTERED = data;
 
-      // 📊 5. HITUNG AKUMULASI TOTAL DI FOOTER TABEL
       var sumTotal = 0,
         sumDb = 0,
         sumCr = 0;
-      data.forEach(function (r) {
-        var keyRef = r.noreff || "";
-        var indicator = keyRef.charAt(1).toLowerCase();
-        var rawAmount = num(r.total) || num(r.db || 0) || num(r.cr || 0);
-
-        if (indicator === "p") {
-          sumCr += rawAmount;
-        } else if (indicator === "k") {
-          sumDb += rawAmount;
-        } else {
-          sumDb += num(r.db || 0);
-          sumCr += num(r.cr || 0);
-        }
-        sumTotal += rawAmount;
+      data.forEach((r) => {
+        var res = calcDbCrTotal(r);
+        sumTotal += res.total;
+        sumDb += res.db;
+        sumCr += res.cr;
       });
 
       FOOTER_INPUT_HARIAN_TOTAL = [
         "",
         "",
         "",
-        "",
+        "TOTAL NOMINAL",
         fmtN(sumTotal),
         fmtN(sumDb),
         fmtN(sumCr),
@@ -1271,6 +1363,7 @@ async function refreshInputHarian(isSwitchPage = false) {
       ];
     } catch (err) {
       console.error("🔥 Gagal memuat data input harian:", err.message);
+      var tblContainer = $("inputHarianTbl");
       if (tblContainer)
         tblContainer.innerHTML = `<div style="color:var(--accent); padding:2rem; text-align:center;">⚠️ Gagal memuat data: ${err.message}</div>`;
       CACHE_INPUT_HARIAN_FILTERED = [];
@@ -1278,182 +1371,299 @@ async function refreshInputHarian(isSwitchPage = false) {
     }
   }
 
-  // =========================================================================
-  // 🌟 PROSES PAGINATION LAZY RENDER (HANYA MENGGAMBAR BARIS AKTIF)
-  // =========================================================================
   var tblContainer = $("inputHarianTbl");
   if (tblContainer) {
     const totalDataLength = CACHE_INPUT_HARIAN_FILTERED.length;
-
-    const currentPage = APP_PAGINATION_STATE.inputHarian.current || 1;
-    const pageSize = APP_PAGINATION_STATE.inputHarian.size || 20;
+    const currentPage = APP_PAGINATION_STATE?.inputHarian?.current || 1;
+    const pageSize = APP_PAGINATION_STATE?.inputHarian?.size || 10;
     const startIndex = (currentPage - 1) * pageSize;
-
     const paginatedData = CACHE_INPUT_HARIAN_FILTERED.slice(
       startIndex,
       startIndex + pageSize,
     );
 
-    var paginatedRows = paginatedData.map(function (r) {
-      var keyRef = r.noreff || "";
-      var indicator = keyRef.charAt(1).toLowerCase();
-      var currentDb = 0,
-        currentCr = 0;
-      var rawAmount = num(r.total) || num(r.db || 0) || num(r.cr || 0);
+    var rowsHtml =
+      paginatedData.length > 0
+        ? paginatedData
+            .map((r) => {
+              var res = calcDbCrTotal(r);
+              var acct = r.noper || r.noPerkiraan || "-";
+              var isiDesc = (r.penjelasan || r.keterangan || "-").substring(
+                0,
+                25,
+              );
 
-      if (indicator === "p") {
-        currentCr = rawAmount;
-      } else if (indicator === "k") {
-        currentDb = rawAmount;
-      } else {
-        currentDb = num(r.db || 0);
-        currentCr = num(r.cr || 0);
-      }
+              var rowCells = [
+                esc(formatTanggalBersih(r.tanggal)),
+                esc(r.noreff || "-"),
+                esc(acct),
+                esc(isiDesc),
+                fmtN(res.total),
+                fmtN(res.db),
+                fmtN(res.cr),
+                esc(lookupCabangLabel(r.cabang) || "Pusat"),
+              ];
 
-      var isiDesc = r.penjelasan || r.keterangan || "-";
-      var acct = r.noper || "-";
+              return (
+                `<tr>` +
+                rowCells
+                  .map((cell, cIdx) => {
+                    var align = [4, 5, 6].includes(cIdx)
+                      ? "text-align:right;"
+                      : "text-align:left;";
+                    return `<td style="padding:8px; border-bottom:1px solid var(--brd); ${align}">${cell}</td>`;
+                  })
+                  .join("") +
+                `</tr>`
+              );
+            })
+            .join("")
+        : `<tr><td colspan="8" style="padding:2.5rem; text-align:center; color:var(--text-muted, #777);">Tidak ada data.</td></tr>`;
 
-      return [
-        esc(r.tanggal || "-"),
-        esc(keyRef || "-"),
-        esc(acct || "-"),
-        esc(isiDesc).substring(0, 25),
-        fmtN(rawAmount),
-        fmtN(currentDb),
-        fmtN(currentCr),
-        esc(lookupCabangLabel(r.cabang) || "Pusat"),
-      ];
-    });
+    var footerHtml = "";
+    if (FOOTER_INPUT_HARIAN_TOTAL.length > 0 && paginatedData.length > 0) {
+      footerHtml =
+        `<tr style="font-weight:bold; background:var(--bg2);">` +
+        FOOTER_INPUT_HARIAN_TOTAL.map((fVal, fIdx) => {
+          var align = [4, 5, 6].includes(fIdx)
+            ? "text-align:right;"
+            : "text-align:left;";
+          return `<td style="padding:8px; border-top:2px solid var(--brd); ${align}">${fVal}</td>`;
+        }).join("") +
+        `</tr>`;
+    }
 
-    tblContainer.innerHTML = wrapTable(
-      buildTable(
-        ["Tanggal", "No Ref", "No Acct", "Desc", "Total", "DB", "CR", "Cabang"],
-        paginatedRows,
-        {
-          numCols: [4, 5, 6],
-          foot: FOOTER_INPUT_HARIAN_TOTAL,
-          emptyMsg:
-            "Tidak ada data. Silakan sesuaikan kriteria filter lalu klik Terapkan kembali.",
-        },
-      ),
-    );
+    tblContainer.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+      <thead><tr>${getInteractiveTableHeadersHtml()}</tr></thead>
+      <tbody>${rowsHtml}${footerHtml}</tbody>
+    </table></div>`;
 
+    updateTableHeadersUI();
     renderPagination("inputHarian", totalDataLength);
   }
 }
 
-// 🌟 DAFTARKAN KE GLOBAL WINDOW AGAR BISA DIAKSES OLEH gantiHalamanUniversal
-window.refreshInputHarian = refreshInputHarian;
-
 function exportInputHarian() {
-  // 🌟 FIX UTAMA: Langsung ambil data yang sudah matang dan terfilter dari cache memori layar aktif
   var data = Array.isArray(CACHE_INPUT_HARIAN_FILTERED)
     ? CACHE_INPUT_HARIAN_FILTERED
     : [];
 
   if (data.length === 0) {
-    return toast(
-      "Tidak ada data aktif di tabel untuk di-export! Silakan klik Terapkan filter terlebih dahulu.",
-      "wrn",
-    );
+    return toast("Tidak ada data aktif di tabel untuk di-export!", "wrn");
   }
 
   var bln = $("fi_bulan") ? $("fi_bulan").value : "";
-  var cab = $("fi_cabang") ? $("fi_cabang").value : "";
-
-  // 🔥 PERBAIKAN: Ambil nilai Group dinamis dari dropdown HTML layar untuk penamaan file spreadsheet
+  var cab = $("fi_cabang") ? $("fi_cabang").value : "Semua";
   var grp = $("fi_group")
     ? $("fi_group").value
     : localStorage.getItem("group") || "TLGA";
+  var periodeVal = $("fi_periode") ? $("fi_periode").value : "bulan";
 
-  // --- 1. STRUKTURISASI DATA CSV EXCEL (8 KOLOM SINKRON) ---
-  // Gunakan BOM UTF-8 (\uFEFF) agar Microsoft Excel langsung membaca tanda pemisah titik koma (;) secara otomatis tanpa berantakan
-  var csvContent = "\uFEFFTanggal;No Ref;No Acct;Desc;Total;DB;CR;Cabang\r\n";
+  var periodeText = "";
+  if (periodeVal === "tahun" && bln) {
+    periodeText = "TAHUN " + bln.substring(0, 4);
+  } else if (bln) {
+    var bulanNama = [
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
+    ];
+    var b = parseInt(bln.split("-")[1], 10) - 1;
+    periodeText = bulanNama[b] + " " + bln.substring(0, 4);
+  } else {
+    periodeText = "Semua Periode";
+  }
 
-  var sumTotal = 0,
-    sumDb = 0,
-    sumCr = 0;
+  var baseHeaders = [
+    "Tanggal",
+    "No Ref",
+    "No Acct",
+    "Desc",
+    "Total",
+    "DB",
+    "CR",
+    "Cabang",
+  ];
 
-  data.forEach(function (r) {
-    var keyRef = r.noreff || "";
-    var indicator = keyRef.charAt(1).toLowerCase();
+  var dataXls = data.slice().sort(function (a, b) {
+    var cabA = lookupCabangLabel(a.cabang) || "Pusat";
+    var cabB = lookupCabangLabel(b.cabang) || "Pusat";
+    var cmpCab = cabA.localeCompare(cabB);
+    if (cmpCab !== 0) return cmpCab;
 
-    var currentDb = 0;
-    var currentCr = 0;
-    var rawAmount = num(r.total) || num(r.db || 0) || num(r.cr || 0);
-
-    // ATURAN AKUNTANSI SINKRON: p ke CR, k ke DB
-    if (indicator === "p") {
-      currentCr = rawAmount;
-      currentDb = 0;
-    } else if (indicator === "k") {
-      currentDb = rawAmount;
-      currentCr = 0;
-    } else {
-      currentDb = num(r.db || 0);
-      currentCr = num(r.cr || 0);
-    }
-
-    sumTotal += rawAmount;
-    sumDb += currentDb;
-    sumCr += currentCr;
-
-    var acct = r.noperkiraan || r.noPerkiraan || "-";
-    var cleanDesc = (r.desc || r.keterangan || "-").replace(/;/g, ",");
-    var labelCabang = (lookupCabangLabel(r.cabang) || "Pusat").replace(
-      /;/g,
-      ",",
-    );
-
-    // Gabungkan baris data ke teks CSV spreadsheet
-    csvContent +=
-      (r.tanggal || "-") +
-      ";" +
-      keyRef +
-      ";" +
-      acct +
-      ";" +
-      cleanDesc +
-      ";" +
-      rawAmount +
-      ";" +
-      currentDb +
-      ";" +
-      currentCr +
-      ";" +
-      labelCabang +
-      "\r\n";
+    var nopA = a.noper || a.noPerkiraan || "";
+    var nopB = b.noper || b.noPerkiraan || "";
+    return nopA.localeCompare(nopB);
   });
 
-  // Baris Total / Footer Spreadsheet
-  csvContent +=
-    ";;;TOTAL NOMINAL;" + sumTotal + ";" + sumDb + ";" + sumCr + ";\r\n";
+  var xmlRows = "";
+  var grandTotal = 0,
+    grandDb = 0,
+    grandCr = 0;
+  var currentCabang = null;
+  var subTotal = 0,
+    subDb = 0,
+    subCr = 0;
 
-  // --- 2. PROSES UNDUH FILE BLOB SPREADSHEET ---
-  var blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  dataXls.forEach(function (r) {
+    var res = calcDbCrTotal(r);
+    var tglClean = formatTanggalBersih(r.tanggal);
+    var labelCabang = lookupCabangLabel(r.cabang) || "Pusat";
+    var acct = r.noper || r.noPerkiraan || "-";
+    var cleanDesc = (r.penjelasan || r.keterangan || "-")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    if (currentCabang !== null && currentCabang !== labelCabang) {
+      xmlRows += `<Row>
+        <Cell ss:MergeAcross="3" ss:StyleID="sSubTotal"><Data ss:Type="String">SUB TOTAL CABANG: ${currentCabang}</Data></Cell>
+        <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subTotal}</Data></Cell>
+        <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subDb}</Data></Cell>
+        <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subCr}</Data></Cell>
+        <Cell ss:StyleID="sSubTotal"><Data ss:Type="String"></Data></Cell>
+      </Row>`;
+      subTotal = 0;
+      subDb = 0;
+      subCr = 0;
+    }
+
+    xmlRows += `<Row>
+      <Cell><Data ss:Type="String">${tglClean || "-"}</Data></Cell>
+      <Cell><Data ss:Type="String">${r.noreff || "-"}</Data></Cell>
+      <Cell ss:StyleID="sText"><Data ss:Type="String">${acct}</Data></Cell>
+      <Cell><Data ss:Type="String">${cleanDesc}</Data></Cell>
+      <Cell ss:StyleID="sNumRight"><Data ss:Type="Number">${res.total}</Data></Cell>
+      <Cell ss:StyleID="sNumRight"><Data ss:Type="Number">${res.db}</Data></Cell>
+      <Cell ss:StyleID="sNumRight"><Data ss:Type="Number">${res.cr}</Data></Cell>
+      <Cell><Data ss:Type="String">${labelCabang}</Data></Cell>
+    </Row>`;
+
+    subTotal += res.total;
+    subDb += res.db;
+    subCr += res.cr;
+    grandTotal += res.total;
+    grandDb += res.db;
+    grandCr += res.cr;
+    currentCabang = labelCabang;
+  });
+
+  if (currentCabang !== null) {
+    xmlRows += `<Row>
+      <Cell ss:MergeAcross="3" ss:StyleID="sSubTotal"><Data ss:Type="String">SUB TOTAL CABANG: ${currentCabang}</Data></Cell>
+      <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subTotal}</Data></Cell>
+      <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subDb}</Data></Cell>
+      <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subCr}</Data></Cell>
+      <Cell ss:StyleID="sSubTotal"><Data ss:Type="String"></Data></Cell>
+    </Row>`;
+  }
+
+  var xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="sTitle">
+   <Font ss:Size="13" ss:Bold="1"/>
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+  </Style>
+  
+  <Style ss:ID="sHeader">
+   <Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="11"/>
+   <Interior ss:Color="#107C41" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>
+  </Style>
+
+  <Style ss:ID="sSubTotal">
+   <Font ss:Bold="1"/>
+   <Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Center" ss:Horizontal="Left"/>
+   <Borders>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="sSubTotalNum">
+   <Font ss:Bold="1"/>
+   <Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Center" ss:Horizontal="Right"/>
+   <Borders>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+
+  <Style ss:ID="sTotal">
+   <Font ss:Bold="1" ss:Size="11"/>
+   <Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Center" ss:Horizontal="Left"/>
+   <Borders>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="sTotalNum">
+   <Font ss:Bold="1" ss:Size="11"/>
+   <Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Center" ss:Horizontal="Right"/>
+   <Borders>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2"/>
+   </Borders>
+  </Style>
+
+  <Style ss:ID="sText"><NumberFormat ss:Format="@"/></Style>
+  <Style ss:ID="sNumRight"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
+ </Styles>
+ <Worksheet ss:Name="Laporan Input Harian">
+  <Table ss:DefaultColumnWidth="100" ss:DefaultRowHeight="20">
+   
+   <Row ss:Height="30">
+    <Cell ss:StyleID="sTitle"><Data ss:Type="String">LAPORAN INPUT HARIAN PERIODE ${periodeText}</Data></Cell>
+   </Row>
+   <Row ss:Height="10"><Cell></Cell></Row>
+   
+   <Row>
+    ${baseHeaders.map((h) => `<Cell ss:StyleID="sHeader"><Data ss:Type="String">${h}</Data></Cell>`).join("")}
+   </Row>
+   
+   ${xmlRows}
+   
+   <Row ss:Height="10"><Cell></Cell></Row>
+   <Row>
+    <Cell ss:MergeAcross="3" ss:StyleID="sTotal"><Data ss:Type="String">GRAND TOTAL</Data></Cell>
+    <Cell ss:StyleID="sTotalNum"><Data ss:Type="Number">${grandTotal}</Data></Cell>
+    <Cell ss:StyleID="sTotalNum"><Data ss:Type="Number">${grandDb}</Data></Cell>
+    <Cell ss:StyleID="sTotalNum"><Data ss:Type="Number">${grandCr}</Data></Cell>
+    <Cell ss:StyleID="sTotal"><Data ss:Type="String"></Data></Cell>
+   </Row>
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+  var blob = new Blob([xmlContent], {
+    type: "application/vnd.ms-excel;charset=utf-8;",
+  });
   var link = document.createElement("a");
-  var url = URL.createObjectURL(blob);
+  link.href = URL.createObjectURL(blob);
+  link.download =
+    "Laporan_Input_Harian_" + grp + "_" + cab + "_" + bln + ".xls";
 
-  // 🌟 FIX: Sertakan parameter nama Group (grp) ke dalam konstruksi penamaan file spreadsheet
-  var namaFile =
-    "Laporan_Input_Harian_" +
-    (grp || "ALL") +
-    "_" +
-    (cab || "Semua") +
-    "_" +
-    bln +
-    ".csv";
-
-  link.setAttribute("href", url);
-  link.setAttribute("download", namaFile);
-  link.style.visibility = "hidden";
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 
-  if (typeof toast === "function") {
+  if (typeof toast === "function")
     toast("Laporan input harian berhasil diunduh.", "ok");
-  }
 }
 
 PANEL_MAP.saldoKasir = renderLaporanSaldoKasir;
