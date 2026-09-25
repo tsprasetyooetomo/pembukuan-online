@@ -786,7 +786,6 @@ function formGol(id) {
 }
 
 async function saveGol(e, id) {
-  // Ini sekarang berguna karena ada <form onsubmit> di atas
   if (e && e.preventDefault) e.preventDefault();
 
   try {
@@ -799,34 +798,91 @@ async function saveGol(e, id) {
     if (!gol || !namaGol) return toast("Kode dan Nama wajib diisi", "err");
 
     if (id) {
+      // 1. CARI DATA LAMA DENGAN FALLBACK (Pencegahan Error Tipe Data)
+      // Coba cari pakai ID asli dulu
       var r = await db.get("golongan", id);
-      if (r) {
-        var updated = Object.assign({}, r, {
-          gol: gol,
-          namaGol: namaGol,
-          awal: awal,
-          cabang: cabang,
-          group: group,
-        });
-        await db.put("golongan", updated);
 
-        var idx = DBCache.golongan.findIndex((x) => x.id === id);
-        if (idx !== -1) DBCache.golongan[idx] = updated;
+      // Jika TIDAK ketemu, kemungkinan ID di database adalah Integer tapi yang dikirim String (atau sebaliknya)
+      if (!r) {
+        console.log("ID asli tidak ketemu, mencoba konversi tipe data...");
+        r = await db.get("golongan", Number(id)); // Coba sebagai Angka
+        if (!r) r = await db.get("golongan", String(id)); // Coba sebagai String
+      }
+
+      // 2. JIKA MASIH TIDAK KETEMU DI DATABASE, AMBIL DARI CACHE SEBAGAI CADANGAN
+      if (!r) {
+        console.warn(
+          "Data tidak ditemukan di DB Fisik, mengambil dari cache sebagai cadangan...",
+        );
+        r = DBCache.golongan.find((x) => String(x.id) === String(id)) || {};
+      }
+
+      // 3. Gabungkan data lama dengan data baru
+      var updated = {
+        ...r,
+        id: id, // Pertahankan ID yang dikirim dari UI
+        gol: gol,
+        namagol: namaGol,
+        awal: awal,
+        cabang: cabang,
+        group: group,
+      };
+
+      // Pastikan field wajib lainnya ada (jika tadi mengambil dari cache kosong)
+      updated.db = updated.db || 0;
+      updated.cr = updated.cr || 0;
+
+      // 4. SIMPAN KE DATABASE FISIK (Menggunakan syntax wrapper Anda)
+      // 4. SIMPAN KE DATABASE FISIK (DENGAN DEBUG)
+      console.log(
+        "%c=== MULAI PROSES SIMPAN FISIK ===",
+        "color: orange; font-weight: bold;",
+      );
+      console.log(
+        "1. ID yang dikirim dari tombol:",
+        id,
+        "(Tipe:",
+        typeof id + ")",
+      );
+      console.log("2. Data lama yang berhasil ditemukan:", r);
+      console.log("3. Data baru yang akan di-PUT:", updated);
+
+      await db.put("golongan", updated);
+
+      // VERIFIKASI: Langsung ambil lagi dari DB untuk cek apakah benar-benar berubah
+      var cekLagi = await db.get("golongan", id);
+      console.log(
+        "4. Data yang baru saja diambil dari DB (Verifikasi):",
+        cekLagi,
+      );
+      console.log(
+        "%c=== SELESAI PROSES SIMPAN ===",
+        "color: green; font-weight: bold;",
+      );
+
+      // 5. Update UI Cache
+      var idx = DBCache.golongan.findIndex((x) => String(x.id) === String(id));
+      if (idx !== -1) {
+        DBCache.golongan[idx] = updated;
+      } else {
+        DBCache.golongan.push(updated);
       }
     } else {
-      let newId = uid(); // PERBAIKAN: pakai let agar tidak keluar scope else
+      // LOGIKA TAMBAH DATA BARU
+      let newId = uid();
       let newObj = {
-        // PERBAIKAN: pakai let
         id: newId,
         gol: gol,
-        namaGol: namaGol,
+        namagol: namaGol,
         awal: awal,
         db: 0,
         cr: 0,
         cabang: cabang,
         group: group,
       };
+
       await db.add("golongan", newObj);
+      if (!DBCache.golongan) DBCache.golongan = [];
       DBCache.golongan.push(newObj);
     }
 
@@ -834,7 +890,8 @@ async function saveGol(e, id) {
     toast("Tersimpan!", "ok");
     safeRenderCurrentPanel();
   } catch (err) {
-    toast("Gagal simpan: " + err.message, "err");
+    console.error("Gagal simpan fisik:", err);
+    toast("Gagal simpan ke database: " + err.message, "err");
   }
 }
 
@@ -1999,7 +2056,8 @@ async function clearAllData(storeName) {
 
   try {
     // 1. TEMBAK API EXPRESS PORT 3000 UNTUK MENGHAPUS DATA DI SQLITE SERVER
-    var urlApiExpress = "http://localhost:3000/api/clear-all-data";
+    //var urlApiExpress = "http://localhost:3000/api/clear-all-data";
+    var urlApiExpress = "/api/clear-all-data";
 
     var response = await fetch(urlApiExpress, {
       method: "POST",
@@ -2499,6 +2557,7 @@ async function saveSaldoKasirAwal(e, editId) {
     toast("Gagal simpan: " + err.message, "err");
   }
 }
+
 PANEL_MAP.group = renderGroup;
 
 async function renderGroup() {
@@ -2515,17 +2574,22 @@ async function renderGroup() {
   var ids = data.map(function (r) {
     return r.id;
   });
-  bulkInit("group", ids);
+  bulkInit("groupproject", ids);
 
   var dataLimit = data.slice(0, _viewLimit);
   var idsLimit = dataLimit.map(function (r) {
     return r.id;
   });
 
+  // 1. Tambahkan r.gambar dan format ke dalam elemen <img> jika ada isinya
   var rows = dataLimit.map(function (r) {
-    return [r.kode || "-", r.nama || "-"];
+    var imgHtml = r.gambar
+      ? '<img src="' +
+        r.gambar +
+        '" style="width:60px;height:60px;object-fit:cover;display:block;" onerror="this.onerror=null;this.src=\'https://via.placeholder.com/60?text=Error\';" />'
+      : "Tidak Ada Gambar";
+    return [r.kode || "-", r.nama || "-", imgHtml];
   });
-
   return (
     bulkBarHTML("groupproject", "Group Project") +
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.7rem;flex-wrap:wrap;gap:.5rem">' +
@@ -2540,11 +2604,12 @@ async function renderGroup() {
     "</div>" +
     "</div>" +
     wrapTable(
-      buildTable(["Kode Group", "Nama Group"], rows, {
+      // 2. Tambahkan "Gambar" ke dalam array header tabel
+      buildTable(["Kode Group", "Nama Group", "Gambar"], rows, {
         bulkStore: "groupproject",
         bulkIds: idsLimit,
         actions: function (r, i) {
-          return crudActions(dataLimit[i].id, "group");
+          return crudActions(dataLimit[i].id, "groupproject");
         },
         emptyMsg: "Belum ada data group",
       }),
@@ -2553,6 +2618,7 @@ async function renderGroup() {
 }
 
 function formGroup(id) {
+  console.log("ID diterima formGroup:", id);
   var isEdit = !!id;
   var data = isEdit
     ? (DBCache.groupproject || []).find(function (d) {
@@ -2566,7 +2632,15 @@ function formGroup(id) {
     '"></div>' +
     '<div class="fg"><label>Nama Group</label><input id="fGrpNama" class="in" value="' +
     esc(data.nama || "") +
-    '"></div>';
+    '"></div>' +
+    '<div class="fg"><label>Gambar</label>' +
+    '<div style="display:flex;gap:.5rem;align-items:center">' +
+    '<input id="fGrpGambar" class="in" value="' +
+    esc(data.gambar || "") +
+    '" placeholder="URL atau pilih file">' +
+    '<input type="file" id="fGrpFile" style="display:none" accept="image/*" onchange="handleGroupImageUpload(this)">' +
+    '<button type="button" class="btn btn-g" onclick="$(\'fGrpFile\').click()"><i class="fa-solid fa-folder-open"></i> Browse</button>' +
+    "</div></div>";
 
   var foot =
     '<button type="button" class="btn btn-g" onclick="closeModal()">Batal</button>' +
@@ -2579,39 +2653,71 @@ function formGroup(id) {
   openModal(isEdit ? "Edit Group" : "Tambah Group", html, foot);
 }
 
+// Tambahkan fungsi helper ini untuk menangani file yang dipilih dari komputer
+function handleGroupImageUpload(input) {
+  if (input.files && input.files[0]) {
+    var file = input.files[0];
+    var reader = new FileReader();
+    reader.onload = function (e) {
+      // Mengisi nilai input teks dengan data Base64 dari gambar yang dipilih
+      $("fGrpGambar").value = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  }
+}
+
 async function saveGroup(e, id) {
   try {
     var kode = $("fGrpKode").value.trim();
     var nama = $("fGrpNama").value.trim();
+    var gambar = $("fGrpGambar").value.trim();
+
     if (kode.length === 1 && !isNaN(kode)) {
       kode = "0" + kode;
     }
-    // Pastikan input terisi
-    if (!kode || !nama) return toast("Kode dan Nama wajib diisi", "err");
 
+    if (!kode || !nama) return toast("Kode dan Nama wajib diisi", "err");
     if (id) {
       // MODE EDIT (UPDATE)
       var r = await db.get("groupproject", id);
       if (r) {
         await db.put(
           "groupproject",
-          Object.assign({}, r, { id: id, kode: kode, nama: nama }),
+          Object.assign({}, r, {
+            id: id,
+            kode: kode,
+            nama: nama,
+            gambar: gambar,
+          }),
         );
       }
     } else {
       // MODE TAMBAH BARU
-      await db.add("groupproject", { id: uid(), kode: kode, nama: nama });
+      await db.add("groupproject", {
+        id: uid(),
+        kode: kode,
+        nama: nama,
+        gambar: gambar,
+      });
     }
 
+    // 1. Pastikan cache lokal ditarik ulang secara sinkron/await dari server
     await refreshCache();
+
+    // 2. Paksa sinkronisasi cache groupproject jika refreshCache() tidak otomatis memperbarui variabel global
+    DBCache.groupproject = await db.getAll("groupproject");
+
     closeModal();
     toast("Tersimpan!", "ok");
+
+    // 3. Render ulang panel aktif
     safeRenderCurrentPanel();
   } catch (err) {
     toast("Gagal simpan: " + err.message, "err");
     console.error(err);
   }
 }
+
 PANEL_MAP.sales = renderSales;
 // Pastikan variabel global untuk penampung sort sales sudah ada
 if (typeof _salesSort === "undefined") var _salesSort = { col: -1, dir: "asc" };
@@ -2639,15 +2745,52 @@ function sortSales(colIndex) {
 }
 
 // --- 2. FUNGSI UTAMA RENDER SALES ---
+function formatMasaDariTanggal(tanggalInput) {
+  if (!tanggalInput) return "";
+  var d = new Date(tanggalInput);
+  if (isNaN(d.getTime())) return "";
+
+  var month = ("0" + (d.getMonth() + 1)).slice(-2);
+  var yearFull = String(d.getFullYear());
+  var yearShort = yearFull.slice(-2);
+
+  return month + yearShort;
+}
+
 async function renderSales() {
   var rawData = DBCache.datasales || [];
 
+  // Inisialisasi default filter masa sales jika belum ada (format: MM-YYYY, misal: bulan berjalan)
+  if (typeof window._salesFilterMasa === "undefined") {
+    var d = new Date();
+    var bln = ("0" + (d.getMonth() + 1)).slice(-2);
+    window._salesFilterMasa = bln + "-" + d.getFullYear();
+  }
+
+  // Ubah format MM-YYYY menjadi MMYY (misal: 01-2026 menjadi 0126) untuk dicocokkan dengan data
+  var partMasa = window._salesFilterMasa.split("-");
+  var inputMonthValue = partMasa[1] + "-" + partMasa[0]; // format untuk input type="month" (YYYY-MM)
+  var activeMasaFormatted = partMasa[0] + partMasa[1].slice(-2); // format MMYY
+
   // Bungkus data dengan original index dan pastikan properti fisik 'kodebersama' ada
   var rawDataWithIndex = rawData.map(function (r, idx) {
-    // 🔥 Inisialisasi fisik properti jika belum ada di objek data asli
     if (typeof r.kodebersama === "undefined") {
       r.kodebersama = r.kode_bersama || r.KODEBERSAMA || "";
     }
+
+    // Otomatis isi Masa (MA) dari tanggal jika masa belum ada
+    if (!r.masa && !r.ma && !r.MA) {
+      var sourceDate = r.tanggal || r.tgl || r.date || r.CREATED_AT;
+      if (sourceDate) {
+        var dObj = new Date(sourceDate);
+        if (!isNaN(dObj.getTime())) {
+          var m = ("0" + (dObj.getMonth() + 1)).slice(-2);
+          var y = String(dObj.getFullYear()).slice(-2);
+          r.masa = m + y;
+        }
+      }
+    }
+
     return { item: r, originalIndex: idx + 1 };
   });
 
@@ -2681,6 +2824,26 @@ async function renderSales() {
         obj.item.noper || obj.item.no_per || obj.item.NOPER || "",
       ).trim();
       return noper.toUpperCase() === activeNoper.toUpperCase();
+    });
+  }
+
+  // Filter Masa (MA) menggunakan nilai input Masa
+  var masaInputElem = document.getElementById("filter_sales_masa");
+  if (masaInputElem && masaInputElem.value) {
+    // Input type="month" menghasilkan format YYYY-MM
+    var valSplit = masaInputElem.value.split("-");
+    if (valSplit.length === 2) {
+      window._salesFilterMasa = valSplit[1] + "-" + valSplit[0];
+      activeMasaFormatted = valSplit[1] + valSplit[0].slice(-2);
+    }
+  }
+
+  if (activeMasaFormatted !== "ALL") {
+    dataFiltered = dataFiltered.filter(function (obj) {
+      var masa = String(
+        obj.item.masa || obj.item.ma || obj.item.MA || "",
+      ).trim();
+      return masa.toUpperCase() === activeMasaFormatted.toUpperCase();
     });
   }
 
@@ -2791,7 +2954,7 @@ async function renderSales() {
       r.noper || r.no_per || r.NOPER || "-",
       r.kodemenu || r.kode || r.KODE || "-",
       r.namamenu || r.namaMenu || r.nama_menu || r.NAMAMENU || "-",
-      r.kodebersama || "-", // ⬅️ Menampilkan data fisik kodebersama
+      r.kodebersama || "-",
       r.satuan || r.SATUAN || "-",
       fmtN(r.qty || r.QTY || 0),
       fmtN(r.amount || r.AMOUNT || r.total || 0),
@@ -2866,6 +3029,7 @@ async function renderSales() {
     { NOPER: "PAKET8", PENJELASAN: "PAKET8" },
     { NOPER: "PAMER", PENJELASAN: "PAKET MEETING" },
     { NOPER: "PRAS", PENJELASAN: "PRASMANAN" },
+    { NOPER: "SEAFOOD", PENJELASAN: "SEAFOOD" },
     { NOPER: "LAIN", PENJELASAN: "LAIN" },
     { NOPER: "SNACK", PENJELASAN: "SNACK" },
     { NOPER: "SNACKB", PENJELASAN: "SNACKB" },
@@ -2899,6 +3063,14 @@ async function renderSales() {
     noperOptionsHTML +
     "</select>";
 
+  // Komponen Input Masa bergaya <input type="month"> persis seperti Neraca
+  var masaFilterHTML =
+    '<div style="display:inline-flex; align-items:center; gap:5px;">' +
+    '<input type="month" id="filter_sales_masa" value="' +
+    inputMonthValue +
+    '" style="padding:2px 6px; border-radius:4px; border:1px solid var(--brd); background:var(--card); color:var(--fg); font-size:0.8rem;" onchange="renderSales()">' +
+    "</div>";
+
   var headerLabels = [
     "No. Per",
     "Kode",
@@ -2911,12 +3083,11 @@ async function renderSales() {
     "Group",
     "Cabang",
   ];
-  var numCols = [5, 6]; // Index QTY & Amount
+  var numCols = [5, 6];
 
   var tableHtml =
     '<table style="width:100%;border-collapse:collapse;"><thead><tr>';
 
-  // Checkbox Header
   tableHtml +=
     '<th style="padding:8px;border:1px solid var(--brd);width:35px;text-align:center;">' +
     '<input type="checkbox" onchange="toggleBulkAll(\'datasales\', this.checked)" title="Pilih Semua">' +
@@ -2982,7 +3153,6 @@ async function renderSales() {
     });
   }
 
-  // Footer Total
   tableHtml += '<tr style="background:var(--bg2);font-weight:bold;">';
   tableHtml += '<td style="padding:8px;border:1px solid var(--brd);"></td>';
   foot.forEach(function (cell, ci) {
@@ -3010,6 +3180,9 @@ async function renderSales() {
     "Noper: " +
     noperFilterHTML +
     '<span style="margin:0 5px;color:var(--brd)">|</span>' +
+    "Masa: " +
+    masaFilterHTML +
+    '<span style="margin:0 5px;color:var(--brd)">|</span>' +
     "Tampilkan " +
     getLimitOptsHTML() +
     "</div>" +
@@ -3021,11 +3194,24 @@ async function renderSales() {
     '<button type="button" class="btn btn-r" onclick="clearAllData(\'datasales\')"><i class="fa-solid fa-trash-can"></i> Kosongkan</button>' +
     '<button type="button" class="btn btn-a" onclick="formSales()"><i class="fa-solid fa-plus"></i> Tambah</button>' +
     '<button type="button" class="btn btn-inf" style="background-color:#d97706;color:#fff;border-color:#d97706" onclick="openUpdateKodeBersamaModal()" title="Update Kode Bersama untuk baris yang dipilih"><i class="fa-solid fa-pen-to-square"></i> Update Kode Bersama</button>' +
+    '<button type="button" class="btn btn-inf" style="background-color:#7c3aed;color:#fff;border-color:#7c3aed" onclick="openUpdateNoperBanyakModal()" title="Update Noper untuk baris yang dipilih"><i class="fa-solid fa-tags"></i> Update Noper Banyak</button>' +
     "</div>" +
     "</div>" +
     wrapTable(tableHtml) +
     paginationHTML
   );
+}
+
+function formatMasaDariTanggal(tanggalInput) {
+  if (!tanggalInput) return "";
+  var d = new Date(tanggalInput);
+  if (isNaN(d.getTime())) return ""; // Jika tanggal tidak valid
+
+  var month = ("0" + (d.getMonth() + 1)).slice(-2); // 2 digit bulan (01-12)
+  var yearFull = String(d.getFullYear()); // Contoh: "2026"
+  var yearShort = yearFull.slice(-2); // 2 digit terakhir tahun (contoh: "26")
+
+  return month + yearShort; // Hasil: "0126"
 }
 
 // --- 3. FUNGSI UNTUK PINDAH HALAMAN SALES ---
@@ -3086,11 +3272,16 @@ function goToSalesPage(targetPage) {
 function openUpdateKodeBersamaModal() {
   // Ambil ID data sales yang dicentang via sistem bulk
   var selectedIds = [];
-  if (typeof _bulkStoreSelection !== "undefined" && _bulkStoreSelection["datasales"]) {
+  if (
+    typeof _bulkStoreSelection !== "undefined" &&
+    _bulkStoreSelection["datasales"]
+  ) {
     selectedIds = Array.from(_bulkStoreSelection["datasales"]);
   } else {
     // Fallback manual ceklis DOM
-    var checkboxes = document.querySelectorAll('.bulk-check[data-store="datasales"]:checked');
+    var checkboxes = document.querySelectorAll(
+      '.bulk-check[data-store="datasales"]:checked',
+    );
     checkboxes.forEach(function (cb) {
       selectedIds.push(cb.getAttribute("data-id"));
     });
@@ -3102,7 +3293,7 @@ function openUpdateKodeBersamaModal() {
   }
 
   var rawData = DBCache.datasales || [];
-  
+
   // Kumpulkan unique kodemenu dari baris yang dipilih
   var uniqueKodeMenu = [];
   rawData.forEach(function (r) {
@@ -3115,85 +3306,328 @@ function openUpdateKodeBersamaModal() {
   });
 
   // Buat HTML untuk daftar kode menu unik yang terpilih
-  var kodeMenuHtml = uniqueKodeMenu.length > 0 
-    ? uniqueKodeMenu.map(function(k) { return '<span class="badge" style="background:var(--bg2);color:var(--accent);padding:3px 8px;margin:2px;border:1px solid var(--brd);border-radius:4px;display:inline-block;">' + esc(k) + '</span>'; }).join(" ")
-    : '<i style="color:var(--muted)">Tidak ada kode menu terdeteksi</i>';
+  var kodeMenuHtml =
+    uniqueKodeMenu.length > 0
+      ? uniqueKodeMenu
+          .map(function (k) {
+            return (
+              '<span class="badge" style="background:var(--bg2);color:var(--accent);padding:3px 8px;margin:2px;border:1px solid var(--brd);border-radius:4px;display:inline-block;">' +
+              esc(k) +
+              "</span>"
+            );
+          })
+          .join(" ")
+      : '<i style="color:var(--muted)">Tidak ada kode menu terdeteksi</i>';
 
   // Buat elemen kontainer modal pop-up secara dinamis jika belum ada
   var modalId = "modalUpdateKodeBersama";
   var existingModal = document.getElementById(modalId);
   if (existingModal) existingModal.remove();
 
-  var modalHtml = 
-    '<div id="' + modalId + '" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:9999;">' +
-      '<div style="background:var(--card);padding:1.5rem;border-radius:var(--r);border:1px solid var(--brd);width:90%;max-width:450px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">' +
-        '<h3 style="margin-top:0;margin-bottom:1rem;color:var(--fg);font-size:1.1rem;"><i class="fa-solid fa-pen-to-square"></i> Update Kode Bersama</h3>' +
-        '<div style="margin-bottom:.8rem;font-size:.85rem;color:var(--muted);">Baris terpilih: <b>' + selectedIds.length + ' item</b></div>' +
-        '<div style="margin-bottom:1rem;font-size:.85rem;">' +
-          '<label style="display:block;margin-bottom:.3rem;font-weight:bold;color:var(--fg);">Kode Menu Unik Terdeteksi:</label>' +
-          '<div style="max-height:100px;overflow-y:auto;padding:6px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);">' + kodeMenuHtml + '</div>' +
-        '</div>' +
-        '<div style="margin-bottom:1.2rem;">' +
-          '<label style="display:block;margin-bottom:.3rem;font-weight:bold;color:var(--fg);">Nilai Kode Bersama Baru:</label>' +
-          '<input type="text" id="input_new_kodebersama" class="form-control" placeholder="Masukkan nilai kode bersama..." style="width:100%;padding:6px 10px;box-sizing:border-box;">' +
-        '</div>' +
-        '<div style="display:flex;justify-content:flex-end;gap:.5rem;">' +
-          '<button type="button" class="btn btn-inf" style="background:#6c757d;border-color:#6c757d;color:#fff;" onclick="document.getElementById(\'' + modalId + '\').remove()">Batal</button>' +
-          '<button type="button" class="btn btn-a" onclick="executeSaveKodeBersama()">Simpan Perubahan</button>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
+  var modalHtml =
+    '<div id="' +
+    modalId +
+    '" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:9999;">' +
+    '<div style="background:var(--card);padding:1.5rem;border-radius:var(--r);border:1px solid var(--brd);width:90%;max-width:450px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">' +
+    '<h3 style="margin-top:0;margin-bottom:1rem;color:var(--fg);font-size:1.1rem;"><i class="fa-solid fa-pen-to-square"></i> Update Kode Bersama</h3>' +
+    '<div style="margin-bottom:.8rem;font-size:.85rem;color:var(--muted);">Baris terpilih: <b>' +
+    selectedIds.length +
+    " item</b></div>" +
+    '<div style="margin-bottom:1rem;font-size:.85rem;">' +
+    '<label style="display:block;margin-bottom:.3rem;font-weight:bold;color:var(--fg);">Kode Menu Unik Terdeteksi:</label>' +
+    '<div style="max-height:100px;overflow-y:auto;padding:6px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);">' +
+    kodeMenuHtml +
+    "</div>" +
+    "</div>" +
+    '<div style="margin-bottom:1.2rem;">' +
+    '<label style="display:block;margin-bottom:.3rem;font-weight:bold;color:var(--fg);">Nilai Kode Bersama Baru:</label>' +
+    '<input type="text" id="input_new_kodebersama" class="form-control" placeholder="Masukkan nilai kode bersama..." style="width:100%;padding:6px 10px;box-sizing:border-box;">' +
+    "</div>" +
+    '<div style="display:flex;justify-content:flex-end;gap:.5rem;">' +
+    '<button type="button" class="btn btn-inf" style="background:#6c757d;border-color:#6c757d;color:#fff;" onclick="document.getElementById(\'' +
+    modalId +
+    "').remove()\">Batal</button>" +
+    '<button type="button" class="btn btn-a" onclick="executeSaveKodeBersama()">Simpan Perubahan</button>' +
+    "</div>" +
+    "</div>" +
+    "</div>";
 
-  document.body.insertAdjacentHTML('beforeend', modalHtml);
-  
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+
   // Simpan selectedIds ke window sementara agar bisa diakses fungsi simpan
   window._tempSelectedSalesIds = selectedIds;
 }
 
 // --- EKsekusi PENYIMPANAN KODE BERSAMA ---
-function executeSaveKodeBersama() {
+async function executeSaveKodeBersama() {
   var newVal = document.getElementById("input_new_kodebersama").value.trim();
   var selectedIds = window._tempSelectedSalesIds || [];
 
   if (selectedIds.length === 0) {
-    alert("Tidak ada data yang dipilih.");
+    if (typeof toast === "function")
+      toast("Tidak ada data yang dipilih.", "err");
+    return;
+  }
+
+  var dataStore = DBCache.datasales;
+  var updatedItems = [];
+
+  // 1. Update Cache Lokal
+  var selectedSet = new Set(selectedIds.map(String));
+  function prosesArray(arr) {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(function (r) {
+      if (r.id && selectedSet.has(String(r.id))) {
+        r.kodebersama = newVal;
+        updatedItems.push({ id: r.id, kodebersama: newVal });
+      }
+    });
+  }
+
+  if (dataStore && typeof dataStore === "object" && !Array.isArray(dataStore)) {
+    Object.values(dataStore).forEach(prosesArray);
+  } else if (Array.isArray(dataStore)) {
+    prosesArray(dataStore);
+  }
+
+  if (updatedItems.length === 0) {
+    if (typeof toast === "function") toast("ID tidak ditemukan.", "err");
+    return;
+  }
+
+  if (typeof toast === "function")
+    toast("Menyimpan " + updatedItems.length + " data...", "inf");
+
+  try {
+    // ==========================================
+    // ✅ PAKE ROUTE LAMA YANG SUDAH PASTI JALAN
+    // ==========================================
+    const promises = updatedItems.map(function (item) {
+      return fetch("/api/data/datasales", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item),
+      });
+    });
+
+    const results = await Promise.all(promises);
+
+    const gagal = results.filter(function (r) {
+      return !r.ok;
+    });
+    if (gagal.length > 0) {
+      throw new Error(gagal.length + " data gagal disimpan di server");
+    }
+
+    // Sukses semua
+    var modal = document.getElementById("modalUpdateKodeBersama");
+    if (modal) modal.remove();
+
+    window._tempSelectedSalesIds = [];
+
+    if (typeof toast === "function") {
+      toast(
+        "Berhasil memperbarui " + updatedItems.length + " data fisik!",
+        "ok",
+      );
+    }
+
+    // Refresh tampilan
+    if (typeof safeRenderCurrentPanel === "function") {
+      safeRenderCurrentPanel();
+    } else if (typeof renderSales === "function") {
+      renderSales().then(function (html) {
+        var area =
+          document.getElementById("contentArea") ||
+          document.querySelector(".pnl.active");
+        if (area) area.innerHTML = '<div class="pnl active">' + html + "</div>";
+      });
+    }
+  } catch (err) {
+    console.error("Gagal simpan:", err);
+    if (typeof toast === "function") toast("Gagal: " + err.message, "err");
+  }
+}
+function openUpdateNoperBanyakModal() {
+  // Ambil ID data sales yang dicentang via sistem bulk
+  var selectedIds = [];
+  if (
+    typeof _bulkStoreSelection !== "undefined" &&
+    _bulkStoreSelection["datasales"]
+  ) {
+    selectedIds = Array.from(_bulkStoreSelection["datasales"]);
+  } else {
+    // Fallback manual ceklis DOM
+    var checkboxes = document.querySelectorAll(
+      '.bulk-check[data-store="datasales"]:checked',
+    );
+    checkboxes.forEach(function (cb) {
+      selectedIds.push(cb.getAttribute("data-id"));
+    });
+  }
+
+  if (selectedIds.length === 0) {
+    alert("Silakan centang/pilih minimal satu baris sales terlebih dahulu!");
     return;
   }
 
   var rawData = DBCache.datasales || [];
-  var updatedCount = 0;
 
-  // Update data secara lokal di cache
+  // Kumpulkan unique noper saat ini dari baris yang dipilih
+  var uniqueNoper = [];
   rawData.forEach(function (r) {
     if (selectedIds.includes(String(r.id))) {
-      r.kodebersama = newVal;
-      updatedCount++;
+      var nP = String(r.noper || r.no_per || r.NOPER || "").trim();
+      if (nP && !uniqueNoper.includes(nP)) {
+        uniqueNoper.push(nP);
+      }
     }
   });
 
-  // Tutup modal
-  var modal = document.getElementById("modalUpdateKodeBersama");
-  if (modal) modal.remove();
+  // Buat HTML untuk daftar noper unik yang terpilih
+  var noperHtml =
+    uniqueNoper.length > 0
+      ? uniqueNoper
+          .map(function (k) {
+            return (
+              '<span class="badge" style="background:var(--bg2);color:var(--accent);padding:3px 8px;margin:2px;border:1px solid var(--brd);border-radius:4px;display:inline-block;">' +
+              esc(k) +
+              "</span>"
+            );
+          })
+          .join(" ")
+      : '<i style="color:var(--muted)">Tidak ada Noper terdeteksi (Blank)</i>';
 
-  // Trigger simpan database / sinkronisasi jika aplikasi Anda menyediakannya (misal sync/save function)
-  if (typeof saveDBStore === "function") {
-    saveDBStore("datasales");
-  } else if (typeof syncDataToServer === "function") {
-    syncDataToServer("datasales");
+  // Buat elemen kontainer modal pop-up secara dinamis jika belum ada
+  var modalId = "modalUpdateNoperBanyak";
+  var existingModal = document.getElementById(modalId);
+  if (existingModal) existingModal.remove();
+
+  var modalHtml =
+    '<div id="' +
+    modalId +
+    '" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);display:flex;justify-content:center;align-items:center;z-index:9999;">' +
+    '<div style="background:var(--card);padding:1.5rem;border-radius:var(--r);border:1px solid var(--brd);width:90%;max-width:450px;box-shadow:0 4px 12px rgba(0,0,0,0.15);">' +
+    '<h3 style="margin-top:0;margin-bottom:1rem;color:var(--fg);font-size:1.1rem;"><i class="fa-solid fa-tags"></i> Update Noper Banyak</h3>' +
+    '<div style="margin-bottom:.8rem;font-size:.85rem;color:var(--muted);">Baris terpilih: <b>' +
+    selectedIds.length +
+    " item</b></div>" +
+    '<div style="margin-bottom:1rem;font-size:.85rem;">' +
+    '<label style="display:block;margin-bottom:.3rem;font-weight:bold;color:var(--fg);">Noper Asal Terdeteksi:</label>' +
+    '<div style="max-height:100px;overflow-y:auto;padding:6px;border:1px solid var(--brd);border-radius:4px;background:var(--bg);">' +
+    noperHtml +
+    "</div>" +
+    "</div>" +
+    '<div style="margin-bottom:1.2rem;">' +
+    '<label style="display:block;margin-bottom:.3rem;font-weight:bold;color:var(--fg);">Nilai Noper Baru:</label>' +
+    '<input type="text" id="input_new_noper" class="form-control" placeholder="Masukkan nilai noper baru..." style="width:100%;padding:6px 10px;box-sizing:border-box;">' +
+    "</div>" +
+    '<div style="display:flex;justify-content:flex-end;gap:.5rem;">' +
+    '<button type="button" class="btn btn-inf" style="background:#6c757d;border-color:#6c757d;color:#fff;" onclick="document.getElementById(\'' +
+    modalId +
+    "').remove()\">Batal</button>" +
+    '<button type="button" class="btn btn-a" onclick="executeSaveNoperBanyak()">Simpan Perubahan</button>' +
+    "</div>" +
+    "</div>" +
+    "</div>";
+
+  document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+  // Simpan selectedIds ke window sementara agar bisa diakses fungsi simpan
+  window._tempSelectedNoperIds = selectedIds;
+}
+
+// --- EKSEKUSI PENYIMPANAN NOPER BANYAK ---
+async function executeSaveNoperBanyak() {
+  var newVal = document.getElementById("input_new_noper").value.trim();
+  var selectedIds = window._tempSelectedNoperIds || [];
+
+  if (selectedIds.length === 0) {
+    if (typeof toast === "function")
+      toast("Tidak ada data yang dipilih.", "err");
+    return;
   }
 
-  // Refresh tampilan tabel sales
-  if (typeof safeRenderCurrentPanel === "function") {
-    safeRenderCurrentPanel();
-  } else if (typeof renderSales === "function") {
-    renderSales().then(function (html) {
-      var area = document.getElementById("contentArea") || document.querySelector(".pnl.active");
-      if (area) area.innerHTML = '<div class="pnl active">' + html + '</div>';
+  var dataStore = DBCache.datasales;
+  var updatedItems = [];
+
+  // 1. Update Cache Lokal
+  var selectedSet = new Set(selectedIds.map(String));
+  function prosesArray(arr) {
+    if (!Array.isArray(arr)) return;
+    arr.forEach(function (r) {
+      if (r.id && selectedSet.has(String(r.id))) {
+        r.noper = newVal;
+        updatedItems.push({ id: r.id, noper: newVal });
+      }
     });
   }
 
-  alert("Berhasil memperbarui " + updatedCount + " data sales dengan Kode Bersama: " + (newVal || "(Kosong)"));
+  if (dataStore && typeof dataStore === "object" && !Array.isArray(dataStore)) {
+    Object.values(dataStore).forEach(prosesArray);
+  } else if (Array.isArray(dataStore)) {
+    prosesArray(dataStore);
+  }
+
+  if (updatedItems.length === 0) {
+    if (typeof toast === "function") toast("ID tidak ditemukan.", "err");
+    return;
+  }
+
+  if (typeof toast === "function")
+    toast("Menyimpan " + updatedItems.length + " data...", "inf");
+
+  try {
+    // 2. Kirim via API PUT
+    const promises = updatedItems.map(function (item) {
+      return fetch("/api/data/datasales", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(item),
+      });
+    });
+
+    const results = await Promise.all(promises);
+
+    const gagal = results.filter(function (r) {
+      return !r.ok;
+    });
+    if (gagal.length > 0) {
+      throw new Error(gagal.length + " data gagal disimpan di server");
+    }
+
+    // Sukses semua
+    var modal = document.getElementById("modalUpdateNoperBanyak");
+    if (modal) modal.remove();
+
+    window._tempSelectedNoperIds = [];
+
+    if (typeof toast === "function") {
+      toast(
+        "Berhasil memperbarui Noper masal untuk " +
+          updatedItems.length +
+          " data!",
+        "ok",
+      );
+    }
+
+    // Refresh tampilan
+    if (typeof safeRenderCurrentPanel === "function") {
+      safeRenderCurrentPanel();
+    } else if (typeof renderSales === "function") {
+      renderSales().then(function (html) {
+        var area =
+          document.getElementById("contentArea") ||
+          document.querySelector(".pnl.active");
+        if (area) area.innerHTML = '<div class="pnl active">' + html + "</div>";
+      });
+    }
+  } catch (err) {
+    console.error("Gagal simpan:", err);
+    if (typeof toast === "function") toast("Gagal: " + err.message, "err");
+  }
 }
+
 // 🌟 FUNGSI PENDUKUNG UNTUK MENGECEK DAN MENGISI NOPER SALES DARI DAFTAR MENU
 function cekNoperSalesDariDaftarMenu() {
   var salesData = DBCache.datasales || DBCache.sales || [];
@@ -3466,7 +3900,7 @@ async function saveSales(e, id) {
     var satuan = $("fSalesSatuan").value.trim();
     var qty = num($("fSalesQty").value);
     var amount = num($("fSalesAmount").value);
-    var ma = $("fSalesMa").value.trim();
+    var masa = $("fSalesMa").value.trim();
 
     // 🌟 1. TAMBAHKAN BARIS INI UNTUK MENANGKAP NO PER
     var noper = $("fSalesNoper").value.trim();
@@ -3485,9 +3919,8 @@ async function saveSales(e, id) {
           satuan: satuan,
           qty: qty,
           total: amount, // 🟢 Map ke 'total' karena di DB fisiknya memakai 'total'
-          amount: amount,
-          ma: ma,
-          masa: ma, // 🟢 Map ke 'masa' biar kolom fisik keisi
+
+          masa: masa, // 🟢 Map ke 'masa' biar kolom fisik keisi
           cabang: cabang,
           group: group,
           noper: noper, // 🌟 2. MASUKKAN NOPER KE SINI
@@ -3531,14 +3964,71 @@ async function saveSales(e, id) {
 // ==========================================
 function exportSalesToXLS() {
   var rawData = DBCache.datasales || [];
-  var data = filterByCabang(rawData);
+
+  // Bungkus data untuk memastikan properti 'kodebersama' dan 'masa' terisi otomatis dari tanggal jika kosong
+  var rawDataWithIndex = rawData.map(function (r) {
+    if (typeof r.kodebersama === "undefined") {
+      r.kodebersama = r.kode_bersama || r.KODEBERSAMA || "";
+    }
+    if (!r.masa && !r.ma && !r.MA) {
+      var sourceDate = r.tanggal || r.tgl || r.date || r.CREATED_AT;
+      if (sourceDate) {
+        var dObj = new Date(sourceDate);
+        if (!isNaN(dObj.getTime())) {
+          var m = ("0" + (dObj.getMonth() + 1)).slice(-2);
+          var y = String(dObj.getFullYear()).slice(-2);
+          r.masa = m + y;
+        }
+      }
+    }
+    return r;
+  });
+
+  // Filter Cabang
+  var data = filterByCabang(rawDataWithIndex);
+
+  // Filter Group
   var activeGroup = getActiveGroupFilter();
-  if (activeGroup) data = data.filter((r) => (r.group || "") === activeGroup);
+  if (activeGroup) {
+    data = data.filter((r) => (r.group || "") === activeGroup);
+  }
+
+  // Filter Noper (jika elemen filter noper aktif di layar)
+  var noperSelect = document.getElementById("filterNoper");
+  var activeNoper = noperSelect ? noperSelect.value : "";
+  if (activeNoper === "blank") {
+    data = data.filter((r) => {
+      var noper = String(r.noper || r.no_per || r.NOPER || "").trim();
+      return noper === "" || noper === "-";
+    });
+  } else if (activeNoper !== "") {
+    data = data.filter((r) => {
+      var noper = String(r.noper || r.no_per || r.NOPER || "").trim();
+      return noper.toUpperCase() === activeNoper.toUpperCase();
+    });
+  }
+
+  // Filter Masa (MA) sesuai input bulan/tahun interaktif di layar
+  var activeMasaFormatted = "";
+  var masaInputElem = document.getElementById("filter_sales_masa");
+  if (masaInputElem && masaInputElem.value) {
+    var valSplit = masaInputElem.value.split("-"); // format YYYY-MM dari input type="month"
+    if (valSplit.length === 2) {
+      activeMasaFormatted = valSplit[1] + valSplit[0].slice(-2); // jadi MMYY
+    }
+  }
+
+  if (activeMasaFormatted) {
+    data = data.filter((r) => {
+      var masa = String(r.masa || r.ma || r.MA || "").trim();
+      return masa.toUpperCase() === activeMasaFormatted.toUpperCase();
+    });
+  }
 
   if (data.length === 0)
     return toast("Tidak ada data Sales untuk di-export.", "err");
 
-  // 1. Bangun Template HTML Tabel
+  // 1. Bangun Template HTML Tabel (disamakan dengan header tabel renderSales)
   var html = `
   <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
   <head><meta charset="UTF-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>Sales</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head>
@@ -3546,7 +4036,7 @@ function exportSalesToXLS() {
     <table border="1" style="border-collapse:collapse;">
       <thead>
         <tr style="background-color:#2f5496;color:#ffffff;font-weight:bold;">
-          <td>Kode</td><td>Nama Menu</td><td>Satuan</td><td>QTY</td><td>Amount</td><td>MA</td><td>Group</td><td>Cabang</td>
+          <td>No. Per</td><td>Kode</td><td>Nama Menu</td><td>Kode Bersama</td><td>Satuan</td><td>QTY</td><td>Amount</td><td>MA</td><td>Group</td><td>Cabang</td>
         </tr>
       </thead>
       <tbody>`;
@@ -3554,23 +4044,28 @@ function exportSalesToXLS() {
   // 2. Masukkan Data Baris per Baris
   data.forEach(function (r) {
     html += `<tr>
-      <td style="mso-number-format:'\\@';">${r.kodemenu || r.kode || ""}</td>
-      <td>${r.namamenu || r.namaMenu || ""}</td>
-      <td>${r.satuan || ""}</td>
-      <td style="mso-number-format:'#,##0';">${r.qty || 0}</td>
-      <td style="mso-number-format:'#,##0';">${r.amount || r.total || 0}</td>
-      <td style="mso-number-format:'\\@';">${r.masa || r.ma || ""}</td>
+      <td style="mso-number-format:'\\@';">${r.noper || r.no_per || r.NOPER || ""}</td>
+      <td style="mso-number-format:'\\@';">${r.kodemenu || r.kode || r.KODE || ""}</td>
+      <td>${r.namamenu || r.namaMenu || r.nama_menu || r.NAMAMENU || ""}</td>
+      <td style="mso-number-format:'\\@';">${r.kodebersama || ""}</td>
+      <td>${r.satuan || r.SATUAN || ""}</td>
+      <td style="mso-number-format:'#,##0';">${r.qty || r.QTY || 0}</td>
+      <td style="mso-number-format:'#,##0';">${r.amount || r.AMOUNT || r.total || 0}</td>
+      <td style="mso-number-format:'\\@';">${r.masa || r.ma || r.MA || ""}</td>
       <td>${r.group || ""}</td>
       <td>${lookupCabangLabel(r.cabang)}</td>
     </tr>`;
   });
 
   // 3. Tambahkan Baris TOTAL
-  var totalQty = data.reduce((s, r) => s + num(r.qty || 0), 0);
-  var totalAmount = data.reduce((s, r) => s + num(r.amount || r.total || 0), 0);
+  var totalQty = data.reduce((s, r) => s + num(r.qty || r.QTY || 0), 0);
+  var totalAmount = data.reduce(
+    (s, r) => s + num(r.amount || r.AMOUNT || r.total || 0),
+    0,
+  );
 
   html += `<tr style="background-color:#d9e2f3;font-weight:bold;">
-    <td></td><td>TOTAL</td><td></td>
+    <td></td><td></td><td>TOTAL</td><td></td><td></td>
     <td style="mso-number-format:'#,##0';">${totalQty}</td>
     <td style="mso-number-format:'#,##0';">${totalAmount}</td>
     <td></td><td></td><td></td>
@@ -3589,7 +4084,6 @@ function exportSalesToXLS() {
   document.body.removeChild(link);
   toast("Berhasil mengunduh file Excel!", "ok");
 }
-
 // ==========================================
 // 🚀 EXPORT DAFTAR MENU KE XLS (FORMAT TABEL ASLI)
 // ==========================================
