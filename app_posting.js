@@ -796,7 +796,8 @@ async function doPostingAlurBaru() {
 
   // 2. Fungsi helper untuk melakukan fetch + validasi status HTTP
   async function saveData(payload) {
-    var response = await fetch("http://localhost:3000/api/save-batch", {
+   // var response = await fetch("http://localhost:3000/api/save-batch", {
+      var response = await fetch("/api/save-batch", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload.body),
