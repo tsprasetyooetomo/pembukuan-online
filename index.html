@@ -5,10 +5,10 @@
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-    /> 
-    <title>Dashboard Utama — Sistem Bisnis</title>
- 
-    <!-- Gunakan Font yang sama dengan Pembukuan -->
+    />
+    <title>Integrated System — Dashboard</title>
+
+    <!-- Fonts -->
     <link
       href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
@@ -19,294 +19,553 @@
     />
 
     <style>
-      /* --- AMBIL VARIABEL CSS DARI STYLE.CSS ANDA --- */
       :root {
         --bg: #080c14;
-        --bg2: #0f1623;
+        --bg-sidebar: #0b111e;
         --card: #141c2e;
         --card2: #192340;
         --brd: #1c2844;
         --fg: #eaeef6;
         --muted: #6b7fa0;
-        --accent: #f59e0b;
-        --accent-dim: rgba(245, 158, 11, 0.1);
-        --accent-glow: rgba(245, 158, 11, 0.3);
+        --accent: #3b82f6;
+        --accent-dim: rgba(59, 130, 246, 0.15);
+        --accent-glow: rgba(59, 130, 246, 0.4);
         --danger: #ef4444;
         --success: #22c55e;
         --info: #38bdf8;
-        --r: 12px;
+        --r: 16px;
       }
 
       * {
         margin: 0;
         padding: 0;
         box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
       }
 
       body {
         font-family: "Space Grotesk", sans-serif;
         background: var(--bg);
         color: var(--fg);
-        min-height: 100vh;
+        height: 100vh;
+        overflow: hidden;
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        overflow-y: auto;
-        /* Matikan pull to refresh di HP */
-        overscroll-behavior-y: contain;
       }
 
-      /* --- AMBIL EFEK BACKGROUND GRID DARI STYLE.CSS ANDA --- */
+      /* --- BACKGROUND --- */
       .bg-g {
         position: fixed;
         inset: 0;
-        z-index: 0;
+        z-index: -1;
         pointer-events: none;
-      }
-      .bg-g::before {
-        content: "";
-        position: absolute;
-        inset: 0;
         background-image:
           radial-gradient(
             circle at 15% 15%,
-            rgba(245, 158, 11, 0.04) 0%,
+            rgba(59, 130, 246, 0.05) 0%,
             transparent 50%
           ),
           radial-gradient(
             circle at 85% 85%,
-            rgba(56, 189, 248, 0.03) 0%,
+            rgba(16, 185, 129, 0.03) 0%,
             transparent 50%
           );
       }
-      .bg-g::after {
-        content: "";
-        position: absolute;
+      .grid-overlay {
+        position: fixed;
         inset: 0;
+        z-index: -1;
+        pointer-events: none;
         background-image:
-          linear-gradient(rgba(245, 158, 11, 0.012) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(245, 158, 11, 0.012) 1px, transparent 1px);
-        background-size: 40px 40px;
-        animation: gd 30s linear infinite;
+          linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+        background-size: 50px 50px;
+        opacity: 0.5;
       }
-      @keyframes gd {
-        to {
-          transform: translate(40px, 40px);
+
+      /* --- LAYOUT SPLIT --- */
+      .left-panel {
+        width: 400px;
+        background: linear-gradient(
+          180deg,
+          var(--bg-sidebar) 0%,
+          var(--bg) 100%
+        );
+        border-right: 1px solid var(--brd);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        z-index: 10;
+        flex-shrink: 0;
+        padding: 2rem;
+      }
+
+      .right-panel {
+        flex: 1;
+        overflow-y: auto;
+        position: relative;
+        padding: 2rem 3rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      /* --- ILUSTRASI 2D FLAT (GAMBAR ORANG) --- */
+      .character-scene {
+        width: 100%;
+        height: 420px;
+        position: relative;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        cursor: pointer;
+      }
+
+      .char-flat-wrap {
+        width: 220px;
+        height: 220px;
+        background: var(--card);
+        border: 2px solid var(--brd);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        box-shadow:
+          0 10px 30px rgba(0, 0, 0, 0.4),
+          inset 0 0 20px rgba(59, 130, 246, 0.1);
+        transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      }
+
+      .character-scene:hover .char-flat-wrap {
+        transform: scale(1.05);
+        border-color: var(--accent);
+        box-shadow:
+          0 15px 35px rgba(0, 0, 0, 0.5),
+          0 0 15px var(--accent-glow);
+      }
+
+      /* Menggunakan Gambar PNG Ilustrasi 2D Orang / Cowok dari Unsplash/CDN (Flat/Vector Style) */
+      .char-img {
+        width: 150px;
+        height: 150px;
+        object-fit: contain;
+        filter: drop-shadow(0 5px 10px rgba(0, 0, 0, 0.3));
+        transition: transform 0.3s ease;
+      }
+
+      .character-scene:active .char-img {
+        transform: scale(0.9) rotate(-5deg);
+      }
+
+      .tap-hint-flat {
+        position: absolute;
+        bottom: 10px;
+        background: var(--card2);
+        border: 1px solid var(--accent);
+        color: var(--accent);
+        font-size: 0.75rem;
+        padding: 0.3rem 0.8rem;
+        border-radius: 20px;
+        font-weight: 600;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        pointer-events: none;
+        animation: bounceHint 2s infinite;
+      }
+
+      @keyframes bounceHint {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-4px);
         }
       }
 
-      /* --- STYLE KHUSUS DASHBOARD --- */
-      .dashboard-container {
-        position: relative;
-        z-index: 1;
-        text-align: center;
-        padding: 2rem;
+      .chat-container-left {
         width: 100%;
-        max-width: 900px;
-        animation: fu 0.5s ease;
+        margin-top: 1.5rem;
       }
 
-      @keyframes fu {
+      .chat-bubble-left {
+        background: var(--card2);
+        border: 1px solid var(--brd);
+        border-left: 4px solid var(--accent);
+        padding: 1rem;
+        border-radius: 0 16px 16px 16px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.2);
+      }
+
+      .chat-bubble-left p {
+        font-size: 0.95rem;
+        color: var(--fg);
+        line-height: 1.5;
+      }
+
+      /* --- DASHBOARD CONTENT --- */
+      .dashboard-container {
+        width: 100%;
+        max-width: 800px;
+        animation: slideIn 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+      }
+
+      @keyframes slideIn {
         from {
           opacity: 0;
-          transform: translateY(15px);
+          transform: translateX(30px);
         }
         to {
           opacity: 1;
-          transform: translateY(0);
+          transform: translateX(0);
         }
       }
 
-      .dashboard-container h1 {
-        font-size: 2rem;
+      .header-dash {
+        margin-bottom: 2.5rem;
+        text-align: left;
+        border-bottom: 1px solid var(--brd);
+        padding-bottom: 1.5rem;
+      }
+
+      .header-dash h1 {
+        font-size: 1.8rem;
         font-weight: 700;
-        margin-bottom: 0.5rem;
-        background: linear-gradient(to right, var(--accent), var(--info));
-        background-clip: text; /* <-- TAMBAHKAN BARIS INI */
+        background: linear-gradient(90deg, #fff, var(--muted));
         -webkit-background-clip: text;
+        background-clip: text;
+
         -webkit-text-fill-color: transparent;
       }
 
-      .dashboard-container p {
+      .header-dash p {
         color: var(--muted);
         font-size: 0.9rem;
-        margin-bottom: 3rem;
+        margin-top: 0.5rem;
       }
 
       .menu-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 1.5rem;
       }
 
       .menu-card {
         background: var(--card);
         border: 1px solid var(--brd);
-        border-radius: 16px;
-        padding: 2.5rem 1.5rem;
+        border-radius: 20px;
+        padding: 2rem 1.5rem;
         cursor: pointer;
-        transition: all 0.3s ease;
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
         text-decoration: none;
         color: var(--fg);
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
+        text-align: center;
         position: relative;
         overflow: hidden;
+        backdrop-filter: blur(5px);
       }
 
-      /* Efek cahaya saat di-hover */
-      .menu-card::before {
+      .menu-card:hover {
+        transform: translateY(-5px) scale(1.02);
+        border-color: var(--accent);
+        box-shadow:
+          0 15px 30px -10px rgba(0, 0, 0, 0.5),
+          0 0 0 1px var(--accent-dim);
+      }
+
+      .menu-card::after {
         content: "";
         position: absolute;
         top: 0;
         left: 0;
-        right: 0;
-        height: 3px;
-        background: var(--accent);
-        transform: scaleX(0);
-        transition: transform 0.3s ease;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          135deg,
+          rgba(255, 255, 255, 0.05) 0%,
+          transparent 100%
+        );
+        opacity: 0;
+        transition: opacity 0.3s;
       }
-
-      .menu-card:hover {
-        transform: translateY(-8px);
-        border-color: var(--accent);
-        box-shadow:
-          0 10px 40px rgba(0, 0, 0, 0.4),
-          0 0 20px var(--accent-dim);
-      }
-
-      .menu-card:hover::before {
-        transform: scaleX(1);
-      }
-
-      .menu-card:active {
-        transform: translateY(-2px);
+      .menu-card:hover::after {
+        opacity: 1;
       }
 
       .card-icon {
-        font-size: 3rem;
-        margin-bottom: 1.2rem;
+        font-size: 2.5rem;
+        margin-bottom: 1rem;
+        background: var(--bg-sidebar);
+        width: 70px;
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        border: 1px solid var(--brd);
+        box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.5);
       }
 
       .card-title {
-        font-size: 1.2rem;
-        font-weight: 700;
-        margin-bottom: 0.8rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
       }
 
       .card-status {
         font-size: 0.7rem;
-        padding: 0.25rem 0.75rem;
-        border-radius: 20px;
+        padding: 0.2rem 0.8rem;
+        border-radius: 12px;
         font-weight: 600;
         font-family: "JetBrains Mono", monospace;
       }
 
       .status-online {
-        background: rgba(34, 197, 94, 0.12);
+        background: rgba(34, 197, 94, 0.15);
         color: var(--success);
         border: 1px solid rgba(34, 197, 94, 0.3);
       }
 
       .status-offline {
-        background: rgba(245, 158, 11, 0.12);
+        background: rgba(59, 130, 246, 0.15);
         color: var(--accent);
-        border: 1px solid rgba(245, 158, 11, 0.3);
+        border: 1px solid rgba(59, 130, 246, 0.3);
       }
 
-      /* Footer kecil */
+      /* Footer Info */
       .footer-info {
-        position: relative;
-        z-index: 1;
         margin-top: 4rem;
-        font-size: 0.7rem;
+        width: 100%;
+        text-align: center;
+        font-size: 0.75rem;
         color: var(--muted);
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        border-top: 1px solid var(--brd);
+        padding-top: 1.5rem;
       }
       .footer-info .db-dot {
+        display: inline-block;
         width: 6px;
         height: 6px;
         border-radius: 50%;
         background: var(--success);
-        animation: pls 2s infinite;
+        margin-right: 6px;
+        animation: pulse 2s infinite;
       }
-      @keyframes pls {
+      @keyframes pulse {
         0%,
         100% {
           opacity: 1;
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.4);
         }
         50% {
-          opacity: 0.3;
+          opacity: 0.6;
+          box-shadow: 0 0 0 4px rgba(34, 197, 94, 0);
         }
       }
 
-      /* Tap highlight mati untuk HP */
-      * {
-        -webkit-tap-highlight-color: transparent;
+      /* --- RESPONSIVE --- */
+      @media (max-width: 900px) {
+        body {
+          flex-direction: column;
+          overflow-y: auto;
+        }
+
+        .left-panel {
+          width: 100%;
+          height: auto;
+          border-right: none;
+          border-bottom: 1px solid var(--brd);
+          flex-direction: column;
+          gap: 1rem;
+          padding: 1.5rem;
+        }
+
+        .character-scene {
+          height: 220px;
+        }
+
+        .char-flat-wrap {
+          width: 140px;
+          height: 140px;
+        }
+        .char-img {
+          /* Membuat sudut melengkung 50% agar menjadi bulat */
+          border-radius: 50%;
+
+          /* Opsional: Agar gambar rapi di dalam lingkaran */
+          object-fit: cover;
+
+          /* Opsional: Atur ukuran agar pas */
+          width: 200px;
+          height: 200px;
+          /* TAMBAHKAN INI: Ini membuat latar belakang gambar yang kotak ikut terpotong */
+          overflow: hidden;
+
+          /* ATAU jika overflow tidak berhasil karena tag <img>, gunakan ini: */
+          display: block;
+        }
+
+        .chat-container-left {
+          width: 100%;
+          margin-top: 0;
+        }
+
+        .tap-hint-flat {
+          display: none;
+        }
+
+        .right-panel {
+          overflow: visible;
+          padding: 2rem 1.5rem;
+          min-height: 50vh;
+        }
       }
     </style>
   </head>
   <body>
     <div class="bg-g"></div>
+    <div class="grid-overlay"></div>
 
-    <div class="dashboard-container">
-      <h1>Sistem Bisnis Utama</h1>
-      <p>Pilih modul aplikasi yang ingin Anda kelola</p>
-
-      <div class="menu-grid">
-        <!-- MENU 1: PEMBUKUAN (SUDAH ONLINE) -->
-        <!-- GANTI "pembukuan.html" DENGAN NAMA FILE HTML PEMBUKUAN ANDA YANG DIATAS -->
-        <a href="pembukuan_telaga.html" class="menu-card">
-          <div class="card-icon">💰</div>
-          <div class="card-title">Pembukuan & Kasir</div>
-          <span class="card-status status-online">Online & Aktif</span>
-        </a>
-
-        <!-- MENU 2: KARYAWAN (BELUM ONLINE) -->
-        <a href="karyawan.html" class="menu-card" id="cardKaryawan">
-          <div class="card-icon">👥</div>
-          <div class="card-title">Data Karyawan</div>
-          <span class="card-status status-offline">Segera Hadir</span>
-        </a>
-
-        <!-- MENU 3: STOK (BELUM ONLINE) -->
-        <a href="stok.html" class="menu-card" id="cardStok">
-          <div class="card-icon">📦</div>
-          <div class="card-title">Stok Barang</div>
-          <span class="card-status status-offline">Segera Hadir</span>
-        </a>
+    <!-- PANEL KIRI: GAMBAR ORANG 2D / FLAT ILLUSTRATION -->
+    <aside class="left-panel">
+      <div class="character-scene" id="charScene">
+        <div class="char-flat-wrap">
+          <!-- Menggunakan gambar ilustrasi 2D/vektor pria profesional yang bersih dan transparan -->
+          <img
+            src="pekerjakontruksi.png"
+            alt="Pekerja Konstruksi"
+            class="char-img"
+            id="charImage"
+          />
+        </div>
+        <div class="tap-hint-flat">Klik Saya!</div>
       </div>
-    </div>
 
-    <div class="footer-info">
-      <span class="db-dot"></span>
-      <span>Powered by Supabase & Railway</span>
-    </div>
+      <div class="chat-container-left">
+        <div class="chat-bubble-left">
+          <p id="chatText">
+            Halo! Siap membantu kelancaran operasional bisnismu hari ini.
+          </p>
+        </div>
+      </div>
+    </aside>
+
+    <!-- PANEL KANAN: DASHBOARD MENU -->
+    <main class="right-panel">
+      <div class="dashboard-container">
+        <div class="header-dash">
+          <h1>Sistem Integrasi Bisnis</h1>
+          <p>Dashboard terpadu untuk Integrasi</p>
+        </div>
+
+        <div class="menu-grid">
+          <!-- MENU 1 -->
+          <a href="pembukuan_telaga.html" class="menu-card">
+            <div class="card-icon">💰</div>
+            <div class="card-title">Pembukuan</div>
+            <span class="card-status status-online">Aktif</span>
+          </a>
+
+          <!-- MENU 2 -->
+          <a href="karyawan_telaga.html" class="menu-card">
+            <div class="card-icon">
+              <i class="fa-solid fa-users" style="color: #3498db"></i>
+            </div>
+
+            <!--<div class="card-icon">👔</div>-->
+            <div class="card-title">Karyawan</div>
+            <span class="card-status status-online">Aktif</span>
+          </a>
+
+          <!-- MENU 3 -->
+          <a href="#" class="menu-card" id="cardStok">
+            <div class="card-icon">📦</div>
+            <div class="card-title">Stok Barang</div>
+            <span class="card-status status-offline">Segera Hadir</span>
+          </a>
+
+          <!-- MENU 4 -->
+          <a href="#" class="menu-card" id="cardSales">
+            <div class="card-icon">📈</div>
+            <div class="card-title">Sales</div>
+            <span class="card-status status-offline">Segera Hadir</span>
+          </a>
+        </div>
+
+        <div class="footer-info">
+          <span class="db-dot"></span>
+          <span>System Status: Online (Integrated Database)</span>
+        </div>
+      </div>
+    </main>
 
     <script>
-      // Script untuk mencegah error 404 jika file Karyawan & Stok belum diupload
-      document
-        .getElementById("cardKaryawan")
-        .addEventListener("click", function (e) {
-          e.preventDefault();
-          alert(
-            "Modul Karyawan belum diupload. File ini akan aktif setelah Anda menguploadnya ke GitHub.",
-          );
-        });
+      const messages = [
+        "Halo! Siap membantu kelancaran operasional bisnismu hari ini.",
+        "Sistem operasional dan database sudah terhubung dengan baik.",
+        "Jangan lupa cek laporan keuangan harian di menu Pembukuan ya.",
+        "Semua modul tambahan akan segera di-update ke sistem.",
+        "Semangat kerjanya! Ada yang bisa dibantu lagi?",
+      ];
 
-      document
-        .getElementById("cardStok")
-        .addEventListener("click", function (e) {
-          e.preventDefault();
-          alert(
-            "Modul Stok belum diupload. File ini akan aktif setelah Anda menguploadnya ke GitHub.",
-          );
-        });
+      let msgIndex = 0;
+      const charScene = document.getElementById("charScene");
+      const chatText = document.getElementById("chatText");
+      const charImage = document.getElementById("charImage");
+
+      charScene.addEventListener("click", () => {
+        // Efek animasi putar/skala ringan saat diklik
+        charImage.style.transform = "scale(0.85) rotate(-10deg)";
+        setTimeout(() => {
+          charImage.style.transform = "scale(1) rotate(0deg)";
+        }, 200);
+
+        msgIndex = (msgIndex + 1) % messages.length;
+        chatText.style.opacity = 0;
+        chatText.style.transform = "translateY(10px)";
+
+        setTimeout(() => {
+          chatText.textContent = messages[msgIndex];
+          chatText.style.transition = "all 0.4s ease";
+          chatText.style.opacity = 1;
+          chatText.style.transform = "translateY(0)";
+        }, 200);
+      });
+
+      const disabledCards = ["cardKaryawan", "cardStok", "cardSales"];
+      disabledCards.forEach((id) => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener("click", (e) => {
+            e.preventDefault();
+            const toast = document.createElement("div");
+            toast.style.position = "fixed";
+            toast.style.bottom = "20px";
+            toast.style.right = "20px";
+            toast.style.background = "var(--accent)";
+            toast.style.color = "#fff";
+            toast.style.padding = "12px 24px";
+            toast.style.borderRadius = "8px";
+            toast.style.fontWeight = "bold";
+            toast.style.boxShadow = "0 5px 15px rgba(0,0,0,0.3)";
+            toast.style.zIndex = "1000";
+            toast.style.animation = "slideIn 0.3s ease";
+            toast.innerText = "Modul ini belum diupload ke GitHub.";
+
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+              toast.style.opacity = "0";
+              setTimeout(() => toast.remove(), 300);
+            }, 3000);
+          });
+        }
+      });
     </script>
   </body>
 </html>
