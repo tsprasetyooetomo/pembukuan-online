@@ -3756,7 +3756,6 @@ async function refreshBukuBesar(page) {
     return;
   }
 
-  // SIMPAN GROUP TERPILIH KE LOCALSTORAGE
   if (elGroup && elGroup.value) {
     localStorage.setItem("group", elGroup.value);
   }
@@ -3889,7 +3888,48 @@ async function refreshBukuBesar(page) {
     return timeA - timeB;
   });
 
-  // 3. LOGIKA HITUNG PAGINATION
+  // --- PERSIAPAN DATA EXCEL KESELURUHAN (ALL DATA) ---
+  var runningSalExcel = num(pk.awal);
+  var allRowsForExcel = data.map(function (t) {
+    runningSalExcel += num(t.db) - num(t.cr);
+    return [
+      formatTglTransaksi(t.tanggal),
+      t.noreff || "-",
+      (t.penjelasan || "-").substring(0, 30),
+      fmtN(t.db) || "-",
+      fmtN(t.cr) || "-",
+      '<span class="tag tag-akhir">' + fmtN(runningSalExcel) + "</span>",
+    ];
+  });
+
+  // Tambahkan Saldo Awal di baris pertama data Excel
+  allRowsForExcel.unshift([
+    "Saldo Awal",
+    "",
+    "",
+    "-",
+    "-",
+    '<span class="tag tag-awal">' + fmtN(pk.awal) + "</span>",
+  ]);
+
+  var totalDbAll = data.reduce(function (s, t) {
+    return s + num(t.db);
+  }, 0);
+  var totalCrAll = data.reduce(function (s, t) {
+    return s + num(t.cr);
+  }, 0);
+
+  var allFootForExcel = [
+    "TOTAL KESELURUHAN",
+    "",
+    "",
+    fmtN(totalDbAll),
+    fmtN(totalCrAll),
+    '<span class="tag tag-akhir">' + fmtN(runningSalExcel) + "</span>",
+  ];
+  // ----------------------------------------------------
+
+  // 3. LOGIKA HITUNG PAGINATION UNTUK TAMPILAN LAYAR (UI)
   var totalData = data.length;
   var pageSize = (window._bbPagination && window._bbPagination.pageSize) || 20;
   var totalPages = Math.ceil(totalData / pageSize) || 1;
@@ -3901,16 +3941,14 @@ async function refreshBukuBesar(page) {
 
   var startIndex = (currentPage - 1) * pageSize;
   var endIndex = Math.min(startIndex + pageSize, totalData);
-
   var pageData = data.slice(startIndex, endIndex);
 
-  // 4. SALDO BAWAAN DARI HALAMAN SEBELUMNYA
+  // 4. SALDO BAWAAN DARI HALAMAN SEBELUMNYA (UNTUK TAMPILAN LAYAR SAJA)
   var prevSal = num(pk.awal);
   for (var i = 0; i < startIndex; i++) {
     prevSal += num(data[i].db) - num(data[i].cr);
   }
 
-  // 5. MAP BARIS TABEL HALAMAN AKTIF
   var runningSal = prevSal;
   var rows = pageData.map(function (t) {
     runningSal += num(t.db) - num(t.cr);
@@ -3924,7 +3962,6 @@ async function refreshBukuBesar(page) {
     ];
   });
 
-  // BARIS SALDO AWAL / BAWAAN
   if (currentPage === 1) {
     rows.unshift([
       "Saldo Awal",
@@ -3945,7 +3982,6 @@ async function refreshBukuBesar(page) {
     ]);
   }
 
-  // FOOTER TOTAL
   var pageDb = pageData.reduce(function (s, t) {
     return s + num(t.db);
   }, 0);
@@ -3962,9 +3998,10 @@ async function refreshBukuBesar(page) {
     '<span class="tag tag-akhir">' + fmtN(runningSal) + "</span>",
   ];
 
+  // SIMPAN SELURUH DATA KE VARIABEL EXCEL READY
   window._bbExcelReady = {
-    rows: rows,
-    foot: foot,
+    rows: allRowsForExcel,
+    foot: allFootForExcel,
     pk: pk,
     cabang: cabang,
     masaDari: masaDari,
@@ -3979,7 +4016,6 @@ async function refreshBukuBesar(page) {
   else if (masaSampai) labelMasa = "S/d " + masaSampai;
   else labelMasa = "Semua (" + tahunMulai + ")";
 
-  // 6. UI NAVIGASI PAGINATION
   var paginationHtml =
     '<div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding:8px 0; border-top:1px solid var(--brd); font-size:.85rem;">' +
     "<div>Menampilkan <b>" +
@@ -4012,7 +4048,6 @@ async function refreshBukuBesar(page) {
     "</div>" +
     "</div>";
 
-  // RENDER HASIL KE DOM
   if (areaTbl) {
     areaTbl.innerHTML =
       '<div style="margin-bottom:.5rem; display:flex; justify-content:space-between; align-items:center; font-size:.82rem;font-weight:600">' +
@@ -4045,31 +4080,6 @@ async function refreshBukuBesar(page) {
       paginationHtml;
   }
 }
-function gantiGroupLaporan(prefix, renderFn) {
-  var selGroup = document.getElementById("filter_" + prefix + "_group");
-  if (selGroup) {
-    localStorage.setItem("group", selGroup.value);
-  }
-
-  // JIKA YANG DIGANTI ADALAH BUKU BESAR, BERSIHKAN PILIHAN CABANG & PERKIRAAN LAMA
-  if (prefix === "bukubesar") {
-    localStorage.removeItem("bb_cabang"); // Reset penyimpanan cabang agar tidak bentrok antar group
-  }
-
-  var areaUtama = document.getElementById(
-    "area_cetak_" + prefix,
-  )?.parentElement;
-  if (areaUtama && typeof window[renderFn] === "function") {
-    areaUtama.innerHTML = window[renderFn]();
-
-    // Kosongkan juga tabel hasil pencarian sebelumnya agar bersih dari data group lain
-    var areaTbl = document.getElementById("bukuBesarTbl");
-    if (areaTbl) {
-      areaTbl.innerHTML =
-        '<div class="empty-msg"><i class="fa-solid fa-search"></i> Silakan pilih cabang dan no perkiraan kembali</div>';
-    }
-  }
-}
 
 async function downloadBukuBesarExcel() {
   if (!window._bbExcelReady) {
@@ -4087,10 +4097,8 @@ async function downloadBukuBesarExcel() {
   var foot = r.foot;
   var activeGroup = r.group || "TLGA";
 
-  // Ambil nomor perkiraan yang aman (support noperk & noPerk)
   var noperkFull = pk.noperk || pk.noPerk || pk.noperkiraan || "";
 
-  // 1. SUSUN HEADER TABEL (6 KOLOM PAS)
   var html =
     '<table border="1" style="border-collapse:collapse; font-family:Arial, sans-serif;">';
   html +=
@@ -4103,48 +4111,39 @@ async function downloadBukuBesarExcel() {
   html += '<td style="padding:8px; border:1px solid #000;">SALDO</td>';
   html += "</tr>";
 
-  // 2. SUSUN DATA TRANSAKSI (6 KOLOM)
   rows.forEach(function (row) {
     html += "<tr>";
-
-    // Cek apakah baris ini merupakan Saldo Awal / Saldo Bawaan
     var isSaldoRow = String(row[0]).indexOf("Saldo") !== -1;
 
-    // Kolom 0: Tanggal / Saldo Awal
     html +=
       "<td style=\"padding:6px; border:1px solid #000; mso-number-format:'\\@';" +
       (isSaldoRow
         ? "font-style:italic; font-weight:bold;"
         : "text-align:center;") +
       '">' +
-      (row[0] || "") + // 🌟 Langsung pakai row[0] tanpa re-format Date lagi
+      (row[0] || "") +
       "</td>";
 
-    // Kolom 1: No Ref
     html +=
       '<td style="padding:6px; border:1px solid #000; text-align:center;">' +
       (row[1] || "") +
       "</td>";
 
-    // Kolom 2: Keterangan
     html +=
       '<td style="padding:6px; border:1px solid #000;">' +
       (row[2] || "") +
       "</td>";
 
-    // Kolom 3: Debit
     html +=
       '<td style="padding:6px; border:1px solid #000; text-align:right;">' +
       (row[3] || "") +
       "</td>";
 
-    // Kolom 4: Kredit
     html +=
       '<td style="padding:6px; border:1px solid #000; text-align:right;">' +
       (row[4] || "") +
       "</td>";
 
-    // Kolom 5: Saldo (Bersihkan tag HTML <span> jika ada)
     var saldoText = String(row[5] || "").replace(/<[^>]*>?/gm, "");
     html +=
       '<td style="padding:6px; border:1px solid #000; text-align:right; font-weight:bold;">' +
@@ -4154,7 +4153,6 @@ async function downloadBukuBesarExcel() {
     html += "</tr>";
   });
 
-  // 3. SUSUN FOOTER TOTAL (6 KOLOM PAS)
   html += '<tr style="font-weight:bold; background:#f9f9f9;">';
   html +=
     '<td colspan="3" style="padding:8px; border:1px solid #000; text-align:right;">' +
@@ -4176,7 +4174,6 @@ async function downloadBukuBesarExcel() {
     "</td>";
   html += "</tr></table>";
 
-  // 4. JUDUL & INFORMASI HEADER LAPORAN
   var labelMasaExl = "";
   if (r.masaDari && r.masaSampai)
     labelMasaExl = r.masaDari + " s/d " + r.masaSampai;
@@ -4207,7 +4204,6 @@ async function downloadBukuBesarExcel() {
     html +
     "</body></html>";
 
-  // 5. PROCESS DOWNLOAD FILE
   var blob = new Blob([fullHtml], { type: "application/vnd.ms-excel" });
   var url = URL.createObjectURL(blob);
   var a = document.createElement("a");
@@ -4227,6 +4223,32 @@ async function downloadBukuBesarExcel() {
 
   toast("File Excel berhasil diunduh.", "success");
 }
+function gantiGroupLaporan(prefix, renderFn) {
+  var selGroup = document.getElementById("filter_" + prefix + "_group");
+  if (selGroup) {
+    localStorage.setItem("group", selGroup.value);
+  }
+
+  // JIKA YANG DIGANTI ADALAH BUKU BESAR, BERSIHKAN PILIHAN CABANG & PERKIRAAN LAMA
+  if (prefix === "bukubesar") {
+    localStorage.removeItem("bb_cabang"); // Reset penyimpanan cabang agar tidak bentrok antar group
+  }
+
+  var areaUtama = document.getElementById(
+    "area_cetak_" + prefix,
+  )?.parentElement;
+  if (areaUtama && typeof window[renderFn] === "function") {
+    areaUtama.innerHTML = window[renderFn]();
+
+    // Kosongkan juga tabel hasil pencarian sebelumnya agar bersih dari data group lain
+    var areaTbl = document.getElementById("bukuBesarTbl");
+    if (areaTbl) {
+      areaTbl.innerHTML =
+        '<div class="empty-msg"><i class="fa-solid fa-search"></i> Silakan pilih cabang dan no perkiraan kembali</div>';
+    }
+  }
+}
+
 /* ---------- ekspor ke xls---------- */
 
 PANEL_MAP.rlLebar = renderRLLebar;
@@ -4986,4 +5008,721 @@ function lihatDetTransRLLebar(noPerkiraan, masa, cabang) {
         esc(err.message) +
         "</div>";
     });
+}
+PANEL_MAP.inputHarianBU = renderInputHarianBU;
+//AFTER_RENDER.inputHarian = refreshInputHarian;
+
+// Global State untuk Tabel & Paginasi Input Harian BU
+var APP_SORT_STATE_BU = APP_SORT_STATE_BU || {
+  column: null,
+  direction: "asc",
+};
+var APP_PAGINATION_STATE_BU = APP_PAGINATION_STATE_BU || {
+  inputHarian: { current: 1, size: 10 },
+};
+var CACHE_INPUT_HARIAN_FILTERED_BU = CACHE_INPUT_HARIAN_FILTERED_BU || [];
+var FOOTER_INPUT_HARIAN_TOTAL_BU = FOOTER_INPUT_HARIAN_TOTAL_BU || [];
+
+// --- HELPER FUNCTIONS ---
+
+function calcDbCrTotalBU(r) {
+  var keyRef = r.noreff || "";
+  var indicator = keyRef.charAt(1).toLowerCase();
+  var rawAmount = num(r.total) || num(r.db || 0) || num(r.cr || 0);
+  var currentDb = 0,
+    currentCr = 0;
+
+  currentDb = num(r.db || 0);
+  currentCr = num(r.cr || 0);
+
+  return { db: currentDb, cr: currentCr, total: rawAmount };
+}
+
+function getSortComparatorBU(colIndex, direction) {
+  var dir = direction === "asc" ? 1 : -1;
+
+  return function (a, b) {
+    var valA, valB;
+    switch (colIndex) {
+      case 0:
+        valA = a.tanggal || "";
+        valB = b.tanggal || "";
+        return valA.localeCompare(valB) * dir;
+      case 1:
+        valA = a.noreff || "";
+        valB = b.noreff || "";
+        return valA.localeCompare(valB) * dir;
+      case 2:
+        valA = a.noper || a.noPerkiraan || "";
+        valB = b.noper || b.noPerkiraan || "";
+        return valA.localeCompare(valB) * dir;
+      case 3:
+        valA = a.penjelasan || a.keterangan || "";
+        valB = b.penjelasan || b.keterangan || "";
+        return valA.localeCompare(valB) * dir;
+      case 4:
+        valA = num(a.total) || num(a.db || 0) || num(a.cr || 0);
+        valB = num(b.total) || num(b.db || 0) || num(b.cr || 0);
+        return (valA - valB) * dir;
+      case 5:
+        valA = num(a.db || 0);
+        valB = num(b.db || 0);
+        return (valA - valB) * dir;
+      case 6:
+        valA = num(a.cr || 0);
+        valB = num(b.cr || 0);
+        return (valA - valB) * dir;
+      case 7:
+        valA = lookupCabangLabel(a.cabang) || "Pusat";
+        valB = lookupCabangLabel(b.cabang) || "Pusat";
+        return valA.localeCompare(valB) * dir;
+      default:
+        return 0;
+    }
+  };
+}
+
+function getInteractiveTableHeadersHtmlBU() {
+  var headers = [
+    "Tanggal",
+    "No Reff",
+    "No Perk",
+    "Penjelasan",
+    "Total",
+    "Debit",
+    "Kredit",
+    "Cabang",
+  ];
+
+  return headers
+    .map(function (title, idx) {
+      var isAsc =
+        APP_SORT_STATE_BU.column === idx &&
+        APP_SORT_STATE_BU.direction === "asc";
+      var icon =
+        APP_SORT_STATE_BU.column === idx
+          ? isAsc
+            ? ' <i class="fa-solid fa-arrow-up"></i>'
+            : ' <i class="fa-solid fa-arrow-down"></i>'
+          : ' <i class="fa-solid fa-sort" style="opacity:0.3;"></i>';
+
+      var align = [4, 5, 6].includes(idx)
+        ? "text-align:right;"
+        : "text-align:left;";
+
+      return `<th style="padding:10px 8px; border-bottom:2px solid var(--brd); cursor:pointer; user-select:none; ${align}" onclick="handleTableSortBU(${idx})">${title}${icon}</th>`;
+    })
+    .join("");
+}
+
+function handleTableSortBU(columnIndex) {
+  if (APP_SORT_STATE_BU.column === columnIndex) {
+    APP_SORT_STATE_BU.direction =
+      APP_SORT_STATE_BU.direction === "asc" ? "desc" : "asc";
+  } else {
+    APP_SORT_STATE_BU.column = columnIndex;
+    APP_SORT_STATE_BU.direction = [4, 5, 6].includes(columnIndex)
+      ? "desc"
+      : "asc";
+  }
+
+  if (CACHE_INPUT_HARIAN_FILTERED_BU.length > 0) {
+    CACHE_INPUT_HARIAN_FILTERED_BU.sort(
+      getSortComparatorBU(
+        APP_SORT_STATE_BU.column,
+        APP_SORT_STATE_BU.direction,
+      ),
+    );
+  }
+
+  refreshInputHarianBU(true);
+}
+
+function updateTableHeadersUIBU() {
+  var tblContainer = $("inputHarianTbl");
+  if (!tblContainer) return;
+  var trHead = tblContainer.querySelector("thead tr");
+  if (trHead) {
+    trHead.innerHTML = getInteractiveTableHeadersHtmlBU();
+  }
+}
+
+function formatTanggalBersih(rawDate) {
+  if (!rawDate) return "-";
+  var d = new Date(rawDate);
+  if (isNaN(d.getTime())) return rawDate;
+
+  var y = d.getFullYear();
+  var m = String(d.getMonth() + 1).padStart(2, "0");
+  var day = String(d.getDate()).padStart(2, "0");
+
+  return `${y}-${m}-${day}`;
+}
+
+function renderInputHarianBU() {
+  var d = new Date();
+  var year = d.getFullYear();
+  var month = String(d.getMonth() + 1).padStart(2, "0");
+  var today = year + "-" + month;
+
+  if (APP_PAGINATION_STATE_BU && APP_PAGINATION_STATE_BU.inputHarian) {
+    APP_PAGINATION_STATE_BU.inputHarian.current = 1;
+  }
+
+  CACHE_INPUT_HARIAN_FILTERED_BU = [];
+  FOOTER_INPUT_HARIAN_TOTAL_BU = [];
+
+  var activeGroupSession = localStorage.getItem("group") || "";
+
+  setTimeout(function () {
+    var tblContainer = $("inputHarianTbl");
+    if (tblContainer) {
+      tblContainer.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+        <thead><tr>${getInteractiveTableHeadersHtmlBU()}</tr></thead>
+        <tbody>
+          <tr><td colspan="8" style="padding:2.5rem; text-align:center; color:var(--text-muted, #777);">Silakan tentukan kriteria filter lalu klik tombol <b>Terapkan</b> untuk menampilkan data.</td></tr>
+        </tbody>
+      </table></div>`;
+    }
+  }, 50);
+
+  return `<div style="position: relative; margin-bottom: 8px;">
+ <div class="flt" style="display: flex; flex-direction: row; flex-wrap: wrap !important; gap: .6rem; align-items: flex-end; justify-content: flex-start; padding: .6rem; width: 100%;">
+       <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Periode</label>
+        <select id="fi_periode" onchange="if(APP_PAGINATION_STATE_BU?.inputHarian) APP_PAGINATION_STATE_BU.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+          <option value="bulan">Bulanan</option>
+          <option value="tahun">Tahunan</option>
+        </select>
+      </div>
+      
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Bulan/Tahun</label>
+        <input type="month" id="fi_bulan" value="${today}" onchange="if(APP_PAGINATION_STATE_BU?.inputHarian) APP_PAGINATION_STATE_BU.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+      </div>
+      
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Group</label>
+        <select id="fi_group" onchange="if(APP_PAGINATION_STATE_BU?.inputHarian) APP_PAGINATION_STATE_BU.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+          ${getGroupOpts(activeGroupSession)}
+        </select>
+      </div>
+
+      <div class="fg" style="display: flex; flex-direction: column; flex: 1 1 110px; min-width: 100px;">
+        <label style="font-size: .75rem; font-weight: bold; margin-bottom: .2rem; white-space: nowrap;">Cabang</label>
+        <select id="fi_cabang" onchange="if(APP_PAGINATION_STATE_BU?.inputHarian) APP_PAGINATION_STATE_BU.inputHarian.current = 1;" style="width: 100%; padding: .4rem; border-radius: 4px; border: 1px solid var(--brd); background: var(--bg2); color: inherit; height: 32px; font-size: .75rem;">
+          ${getCabangOpts("")}
+        </select>
+      </div>
+
+      <div class="fg" style="display: flex; flex-direction: row; gap: 6px; align-items: flex-end; flex: 0 0 auto;">
+        <button class="btn btn-b" style="background-color: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="refreshInputHarianBU(false)" title="Terapkan Filter">
+          <i class="fa-solid fa-filter"></i> Terapkan
+        </button>
+        
+        <button class="btn btn-s" style="background-color: #107c41 !important; color: #fff !important; border-color: #107c41 !important; padding: 0 .8rem; border-radius: 4px; font-size: .75rem; font-weight: bold; cursor: pointer; white-space: nowrap; height: 32px; display: flex; align-items: center; gap: 4px;" onclick="exportInputHarianBU()" title="Download Excel/CSV">
+          <i class="fa-solid fa-file-excel"></i> Export XLS
+        </button>
+      </div>
+    
+    </div>
+  
+  </div>
+  
+  <div id="inputHarianTbl"></div>
+  <div id="inputHarianPagination" style="margin-top:12px; display:flex; justify-content:center; align-items:center; gap:5px;"></div>`;
+}
+
+// ==========================================
+// 🛠️ FUNGSI YANG SUDAH DIPERBAIKI
+// ==========================================
+async function refreshInputHarianBU(isSwitchPage = false) {
+  // 👉 PERBAIKAN 1: Hanya cek elemen yang BENAR-BENAR ada di UI (fi_ktrans, fi_nilai, fi_gol dihapus)
+  if (!$("fi_periode") || !$("fi_cabang") || !$("fi_group")) return;
+
+  // 👉 PERBAIKAN 2: Deklarasikan variabel data di luar agar bisa dipakai saat render
+  var data = [];
+
+  if (isSwitchPage && CACHE_INPUT_HARIAN_FILTERED_BU.length > 0) {
+    // Lewati fetch server, gunakan cache yang sudah ada
+    data = CACHE_INPUT_HARIAN_FILTERED_BU;
+  } else {
+    var periode = $("fi_periode").value,
+      bln =
+        ($("fi_bulan") ? $("fi_bulan").value : "") ||
+        new Date().toISOString().slice(0, 7),
+      cab = $("fi_cabang").value || "",
+      ktrans = $("fi_ktrans") ? $("fi_ktrans").value : "", // 👉 Safe check jika elemen tidak ada
+      nilai = $("fi_nilai") ? num($("fi_nilai").value) : 0, // 👉 Safe check
+      gol = $("fi_gol") ? $("fi_gol").value : "", // 👉 Safe check
+      activeGroup = $("fi_group").value;
+
+    try {
+      var tahunSaja = bln ? bln.substring(0, 4) : new Date().getFullYear();
+      var tableName = `transaksi${tahunSaja}`;
+      var url = `/api/data/${tableName}?group=${encodeURIComponent(activeGroup)}&tahun=${tahunSaja}`;
+
+      console.log("🔍 Bulan (MM):", bln);
+      console.log("🔍 Tahun (YYYY):", tahunSaja);
+
+      if (cab && cab !== "undefined" && cab !== "Semua") {
+        url += `&cabang=${encodeURIComponent(cab)}`;
+      }
+      if (ktrans) {
+        url += `&search=${encodeURIComponent(ktrans)}`;
+      }
+
+      var response = await fetch(url);
+      if (!response.ok)
+        throw new Error(`Gagal mengambil data dari tabel ${tableName}`);
+
+      var rawServerData = await response.json();
+      // 👉 PERBAIKAN 3: Hilangkan "var" agar variabel data yang di-assign adalah yang di atas
+      data = Array.isArray(rawServerData) ? rawServerData : [];
+
+      if (periode === "bulan" && bln) {
+        data = data.filter((t) => {
+          if (!t.tanggal) return false;
+          var dObj = new Date(t.tanggal);
+          if (isNaN(dObj.getTime())) return false;
+
+          var y = dObj.getFullYear();
+          var m = String(dObj.getMonth() + 1).padStart(2, "0");
+          var tglFormatted = `${y}-${m}`;
+
+          return tglFormatted === bln;
+        });
+      } else if (periode === "tahun" && tahunSaja) {
+        data = data.filter((t) => {
+          if (!t.tanggal) return false;
+          var dObj = new Date(t.tanggal);
+          if (isNaN(dObj.getTime())) return false;
+
+          var y = dObj.getFullYear();
+          var m = String(dObj.getMonth() + 1).padStart(2, "0");
+          var tglFormatted = `${y}-${m}`;
+
+          return String(y) === String(tahunSaja) && tglFormatted <= bln;
+        });
+      }
+
+      if (nilai > 0) {
+        data = data.filter(
+          (t) => (num(t.total) || num(t.db || 0) || num(t.cr || 0)) >= nilai,
+        );
+      }
+
+      if (gol) {
+        data = data.filter((t) => {
+          var noPerk = t.noper || t.noPerkiraan || "";
+          return noPerk.trim().startsWith(gol);
+        });
+      }
+
+      if (APP_SORT_STATE_BU.column !== null) {
+        data.sort(
+          getSortComparatorBU(
+            APP_SORT_STATE_BU.column,
+            APP_SORT_STATE_BU.direction,
+          ),
+        );
+      } else {
+        data.sort(
+          (a, b) =>
+            (a.tanggal || "").localeCompare(b.tanggal || "") ||
+            (a.id || "").localeCompare(b.id || ""),
+        );
+      }
+
+      CACHE_INPUT_HARIAN_FILTERED_BU = data;
+
+      var sumTotal = 0,
+        sumDb = 0,
+        sumCr = 0;
+      data.forEach((r) => {
+        var res = calcDbCrTotalBU(r);
+        sumTotal += res.total;
+        sumDb += res.db;
+        sumCr += res.cr;
+      });
+
+      FOOTER_INPUT_HARIAN_TOTAL_BU = [
+        "",
+        "",
+        "",
+        "TOTAL NOMINAL",
+        fmtN(sumTotal),
+        fmtN(sumDb),
+        fmtN(sumCr),
+        "",
+      ];
+    } catch (err) {
+      console.error("🔥 Gagal memuat data input harian:", err.message);
+      var tblContainer = $("inputHarianTbl");
+      if (tblContainer)
+        tblContainer.innerHTML = `<div style="color:var(--accent); padding:2rem; text-align:center;">⚠️ Gagal memuat data: ${err.message}</div>`;
+      CACHE_INPUT_HARIAN_FILTERED_BU = [];
+      return;
+    }
+  }
+
+  // 👉 PERBAIKAN 4: Render Tabel sekarang akan selalu terpanggil baik saat fetch baru maupun pindah halaman (Next/Prev)
+  var tblContainer = $("inputHarianTbl");
+  if (tblContainer) {
+    const totalDataLength = CACHE_INPUT_HARIAN_FILTERED_BU.length;
+    const currentPage = APP_PAGINATION_STATE_BU?.inputHarian?.current || 1;
+    const pageSize = APP_PAGINATION_STATE_BU?.inputHarian?.size || 20;
+    const startIndex = (currentPage - 1) * pageSize;
+    const paginatedData = CACHE_INPUT_HARIAN_FILTERED_BU.slice(
+      startIndex,
+      startIndex + pageSize,
+    );
+
+    var rowsHtml =
+      paginatedData.length > 0
+        ? paginatedData
+            .map((r) => {
+              var res = calcDbCrTotalBU(r);
+              var acct = r.noper || r.noPerkiraan || "-";
+              var isiDesc = (r.penjelasan || r.keterangan || "-").substring(
+                0,
+                25,
+              );
+
+              var rowCells = [
+                esc(formatTanggalBersih(r.tanggal)),
+                esc(r.noreff || "-"),
+                esc(acct),
+                esc(isiDesc),
+                fmtN(res.total),
+                fmtN(res.db),
+                fmtN(res.cr),
+                esc(lookupCabangLabel(r.cabang) || "Pusat"),
+              ];
+
+              return (
+                `<tr>` +
+                rowCells
+                  .map((cell, cIdx) => {
+                    var align = [4, 5, 6].includes(cIdx)
+                      ? "text-align:right;"
+                      : "text-align:left;";
+                    return `<td style="padding:8px; border-bottom:1px solid var(--brd); ${align}">${cell}</td>`;
+                  })
+                  .join("") +
+                `</tr>`
+              );
+            })
+            .join("")
+        : `<tr><td colspan="8" style="padding:2.5rem; text-align:center; color:var(--text-muted, #777);">Tidak ada data.</td></tr>`;
+
+    var footerHtml = "";
+    if (FOOTER_INPUT_HARIAN_TOTAL_BU.length > 0 && paginatedData.length > 0) {
+      footerHtml =
+        `<tr style="font-weight:bold; background:var(--bg2);">` +
+        FOOTER_INPUT_HARIAN_TOTAL_BU.map((fVal, fIdx) => {
+          var align = [4, 5, 6].includes(fIdx)
+            ? "text-align:right;"
+            : "text-align:left;";
+          return `<td style="padding:8px; border-top:2px solid var(--brd); ${align}">${fVal}</td>`;
+        }).join("") +
+        `</tr>`;
+    }
+
+    tblContainer.innerHTML = `<div style="overflow-x:auto;"><table style="width:100%; border-collapse:collapse; font-size:0.8rem;">
+      <thead><tr>${getInteractiveTableHeadersHtmlBU()}</tr></thead>
+      <tbody>${rowsHtml}${footerHtml}</tbody>
+    </table></div>`;
+
+    updateTableHeadersUIBU();
+    updateTableHeadersUIBU();
+
+    // 👉 MESIN PAGINATION BUITAN (100% Terhubung ke State BU)
+    var pagContainer = $("inputHarianPagination");
+    if (pagContainer) {
+      var totalPages = Math.ceil(totalDataLength / pageSize) || 1;
+      var curr = currentPage;
+
+      var pagHtml = "";
+
+      // Tombol Prev
+      pagHtml += `<button onclick="goToPageBU(${curr - 1})" ${curr <= 1 ? "disabled" : ""} style="margin:0 2px; padding:4px 10px; border:1px solid var(--brd); background:var(--bg2); color:var(--fg); border-radius:4px; cursor:${curr <= 1 ? "not-allowed" : "pointer"}; opacity:${curr <= 1 ? "0.5" : "1"};">&laquo; Prev</button>`;
+
+      // Logika Penomoran Halaman
+      var startPage = Math.max(1, curr - 2);
+      var endPage = Math.min(totalPages, curr + 2);
+
+      if (startPage > 1) {
+        pagHtml += `<button onclick="goToPageBU(1)" style="margin:0 2px; padding:4px 10px; border:1px solid var(--brd); background:var(--bg2); color:var(--fg); border-radius:4px; cursor:pointer;">1</button>`;
+        if (startPage > 2)
+          pagHtml += `<span style="color:var(--muted);">...</span>`;
+      }
+
+      for (var i = startPage; i <= endPage; i++) {
+        if (i === curr) {
+          pagHtml += `<button disabled style="margin:0 2px; padding:4px 10px; border:1px solid var(--accent); background:var(--accent); color:#fff; border-radius:4px; font-weight:bold; cursor:default;">${i}</button>`;
+        } else {
+          pagHtml += `<button onclick="goToPageBU(${i})" style="margin:0 2px; padding:4px 10px; border:1px solid var(--brd); background:var(--bg2); color:var(--fg); border-radius:4px; cursor:pointer;">${i}</button>`;
+        }
+      }
+
+      if (endPage < totalPages) {
+        if (endPage < totalPages - 1)
+          pagHtml += `<span style="color:var(--muted);">...</span>`;
+        pagHtml += `<button onclick="goToPageBU(${totalPages})" style="margin:0 2px; padding:4px 10px; border:1px solid var(--brd); background:var(--bg2); color:var(--fg); border-radius:4px; cursor:pointer;">${totalPages}</button>`;
+      }
+
+      // Tombol Next
+      pagHtml += `<button onclick="goToPageBU(${curr + 1})" ${curr >= totalPages ? "disabled" : ""} style="margin:0 2px; padding:4px 10px; border:1px solid var(--brd); background:var(--bg2); color:var(--fg); border-radius:4px; cursor:${curr >= totalPages ? "not-allowed" : "pointer"}; opacity:${curr >= totalPages ? "0.5" : "1"};">Next &raquo;</button>`;
+
+      // Info Data
+      var showFrom = totalDataLength === 0 ? 0 : startIndex + 1;
+      var showTo = Math.min(startIndex + pageSize, totalDataLength);
+      pagHtml += `<span style="margin-left:10px; font-size:0.75rem; color:var(--muted);">Hal ${curr} dari ${totalPages} (Data: ${showFrom}-${showTo} dari ${totalDataLength})</span>`;
+
+      pagContainer.innerHTML = pagHtml;
+    }
+  }
+}
+
+// 👉 FUNGSI BRIDGE: Menghubungkan Tombol Pagination ke State BU
+function goToPageBU(page) {
+  var totalPages = Math.ceil(
+    CACHE_INPUT_HARIAN_FILTERED_BU.length /
+      (APP_PAGINATION_STATE_BU?.inputHarian?.size || 20),
+  );
+  if (page < 1 || page > totalPages) return;
+
+  APP_PAGINATION_STATE_BU.inputHarian.current = page;
+  refreshInputHarianBU(true); // Trigger render pakai cache
+}
+
+function exportInputHarianBU() {
+  var data = Array.isArray(CACHE_INPUT_HARIAN_FILTERED_BU)
+    ? CACHE_INPUT_HARIAN_FILTERED_BU
+    : [];
+
+  if (data.length === 0) {
+    return toast("Tidak ada data aktif di tabel untuk di-export!", "wrn");
+  }
+
+  var bln = $("fi_bulan") ? $("fi_bulan").value : "";
+  var cab = $("fi_cabang") ? $("fi_cabang").value : "Semua";
+  var grp = $("fi_group")
+    ? $("fi_group").value
+    : localStorage.getItem("group") || "TLGA";
+  var periodeVal = $("fi_periode") ? $("fi_periode").value : "bulan";
+
+  // 👉 AMBIL LABEL CABANG YANG MANIS (Misal: "Pusat", "Jakarta"), bukan kode raw
+  var cabangLabel =
+    cab === "Semua" || cab === "" || cab === "undefined"
+      ? "SEMUA CABANG"
+      : (lookupCabangLabel(cab) || cab).toUpperCase();
+
+  var periodeText = "";
+  if (periodeVal === "tahun" && bln) {
+    periodeText = "TAHUN " + bln.substring(0, 4);
+  } else if (bln) {
+    var bulanNama = [
+      "Januari",
+      "Februari",
+      "Maret",
+      "April",
+      "Mei",
+      "Juni",
+      "Juli",
+      "Agustus",
+      "September",
+      "Oktober",
+      "November",
+      "Desember",
+    ];
+    var b = parseInt(bln.split("-")[1], 10) - 1;
+    periodeText = bulanNama[b] + " " + bln.substring(0, 4);
+  } else {
+    periodeText = "Semua Periode";
+  }
+
+  var baseHeaders = [
+    "Tanggal",
+    "No Ref",
+    "No Acct",
+    "Desc",
+    "Total",
+    "DB",
+    "CR",
+    "Cabang",
+  ];
+
+  var dataXls = data.slice().sort(function (a, b) {
+    var cabA = lookupCabangLabel(a.cabang) || "Pusat";
+    var cabB = lookupCabangLabel(b.cabang) || "Pusat";
+    var cmpCab = cabA.localeCompare(cabB);
+    if (cmpCab !== 0) return cmpCab;
+
+    var nopA = a.noper || a.noPerkiraan || "";
+    var nopB = b.noper || b.noPerkiraan || "";
+    return nopA.localeCompare(nopB);
+  });
+
+  var xmlRows = "";
+  var grandTotal = 0,
+    grandDb = 0,
+    grandCr = 0;
+  var currentCabang = null;
+  var subTotal = 0,
+    subDb = 0,
+    subCr = 0;
+
+  dataXls.forEach(function (r) {
+    var res = calcDbCrTotalBU(r);
+
+    var tglClean = formatTanggalBersih(r.tanggal);
+    var labelCabang = lookupCabangLabel(r.cabang) || "Pusat";
+    var acct = r.noper || r.noPerkiraan || "-";
+    var cleanDesc = (r.penjelasan || r.keterangan || "-")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    if (currentCabang !== null && currentCabang !== labelCabang) {
+      xmlRows += `<Row>
+        <Cell ss:MergeAcross="3" ss:StyleID="sSubTotal"><Data ss:Type="String">SUB TOTAL CABANG: ${currentCabang}</Data></Cell>
+        <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subTotal}</Data></Cell>
+        <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subDb}</Data></Cell>
+        <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subCr}</Data></Cell>
+        <Cell ss:StyleID="sSubTotal"><Data ss:Type="String"></Data></Cell>
+      </Row>`;
+      subTotal = 0;
+      subDb = 0;
+      subCr = 0;
+    }
+
+    xmlRows += `<Row>
+      <Cell><Data ss:Type="String">${tglClean || "-"}</Data></Cell>
+      <Cell><Data ss:Type="String">${r.noreff || "-"}</Data></Cell>
+      <Cell ss:StyleID="sText"><Data ss:Type="String">${acct}</Data></Cell>
+      <Cell><Data ss:Type="String">${cleanDesc}</Data></Cell>
+      <Cell ss:StyleID="sNumRight"><Data ss:Type="Number">${res.total}</Data></Cell>
+      <Cell ss:StyleID="sNumRight"><Data ss:Type="Number">${res.db}</Data></Cell>
+      <Cell ss:StyleID="sNumRight"><Data ss:Type="Number">${res.cr}</Data></Cell>
+      <Cell><Data ss:Type="String">${labelCabang}</Data></Cell>
+    </Row>`;
+
+    subTotal += res.total;
+    subDb += res.db;
+    subCr += res.cr;
+    grandTotal += res.total;
+    grandDb += res.db;
+    grandCr += res.cr;
+    currentCabang = labelCabang;
+  });
+
+  if (currentCabang !== null) {
+    xmlRows += `<Row>
+      <Cell ss:MergeAcross="3" ss:StyleID="sSubTotal"><Data ss:Type="String">SUB TOTAL CABANG: ${currentCabang}</Data></Cell>
+      <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subTotal}</Data></Cell>
+      <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subDb}</Data></Cell>
+      <Cell ss:StyleID="sSubTotalNum"><Data ss:Type="Number">${subCr}</Data></Cell>
+      <Cell ss:StyleID="sSubTotal"><Data ss:Type="String"></Data></Cell>
+    </Row>`;
+  }
+
+  var xmlContent = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Styles>
+  <Style ss:ID="sTitle">
+   <Font ss:Size="13" ss:Bold="1"/>
+   <Alignment ss:Horizontal="Left" ss:Vertical="Center"/>
+  </Style>
+  
+  <Style ss:ID="sHeader">
+   <Font ss:Bold="1" ss:Color="#FFFFFF" ss:Size="11"/>
+   <Interior ss:Color="#107C41" ss:Pattern="Solid"/>
+   <Alignment ss:Horizontal="Center" ss:Vertical="Center"/>
+   <Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/></Borders>
+  </Style>
+
+  <Style ss:ID="sSubTotal">
+   <Font ss:Bold="1"/>
+   <Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Center" ss:Horizontal="Left"/>
+   <Borders>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="sSubTotalNum">
+   <Font ss:Bold="1"/>
+   <Interior ss:Color="#FFF2CC" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Center" ss:Horizontal="Right"/>
+   <Borders>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1"/>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1"/>
+   </Borders>
+  </Style>
+
+  <Style ss:ID="sTotal">
+   <Font ss:Bold="1" ss:Size="11"/>
+   <Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Center" ss:Horizontal="Left"/>
+   <Borders>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2"/>
+   </Borders>
+  </Style>
+  <Style ss:ID="sTotalNum">
+   <Font ss:Bold="1" ss:Size="11"/>
+   <Interior ss:Color="#D9D9D9" ss:Pattern="Solid"/>
+   <Alignment ss:Vertical="Center" ss:Horizontal="Right"/>
+   <Borders>
+    <Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="2"/>
+    <Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2"/>
+   </Borders>
+  </Style>
+
+  <Style ss:ID="sText"><NumberFormat ss:Format="@"/></Style>
+  <Style ss:ID="sNumRight"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/></Style>
+ </Styles>
+ <Worksheet ss:Name="Laporan Input Harian">
+  <Table ss:DefaultColumnWidth="100" ss:DefaultRowHeight="20">
+   
+   <Row ss:Height="30">
+    <Cell ss:StyleID="sTitle"><Data ss:Type="String">LAPORAN INPUT HARIAN ${cabangLabel} PERIODE ${periodeText}</Data></Cell>
+   </Row>
+   <Row ss:Height="10"><Cell></Cell></Row>
+   
+   <Row>
+    ${baseHeaders.map((h) => `<Cell ss:StyleID="sHeader"><Data ss:Type="String">${h}</Data></Cell>`).join("")}
+   </Row>
+   
+   ${xmlRows}
+   
+   <Row ss:Height="10"><Cell></Cell></Row>
+   <Row>
+    <Cell ss:MergeAcross="3" ss:StyleID="sTotal"><Data ss:Type="String">GRAND TOTAL</Data></Cell>
+    <Cell ss:StyleID="sTotalNum"><Data ss:Type="Number">${grandTotal}</Data></Cell>
+    <Cell ss:StyleID="sTotalNum"><Data ss:Type="Number">${grandDb}</Data></Cell>
+    <Cell ss:StyleID="sTotalNum"><Data ss:Type="Number">${grandCr}</Data></Cell>
+    <Cell ss:StyleID="sTotal"><Data ss:Type="String"></Data></Cell>
+   </Row>
+  </Table>
+ </Worksheet>
+</Workbook>`;
+
+  var blob = new Blob([xmlContent], {
+    type: "application/vnd.ms-excel;charset=utf-8;",
+  });
+  var link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download =
+    "Laporan_Input_Harian_" + grp + "_" + cab + "_" + bln + ".xls";
+
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+
+  if (typeof toast === "function")
+    toast("Laporan input harian berhasil diunduh.", "ok");
 }
