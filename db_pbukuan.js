@@ -23,10 +23,8 @@ class PembukuanDB {
         cols: [{ name: "noreff", unique: false }],
       },
       { name: "users", cols: [] },
-      { name: "formatRL", cols: [] },
-      { name: "formatNeraca", cols: [] },
-      { name: "postedMonths", cols: [] },
-      { name: "kodeBank", cols: [] },
+
+      { name: "kodebank", cols: [] },
       { name: "cabang", cols: [] },
       { name: "detiltransaksi", cols: [] },
       { name: "groupproject", cols: [] },
@@ -38,6 +36,7 @@ class PembukuanDB {
       { name: "saldokasirawal", cols: [] },
       { name: "saldo_harian", cols: [] },
       { name: "datasales", cols: [] },
+      { name: "daftarmenu", cols: [] },
 
       // 🌟 FLAG BARU: Berikan penanda isListReff agar sistem membedakan skema tabelnya
       { name: "listreffkasir", cols: [], isListReff: true },
@@ -473,6 +472,7 @@ class PembukuanDB {
   // ✅ KODE BARU (Bisa menerima 1 atau 2 parameter)
   _getAllBrowser(s, cabangParam) {
     // ✅ TAMBAHKAN 3 BARIS INI UNTUK MENGHENTIKAN ERROR 400
+
     if (s === "saldokasirawal") {
       return Promise.resolve([]);
     }
@@ -528,6 +528,20 @@ class PembukuanDB {
   }
 
   _clearBrowser(s) {
+    // 🛡️ PERBAIKAN TOTAL:
+    // Transaksi & Mutasi Kasir sekarang ditangani fisik oleh backend lewat API /api/clear-all-data.
+    // Jangan gunakan API /api/batch/ untuk clear tabel ini, karena akan terjadi konflik kolom 'data'.
+    if (s === "transaksi" || s === "mutasikasir") {
+      console.log(
+        `ℹ️ Skip server sync untuk ${s}. Dikelola langsung oleh clear-all-data.`,
+      );
+      return Promise.resolve({
+        success: true,
+        message: "Cleared locally only",
+      });
+    }
+
+    // Untuk tabel lainnya, lakukan clear ke server seperti biasa
     return fetch(API_BASE_URL + "/api/data/" + s, { method: "DELETE" });
   }
 
@@ -562,15 +576,6 @@ class PembukuanDB {
     // 2. Siapkan data cache cabang untuk pencarian fallback otomatis
     var listCabang = (typeof DBCache !== "undefined" && DBCache.cabang) || [];
 
-    // 🔍 DEBUG FRONTEND
-    console.log("=== DEBUG FRONTEND (SMART DETECT) ===");
-    console.log("Nama Store:", storeName);
-    console.log(
-      "Nilai Group dari Filter Halaman:",
-      groupFilterValue || "(Kosong/Semua Group)",
-    );
-    console.log("Jumlah dataArray asli:", dataArray.length);
-
     // Sisipkan groupValue ke setiap item secara dinamis
     const dataDenganGroup = dataArray.map(function (item) {
       let finalGroup = item.group || groupFilterValue;
@@ -594,14 +599,6 @@ class PembukuanDB {
         group: finalGroup || "", // Berikan string kosong jika benar-benar tidak ketemu
       });
     });
-
-    if (dataDenganGroup.length > 0) {
-      console.log(
-        "Contoh data pertama setelah SMART DETECT:",
-        dataDenganGroup[0],
-      );
-    }
-    console.log("======================================");
 
     return fetch(API_BASE_URL + "/api/batch/" + storeName, {
       method: "POST",
